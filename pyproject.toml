@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ecos"
+version = "0.1.0"
+description = "Educational Cognitive Operating System - 面向 K12 学生的下一代教育认知操作系统"
+readme = "README.md"
+license = {file = "LICENSE"}
+requires-python = ">=3.11"
+authors = [
+    {name = "Bisen", email = "cnbison@example.com"},
+]
+keywords = [
+    "education",
+    "cognitive-architecture",
+    "k12",
+    "ai-tutor",
+    "student-modeling",
+    "bloom-taxonomy",
+    "dual-agent",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Education",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    # 当前为占位，未来 Phase 4+ 实施时添加
+    # "pydantic>=2.0",
+    # "numpy>=1.24",
+    # "openai>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "black>=23.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/cnbison/ecos"
+"Bug Tracker" = "https://github.com/cnbison/ecos/issues"
+"Sibling Project" = "https://github.com/cnbison/SelfLab"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ecos*"]
+exclude = ["experiments*", "research*", "tests*"]
