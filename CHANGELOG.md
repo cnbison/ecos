@@ -20,7 +20,8 @@
 | 0.3.0 | 2026-06-24 | c13e913 | **P0 第 1 份借鉴文档**：research/30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md（v1.0，451 行，CTA 数学基础：L0 POMDP/HMM + L1 BKT/DKT + L2 MIRT + L3 CD-CAT + L4 Causal Inference 5 层数学栈；填补 v2.0 §3.3 "只提名字"gap；含与 LLM 关系 + 与 LCA 接口 + MVP 实施路线）+ discussions/2026-06-24-ecos-cta-math-foundations.md（会话记录）|
 | 0.4.0 | 2026-06-24 | ea8d72a | **P0 第 2 份借鉴文档**：research/30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md（v1.0，420 行，LCA 教学法基础：Cognitive Load Theory + Bjork 四件套 + Cognitive Apprenticeship；填补 v2.0 §3.4 "有策略列表无理论论证"gap；含 5 类干预 × 教学法对应表 + 与 POMDP 决策接口 + 与 CTA 因果归因闭环 + 与竞品差异表）+ discussions/2026-06-24-ecos-lca-instructional-foundations.md（会话记录）|
 | 0.5.0 | 2026-06-24 | eff50d9 | **P0 第 3 份借鉴文档**：research/30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md（v1.0，414 行，C 维度内容库：Threshold Concepts + Misconceptions Research 双轨内容库；填补 v2.0 §3.3 "C 维度是抽象置信度"gap；含 liminal 状态识别 + 与 Q 矩阵集成 + 与 LCA 教学法整合 + MVP 候选 8 个 TC + 10 个 misconception）+ **P0 三件套完成**（CTA 数学基础 + LCA 教学法基础 + C 维度内容库）+ discussions/2026-06-24-ecos-c-dim-content-libraries.md（会话记录）|
-| 0.6.0 | 2026-06-24 | (本次) | **理论借鉴路线图 SSOT**：research/30-shared-cognitive-tools/theoretical-foundations/README.md（v1.0，子目录 SSOT：P0 已完 3 份 + P1 待写 9 候选 + P2 待写 6 候选 + 借鉴档位判断标准 + 不吸收护栏 7 类）+ 更新 research/README.md（SSOT 入口加 theoretical-foundations/ 引用与 P0/P1/P2 摘要）|
+| 0.6.0 | 2026-06-24 | 1e2ab64 | **理论借鉴路线图 SSOT**：research/30-shared-cognitive-tools/theoretical-foundations/README.md（v1.0，子目录 SSOT：P0 已完 3 份 + P1 待写 9 候选 + P2 待写 6 候选 + 借鉴档位判断标准 + 不吸收护栏 7 类）+ 更新 research/README.md（SSOT 入口加 theoretical-foundations/ 引用与 P0/P1/P2 摘要）|
+| 0.7.0 | 2026-06-25 | (本次) | **战略层第 2 份文档**：research/00-overview/02-architecture.md（v1.0，703 行，11 章节，整体架构——整合 P0 三件套到 ECOS 架构总图：三层视角 ASCII 图 + 三空间架构 + 双 Agent 详细架构 + 完整数据流 + 状态估计工程实现 + 干预策略工程实现 + 双 Agent 互校机制 + 持久化 + MVP 架构范围 + 与 v2.0 §3 关系表）+ discussions/2026-06-25-ecos-architecture-doc.md（会话记录）|
 
 ---
 
@@ -430,3 +431,66 @@ Bisen 指出此风险后立即补救：本版本建立 `theoretical-foundations/
 | P1 | MVP 设计（90-mvp/）| `research/90-mvp/` |
 | P2 | `ecos/` Python 包实现 | `ecos/` |
 | 按需 | 理论借鉴 P1（工程实施遇 gap 时）| `theoretical-foundations/` |
+
+---
+
+## [0.7.0] - 2026-06-25 (战略层第 2 份文档：整体架构)
+
+### 背景
+
+战略层依赖链（01-applications.md → 02-architecture.md → 03-roadmap.md → 04-risks.md）的第 2 份。v2.0 §3 已给出 ECOS 架构骨架（Bloom Goal Space → LCA → CTA → Student），但**没有把 P0 三件套（CTA 数学基础 + LCA 教学法基础 + C 维度内容库）整合到工程实现层**。
+
+本次完成架构文档，把 P0 三件套嵌入架构总图，明确每个组件的工程实现细节。
+
+### 新增
+
+- **`research/00-overview/02-architecture.md`**（v1.0，703 行，11 章节）
+  - **§0 架构定位**：与 v2.0 §3 的关系——"补充 + 细化（不冲突）"
+  - **§1 核心架构总图**（P0 三件套整合）：三层视角 ASCII 图（顶层三空间 + 中层双 Agent + 底层内容库）+ 4 大架构原则（数学层不用 LLM、LLM Critic 边界、双 Agent 解耦、内容库与算法解耦）
+  - **§2 三空间架构**：State Space（5D + BloomProfile + LearningDNA + Trajectory 完整结构）+ Bloom Goal Space（6 层 K12 数学例子）+ Policy Space（5 类干预 × 4 参数 + Bloom 层选择）
+  - **§3 双 Agent 详细架构**：CTA 5 层数学栈 + LCA 2 层教学法栈 + 双 Agent 互校机制（互校循环伪代码 + 3 个对抗幻觉机制 + 4 个交互模式）
+  - **§4 完整数据流**：7 步端到端伪代码 + 时序图
+  - **§5 状态估计工程实现**：CTA 5 层数学栈的工程映射（开源依赖）+ Q 矩阵扩展（CD-CAT 集成）+ C 维度评估的具体流程（v0.5.0 整合）+ LLM Critic 的精确边界
+  - **§6 干预策略工程实现**：LCA L3-L4 教学法栈的工程映射 + 干预参数化空间 + L4 策略优化（Contextual Bandits MVP / POMCP Phase 5+）
+  - **§7 持久化与长期会话管理**：学生状态 SQL 结构 + 干预历史 + 证据日志 + 跨会话状态继承 + 跨学期/学段画像演化（Phase 5+）
+  - **§8 MVP 架构**：Phase 4 实现范围表（MVP 包含/不包含组件）+ 简化数据流
+  - **§9 与 v2.0 §3 关系**：10 维度对照表（v2.0 提供什么、本文档补充什么）
+  - **§10 关联文档** + **§11 版本与维护**
+- **`discussions/2026-06-25-ecos-architecture-doc.md`**（本次会话记录）
+
+### 关键架构决策
+
+| 决策项 | 选择 | 理由 |
+|---|---|---|
+| **数学层不用 LLM**（沿用）| ❌ 否（硬底线）| v0.3.0 + v0.4.0 + v0.5.0 已确立 |
+| **LLM Critic 边界** | 仅感知层 + 解释层 + Misconception 检测 | 不污染数学层 |
+| **双 Agent 接口** | POMDP `(S, A, O, T, R, Ω)` | v0.3.0 已确立 |
+| **MVP 策略优化** | Contextual Bandits (LinUCB) | POMCP 太重，MVP 用轻量级 RL |
+| **持久化** | SQLite + JSON 序列化（MVP）| 工程简单可调试 |
+| **跨学期/学段** | Phase 5+（MVP 仅学期内）| 与 01-applications.md §7 MVP 范围一致 |
+
+### 与 v2.0 §3 的关系（10 维度对照）
+
+| 维度 | v2.0 提供 | 本文档补充 |
+|---|---|---|
+| 三空间架构骨架 | ✅ 完整 | 不重复 |
+| CTA 思维模式 | ✅ 心理测量学家 | L0-L4 数学栈工程映射 |
+| LCA 思维模式 | ✅ 教练 + RL | L3-L4 教学法栈工程映射 |
+| BloomProfile | ✅ 6 层分布 | 不重复 |
+| 互校机制 | ✅ 核心循环 + 3 机制 + 4 模式 | 互校 + L4 因果归因整合 |
+| 完整数据流 | ✅ 伪代码骨架 | 工程细节 + 开源依赖 |
+| 状态估计工程 | ⚠️ 只提名字 | L0-L4 完整工程映射 |
+| 干预策略工程 | ⚠️ 有列表无理论 | L3-L4 教学法栈 |
+| C 维度内容库 | ⚠️ 抽象置信度 | TC + Misconceptions 双轨 |
+| 持久化 | ✅ 基本表结构 | 跨会话 + 跨学期边界 |
+
+### 下一步
+
+| 优先级 | 任务 | 详见 |
+|---|---|---|
+| **P0** | 战略层 03-roadmap.md（阶段划分）| `research/00-overview/` |
+| **P0** | 战略层 04-risks.md（风险矩阵）| `research/00-overview/` |
+| P1 | 工程层 5 份（10-engineering/）| `research/10-engineering/` |
+| P1 | 教学法层 4 份（20-pedagogy/）| `research/20-pedagogy/` |
+| P1 | MVP 设计（90-mvp/）| `research/90-mvp/` |
+| P2 | `ecos/` Python 包实现 | `ecos/` |
