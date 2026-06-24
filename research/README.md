@@ -39,7 +39,12 @@ research/
 │   ├── 03-learning-strategies.md
 │   └── 04-zpd-application.md
 ├── 30-shared-cognitive-tools/               # 共享工具箱（与 SelfLab 共享）
-│   └── shared-cognitive-science-toolbox.md
+│   ├── shared-cognitive-science-toolbox.md
+│   └── theoretical-foundations/             # ECOS 独有理论借鉴（SSOT: README.md）
+│       ├── README.md                        # P0/P1/P2 借鉴路线图
+│       ├── 01-cta-mathematical-foundations.md  # P0：CTA 5 层数学栈
+│       ├── 02-lca-instructional-foundations.md # P0：LCA 3 大理论群
+│       └── 03-c-dimension-content-libraries.md # P0：C 维度双轨内容库
 ├── 40-aibeing-borrowing/                    # AiBeing 借鉴
 │   ├── 01-concept-borrowing.md
 │   └── 02-application-layer-borrowing.md
@@ -79,7 +84,13 @@ research/
 6. **共享工具箱** — `30-shared-cognitive-tools/shared-cognitive-science-toolbox.md`
    - 7 个认知科学工具（贝叶斯、记忆分层、预测加工、双系统、BDI、元认知、经典架构）
 
-7. **AiBeing 借鉴** — `40-aibeing-borrowing/01-02.md`
+7. **理论借鉴（ECOS 独有）** — `30-shared-cognitive-tools/theoretical-foundations/README.md`
+   - **P0（全部完成）**：CTA 数学基础 + LCA 教学法基础 + C 维度内容库
+   - **P1（待写）**：Self-Regulated Learning / Schema Theory / Working Memory / Ontology / Mastery Learning / AfL / DINA 算法 / Contextual Bandits / Cognitive Apprenticeship 深化
+   - **P2（待写）**：Piaget / Transfer / EDM / Knowledge Space / Enactivism / 东方哲学
+   - 完整路线图见该 README
+
+8. **AiBeing 借鉴** — `40-aibeing-borrowing/01-02.md`
    - 概念层借鉴 + 应用层借鉴
 
 ## 关键洞察摘要（来自 v2.0 深度研究）

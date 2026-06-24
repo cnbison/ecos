@@ -19,7 +19,8 @@
 | 0.2.0 | 2026-06-24 | 954e6ab | **战略层第 1 份文档**：research/00-overview/01-applications.md（v1.0，10 章节：起点/定位/用户三角/4 大核心场景/跨场景能力/不做清单/MVP 范围/差异化总图/关联/版本；明确学科诊断 + 自适应干预 + 长期成长轨迹 + 教师家长协作 4 大场景；7 项跨场景核心能力清单；9 项不做边界护栏；MVP 场景对应表）+ research/MIGRATION-FROM-SELFLAB.md（项目元文档）+ discussions/2026-06-24-ecos-migration-overview.md + discussions/2026-06-24-ecos-applications-doc.md（会话记录）|
 | 0.3.0 | 2026-06-24 | c13e913 | **P0 第 1 份借鉴文档**：research/30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md（v1.0，451 行，CTA 数学基础：L0 POMDP/HMM + L1 BKT/DKT + L2 MIRT + L3 CD-CAT + L4 Causal Inference 5 层数学栈；填补 v2.0 §3.3 "只提名字"gap；含与 LLM 关系 + 与 LCA 接口 + MVP 实施路线）+ discussions/2026-06-24-ecos-cta-math-foundations.md（会话记录）|
 | 0.4.0 | 2026-06-24 | ea8d72a | **P0 第 2 份借鉴文档**：research/30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md（v1.0，420 行，LCA 教学法基础：Cognitive Load Theory + Bjork 四件套 + Cognitive Apprenticeship；填补 v2.0 §3.4 "有策略列表无理论论证"gap；含 5 类干预 × 教学法对应表 + 与 POMDP 决策接口 + 与 CTA 因果归因闭环 + 与竞品差异表）+ discussions/2026-06-24-ecos-lca-instructional-foundations.md（会话记录）|
-| 0.5.0 | 2026-06-24 | (本次) | **P0 第 3 份借鉴文档**：research/30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md（v1.0，414 行，C 维度内容库：Threshold Concepts + Misconceptions Research 双轨内容库；填补 v2.0 §3.3 "C 维度是抽象置信度"gap；含 liminal 状态识别 + 与 Q 矩阵集成 + 与 LCA 教学法整合 + MVP 候选 8 个 TC + 10 个 misconception）+ **P0 三件套完成**（CTA 数学基础 + LCA 教学法基础 + C 维度内容库）+ discussions/2026-06-24-ecos-c-dim-content-libraries.md（会话记录）|
+| 0.5.0 | 2026-06-24 | eff50d9 | **P0 第 3 份借鉴文档**：research/30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md（v1.0，414 行，C 维度内容库：Threshold Concepts + Misconceptions Research 双轨内容库；填补 v2.0 §3.3 "C 维度是抽象置信度"gap；含 liminal 状态识别 + 与 Q 矩阵集成 + 与 LCA 教学法整合 + MVP 候选 8 个 TC + 10 个 misconception）+ **P0 三件套完成**（CTA 数学基础 + LCA 教学法基础 + C 维度内容库）+ discussions/2026-06-24-ecos-c-dim-content-libraries.md（会话记录）|
+| 0.6.0 | 2026-06-24 | (本次) | **理论借鉴路线图 SSOT**：research/30-shared-cognitive-tools/theoretical-foundations/README.md（v1.0，子目录 SSOT：P0 已完 3 份 + P1 待写 9 候选 + P2 待写 6 候选 + 借鉴档位判断标准 + 不吸收护栏 7 类）+ 更新 research/README.md（SSOT 入口加 theoretical-foundations/ 引用与 P0/P1/P2 摘要）|
 
 ---
 
@@ -360,3 +361,72 @@ P0 借鉴全部完成（v0.3.0 + v0.4.0 + v0.5.0）
 | P1 | 教学法层 4 份文档（20-pedagogy/）| `research/20-pedagogy/` |
 | P1 | MVP 设计（90-mvp/）| `research/90-mvp/` |
 | P2 | `ecos/` Python 包实现 | `ecos/` |
+
+---
+
+## [0.6.0] - 2026-06-24 (理论借鉴路线图 SSOT)
+
+### 背景
+
+P0 三件套（v0.3.0 + v0.4.0 + v0.5.0）全部完成后，发现对话中口头列出的 P1（9 个候选）+ P2（6 个候选）理论借鉴清单**没有持久化到任何文档**——这意味着未来会话切换后清单可能丢失。
+
+Bisen 指出此风险后立即补救：本版本建立 `theoretical-foundations/` 子目录的 SSOT（README.md），明确记录 P0（已完）+ P1（待写）+ P2（待写）的完整借鉴路线图。
+
+### 新增
+
+- **`research/30-shared-cognitive-tools/theoretical-foundations/README.md`**（v1.0，新子目录 SSOT）
+  - **P0（全部完成，3 份）**：CTA 数学基础 + LCA 教学法基础 + C 维度内容库
+  - **P1（待写，9 个候选）**：
+    1. Self-Regulated Learning (Zimmerman)
+    2. Schema Theory (Bartlett/Rumelhart)
+    3. Working Memory Model (Baddeley)
+    4. Conceptual Graphs + Ontology Engineering
+    5. Mastery Learning (Bloom, 1968)
+    6. Assessment for Learning (Black & Wiliam)
+    7. DINA / DINO / Rule Space / Fusion Model
+    8. Contextual Bandits
+    9. Cognitive Apprenticeship 完整版（深化 v0.4.0）
+  - **P2（待写，6 个候选）**：
+    1. Piaget 认知发展阶段论
+    2. Transfer of Learning
+    3. EDM / Learning Analytics
+    4. Knowledge Space Theory
+    5. Enactivism / 自生理论
+    6. 东方教育哲学（孔子 / 王阳明 / 佐藤学）
+  - **借鉴档位判断标准**：P0/P1/P2 的判定逻辑
+  - **不吸收护栏**：7 类明确不吸收的理论（避免方向漂移）
+  - **借鉴路线图**：P1/P2 不是按编号顺序写，而是**工程层实施过程中遇到具体 gap 时按需写**
+- **更新 `research/README.md`**（SSOT 入口）：添加 `theoretical-foundations/` 子目录引用 + P0/P1/P2 借鉴清单摘要
+
+### 关键决策
+
+| 决策项 | 选择 | 理由 |
+|---|---|---|
+| **借鉴路线图存放位置** | `theoretical-foundations/README.md`（子目录 SSOT） | 与 [shared-cognitive-science-toolbox.md](../research/30-shared-cognitive-tools/shared-cognitive-science-toolbox.md)（共享工具箱）平级 |
+| **P1/P2 借鉴触发条件** | 工程层实施中遇到具体 gap 时按需写 | 避免凭空写"为了完整性"的文档 |
+| **新增理论评估流程** | 先在 README 评估档位，再决定是否写 | 避免"P0 应该吸收但被忽略"的盲点 |
+| **P0 借鉴保持现状** | v0.3.0 + v0.4.0 + v0.5.0 全部完成，无需修订 | 已通过用户审查 |
+
+### 不吸收护栏（明确列出）
+
+避免 ECOS 偏离"科学化认知估计"方向：
+- ❌ 深度现象学 / 金观涛真实性哲学
+- ❌ 神经科学细节（fMRI/EEG）
+- ❌ 婴幼儿认知发展
+- ❌ 特殊教育专项（ADHD/自闭症）
+- ❌ Embodied Cognition 完整理论
+- ❌ 多 Agent 教学系统完整体系
+- ❌ 行为主义学习理论
+
+### 下一步
+
+| 优先级 | 任务 | 详见 |
+|---|---|---|
+| **P0** | 战略层 02-architecture.md（整体架构——整合 P0 三件套到架构）| `research/00-overview/` |
+| **P0** | 战略层 03-roadmap.md（阶段划分）| `research/00-overview/` |
+| **P0** | 战略层 04-risks.md（风险矩阵）| `research/00-overview/` |
+| P1 | 工程层 5 份（10-engineering/）| `research/10-engineering/` |
+| P1 | 教学法层 4 份（20-pedagogy/）| `research/20-pedagogy/` |
+| P1 | MVP 设计（90-mvp/）| `research/90-mvp/` |
+| P2 | `ecos/` Python 包实现 | `ecos/` |
+| 按需 | 理论借鉴 P1（工程实施遇 gap 时）| `theoretical-foundations/` |
