@@ -21,7 +21,8 @@
 | 0.4.0 | 2026-06-24 | ea8d72a | **P0 第 2 份借鉴文档**：research/30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md（v1.0，420 行，LCA 教学法基础：Cognitive Load Theory + Bjork 四件套 + Cognitive Apprenticeship；填补 v2.0 §3.4 "有策略列表无理论论证"gap；含 5 类干预 × 教学法对应表 + 与 POMDP 决策接口 + 与 CTA 因果归因闭环 + 与竞品差异表）+ discussions/2026-06-24-ecos-lca-instructional-foundations.md（会话记录）|
 | 0.5.0 | 2026-06-24 | eff50d9 | **P0 第 3 份借鉴文档**：research/30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md（v1.0，414 行，C 维度内容库：Threshold Concepts + Misconceptions Research 双轨内容库；填补 v2.0 §3.3 "C 维度是抽象置信度"gap；含 liminal 状态识别 + 与 Q 矩阵集成 + 与 LCA 教学法整合 + MVP 候选 8 个 TC + 10 个 misconception）+ **P0 三件套完成**（CTA 数学基础 + LCA 教学法基础 + C 维度内容库）+ discussions/2026-06-24-ecos-c-dim-content-libraries.md（会话记录）|
 | 0.6.0 | 2026-06-24 | 1e2ab64 | **理论借鉴路线图 SSOT**：research/30-shared-cognitive-tools/theoretical-foundations/README.md（v1.0，子目录 SSOT：P0 已完 3 份 + P1 待写 9 候选 + P2 待写 6 候选 + 借鉴档位判断标准 + 不吸收护栏 7 类）+ 更新 research/README.md（SSOT 入口加 theoretical-foundations/ 引用与 P0/P1/P2 摘要）|
-| 0.7.0 | 2026-06-25 | (本次) | **战略层第 2 份文档**：research/00-overview/02-architecture.md（v1.0，703 行，11 章节，整体架构——整合 P0 三件套到 ECOS 架构总图：三层视角 ASCII 图 + 三空间架构 + 双 Agent 详细架构 + 完整数据流 + 状态估计工程实现 + 干预策略工程实现 + 双 Agent 互校机制 + 持久化 + MVP 架构范围 + 与 v2.0 §3 关系表）+ discussions/2026-06-25-ecos-architecture-doc.md（会话记录）|
+| 0.7.0 | 2026-06-25 | 604d048 | **战略层第 2 份文档**：research/00-overview/02-architecture.md（v1.0，703 行，11 章节，整体架构——整合 P0 三件套到 ECOS 架构总图：三层视角 ASCII 图 + 三空间架构 + 双 Agent 详细架构 + 完整数据流 + 状态估计工程实现 + 干预策略工程实现 + 双 Agent 互校机制 + 持久化 + MVP 架构范围 + 与 v2.0 §3 关系表）+ discussions/2026-06-25-ecos-architecture-doc.md（会话记录）|
+| 0.8.0 | 2026-06-25 | (本次) | **战略层第 3 份文档**：research/00-overview/03-roadmap.md（v1.0，407 行，10 章节，路线图——基于架构定义 M0-M7 共 8 个里程碑；M2-M3 MVP 验证 + M4-M5 产品化 + M6-M7 系统完善；H1-H7 共 7 个核心假设；**批判性修正**：MVP 时间从 v2.0 的 2-4 周修正为 4-8 周；明确"失败回溯"路径 + 团队预算粗估）+ discussions/2026-06-25-ecos-roadmap-doc.md（会话记录）|
 
 ---
 
@@ -489,6 +490,95 @@ Bisen 指出此风险后立即补救：本版本建立 `theoretical-foundations/
 | 优先级 | 任务 | 详见 |
 |---|---|---|
 | **P0** | 战略层 03-roadmap.md（阶段划分）| `research/00-overview/` |
+| **P0** | 战略层 04-risks.md（风险矩阵）| `research/00-overview/` |
+| P1 | 工程层 5 份（10-engineering/）| `research/10-engineering/` |
+| P1 | 教学法层 4 份（20-pedagogy/）| `research/20-pedagogy/` |
+| P1 | MVP 设计（90-mvp/）| `research/90-mvp/` |
+| P2 | `ecos/` Python 包实现 | `ecos/` |
+
+---
+
+## [0.8.0] - 2026-06-25 (战略层第 3 份文档：路线图)
+
+### 背景
+
+战略层依赖链（01-applications.md → 02-architecture.md → 03-roadmap.md → 04-risks.md）的第 3 份。v2.0 §执行摘要 已给出 3 阶段产品化路径（MVP 2-4 周 / 产品化 2-3 月 / 平台化 6-12 月），但**没有细化为具体里程碑 + 假设验证 + 评估指标**。
+
+本次完成路线图，把架构映射为 M0-M7 共 8 个里程碑，并**批判性修正** v2.0 的 MVP 时间估计。
+
+### 新增
+
+- **`research/00-overview/03-roadmap.md`**（v1.0，407 行，10 章节）
+  - **§0 路线图定位**：与 v2.0 关系（扩展）+ 3 大原则（里程碑驱动 / 假设验证导向 / 数据资产累积 / 小步快跑）+ M0-M7 vs v2.0 Phase 对照表
+  - **§1 Phase 0 进度盘点**：已完成 7 个版本（v0.1.0-v0.7.0，~2600 行）+ Phase 0 完成定义（战略层 + 工程层 + 教学法层完成）
+  - **§2 Phase 4 / M2-M3（MVP 验证）**：M2 工程实现（4-6 周，12 任务按周分解）+ M3 实验分析（2-4 周，H1-H3 验证）
+  - **§3 Phase 5 / M4-M5（产品化）**：M4 学科扩展 + M5 商业模式
+  - **§4 Phase 6 / M6-M7（系统完善）**：M6 K12 全学段 + M7 数据资产护城河
+  - **§5 依赖图与关键路径**：3 个关键决策点 + 总时长 32-44 周（理想）/ 36-52 周（保守）
+  - **§6 团队与预算**：各阶段团队配置 + 预算粗估（100-1900 万）
+  - **§7 关键风险与对应**：8 类风险 + 对应假设
+  - **§8 与 v2.0 产品化路径的关系**：8 维度对照表
+- **`discussions/2026-06-25-ecos-roadmap-doc.md`**（本次会话记录）
+
+### 关键决策与批判性修正
+
+| 决策项 | v2.0 原估计 | 本文档修正 | 理由 |
+|---|---|---|---|
+| **MVP 时间** | 2-4 周 | **4-8 周** | 12 个 MVP 组件工程量 |
+| **核心假设数** | 3 个 | **7 个** | M4/M6/M7 各加 1 |
+| **失败回溯** | 隐含 | **显式路径** | 避免"all-in 单一假设"陷阱 |
+| **里程碑数** | 3 阶段 | **8 个 M0-M7** | 每 2-6 周一个完成定义 |
+| **评估阈值** | 概念性 | **具体数字** | H1 AUC≥0.75 / Bloom 60% / 双 Agent ECE≤0.10 |
+
+### 下一步
+
+| 优先级 | 任务 | 详见 |
+|---|---|---|
+| **P0** | 战略层 04-risks.md（风险矩阵）| `research/00-overview/` |
+| P1 | 工程层 5 份（10-engineering/）| `research/10-engineering/` |
+| P1 | 教学法层 4 份（20-pedagogy/）| `research/20-pedagogy/` |
+| P1 | MVP 设计（90-mvp/）| `research/90-mvp/` |
+| P2 | `ecos/` Python 包实现 | `ecos/` |
+
+
+---
+
+## [0.8.0] - 2026-06-25 (战略层第 3 份文档：路线图)
+
+### 背景
+
+战略层依赖链（01-applications.md → 02-architecture.md → 03-roadmap.md → 04-risks.md）的第 3 份。v2.0 §执行摘要 已给出 3 阶段产品化路径（MVP 2-4 周 / 产品化 2-3 月 / 平台化 6-12 月），但**没有细化为具体里程碑 + 假设验证 + 评估指标**。
+
+本次完成路线图，把架构映射为 M0-M7 共 8 个里程碑，并**批判性修正** v2.0 的 MVP 时间估计。
+
+### 新增
+
+- **`research/00-overview/03-roadmap.md`**（v1.0，407 行，10 章节）
+  - **§0 路线图定位**：与 v2.0 关系（扩展）+ 3 大原则（里程碑驱动 / 假设验证导向 / 数据资产累积 / 小步快跑）+ M0-M7 vs v2.0 Phase 对照表
+  - **§1 Phase 0 进度盘点**：已完成 7 个版本（v0.1.0-v0.7.0，~2600 行）+ Phase 0 完成定义
+  - **§2 Phase 4 / M2-M3（MVP 验证）**：M2 工程实现（4-6 周）+ M3 实验分析（2-4 周，H1-H3 验证）
+  - **§3 Phase 5 / M4-M5（产品化）**：M4 学科扩展 + M5 商业模式
+  - **§4 Phase 6 / M6-M7（系统完善）**：M6 K12 全学段 + M7 数据资产护城河
+  - **§5 依赖图与关键路径**：3 个关键决策点 + 总时长 32-44 周（理想）/ 36-52 周（保守）
+  - **§6 团队与预算**：各阶段团队配置 + 预算粗估（100-1900 万）
+  - **§7 关键风险与对应**：8 类风险 + 对应假设
+  - **§8 与 v2.0 产品化路径的关系**：8 维度对照表
+- **`discussions/2026-06-25-ecos-roadmap-doc.md`**（本次会话记录）
+
+### 关键决策与批判性修正
+
+| 决策项 | v2.0 原估计 | 本文档修正 | 理由 |
+|---|---|---|---|
+| **MVP 时间** | 2-4 周 | **4-8 周** | 12 个 MVP 组件工程量 |
+| **核心假设数** | 3 个 | **7 个** | M4/M6/M7 各加 1 |
+| **失败回溯** | 隐含 | **显式路径** | 避免"all-in 单一假设"陷阱 |
+| **里程碑数** | 3 阶段 | **8 个 M0-M7** | 每 2-6 周一个完成定义 |
+| **评估阈值** | 概念性 | **具体数字** | H1 AUC≥0.75 / Bloom 60% / 双 Agent ECE≤0.10 |
+
+### 下一步
+
+| 优先级 | 任务 | 详见 |
+|---|---|---|
 | **P0** | 战略层 04-risks.md（风险矩阵）| `research/00-overview/` |
 | P1 | 工程层 5 份（10-engineering/）| `research/10-engineering/` |
 | P1 | 教学法层 4 份（20-pedagogy/）| `research/20-pedagogy/` |
