@@ -18,7 +18,8 @@
 | 0.1.0 | 2026-06-24 | f5eeea0 | **项目初始建立**：从 SelfLab 迁移 5 份核心研究文档（5 轮 GPT 对话 + 深度研究 v2.0）+ 5 份选择性参考文档（共享工具箱 + 认知架构综述 + AiBeing 借鉴 + 借鉴分析）+ 14 个研究维度占位文件（00-overview/10-engineering/20-pedagogy/90-mvp）+ ecos/ Python 包骨架（9 个 __init__.py 占位 + llm_client.py + orchestrator.py）+ 完整项目级文档（README/CLAUDE/CHANGELOG/LICENSE/pyproject.toml/.gitignore/.env.example）|
 | 0.2.0 | 2026-06-24 | 954e6ab | **战略层第 1 份文档**：research/00-overview/01-applications.md（v1.0，10 章节：起点/定位/用户三角/4 大核心场景/跨场景能力/不做清单/MVP 范围/差异化总图/关联/版本；明确学科诊断 + 自适应干预 + 长期成长轨迹 + 教师家长协作 4 大场景；7 项跨场景核心能力清单；9 项不做边界护栏；MVP 场景对应表）+ research/MIGRATION-FROM-SELFLAB.md（项目元文档）+ discussions/2026-06-24-ecos-migration-overview.md + discussions/2026-06-24-ecos-applications-doc.md（会话记录）|
 | 0.3.0 | 2026-06-24 | c13e913 | **P0 第 1 份借鉴文档**：research/30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md（v1.0，451 行，CTA 数学基础：L0 POMDP/HMM + L1 BKT/DKT + L2 MIRT + L3 CD-CAT + L4 Causal Inference 5 层数学栈；填补 v2.0 §3.3 "只提名字"gap；含与 LLM 关系 + 与 LCA 接口 + MVP 实施路线）+ discussions/2026-06-24-ecos-cta-math-foundations.md（会话记录）|
-| 0.4.0 | 2026-06-24 | (本次) | **P0 第 2 份借鉴文档**：research/30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md（v1.0，420 行，LCA 教学法基础：Cognitive Load Theory + Bjork 四件套 + Cognitive Apprenticeship；填补 v2.0 §3.4 "有策略列表无理论论证"gap；含 5 类干预 × 教学法对应表 + 与 POMDP 决策接口 + 与 CTA 因果归因闭环 + 与竞品差异表）+ discussions/2026-06-24-ecos-lca-instructional-foundations.md（会话记录）|
+| 0.4.0 | 2026-06-24 | ea8d72a | **P0 第 2 份借鉴文档**：research/30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md（v1.0，420 行，LCA 教学法基础：Cognitive Load Theory + Bjork 四件套 + Cognitive Apprenticeship；填补 v2.0 §3.4 "有策略列表无理论论证"gap；含 5 类干预 × 教学法对应表 + 与 POMDP 决策接口 + 与 CTA 因果归因闭环 + 与竞品差异表）+ discussions/2026-06-24-ecos-lca-instructional-foundations.md（会话记录）|
+| 0.5.0 | 2026-06-24 | (本次) | **P0 第 3 份借鉴文档**：research/30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md（v1.0，414 行，C 维度内容库：Threshold Concepts + Misconceptions Research 双轨内容库；填补 v2.0 §3.3 "C 维度是抽象置信度"gap；含 liminal 状态识别 + 与 Q 矩阵集成 + 与 LCA 教学法整合 + MVP 候选 8 个 TC + 10 个 misconception）+ **P0 三件套完成**（CTA 数学基础 + LCA 教学法基础 + C 维度内容库）+ discussions/2026-06-24-ecos-c-dim-content-libraries.md（会话记录）|
 
 ---
 
@@ -283,3 +284,79 @@ Phase 6（系统完善）：DKT/DKVMN 跨知识点关联 + 完全 POMCP
 | P0 | 战略层 02-architecture.md（整体架构）| `research/00-overview/` |
 | P0 | 战略层 03-roadmap.md（阶段划分）| `research/00-overview/` |
 | P0 | 战略层 04-risks.md（风险矩阵）| `research/00-overview/` |
+
+---
+
+## [0.5.0] - 2026-06-24 (P0 第 3 份借鉴 + P0 三件套全部完成)
+
+### 背景
+
+[v0.1 综合报告 §第四部分](../research/gpt-dialogues/04-cognitive-digital-twin-v01-report.md) 把 CTA 5D 中的 C 维度定义为"认知置信度（Confidence）"，[v2.0 §3.3](../research/deep-research/Cognitive-Digital-Twin-Deep-Research.md) 沿用为 ConfidenceState。但**没有给出 C 维度的科学评估基础**——CTA 不知道"伪置信"如何识别、不知道"liminal 状态"如何处理。
+
+本次借鉴 2 大内容库，让 C 维度从抽象"confidence"变为可科学评估的维度。
+
+### P0 三件套全部完成
+
+```
+v0.3.0  CTA 数学基础        (5 层数学栈)            ✅
+v0.4.0  LCA 教学法基础      (3 大理论群)            ✅
+v0.5.0  C 维度内容库         (TC + Misconceptions 双轨) ✅
+─────────────────────────────────────────────────
+P0 借鉴全部完成（v0.3.0 + v0.4.0 + v0.5.0）
+```
+
+**v0.3.0 + v0.4.0 + v0.5.0 共同填补 v2.0 §3.3-3.4 的全部 gap**：
+- §3.3 "只提名字（IRT/BKT/DKT）" → v0.3.0 5 层数学栈
+- §3.4 "有策略列表无理论论证" → v0.4.0 3 大教学法理论群
+- §3.3 "C 维度是抽象置信度" → v0.5.0 TC + Misconceptions 双轨
+
+### 新增
+
+- **`research/30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md`**（v1.0，414 行）
+  - **2 大内容库**：
+    - **Threshold Concepts** (Meyer & Land, 2003) —— 5 特征（Transformative / Irreversible / Integrative / Bounded / Troublesome）+ Liminality 中间态 + MVP 候选 8 个初中数学 TC
+    - **Misconceptions** (Driver, 1980s-; Chi, 1992) —— 三分类 + 经典案例库（数学/物理/生物）+ MVP 候选 10 条初中数学 misconception
+  - 双轨内容库总览：正向骨架（TC）+ 反向补丁（Misconceptions）
+  - 与 [Q 矩阵（CD-CAT）](../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md) 集成：每个题目标注考察属性 + TC + Misconception + Bloom 层级
+  - CTA C 维度评估的具体算法（整合 BKT + LLM Critic + TC 检测 + POMDP）
+  - 与 [LCA 教学法基础](../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md) 整合：liminal 状态触发 CLT worked example，misconception 触发 Bjork 测试效应
+- **`discussions/2026-06-24-ecos-c-dim-content-libraries.md`**（本次会话记录）
+
+### 关键决策
+
+| 决策项 | 选择 | 理由 |
+|---|---|---|
+| **TC 库规模** | MVP：5-8 个（初中数学）；Phase 5+：15-20 个（高中 + 物理）| 80/20 原则 |
+| **Misconception 库规模** | MVP：30-50 条；Phase 5+：100-150 条 | 学术文献覆盖度优先 |
+| **TC 库构建** | 教师 + CTA 联合（教师提候选，CTA 验证）| 学术权威 + 数据驱动 |
+| **Misconception 检测** | LLM Critic + 关键词匹配（hybrid）| LLM 灵活 + 关键词精确 |
+| **Liminal 状态识别** | 启发式 + 元认知信号（MVP）；ML（Phase 6）| MVP 简化 |
+| **TC 不可逆性建模** | post-liminal C 维度永不下降（除非遗忘整个学科）| 体现 TC 特征 |
+| **数学层不用 LLM**（沿用）| ❌ 否（硬底线）| TC 和 Misconception 检测可用 LLM，信念估计不用 |
+
+### P0 三件套整合：CTA + LCA + C 维度完整图
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│ L4 LCA 策略优化层        Cognitive Apprenticeship 6 阶段框架       │
+│ L3 LCA 干预类型选择层    Bjork 四件套 + CLT                       │
+├────────────────────────────────────────────────────────────────────┤
+│ L2 状态估计层（CTA）     MIRT + CD-CAT（含 TC + Misconception 标注）│
+│ L1 时间演化层（CTA）     BKT/DKT + Spaced Repetition              │
+│ L0 概率框架层（CTA）     POMDP / HMM                              │
+│ L0.5 内容基础层          Threshold Concepts + Misconceptions 库   │
+│                            （v0.5.0 新增）                         │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+### 下一步
+
+| 优先级 | 任务 | 详见 |
+|---|---|---|
+| **P0** | 战略层 02-architecture.md（整体架构——整合 P0 三件套到架构）| `research/00-overview/` |
+| **P0** | 战略层 03-roadmap.md（阶段划分）| `research/00-overview/` |
+| **P0** | 战略层 04-risks.md（风险矩阵）| `research/00-overview/` |
+| P1 | 工程层 5 份文档（10-engineering/）| `research/10-engineering/` |
+| P1 | 教学法层 4 份文档（20-pedagogy/）| `research/20-pedagogy/` |
+| P1 | MVP 设计（90-mvp/）| `research/90-mvp/` |
+| P2 | `ecos/` Python 包实现 | `ecos/` |
