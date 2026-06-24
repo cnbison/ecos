@@ -16,7 +16,8 @@
 | 版本 | 日期 | commit hash | 主要内容 |
 |------|------|-------------|----------|
 | 0.1.0 | 2026-06-24 | f5eeea0 | **项目初始建立**：从 SelfLab 迁移 5 份核心研究文档（5 轮 GPT 对话 + 深度研究 v2.0）+ 5 份选择性参考文档（共享工具箱 + 认知架构综述 + AiBeing 借鉴 + 借鉴分析）+ 14 个研究维度占位文件（00-overview/10-engineering/20-pedagogy/90-mvp）+ ecos/ Python 包骨架（9 个 __init__.py 占位 + llm_client.py + orchestrator.py）+ 完整项目级文档（README/CLAUDE/CHANGELOG/LICENSE/pyproject.toml/.gitignore/.env.example）|
-| 0.2.0 | 2026-06-24 | (本次) | **战略层第 1 份文档**：research/00-overview/01-applications.md（v1.0，10 章节：起点/定位/用户三角/4 大核心场景/跨场景能力/不做清单/MVP 范围/差异化总图/关联/版本；明确学科诊断 + 自适应干预 + 长期成长轨迹 + 教师家长协作 4 大场景；7 项跨场景核心能力清单；9 项不做边界护栏；MVP 场景对应表）+ research/MIGRATION-FROM-SELFLAB.md（项目元文档）+ discussions/2026-06-24-ecos-migration-overview.md + discussions/2026-06-24-ecos-applications-doc.md（会话记录）|
+| 0.2.0 | 2026-06-24 | 954e6ab | **战略层第 1 份文档**：research/00-overview/01-applications.md（v1.0，10 章节：起点/定位/用户三角/4 大核心场景/跨场景能力/不做清单/MVP 范围/差异化总图/关联/版本；明确学科诊断 + 自适应干预 + 长期成长轨迹 + 教师家长协作 4 大场景；7 项跨场景核心能力清单；9 项不做边界护栏；MVP 场景对应表）+ research/MIGRATION-FROM-SELFLAB.md（项目元文档）+ discussions/2026-06-24-ecos-migration-overview.md + discussions/2026-06-24-ecos-applications-doc.md（会话记录）|
+| 0.3.0 | 2026-06-24 | (本次) | **P0 第 1 份借鉴文档**：research/30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md（v1.0，451 行，CTA 数学基础：L0 POMDP/HMM + L1 BKT/DKT + L2 MIRT + L3 CD-CAT + L4 Causal Inference 5 层数学栈；填补 v2.0 §3.3 "只提名字"gap；含与 LLM 关系 + 与 LCA 接口 + MVP 实施路线）+ discussions/2026-06-24-ecos-cta-math-foundations.md（会话记录）|
 
 ---
 
@@ -174,3 +175,56 @@ ECOS 战略层 4 份文档按依赖链依次填充（applications → architectu
 | **P0** | 战略层 03-roadmap.md（阶段划分）| `research/00-overview/` |
 | P0 | 战略层 04-risks.md（风险矩阵）| `research/00-overview/` |
 | P0 | 工程层关键模块设计（CTA + LCA + Bloom + 互校）| `research/10-engineering/` |
+
+---
+
+## [0.3.0] - 2026-06-24 (P0 第 1 份借鉴：CTA 数学基础)
+
+### 背景
+
+[v2.0 深度研究 §3.3](../research/deep-research/Cognitive-Digital-Twin-Deep-Research.md) 把 CTA 定义为 "State Estimator"，但只提到 IRT/BKT/DKT 等心理测量学方法**名字**，未给出具体算法框架。本次借鉴 5 个核心理论，填补这一 gap，建立 CTA 信念分布的 **L0→L4 数学栈**。
+
+### 新增
+
+- **`research/30-shared-cognitive-tools/theoretical-foundations/`**（新子目录，ECOS 独有理论借鉴）
+- **`01-cta-mathematical-foundations.md`**（v1.0，451 行）
+  - **5 个核心理论**构成 L0→L4 数学栈：
+    - **L0 POMDP / HMM**（统一概率框架）
+    - **L1 BKT / DKT**（单知识点时间演化）
+    - **L2 MIRT**（5D 多维联合估计）
+    - **L3 CD-CAT**（自适应选择）
+    - **L4 Causal Inference**（干预归因）
+  - 每理论含：**核心观点 / 与 ECOS CTA 对接 / 借鉴决策 / 实施注意事项**
+  - 整合章节：CTA 信念分布完整数学框架（含与 LLM 关系 + 与 LCA 接口）
+  - MVP 实施路线：**BKT + MIRT + 简化 CD-CAT**（Phase 4）→ POMDP + Causal Forest（Phase 5）→ DKT/DKVMN + POMCP（Phase 6）
+  - 关键开源依赖：pyBKT, mirt, GDINA, DoWhy, pgmpy
+- **`discussions/2026-06-24-ecos-cta-math-foundations.md`**（本次会话记录）
+
+### 关键决策
+
+| 决策项 | 选择 | 理由 |
+|---|---|---|
+| MIRT 形式 | 非补偿型（Bi-factor MIRT）| 避免"伪掌握"（K 弱 P 强被误判掌握）|
+| CD-CAT 算法 | GDINA + PWKL 选题 | DINA 最一般化扩展 + 兼顾信息量与诊断明确性 |
+| BKT 算法 | 经典 4 参数（MVP）| 简单可解释，Phase 5+ 升级 DKT/DKVMN |
+| POMDP 求解 | 扩展卡尔曼滤波（EKF）+ 离散属性精确推断 | 工程可行，性能可接受 |
+| 因果框架 | DoWhy + Causal Forest | 处理高维协变量 + 异质性处理 |
+| **数学层是否用 LLM** | **❌ 否（硬底线）**| 任何让 LLM 直接生成信念估计的设计都是退路 |
+
+### MVP 实施路线
+
+```
+Phase 4（MVP）：BKT（4 参数）+ MIRT（5D 非补偿）+ 简化 CD-CAT（GDINA 基础）
+Phase 5（产品化）：POMDP 整合（LCA 决策统一接口）+ Causal Forest 归因
+Phase 6（系统完善）：DKT/DKVMN 跨知识点关联 + 完全 POMCP
+```
+
+### 下一步
+
+| 优先级 | 任务 | 详见 |
+|---|---|---|
+| **P0** | `02-lca-instructional-foundations.md`（LCA 教学法基础）| `theoretical-foundations/` |
+| **P0** | `03-c-dimension-content-libraries.md`（C 维度内容库）| `theoretical-foundations/` |
+| P0 | 战略层 02-architecture.md（整体架构）| `research/00-overview/` |
+| P0 | 战略层 03-roadmap.md（阶段划分）| `research/00-overview/` |
+| P0 | 战略层 04-risks.md（风险矩阵）| `research/00-overview/` |
