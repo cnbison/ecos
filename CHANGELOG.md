@@ -17,7 +17,8 @@
 |------|------|-------------|----------|
 | 0.1.0 | 2026-06-24 | f5eeea0 | **项目初始建立**：从 SelfLab 迁移 5 份核心研究文档（5 轮 GPT 对话 + 深度研究 v2.0）+ 5 份选择性参考文档（共享工具箱 + 认知架构综述 + AiBeing 借鉴 + 借鉴分析）+ 14 个研究维度占位文件（00-overview/10-engineering/20-pedagogy/90-mvp）+ ecos/ Python 包骨架（9 个 __init__.py 占位 + llm_client.py + orchestrator.py）+ 完整项目级文档（README/CLAUDE/CHANGELOG/LICENSE/pyproject.toml/.gitignore/.env.example）|
 | 0.2.0 | 2026-06-24 | 954e6ab | **战略层第 1 份文档**：research/00-overview/01-applications.md（v1.0，10 章节：起点/定位/用户三角/4 大核心场景/跨场景能力/不做清单/MVP 范围/差异化总图/关联/版本；明确学科诊断 + 自适应干预 + 长期成长轨迹 + 教师家长协作 4 大场景；7 项跨场景核心能力清单；9 项不做边界护栏；MVP 场景对应表）+ research/MIGRATION-FROM-SELFLAB.md（项目元文档）+ discussions/2026-06-24-ecos-migration-overview.md + discussions/2026-06-24-ecos-applications-doc.md（会话记录）|
-| 0.3.0 | 2026-06-24 | (本次) | **P0 第 1 份借鉴文档**：research/30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md（v1.0，451 行，CTA 数学基础：L0 POMDP/HMM + L1 BKT/DKT + L2 MIRT + L3 CD-CAT + L4 Causal Inference 5 层数学栈；填补 v2.0 §3.3 "只提名字"gap；含与 LLM 关系 + 与 LCA 接口 + MVP 实施路线）+ discussions/2026-06-24-ecos-cta-math-foundations.md（会话记录）|
+| 0.3.0 | 2026-06-24 | c13e913 | **P0 第 1 份借鉴文档**：research/30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md（v1.0，451 行，CTA 数学基础：L0 POMDP/HMM + L1 BKT/DKT + L2 MIRT + L3 CD-CAT + L4 Causal Inference 5 层数学栈；填补 v2.0 §3.3 "只提名字"gap；含与 LLM 关系 + 与 LCA 接口 + MVP 实施路线）+ discussions/2026-06-24-ecos-cta-math-foundations.md（会话记录）|
+| 0.4.0 | 2026-06-24 | (本次) | **P0 第 2 份借鉴文档**：research/30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md（v1.0，420 行，LCA 教学法基础：Cognitive Load Theory + Bjork 四件套 + Cognitive Apprenticeship；填补 v2.0 §3.4 "有策略列表无理论论证"gap；含 5 类干预 × 教学法对应表 + 与 POMDP 决策接口 + 与 CTA 因果归因闭环 + 与竞品差异表）+ discussions/2026-06-24-ecos-lca-instructional-foundations.md（会话记录）|
 
 ---
 
@@ -175,6 +176,60 @@ ECOS 战略层 4 份文档按依赖链依次填充（applications → architectu
 | **P0** | 战略层 03-roadmap.md（阶段划分）| `research/00-overview/` |
 | P0 | 战略层 04-risks.md（风险矩阵）| `research/00-overview/` |
 | P0 | 工程层关键模块设计（CTA + LCA + Bloom + 互校）| `research/10-engineering/` |
+
+---
+
+## [0.4.0] - 2026-06-24 (P0 第 2 份借鉴：LCA 教学法基础)
+
+### 背景
+
+[v2.0 深度研究 §3.4](../research/deep-research/Cognitive-Digital-Twin-Deep-Research.md) 已给出 LCA 的"干预空间"——按 Bloom 层级分类的策略字典（flashcard / worked_examples / socratic_questioning 等），但**没有教学法理论论证**。本次借鉴 3 大核心理论群，建立 LCA 干预策略的**教学法基础**。
+
+### 新增
+
+- **`research/30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md`**（v1.0，420 行）
+  - **3 大核心理论群**：
+    - **Cognitive Load Theory (Sweller, 1988; 2019)** —— 三类负荷（Intrinsic / Extraneous / Germane）+ worked example effect + split-attention effect + expertise reversal effect
+    - **Bjork 学派四件套**（合意困难）：
+      - Testing Effect (Roediger & Karpicke, 2006) — 主动提取 > 被动重读
+      - Desirable Difficulties (Bjork & Bjork, 1992, 2011) — 教学性合意 vs 环境性不合意
+      - Spacing Effect (Ebbinghaus, 1885 / Cepeda, 2006) — 间隔 vs 集中练习
+      - Interleaving (Rohrer & Taylor, 2007) — 交错练习 vs 集中练习
+    - **Cognitive Apprenticeship** (Collins, Brown & Newman, 1989) — 6 阶段：Modeling → Coaching → Scaffolding → Articulation → Reflection → Exploration
+  - 整合：LCA 干预决策完整算法栈（CTA L0-L2 + LCA L3-L4）+ 5 类干预 × 教学法对应表 + 参数化空间（4 维 + 5 离散）+ POMDP 接口 + 与 CTA 因果归因闭环
+  - 与竞品差异表：ECOS 是**唯一**把教学法理论显式编码到 AI 系统中的产品
+  - MVP 实施路线：CLT 基础 + Bjork 双件套 + Cognitive Apprenticeship Stage 1-3（Phase 4）→ 完整 Bjork + Stage 4-6 + 因果归因（Phase 5）→ POMDP + POMCP + 个性化认知学徒制（Phase 6）
+- **`discussions/2026-06-24-ecos-lca-instructional-foundations.md`**（本次会话记录）
+
+### 关键决策
+
+| 决策项 | 选择 | 理由 |
+|---|---|---|
+| **MIRT 形式**（沿用 v0.3.0）| 非补偿型（Bi-factor MIRT）| 避免"伪掌握" |
+| **CLT 呈现方式** | 4 级自适应（新手/进阶/熟练/专家）| expertise reversal effect 自动化 |
+| **Bjork 优先级** | MVP：测试效应 + 间隔；Phase 5+：合意困难 + 交错 | MVP 简化实施 |
+| **Cognitive Apprenticeship 6 阶段** | 全部支持，但 LCA 在后台判断阶段 | 不让 UI 强制 6 步骤流程 |
+| **Scaffolding 衰减** | 连续 N 次成功后自动撤走（CTA 触发）| expertise reversal 自动化 |
+| **数学层不用 LLM**（沿用 v0.3.0）| ❌ 否（硬底线）| 任何 LLM 直接生成干预策略都是退路 |
+
+### 完整 L0-L4 算法栈（v0.3.0 + v0.4.0 整合）
+
+```
+L4 LCA 策略优化层        Cognitive Apprenticeship 6 阶段框架（LCA 决策）
+L3 LCA 干预类型选择层    Bjork 四件套 + CLT（LCA 决策）
+L2 状态估计层（CTA）     MIRT + CD-CAT（CTA 估计）
+L1 时间演化层（CTA）     BKT/DKT + Spaced Repetition（CTA 估计 + LCA 触发）
+L0 概率框架层（CTA）     POMDP / HMM（CTA 估计）
+```
+
+### 下一步
+
+| 优先级 | 任务 | 详见 |
+|---|---|---|
+| **P0** | `03-c-dimension-content-libraries.md`（C 维度内容库）| `theoretical-foundations/` |
+| P0 | 战略层 02-architecture.md（整体架构）| `research/00-overview/` |
+| P0 | 战略层 03-roadmap.md（阶段划分）| `research/00-overview/` |
+| P0 | 战略层 04-risks.md（风险矩阵）| `research/00-overview/` |
 
 ---
 
