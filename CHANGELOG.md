@@ -834,3 +834,85 @@ L4 策略优化层
 | P1 | 工程层 05-persistence-session.md（持久化）| `research/10-engineering/` |
 | P2 | 教学法层 4 份（20-pedagogy/）| `research/20-pedagogy/` |
 | P2 | MVP 设计（90-mvp/）| `research/90-mvp/` |
+
+
+---
+
+## [0.12.0] - 2026-06-25 (工程层第 3 份文档：Bloom Goal Library)
+
+### 背景
+
+工程层第 3 份——Bloom 目标库（CTA 与 LCA 的"共同语言"）。基于 v2.0 §3.4 + 02-architecture.md §2.2 + v0.5.0 C 维度内容库 + 01-cta-belief-engine.md + 02-lca-policy-engine.md。
+
+Bloom Goal Library 把 Bloom 6 层认知层级工程化为可计算的目标库——作为 CTA 状态估计的目标 + LCA 干预选择的目标。
+
+### 新增
+
+- **`research/10-engineering/03-bloom-goal-library.md`**（v1.0，1093 行，13 章节）
+  - **§0 模块定位**：核心职责（CTA + LCA 的共同语言）+ 与 v0.5.0 关系
+  - **§1 整体架构**：6 层 Bloom 学科映射表 + 12 子目录 + 与 CTA / LCA 接口契约
+  - **§2 Bloom 数据结构**：BloomLevel 枚举（含前置关系）+ BloomGoal 完整 dataclass + BloomGoalLibrary 容器（多维索引）
+  - **§3 数学 Bloom 目标库（MVP 核心）**：8 知识点 × 4 层 = 32 条 BloomGoal（含二次函数完整 4 层样例）+ 中国课程标准对接（人教版）
+  - **§4-5 物理/语文 Bloom 目标库**（Phase 5+）：占位 + 与数学的差异分析
+  - **§6 跨学科 Bloom 整合**：跨学科 BloomGoal（数学建模）+ 数学 P 与物理 P 的迁移建模
+  - **§7 next_target 选择算法**：NextBloomTargetSelector（基于 CTA 状态 + 前置检查 + 学习路径构造）
+  - **§8 与 TC / Misconception 库集成**：TC 跨越后 BloomProfile 提升 + Misconception 命中后下调 + Q 矩阵扩展
+  - **§9 查询接口**：3 个使用示例
+  - **§10 测试策略**：单元测试覆盖率 ≥ 80% + 集成测试 + 评估指标（vs 04-risks.md §B1 阈值）
+  - **§11 MVP 范围**：8 组件状态表 + 数据规模（32 → 235 → 670 条）
+  - **§12-13 关联文档 + 版本维护**
+- **`discussions/2026-06-25-ecos-bloom-library-doc.md`**（本次会话记录）
+
+### 关键设计决策
+
+| 决策项 | MVP 选择 | 理由 |
+|---|---|---|
+| **MVP 学科** | 数学 | K12 学科中 CTA 5D 状态建模最成熟 |
+| **MVP 库规模** | 8 知识点 × 4 层 = 32 条 BloomGoal | 80/20 原则 |
+| **L5/L6 处理** | MVP 不实现（K12 不常达到）| 04-risks.md §B1 风险评估 |
+| **课程标准对接** | 中国教育部人教版（数学）| MVP 服务中国 K12 |
+| **TC 集成** | TC 跨越后 BloomProfile 自动 +0.1 | TC 是 Bloom 跨越的关键节点 |
+| **Misconception 集成** | 命中后 BloomProfile × 0.7 | 伪置信折扣 |
+| **next_target 算法** | 当前层 + 1（但不超过能力上限）| 渐进式挑战 |
+| **数学 P 与物理 P 迁移** | MVP 不实现（Phase 5+）| 跨学科能力需更多数据 |
+
+### MVP 数据规模
+
+| 库 | MVP | Phase 5 | Phase 6 |
+|---|---|---|---|
+| 数学 | 32 条 BloomGoal | 100 条 | 300 条 |
+| 物理 | 0 | 80 条 | 200 条 |
+| 语文 | 0 | 50 条 | 150 条 |
+| 跨学科 | 0 | 5 条 | 20 条 |
+| **总计** | **32 条** | **235 条** | **670 条** |
+
+### 工程层进度
+
+```
+✅ 01-cta-belief-engine.md    （v0.10.0，1409 行）
+✅ 02-lca-policy-engine.md    （v0.11.0，1125 行）
+✅ 03-bloom-goal-library.md   （v0.12.0，1093 行）★
+⏳ 04-dual-agent-calibration.md
+⏳ 05-persistence-session.md
+60% 完成
+```
+
+### 累计产出（v0.1.0 ~ v0.12.0）
+
+| 类别 | 数量 | 行数（约）|
+|---|---|---|
+| 战略层 00-overview/ | 4 份 ✅ | ~2400 行 |
+| 工程层 10-engineering/ | 3 份（进行中）| ~3700 行 |
+| P0 借鉴 theoretical-foundations/ | 4 份 ✅ | ~1700 行 |
+| 共享 + AiBeing + 5 轮 + 深度研究 | 8 份（迁移）| — |
+| 项目级 + 讨论记录 | 20+ 份 | ~3000 行 |
+| **总计** | **~40+ 份** | **~10800+ 行** |
+
+### 下一步
+
+| 优先级 | 任务 | 详见 |
+|---|---|---|
+| P1 | 工程层 04-dual-agent-calibration.md（双 Agent 互校）| `research/10-engineering/` |
+| P1 | 工程层 05-persistence-session.md（持久化）| `research/10-engineering/` |
+| P2 | 教学法层 4 份（20-pedagogy/）| `research/20-pedagogy/` |
+| P2 | MVP 设计（90-mvp/）| `research/90-mvp/` |
