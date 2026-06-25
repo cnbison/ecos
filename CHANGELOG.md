@@ -736,3 +736,101 @@ CTA 信念引擎是双 Agent 架构的核心——基于 v0.3.0 数学基础 + v
 | P1 | 工程层 05-persistence-session.md（持久化）| `research/10-engineering/` |
 | P2 | 教学法层 4 份（20-pedagogy/）| `research/20-pedagogy/` |
 | P2 | MVP 设计（90-mvp/）| `research/90-mvp/` |
+
+
+---
+
+## [0.11.0] - 2026-06-25 (工程层第 2 份文档：LCA 策略引擎)
+
+### 背景
+
+工程层第 2 份——LCA 策略引擎，基于 v0.4.0 LCA 教学法基础（3 大理论群：CLT + Bjork + Cognitive Apprenticeship）+ 02-architecture.md §6 实现。
+
+LCA 是双 Agent 架构的"改变学生"组件——基于 CTA 状态选择最优干预 + 可解释 rationale 输出。
+
+### 新增
+
+- **`research/10-engineering/02-lca-policy-engine.md`**（v1.0，1125 行，10 章节）
+  - **§0 模块定位**：核心职责 + 与 CTA 接口 + 硬底线（LLM 仅用于 rationale 表达层）+ 文档目标读者
+  - **§1 整体架构**：L3-L4 教学法栈工程映射（11 组件）+ 12 个子目录 + 与 CTA / App 接口契约
+  - **§2 干预参数化空间**：完整 Python dataclass（InterventionType / CLTLevel / CAStage / Intervention）+ 5 类干预 × 4 参数 + Bloom 目标选择算法
+  - **§3 L3 干预类型选择层**：
+    - §3.1 CLT 4 级自适应呈现（expertise reversal 自动化）
+    - §3.2 CLT 4 级题目模板（NOVICE/DEVELOPING/PROFICIENT/EXPERT）
+    - §3.3 Bjork 测试效应（FSRS 集成）
+    - §3.4 Bjork 间隔效应（FSRS + 衰减模型）
+    - §3.5 CA Scaffolding 衰减（连续成功撤走支持）
+  - **§4 L4 策略优化层**：
+    - §4.1 Cognitive Apprenticeship 6 阶段状态机（自动转移规则）
+    - §4.2 Contextual Bandits LinUCB MVP（5D + Bloom + LearningDNA = 16 维 context）
+    - §4.3 POMCP（Phase 5+ 占位）
+    - §4.4 因果归因（与 CTA L4 协作）
+  - **§5 可解释性输出**：rationale 生成器（学生/教师/家长 3 套 prompt）+ 教师后台接口
+  - **§6 LCA 主流程编排**：8 步骤完整流程
+  - **§7 测试策略**：单元测试覆盖率 ≥ 75% + 集成测试 + 评估指标（vs 04-risks.md §A3 + §C2 阈值）
+  - **§8 MVP 范围**：11 组件状态表（MVP 实现 Stage 1-3 + LinUCB + rationale）
+  - **§9-10 关联文档 + 版本维护**
+- **`discussions/2026-06-25-ecos-lca-engine-doc.md`**（本次会话记录）
+
+### 关键工程实现决策
+
+| 决策项 | MVP 选择 | 理由 |
+|---|---|---|
+| **L3 决策算法** | 规则启发（教学法决策树）| 可解释、易调试、不依赖 LLM |
+| **L3 CLT 4 级呈现** | 自适应模板系统（4 套）| expertise reversal 自动化 |
+| **L3 Bjork** | MVP: 测试 + 间隔；Phase 5+: 合意困难 + 交错 | MVP 简化 |
+| **L3 CA Stage** | MVP: Stage 1-3；Phase 5+: Stage 4-6 | MVP 简化 |
+| **L4 策略学习** | Contextual Bandits LinUCB（MVP）/ POMCP（Phase 5+）| MVP 轻量级 RL |
+| **L4 因果归因** | 与 CTA L4 共享 ABTestAttributor | 避免重复实现 |
+| **Rationale 输出** | LLM 表达层（不污染教学法决策）| 学生/教师/家长 3 套 prompt |
+| **教学法决策是否用 LLM** | ❌ 否（硬底线）| 任何 LLM 直接选择干预类型都是退路 |
+
+### 完整 L3-L4 教学法栈
+
+```
+L3 干预类型选择层
+├── CLT 4 级自适应呈现（expertise reversal）
+├── Bjork 测试效应（FSRS）
+├── Bjork 间隔效应（FSRS）
+├── Bjork 合意困难（Phase 5+）
+├── Bjork 交错练习（Phase 5+）
+└── CA Scaffolding 衰减
+
+L4 策略优化层
+├── Cognitive Apprenticeship 6 阶段状态机
+├── Contextual Bandits LinUCB（MVP）
+├── POMCP（Phase 5+）
+└── 因果归因（与 CTA L4 共享）
+```
+
+### 评估指标（对照 04-risks.md）
+
+| 指标 | 阈值 | 测试场景 |
+|---|---|---|
+| 教师 rationale 满意度 | ≥ 4/5 | 教师问卷 |
+| 家长接受率 | ≥ 70% | 家长问卷 |
+| 学生干预接受率 | ≥ 60% | 行为日志 |
+| LinUCB 收敛 | ≤ 50 次交互 | 模拟实验 |
+| rationale 生成延迟 | P95 ≤ 3 秒 | 性能测试 |
+| 可解释性 vs 性能权衡 | 性能损失 ≤ 10% | A/B 实验 |
+
+### 工程层进度
+
+```
+✅ 01-cta-belief-engine.md    （v0.10.0，1409 行）
+✅ 02-lca-policy-engine.md    （v0.11.0，1125 行）★
+⏳ 03-bloom-goal-library.md
+⏳ 04-dual-agent-calibration.md
+⏳ 05-persistence-session.md
+40% 完成
+```
+
+### 下一步
+
+| 优先级 | 任务 | 详见 |
+|---|---|---|
+| P1 | 工程层 03-bloom-goal-library.md（Bloom 目标库）| `research/10-engineering/` |
+| P1 | 工程层 04-dual-agent-calibration.md（双 Agent 互校）| `research/10-engineering/` |
+| P1 | 工程层 05-persistence-session.md（持久化）| `research/10-engineering/` |
+| P2 | 教学法层 4 份（20-pedagogy/）| `research/20-pedagogy/` |
+| P2 | MVP 设计（90-mvp/）| `research/90-mvp/` |
