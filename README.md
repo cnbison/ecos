@@ -119,29 +119,35 @@ ecos/
 └── prototypes/                        # 架构原型
 ```
 
-## 当前状态（2026-06-24）
+## 当前状态（2026-06-25）— **🎉 Phase 0 100% 完成**
 
-| 层级 | 状态 |
-|------|------|
-| 战略层（research/00-overview/）| 📋 占位（待 Phase 4.1 填充）|
-| 工程层（research/10-engineering/）| 📋 占位 |
-| 教学法层（research/20-pedagogy/）| 📋 占位 |
-| 共享工具箱（research/30-shared-cognitive-tools/）| ✅ 已建立（从 SelfLab 迁移）|
-| AiBeing 借鉴（research/40-aibeing-borrowing/）| ✅ 已建立（从 SelfLab 迁移）|
-| MVP 实施（research/90-mvp/）| 📋 占位 |
-| Python 包（ecos/）| 📋 骨架（__init__.py 占位）|
-| 深度研究文档 | ✅ v2.0（从 SelfLab 迁移，1778 行）|
-| 5 轮 GPT 对话 | ✅ 已迁移（4 份文件）|
+| 层级 | 状态 | 行数 |
+|------|------|------|
+| 战略层（research/00-overview/）| ✅ **100% 完成**（4/4：应用/架构/路线图/风险）| ~2400 行 |
+| 工程层（research/10-engineering/）| ✅ **100% 完成**（5/5：CTA/LCA/Bloom/互校/持久化）| ~6100 行 |
+| 教学法层（research/20-pedagogy/）| ✅ **100% 完成**（4/4：K12 认知/Bloom 应用/学习策略/ZPD）| ~2435 行 |
+| MVP 设计（research/90-mvp/）| ✅ **100% 完成**（1/1：M2-M3 详细设计 + H1-H4 假设验证）| ~600 行 |
+| P0 借鉴（theoretical-foundations/）| ✅ **100% 完成**（4 份 + 1 README：CTA 数学/LCA 教学法/C 维度内容库）| ~1700 行 |
+| 共享工具箱（research/30-shared-cognitive-tools/）| ✅ 已建立（从 SelfLab 迁移 + P0 借鉴）| — |
+| AiBeing 借鉴（research/40-aibeing-borrowing/）| ✅ 已建立（从 SelfLab 迁移）| — |
+| Python 包（ecos/）| 📋 骨架（__init__.py 占位，Phase 4+ 实现）| — |
+| 深度研究文档 | ✅ v2.0（从 SelfLab 迁移，1778 行）| — |
+| 5 轮 GPT 对话 | ✅ 已迁移（4 份文件）| — |
 
-## 下一步（立即）
+**累计产出**：19 个版本 / ~57+ 份文档 / ~19000+ 行研究产出（**1 天完成**，2026-06-24 ~ 2026-06-25）
+
+## 下一步（Phase 4 启动）
 
 | 优先级 | 任务 | 详见 |
 |--------|------|------|
-| **P0** | 战略层 4 份文档填充（00-overview）| [research/00-overview/] |
-| **P0** | 工程层关键模块设计（CTA + LCA + 互校）| [research/10-engineering/] |
-| **P1** | 教学法层（K12 认知结构 + Bloom 应用）| [research/20-pedagogy/] |
-| **P1** | MVP 设计（初中数学 + 50-100 学生）| [research/90-mvp/] |
-| **P2** | Python 包实现（CTA + LCA 基础类）| [ecos/] |
+| **P0** | 团队组建（3.5 FTE：算法 1 + 后端 1 + 前端 1 + 教研 0.5）| `research/90-mvp/README.md §1.3` |
+| **P0** | 合作学校招募（1 所初中，50-100 学生）| `research/90-mvp/README.md §3.1` |
+| **P0** | LLM API 预算（5-10 万）+ 服务器预算（5-10 万）| `research/90-mvp/README.md §1.4` |
+| **P0** | M2 工程实现（W1-W6：CTA + LCA + Bloom + 互校 + 持久化 + UI）| `research/90-mvp/README.md §2.1-2.4` |
+| **P0** | M3 实验（W7-W8：50-100 学生 + H1-H4 验证）| `research/90-mvp/README.md §2.4` |
+| P1 | 教师协作（Q 矩阵 + TC + Misconceptions 库审核）| `research/90-mvp/README.md §2.3` |
+| P2 | 理论借鉴 P1（工程实施遇 gap 时按需写）| `research/30-shared-cognitive-tools/theoretical-foundations/README.md` |
+| P2 | `ecos/` Python 包实现 | `ecos/` |
 
 ## 关联项目
 
