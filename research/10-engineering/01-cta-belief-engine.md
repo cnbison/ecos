@@ -2,7 +2,7 @@
 
 > **版本**：v1.0（2026-06-25）
 > **性质**：工程层第 1 份文档——CTA（Cognitive Twin Agent）信念引擎的工程实现设计
-> **基于**：[v0.3.0 CTA 数学基础](../../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md)（5 层数学栈）、[v0.5.0 C 维度内容库](../../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md)（TC + Misconceptions）、[02-architecture.md §5 状态估计工程实现](../00-overview/02-architecture.md)、[03-roadmap.md §2 M2 里程碑](../00-overview/03-roadmap.md)、[04-risks.md §A 技术风险](../00-overview/04-risks.md)
+> **基于**：[v0.3.0 CTA 数学基础](../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md)（5 层数学栈）、[v0.5.0 C 维度内容库](../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md)（TC + Misconceptions）、[02-architecture.md §5 状态估计工程实现](../00-overview/02-architecture.md)、[03-roadmap.md §2 M2 里程碑](../00-overview/03-roadmap.md)、[04-risks.md §A 技术风险](../00-overview/04-risks.md)
 > **后续**：[02-lca-policy-engine.md](02-lca-policy-engine.md)、[03-bloom-goal-library.md](03-bloom-goal-library.md)、[04-dual-agent-calibration.md](04-dual-agent-calibration.md)、[05-persistence-session.md](05-persistence-session.md)
 > **维护者**：Bisen & Claude
 
@@ -52,7 +52,7 @@
 
 ### 1.1 5 层数学栈的工程映射
 
-[v0.3.0 CTA 数学基础 §6 整合](../../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md) 给出完整 5 层数学栈：
+[v0.3.0 CTA 数学基础 §6 整合](../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md) 给出完整 5 层数学栈：
 
 | 层 | 学术方法 | 工程实现 | 开源依赖 | 文件位置 |
 |---|---|---|---|---|
@@ -153,7 +153,7 @@ class LCAResult:
 
 ### 2.1 5D + BloomProfile 完整结构
 
-[v2.0 §3.3](../../research/deep-research/Cognitive-Digital-Twin-Deep-Research.md) 已给出 9D 结构。本模块基于 v0.3.0 + v0.5.0 扩展为完整工程结构：
+[v2.0 §3.3](../deep-research/Cognitive-Digital-Twin-Deep-Research.md) 已给出 9D 结构。本模块基于 v0.3.0 + v0.5.0 扩展为完整工程结构：
 
 ```python
 from dataclasses import dataclass, field
@@ -340,7 +340,7 @@ class BeliefEngine:
 
 ### 3.1 学术背景
 
-[v0.3.0 §4 POMDP / HMM](../../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md) 给出 POMDP 的完整数学定义：
+[v0.3.0 §4 POMDP / HMM](../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md) 给出 POMDP 的完整数学定义：
 
 ```
 POMDP = (S, A, O, T, R, Ω, γ)
@@ -355,7 +355,7 @@ POMDP = (S, A, O, T, R, Ω, γ)
 
 ### 3.2 状态空间定义
 
-**CTA 的隐藏状态**（[v0.3.0 §4.2 对接](../../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md)）：
+**CTA 的隐藏状态**（[v0.3.0 §4.2 对接](../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md)）：
 
 | POMDP 元素 | ECOS CTA 对应 |
 |---|---|
@@ -452,7 +452,7 @@ class CTAPOMDP:
 
 ### 4.1 BKT 经典 4 参数
 
-[v0.3.0 §3.1 BKT 核心](../../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md) 给出 BKT 的完整数学定义：
+[v0.3.0 §3.1 BKT 核心](../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md) 给出 BKT 的完整数学定义：
 
 ```
 4 个参数：
@@ -549,7 +549,7 @@ class BKTEvolutionLayer:
 
 ### 4.3 间隔效应衰减（v0.4.0 整合）
 
-[v0.4.0 §2.3 Spacing Effect](../../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md)：
+[v0.4.0 §2.3 Spacing Effect](../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md)：
 
 ```python
 # ecos/cta/l1_evolution/spaced_repetition.py
@@ -580,7 +580,7 @@ class SpacedRepetitionScheduler:
 
 ### 4.4 DKT / DKVMN（Phase 5+，MVP 不实现）
 
-[v0.3.0 §3.2 DKT 核心](../../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md)：
+[v0.3.0 §3.2 DKT 核心](../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md)：
 
 ```python
 # Phase 5+ 实现
@@ -600,7 +600,7 @@ class DKTModel:
 
 ### 5.1 5D 非补偿 MIRT
 
-[v0.3.0 §1 MIRT 核心](../../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md)：
+[v0.3.0 §1 MIRT 核心](../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md)：
 
 ```python
 # ecos/cta/l2_mirt/mirt_5d.py
@@ -647,7 +647,7 @@ class BiFactorMIRT5D:
 
 ### 5.2 协方差结构学习
 
-[v0.3.0 §1.2 关键挑战](../../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md)：
+[v0.3.0 §1.2 关键挑战](../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md)：
 
 ```python
 # ecos/cta/l2_mirt/covariance.py
@@ -677,7 +677,7 @@ class CovarianceLearner:
 
 ### 5.3 校准与冷启动
 
-[v0.3.0 §1.4 实施注意事项](../../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md)：
+[v0.3.0 §1.4 实施注意事项](../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md)：
 
 - **冷启动**：新学生/新学科的 MIRT 参数需要历史数据校准——MVP 用默认先验 + 短期预测试
 - **预测试**：每个新学生先做 5-10 道预测试题，初始化 θ
@@ -689,7 +689,7 @@ class CovarianceLearner:
 
 ### 6.1 GDINA 模型
 
-[v0.3.0 §2.2 与 ECOS CTA 的对接](../../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md)：
+[v0.3.0 §2.2 与 ECOS CTA 的对接](../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md)：
 
 ```python
 # ecos/cta/l3_cdcat/gdina.py
@@ -724,7 +724,7 @@ class GDINAModel:
 
 ### 6.2 Q 矩阵扩展（v0.5.0 整合）
 
-[v0.5.0 §3.2 与 Q 矩阵集成](../../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md)：
+[v0.5.0 §3.2 与 Q 矩阵集成](../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md)：
 
 ```python
 # ecos/cta/l3_cdcat/q_matrix.py
@@ -747,7 +747,7 @@ class ProblemMetadata:
 
 ### 6.3 PWKL 选题算法
 
-[v0.3.0 §2.3 借鉴决策 PWKL](../../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md)：
+[v0.3.0 §2.3 借鉴决策 PWKL](../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md)：
 
 ```python
 # ecos/cta/l3_cdcat/pwkl_selector.py
@@ -788,7 +788,7 @@ class PWKLSelector:
 
 ### 7.1 MVP 实现（单变量 A/B）
 
-[v0.3.0 §5.3 借鉴决策 MVP 简化版](../../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md)：
+[v0.3.0 §5.3 借鉴决策 MVP 简化版](../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md)：
 
 ```python
 # ecos/cta/l4_causal/ab_test.py
@@ -876,7 +876,7 @@ class CausalForestAttributor:
 
 ### 8.1 Misconception 检测
 
-[v0.5.0 §2.3 与 ECOS CTA 的对接](../../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md)：
+[v0.5.0 §2.3 与 ECOS CTA 的对接](../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md)：
 
 ```python
 # ecos/cta/content/misc_detector.py
@@ -928,7 +928,7 @@ class MisconceptionDetector:
 
 ### 8.2 TC 跨越检测
 
-[v0.5.0 §1.4 与 ECOS CTA 的对接](../../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md)：
+[v0.5.0 §1.4 与 ECOS CTA 的对接](../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md)：
 
 ```python
 # ecos/cta/content/tc_detector.py
@@ -1055,7 +1055,7 @@ def update_c_dimension_with_content(
 
 ## 9. LLM Critic 边界
 
-[v0.3.0 §6.2 与 LLM 的关系](../../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md)：
+[v0.3.0 §6.2 与 LLM 的关系](../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md)：
 
 | 层级 | CTA 实现 | LLM 角色 |
 |---|---|---|
@@ -1279,7 +1279,7 @@ class CTAOrchestrator:
 
 ### 11.1 单元测试（覆盖率 ≥ 80%）
 
-[v0.3.0 §3.5 实施注意事项 + 04-risks.md §A2 缓解策略](../../00-overview/04-risks.md)：
+[v0.3.0 §3.5 实施注意事项 + 04-risks.md §A2 缓解策略](../00-overview/04-risks.md)：
 
 | 模块 | 测试重点 | 覆盖率目标 |
 |---|---|---|
@@ -1383,14 +1383,14 @@ Student → App（做题） → CTAOrchestrator.update()
   - [04-dual-agent-calibration.md](04-dual-agent-calibration.md) — 双 Agent 互校（CTA + LCA 接口契约）
   - [05-persistence-session.md](05-persistence-session.md) — 持久化（CTA 状态存储）
 - **P0 借鉴**（理论依据）：
-  - [v0.3.0 CTA 数学基础](../../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md) — 5 层数学栈的完整数学定义
-  - [v0.5.0 C 维度内容库](../../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md) — TC + Misconceptions 整合
+  - [v0.3.0 CTA 数学基础](../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md) — 5 层数学栈的完整数学定义
+  - [v0.5.0 C 维度内容库](../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md) — TC + Misconceptions 整合
 - **上层文档**：
   - [02-architecture.md §5 状态估计工程实现](../00-overview/02-architecture.md) — 本文档的架构依据
   - [03-roadmap.md §2.2 M2 里程碑](../00-overview/03-roadmap.md) — W1-W6 工程任务
   - [04-risks.md §A 技术风险](../00-overview/04-risks.md) — 风险缓解策略
 - **核心论证**：
-  - [v2.0 §3.3 CTA 设计](../../research/deep-research/Cognitive-Digital-Twin-Deep-Research.md) — CTA 思维模式 + 9D 状态空间
+  - [v2.0 §3.3 CTA 设计](../deep-research/Cognitive-Digital-Twin-Deep-Research.md) — CTA 思维模式 + 9D 状态空间
 
 ---
 

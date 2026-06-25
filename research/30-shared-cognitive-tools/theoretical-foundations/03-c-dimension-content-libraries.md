@@ -2,7 +2,7 @@
 
 > **版本**：v1.0（2026-06-24）
 > **性质**：ECOS CTA C 维度（Confidence / 认知置信度）的科学评估内容基础借鉴文档
-> **关系**：[v0.1 综合报告 §第四部分 C：Confidence](../gpt-dialogues/04-cognitive-digital-twin-v01-report.md)、[v2.0 深度研究 §3.3 CTA — State Estimator](../../deep-research/Cognitive-Digital-Twin-Deep-Research.md)、[CTA 数学基础](01-cta-mathematical-foundations.md)、[LCA 教学法基础](02-lca-instructional-foundations.md)
+> **关系**：[v0.1 综合报告 §第四部分 C：Confidence](../../gpt-dialogues/04-cognitive-digital-twin-v01-report.md)、[v2.0 深度研究 §3.3 CTA — State Estimator](../../deep-research/Cognitive-Digital-Twin-Deep-Research.md)、[CTA 数学基础](01-cta-mathematical-foundations.md)、[LCA 教学法基础](02-lca-instructional-foundations.md)
 > **维护者**：Bisen & Claude
 
 ---
@@ -11,7 +11,7 @@
 
 ### 0.1 C 维度的原始定义
 
-[v0.1 综合报告 §第四部分](../gpt-dialogues/04-cognitive-digital-twin-v01-report.md) 把 CTA 5D 中的 C 维度定义为 **Confidence（认知置信度）**：
+[v0.1 综合报告 §第四部分](../../gpt-dialogues/04-cognitive-digital-twin-v01-report.md) 把 CTA 5D 中的 C 维度定义为 **Confidence（认知置信度）**：
 
 > C：Confidence — 认知置信度
 > - 知道自己会
@@ -19,7 +19,7 @@
 > - 以为自己会（**伪置信**）
 > - 以为自己不会
 
-[v2.0 深度研究 §3.3](../deep-research/Cognitive-Digital-Twin-Deep-Research.md) 沿用为 `ConfidenceState`。
+[v2.0 深度研究 §3.3](../../deep-research/Cognitive-Digital-Twin-Deep-Research.md) 沿用为 `ConfidenceState`。
 
 ### 0.2 C 维度评估的两大核心挑战
 
@@ -290,7 +290,7 @@ class MisconceptionDetector:
 
 ### 3.2 与 Q 矩阵集成（CD-CAT）
 
-[CTA 数学基础 §2 CD-CAT](../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md) 的 Q 矩阵（题目-属性矩阵）必须**显式包含 TC 和 Misconceptions**：
+[CTA 数学基础 §2 CD-CAT](01-cta-mathematical-foundations.md) 的 Q 矩阵（题目-属性矩阵）必须**显式包含 TC 和 Misconceptions**：
 
 ```
 Q 矩阵扩展（每个题目标注）：
@@ -387,7 +387,7 @@ class C_Estimator:
   - [01-cta-mathematical-foundations.md](01-cta-mathematical-foundations.md) — CTA 数学基础（5 层数学栈）
   - [02-lca-instructional-foundations.md](02-lca-instructional-foundations.md) — LCA 教学法基础（3 大理论群）
 - **核心论证**：
-  - [v0.1 综合报告 §第四部分 C：Confidence](../gpt-dialogues/04-cognitive-digital-twin-v01-report.md) — C 维度原始定义
+  - [v0.1 综合报告 §第四部分 C：Confidence](../../gpt-dialogues/04-cognitive-digital-twin-v01-report.md) — C 维度原始定义
   - [v2.0 深度研究 §3.3 CTA — State Estimator](../../deep-research/Cognitive-Digital-Twin-Deep-Research.md) — C 维度在 5D 中的位置
 - **上层战略**：
   - [01-applications.md](../../00-overview/01-applications.md) §场景 A（学科诊断）核心依赖本文档

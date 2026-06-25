@@ -2,7 +2,7 @@
 
 > **版本**：v1.0（2026-06-25）
 > **性质**：教学法层第 4 份文档（最后 1 份）——Vygotsky ZPD 理论在 ECOS 中的形式化与工程实现
-> **基于**：[01-k12-cognitive-structure.md](01-k12-cognitive-structure.md)、[02-bloom-application.md](02-bloom-application.md)、[03-learning-strategies.md](03-learning-strategies.md)、[v0.4.0 §3.1 Cognitive Apprenticeship 6 阶段（Scaffolding 衰减）](../../research/30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md)、[02-lca-policy-engine.md §3.5 Scaffolding 衰减](../research/10-engineering/02-lca-policy-engine.md)、[v0.5.0 C 维度内容库（TC + Misconception）](../../research/30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md)
+> **基于**：[01-k12-cognitive-structure.md](01-k12-cognitive-structure.md)、[02-bloom-application.md](02-bloom-application.md)、[03-learning-strategies.md](03-learning-strategies.md)、[v0.4.0 §3.1 Cognitive Apprenticeship 6 阶段（Scaffolding 衰减）](../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md)、[02-lca-policy-engine.md §3.5 Scaffolding 衰减](../10-engineering/02-lca-policy-engine.md)、[v0.5.0 C 维度内容库（TC + Misconception）](../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md)
 > **后续**：教学法层全部完成后，启动 [90-mvp/](../90-mvp/)（Phase 0 最后 1 份）
 > **维护者**：Bisen & Claude
 
@@ -31,11 +31,11 @@
 ┌─────────────────────────────────────────────────────────────┐
 │ ZPD 在 ECOS（本文档）—— 教学法核心                            │
 │   ↓ ZPD 形式化 + ZPD 突破检测                                │
-│ CTA（[01-cta-belief-engine.md](../research/10-engineering/01-cta-belief-engine.md)）│
+│ CTA（[01-cta-belief-engine.md](../10-engineering/01-cta-belief-engine.md)）│
 │   - 估计实际发展区（当前 5D + BloomProfile）                  │
 │   - 估计潜在发展区（在 Bloom 目标下的能力上限）              │
 │   ↓                                                            │
-│ LCA（[02-lca-policy-engine.md](../research/10-engineering/02-lca-policy-engine.md)）│
+│ LCA（[02-lca-policy-engine.md](../10-engineering/02-lca-policy-engine.md)）│
 │   - 选择 ZPD 内的干预（既不简单也不难）                       │
 │   - Scaffolding 衰减（与 CA Stage 3 整合）                    │
 │   ↓                                                            │
@@ -49,7 +49,7 @@
 |---|---|
 | [Cognitive Apprenticeship 6 阶段](https://en.wikipedia.org/wiki/Cognitive_apprenticeship) | Stage 3 Scaffolding 直接对应 ZPD 支持 |
 | Bloom 跨层级教学 | ZPD 边界 = Bloom 目标层 |
-| [v0.4.0 CLT 工作记忆负荷](../../research/30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md) | ZPD 内任务的负荷应符合学生 CLT 级别 |
+| [v0.4.0 CLT 工作记忆负荷](../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md) | ZPD 内任务的负荷应符合学生 CLT 级别 |
 | LearningDNA | ZPD 内的策略应个性化匹配 LearningDNA |
 | Threshold Concepts | TC 跨越 = ZPD 突破的极端案例 |
 | Misconceptions | Misconception 持续 = ZPD 收缩 |
@@ -213,7 +213,7 @@ class ZPDUpdater:
 
 ### 2.1 ZPD 内的任务选择原则
 
-[LCA 引擎](../research/10-engineering/02-lca-policy-engine.md) 的干预选择必须考虑 ZPD：
+[LCA 引擎](../10-engineering/02-lca-policy-engine.md) 的干预选择必须考虑 ZPD：
 
 ```python
 class ZPDAwareInterventionSelector:
@@ -300,7 +300,7 @@ class InterventionDifficultySelector:
             # 元认知型 → 中等（不过难）
             pass  # 保持基础
 
-        # CLT 级别调整（与 [v0.4.0 §1.3 expertise reversal effect](../../research/30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md) 对齐）
+        # CLT 级别调整（与 [v0.4.0 §1.3 expertise reversal effect](../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md) 对齐）
         if clt_level == CLTLevel.NOVICE:
             # 新手 → 略低（完整 worked example）
             base_difficulty -= 0.10
@@ -312,7 +312,7 @@ class InterventionDifficultySelector:
         return max(zpd.zpd_lower, min(zpd.zpd_upper, base_difficulty))
 ```
 
-### 2.3 Scaffolding 衰减（与 [v0.4.0 §3.3 CA Stage 3 Scaffolding 衰减](../../research/30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md) 整合）
+### 2.3 Scaffolding 衰减（与 [v0.4.0 §3.3 CA Stage 3 Scaffolding 衰减](../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md) 整合）
 
 ```python
 class CAScaffoldingDecay:
@@ -420,7 +420,7 @@ class ZPDBreakthroughDetector:
 
 ### 3.2 突破的归因
 
-[01-cta-belief-engine.md §7 L4 因果归因](../research/10-engineering/01-cta-belief-engine.md) 整合：
+[01-cta-belief-engine.md §7 L4 因果归因](../10-engineering/01-cta-belief-engine.md) 整合：
 
 ```python
 class BreakthroughAttribution:
@@ -567,7 +567,7 @@ class BloomZPDModel:
 
 ## 6. ZPD 与学习障碍识别
 
-[04-risks.md §B 学习障碍识别](../research/00-overview/04-risks.md) 是关键风险。
+[04-risks.md §B 学习障碍识别](../00-overview/04-risks.md) 是关键风险。
 
 ### 6.1 学习障碍的信号
 
@@ -620,7 +620,7 @@ Level 1：暂时困难？
   - → 暂时困难，无需特殊干预
 
 Level 2：misconception 未检测？
-  - [v0.5.0 Misconception 检测](03-c-dimension-content-libraries.md) F1 ≥ 0.7？
+  - [v0.5.0 Misconception 检测](../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md) F1 ≥ 0.7？
   - → 如有 misconception，调整干预
 
 Level 3：策略不当？
@@ -649,7 +649,7 @@ Level 4：学习障碍？
 
 ### 7.1 TC 跨越与 ZPD 突破
 
-[v0.5.0 C 维度内容库 §1 Threshold Concepts](../../research/30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md)：
+[v0.5.0 C 维度内容库 §1 Threshold Concepts](../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md)：
 
 ```
 TC 跨越 = ZPD 突破的极端案例
@@ -664,7 +664,7 @@ TC 跨越成功 = ZPD 突破到更高层次（认知结构永久改变）
 
 **ECOS 行动**：
 - TC 跨越检测 → ZPD 重新计算
-- 跨越成功后 → BloomProfile 自动 +0.1（[03-bloom-goal-library.md §8.1 TC 集成](../research/10-engineering/03-bloom-goal-library.md)）
+- 跨越成功后 → BloomProfile 自动 +0.1（[03-bloom-goal-library.md §8.1 TC 集成](../10-engineering/03-bloom-goal-library.md)）
 - Scaffolding 完全撤走（不可逆）
 
 ### 7.2 Misconception 与 ZPD 收缩
@@ -678,11 +678,11 @@ ZPD 边界错误（基于伪置信估计）
         ↓
 LCA 推荐过难任务 → 学生反复失败 → ZPD 收缩
         ↓
-[04-risks.md §B4 学习障碍风险](../research/00-overview/04-risks.md)
+[04-risks.md §B4 学习障碍风险](../00-overview/04-risks.md)
 ```
 
 **ECOS 行动**：
-- [v0.5.0 §3 C 维度内容库](../research/30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md) 集成：misconception 检测 → C 维度 × 0.7（伪置信折扣）
+- [v0.5.0 §3 C 维度内容库](../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md) 集成：misconception 检测 → C 维度 × 0.7（伪置信折扣）
 - ZPD 重新计算（基于真实 ADL）
 - 避免错误推荐
 
@@ -752,17 +752,17 @@ LCA 推荐过难任务 → 学生反复失败 → ZPD 收缩
   - [02-bloom-application.md](02-bloom-application.md) — Bloom 跨层级策略
   - [03-learning-strategies.md](03-learning-strategies.md) — 学习策略空间
 - **P0 借鉴**（理论依据）：
-  - [v0.4.0 §3.1 Cognitive Apprenticeship 6 阶段](../../research/30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md) — Scaffolding 与 ZPD 整合
-  - [v0.5.0 C 维度内容库 §1.3 Liminality + §2.3](../research/30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md) — TC 跨越 + Misconception 与 ZPD 关联
+  - [v0.4.0 §3.1 Cognitive Apprenticeship 6 阶段](../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md) — Scaffolding 与 ZPD 整合
+  - [v0.5.0 C 维度内容库 §1.3 Liminality + §2.3](../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md) — TC 跨越 + Misconception 与 ZPD 关联
 - **工程层**（按本文档实现）：
-  - [01-cta-belief-engine.md](../research/10-engineering/01-cta-belief-engine.md) — CTA 引擎（ZPD 计算）
-  - [02-lca-policy-engine.md](../research/10-engineering/02-lca-policy-engine.md) — LCA 引擎（ZPD 内的干预选择）
+  - [01-cta-belief-engine.md](../10-engineering/01-cta-belief-engine.md) — CTA 引擎（ZPD 计算）
+  - [02-lca-policy-engine.md](../10-engineering/02-lca-policy-engine.md) — LCA 引擎（ZPD 内的干预选择）
 - **上层文档**：
-  - [02-architecture.md §3.2 LCA 设计](../research/00-overview/02-architecture.md) — 工程实现依据
-  - [04-risks.md §B4 学习障碍](../research/00-overview/04-risks.md) — 风险评估
+  - [02-architecture.md §3.2 LCA 设计](../00-overview/02-architecture.md) — 工程实现依据
+  - [04-risks.md §B4 学习障碍](../00-overview/04-risks.md) — 风险评估
 - **核心论证**：
   - Vygotsky 1978. *Mind in Society*. Harvard University Press.
-  - [v0.1 综合报告 §第八部分 Bloom](../research/gpt-dialogues/04-cognitive-digital-twin-v01-report.md) — Bloom 分类学
+  - [v0.1 综合报告 §第八部分 Bloom](../gpt-dialogues/04-cognitive-digital-twin-v01-report.md) — Bloom 分类学
 
 ---
 

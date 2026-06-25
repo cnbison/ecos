@@ -2,7 +2,7 @@
 
 > **版本**：v1.0（2026-06-25）
 > **性质**：工程层第 2 份文档——LCA（Learning Coach Agent）策略引擎的工程实现设计
-> **基于**：[v0.4.0 LCA 教学法基础](../../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md)（3 大理论群）、[01-cta-belief-engine.md](01-cta-belief-engine.md)（CTA 接口）、[02-architecture.md §6 干预策略工程实现](../00-overview/02-architecture.md)、[03-roadmap.md §2.2 M2 里程碑](../00-overview/03-roadmap.md)、[04-risks.md §A 技术风险 + §C 教育专业风险](../00-overview/04-risks.md)
+> **基于**：[v0.4.0 LCA 教学法基础](../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md)（3 大理论群）、[01-cta-belief-engine.md](01-cta-belief-engine.md)（CTA 接口）、[02-architecture.md §6 干预策略工程实现](../00-overview/02-architecture.md)、[03-roadmap.md §2.2 M2 里程碑](../00-overview/03-roadmap.md)、[04-risks.md §A 技术风险 + §C 教育专业风险](../00-overview/04-risks.md)
 > **后续**：[03-bloom-goal-library.md](03-bloom-goal-library.md)、[04-dual-agent-calibration.md](04-dual-agent-calibration.md)、[05-persistence-session.md](05-persistence-session.md)
 > **维护者**：Bisen & Claude
 
@@ -54,7 +54,7 @@
 
 ### 1.1 L3-L4 教学法栈工程映射
 
-[v0.4.0 §6.1 L3-L4 教学法栈工程映射](../../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md)：
+[v0.4.0 §6.1 L3-L4 教学法栈工程映射](../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md)：
 
 | 层 | 学术方法 | 工程实现 | 开源依赖 | 文件位置 |
 |---|---|---|---|---|
@@ -280,7 +280,7 @@ def select_bloom_target(
 
 ### 3.1 CLT 4 级自适应呈现
 
-[v0.4.0 §1.2 与 ECOS LCA 的对接](../../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md)：
+[v0.4.0 §1.2 与 ECOS LCA 的对接](../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md)：
 
 ```python
 # ecos/lca/l3_selection/clt/adaptive_4level.py
@@ -401,7 +401,7 @@ class CLTTemplate:
 
 ### 3.3 Bjork 测试效应
 
-[v0.4.0 §2.1 Testing Effect](../../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md)：
+[v0.4.0 §2.1 Testing Effect](../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md)：
 
 ```python
 # ecos/lca/l3_selection/bjork/testing.py
@@ -456,7 +456,7 @@ class BjorkSpacingEffect:
     """
     Bjork 间隔效应——分散复习 > 集中练习
 
-    与 [CTA L1 间隔衰减](../01-cta-belief-engine.md#43-间隔效应衰减v040-整合) 整合
+    与 [CTA L1 间隔衰减](01-cta-belief-engine.md#43-间隔效应衰减v040-整合) 整合
     """
 
     def __init__(self, fsrs: FSRS):
@@ -523,7 +523,7 @@ class CAScaffoldingDecay:
 
 ### 4.1 Cognitive Apprenticeship 6 阶段状态机
 
-[v0.4.0 §3.2 与 ECOS LCA 的对接](../../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md)：
+[v0.4.0 §3.2 与 ECOS LCA 的对接](../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md)：
 
 ```python
 # ecos/lca/l4_optimization/ca_state_machine.py
@@ -590,7 +590,7 @@ class CAStateMachine:
 
 ### 4.2 Contextual Bandits MVP (LinUCB)
 
-[v0.4.0 §6.3 L4 策略优化 + 02-architecture.md §6.3](../../00-overview/02-architecture.md)：
+[v0.4.0 §6.3 L4 策略优化 + 02-architecture.md §6.3](../00-overview/02-architecture.md)：
 
 ```python
 # ecos/lca/l4_optimization/contextual_bandit.py
@@ -690,7 +690,7 @@ class LCAPolicyLearner:
 
 ### 4.3 POMCP（Phase 5+，MVP 不实现）
 
-[v0.4.0 §6.3 L4 策略优化 Phase 5+](../../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md)：
+[v0.4.0 §6.3 L4 策略优化 Phase 5+](../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md)：
 
 ```python
 # Phase 5+ 实现
@@ -708,7 +708,7 @@ class POMCP:
 
 ### 4.4 因果归因（与 CTA L4 协作）
 
-[v0.3.0 §5.3 MVP 因果归因](../../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md)：
+[v0.3.0 §5.3 MVP 因果归因](../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md)：
 
 ```python
 # ecos/lca/l4_optimization/attribution.py
@@ -1100,14 +1100,14 @@ CTA → CTAOutput → LCAOrchestrator.select_intervention()
   - [04-dual-agent-calibration.md](04-dual-agent-calibration.md) — 双 Agent 互校（CTA ↔ LCA 接口契约）
   - [05-persistence-session.md](05-persistence-session.md) — 持久化（干预历史存储）
 - **P0 借鉴**（理论依据）：
-  - [v0.4.0 LCA 教学法基础](../../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md) — 3 大理论群（CLT + Bjork + CA）
-  - [v0.3.0 CTA 数学基础 §4 POMDP](../../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md) — POMDP 接口（LCA 决策空间）
+  - [v0.4.0 LCA 教学法基础](../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md) — 3 大理论群（CLT + Bjork + CA）
+  - [v0.3.0 CTA 数学基础 §4 POMDP](../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md) — POMDP 接口（LCA 决策空间）
 - **上层文档**：
   - [02-architecture.md §6 干预策略工程实现](../00-overview/02-architecture.md) — 本文档的架构依据
   - [03-roadmap.md §2.2 M2 里程碑](../00-overview/03-roadmap.md) — W1-W6 工程任务
   - [04-risks.md §A3 LCA 可解释性 + §C2 文化适配](../00-overview/04-risks.md) — 风险缓解策略
 - **核心论证**：
-  - [v2.0 §3.4 LCA 设计](../../research/deep-research/Cognitive-Digital-Twin-Deep-Research.md) — LCA 思维模式 + 5 类干预
+  - [v2.0 §3.4 LCA 设计](../deep-research/Cognitive-Digital-Twin-Deep-Research.md) — LCA 思维模式 + 5 类干预
 
 ---
 

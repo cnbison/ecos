@@ -2,7 +2,7 @@
 
 > **版本**：v1.0（2026-06-25）
 > **性质**：教学法层第 3 份文档——K12 学习策略分类 + 学科特定策略 + ECOS 干预映射
-> **基于**：[01-k12-cognitive-structure.md](01-k12-cognitive-structure.md)、[02-bloom-application.md](02-bloom-application.md)、[v0.4.0 LCA 教学法基础（CLT + Bjork + CA）](../../research/30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md)、[02-lca-policy-engine.md §2 Intervention 数据结构](../research/10-engineering/02-lca-policy-engine.md)、[v0.1 综合报告 §第八部分 Bloom](../research/gpt-dialogues/04-cognitive-digital-twin-v01-report.md)
+> **基于**：[01-k12-cognitive-structure.md](01-k12-cognitive-structure.md)、[02-bloom-application.md](02-bloom-application.md)、[v0.4.0 LCA 教学法基础（CLT + Bjork + CA）](../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md)、[02-lca-policy-engine.md §2 Intervention 数据结构](../10-engineering/02-lca-policy-engine.md)、[v0.1 综合报告 §第八部分 Bloom](../gpt-dialogues/04-cognitive-digital-twin-v01-report.md)
 > **后续**：[04-zpd-application.md](04-zpd-application.md)
 > **维护者**：Bisen & Claude
 
@@ -18,7 +18,7 @@
 - 各学科特定策略（数学解题 / 语文阅读 / 英语听说 / 物理建模）
 - 学习策略与 Bloom 层级的映射
 - 学习策略与 LearningDNA 的个性化匹配
-- 学习策略效果归因（与 [v0.3.0 §5 Causal Inference](../../research/30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md) 整合）
+- 学习策略效果归因（与 [v0.3.0 §5 Causal Inference](../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md) 整合）
 
 ### 0.2 与 ECOS 其他模块的关系
 
@@ -26,9 +26,9 @@
 ┌─────────────────────────────────────────────────────────────┐
 │ 学习策略空间（本文档）—— 策略知识库                          │
 │   ↓ 策略选择 + 效果归因                                    │
-│ LCA（[02-lca-policy-engine.md](../research/10-engineering/02-lca-policy-engine.md)）│
+│ LCA（[02-lca-policy-engine.md](../10-engineering/02-lca-policy-engine.md)）│
 │   ↓ 推荐策略 + 干预参数                                   │
-│ CTA（[01-cta-belief-engine.md](../research/10-engineering/01-cta-belief-engine.md)）│
+│ CTA（[01-cta-belief-engine.md](../10-engineering/01-cta-belief-engine.md)）│
 │   ↓ 估计策略效果 + BloomProfile 更新                       │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -63,7 +63,7 @@
 | 方法 | 适用 | ECOS 实现 |
 |---|---|---|
 | **朗读 / 抄写** | 词汇、公式 | PRACTICE 干预（v0.4.0 §2.1）|
-| **闪卡（SRS）**| 间隔重复 | FSRS 算法（[02-lca-policy-engine.md §3.3](../research/10-engineering/02-lca-policy-engine.md)）|
+| **闪卡（SRS）**| 间隔重复 | FSRS 算法（[02-lca-policy-engine.md §3.3](../10-engineering/02-lca-policy-engine.md)）|
 | **列表记忆** | 列表型知识 | PRACTICE + 列表题 |
 
 **适用 Bloom 层**：L1 Remember
@@ -109,14 +109,14 @@
 
 **效果**：
 - 促进知识结构化（schema 形成）
-- 与 [v0.3.0 §1 MIRT](../research/30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md) 的 Σ_θ 协方差结构契合
+- 与 [v0.3.0 §1 MIRT](../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md) 的 Σ_θ 协方差结构契合
 - 长期记忆显著提升
 
 ---
 
 ## 2. 元认知策略（Metacognitive Strategies）
 
-[v0.4.0 §3.1 Cognitive Apprenticeship 6 阶段](../research/30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md) 中的 **Stage 4 Articulation + Stage 5 Reflection** 直接对应元认知策略。
+[v0.4.0 §3.1 Cognitive Apprenticeship 6 阶段](../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md) 中的 **Stage 4 Articulation + Stage 5 Reflection** 直接对应元认知策略。
 
 ### 2.1 计划策略（Planning）
 
@@ -126,7 +126,7 @@
 
 | 方法 | 适用 | ECOS 实现 |
 |---|---|---|
-| **目标设定** | 学期/月度目标 | CTA next_target + Bloom Library（[03-bloom-goal-library.md §7](../research/10-engineering/03-bloom-goal-library.md)）|
+| **目标设定** | 学期/月度目标 | CTA next_target + Bloom Library（[03-bloom-goal-library.md §7](../10-engineering/03-bloom-goal-library.md)）|
 | **时间表** | 复习计划 | FSRS + 间隔重复（v0.4.0 §2.3）|
 | **任务分解** | 复杂任务 | LCA scaffolding + CA Stage 3 |
 
@@ -154,7 +154,7 @@
 
 | 方法 | 适用 | ECOS 实现 |
 |---|---|---|
-| **策略调整** | 效果不佳时 | LCA + Contextual Bandits（[02-lca-policy-engine.md §4.2](../research/10-engineering/02-lca-policy-engine.md)）|
+| **策略调整** | 效果不佳时 | LCA + Contextual Bandits（[02-lca-policy-engine.md §4.2](../10-engineering/02-lca-policy-engine.md)）|
 | **寻求帮助** | 卡住时 | EXPLANATORY + 教师审核 |
 | **重新规划** | 目标调整时 | CA Stage 5 Reflection + Stage 6 Exploration |
 
@@ -191,7 +191,7 @@
 | 方法 | 适用 | ECOS 实现 |
 |---|---|---|
 | **目标分解** | 大任务 | CA Stage 3 Scaffolding |
-| **自我激励** | 维持兴趣 | Game 化（[01-k12-cognitive-structure.md §8](../research/20-pedagogy/01-k12-cognitive-structure.md)）|
+| **自我激励** | 维持兴趣 | Game 化（[01-k12-cognitive-structure.md §8](../20-pedagogy/01-k12-cognitive-structure.md)）|
 | **避免拖延** | 时间管理 | LCA 提醒 + deadline |
 
 ### 3.4 寻求帮助
@@ -201,7 +201,7 @@
 | 方法 | 适用 | ECOS 实现 |
 |---|---|---|
 | **问 AI** | 即时 | LCA + rationale |
-| **问老师** | 系统性 | 教师后台（[02-lca-policy-engine.md §5.3](../research/10-engineering/02-lca-policy-engine.md)）|
+| **问老师** | 系统性 | 教师后台（[02-lca-policy-engine.md §5.3](../10-engineering/02-lca-policy-engine.md)）|
 | **问同学** | 协作 | Group Learning（Phase 5+）|
 
 ---
@@ -279,7 +279,7 @@ def select_language_intervention(belief_state, target_skill):
 | **建立坐标系** | 运动学 | 高 |
 | **类比日常现象** | 抽象概念 | 高 |
 
-**物理与数学建模的迁移**（[01-k12-cognitive-structure.md §5.3 跨学科迁移](../research/20-pedagogy/01-k12-cognitive-structure.md)）：
+**物理与数学建模的迁移**（[01-k12-cognitive-structure.md §5.3 跨学科迁移](../20-pedagogy/01-k12-cognitive-structure.md)）：
 - 数学 P ↔ 物理 P 迁移率 70%
 - 物理建模策略可从数学解题策略迁移
 
@@ -287,7 +287,7 @@ def select_language_intervention(belief_state, target_skill):
 
 ## 5. ECOS 5 类干预 × 学习策略对应
 
-[02-lca-policy-engine.md §2.2 5 类干预 × 4 参数](../research/10-engineering/02-lca-policy-engine.md) 与学习策略的对应：
+[02-lca-policy-engine.md §2.2 5 类干预 × 4 参数](../10-engineering/02-lca-policy-engine.md) 与学习策略的对应：
 
 | ECOS 干预类型 | 主要学习策略 | 次要策略 | 适用 Bloom 层 |
 |---|---|---|---|
@@ -297,7 +297,7 @@ def select_language_intervention(belief_state, target_skill):
 | **FEEDBACK** | 元认知（调节）| 精细加工（错误分析）| L1-L4 |
 | **METACOGNITIVE** | 元认知（计划 + 监控 + 调节）| 精细加工（自我解释）| L4-L6 |
 
-**推荐策略组合**（基于 [v0.4.0 LCA 教学法基础](../../research/30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md)）：
+**推荐策略组合**（基于 [v0.4.0 LCA 教学法基础](../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md)）：
 
 ```
 L1-L2 记忆 + 理解：
@@ -348,7 +348,7 @@ L5-L6 评价 + 创造：
 
 ## 7. 学习策略与 LearningDNA 匹配
 
-[01-cta-belief-engine.md §2.1 LearningDNA](../research/10-engineering/01-cta-belief-engine.md) 5 维个性化特征：
+[01-cta-belief-engine.md §2.1 LearningDNA](../10-engineering/01-cta-belief-engine.md) 5 维个性化特征：
 
 | LearningDNA 维度 | 匹配的学习策略 |
 |---|---|
@@ -400,7 +400,7 @@ class PersonalizedStrategySelector:
 
 ### 8.1 与 CTA L4 因果归因整合
 
-[01-cta-belief-engine.md §7 L4 因果归因](../research/10-engineering/01-cta-belief-engine.md) + [04-dual-agent-calibration.md §4.3 因果归因强制](../research/10-engineering/04-dual-agent-calibration.md)：
+[01-cta-belief-engine.md §7 L4 因果归因](../10-engineering/01-cta-belief-engine.md) + [04-dual-agent-calibration.md §4.3 因果归因强制](../10-engineering/04-dual-agent-calibration.md)：
 
 ```python
 class LearningStrategyAttribution:
@@ -449,7 +449,7 @@ class LearningStrategyAttribution:
 | 组织（思维导图）| 中 | L4 |
 | 组织（归纳笔记）| 中 | L4-L6 |
 | 元认知（计划）| 中 | 全部 |
-| 元认知（监控）| 高（与 [v0.5.0 反思日志](../research/30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md) 整合）| L4-L5 |
+| 元认知（监控）| 高（与 [v0.5.0 反思日志](../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md) 整合）| L4-L5 |
 | 元认知（调节）| 高（与 Contextual Bandits 整合）| 全部 |
 | 资源管理（时间）| 中 | L1-L3 |
 
@@ -457,7 +457,7 @@ class LearningStrategyAttribution:
 
 **中国学生偏好**：复述 + 题海（低 Bloom 高负荷）。
 
-**ECOS 主动引导**：基于 [02-bloom-application.md §5 解决"会做但不会想"](../research/20-pedagogy/02-bloom-application.md)：
+**ECOS 主动引导**：基于 [02-bloom-application.md §5 解决"会做但不会想"](../20-pedagogy/02-bloom-application.md)：
 
 1. **降低复述策略比重**（占比 ≤ 30%）
 2. **提升精细加工 + 元认知策略比重**（占比 ≥ 50%）
@@ -532,9 +532,9 @@ class PersonalizedStrategyEffect:
 | **家长反对率** | ≤ 30% | 家长问卷 |
 | **策略效果方差** | 显著 | 个性化推荐 |
 
-**家长沟通**（[04-risks.md §C2 缓解策略](../research/00-overview/04-risks.md)）：
+**家长沟通**（[04-risks.md §C2 缓解策略](../00-overview/04-risks.md)）：
 
-- 用 [02-bloom-application.md §7 给家长的建议](../research/20-pedagogy/02-bloom-application.md) 沟通"分数高 ≠ 思维强"
+- 用 [02-bloom-application.md §7 给家长的建议](../20-pedagogy/02-bloom-application.md) 沟通"分数高 ≠ 思维强"
 - 显式说明"我们推荐 X 策略（替代纯题海），效果更好"
 - 渐进引入（先保留中国家长熟悉的"刷题"元素，逐步加入合意困难）
 
@@ -547,17 +547,17 @@ class PersonalizedStrategyEffect:
   - [02-bloom-application.md](02-bloom-application.md) — Bloom 跨层级策略
   - [04-zpd-application.md](04-zpd-application.md) — ZPD 在 ECOS 的应用
 - **P0 借鉴**（理论依据）：
-  - [v0.4.0 LCA 教学法基础 §1 CLT](../research/30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md) — 工作记忆负荷
-  - [v0.4.0 §2 Bjork 四件套](../research/30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md) — 合意困难
-  - [v0.4.0 §3 Cognitive Apprenticeship 6 阶段](../research/30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md) — 元认知策略
-  - [v0.5.0 §3 Misconception 库](../../research/30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md) — 反思日志整合
+  - [v0.4.0 LCA 教学法基础 §1 CLT](../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md) — 工作记忆负荷
+  - [v0.4.0 §2 Bjork 四件套](../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md) — 合意困难
+  - [v0.4.0 §3 Cognitive Apprenticeship 6 阶段](../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md) — 元认知策略
+  - [v0.5.0 §3 Misconception 库](../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md) — 反思日志整合
 - **工程层**（按本文档配置实现）：
-  - [02-lca-policy-engine.md](../research/10-engineering/02-lca-policy-engine.md) — LCA 引擎（推荐策略）
-  - [01-cta-belief-engine.md](../research/10-engineering/01-cta-belief-engine.md) — CTA 引擎（归因策略效果）
-  - [04-dual-agent-calibration.md](../research/10-engineering/04-dual-agent-calibration.md) — 双 Agent 互校
+  - [02-lca-policy-engine.md](../10-engineering/02-lca-policy-engine.md) — LCA 引擎（推荐策略）
+  - [01-cta-belief-engine.md](../10-engineering/01-cta-belief-engine.md) — CTA 引擎（归因策略效果）
+  - [04-dual-agent-calibration.md](../10-engineering/04-dual-agent-calibration.md) — 双 Agent 互校
 - **上层文档**：
-  - [02-architecture.md §6 干预策略](../research/00-overview/02-architecture.md) — 工程实现依据
-  - [04-risks.md §C2 文化适配](../research/00-overview/04-risks.md) — 中国 K12 风险
+  - [02-architecture.md §6 干预策略](../00-overview/02-architecture.md) — 工程实现依据
+  - [04-risks.md §C2 文化适配](../00-overview/04-risks.md) — 中国 K12 风险
 
 ---
 

@@ -2,7 +2,7 @@
 
 > **版本**：v1.0（2026-06-25）
 > **性质**：ECOS 战略层第 2 份文档，**整合 P0 三件套到架构总图**——填补 v2.0 §3 的工程细化 + 教学法基础
-> **基于**：[v2.0 深度研究 §3 ECOS 完整架构](../../deep-research/Cognitive-Digital-Twin-Deep-Research.md)、[v0.3.0 CTA 数学基础](../../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md)、[v0.4.0 LCA 教学法基础](../../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md)、[v0.5.0 C 维度内容库](../../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md)、[01-applications.md](01-applications.md)
+> **基于**：[v2.0 深度研究 §3 ECOS 完整架构](../deep-research/Cognitive-Digital-Twin-Deep-Research.md)、[v0.3.0 CTA 数学基础](../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md)、[v0.4.0 LCA 教学法基础](../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md)、[v0.5.0 C 维度内容库](../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md)、[01-applications.md](01-applications.md)
 > **后续**：[03-roadmap.md](03-roadmap.md)（阶段划分）、[04-risks.md](04-risks.md)（风险矩阵）
 > **维护者**：Bisen & Claude
 
@@ -12,7 +12,7 @@
 
 ### 0.1 与 v2.0 深度研究的关系
 
-[v2.0 §3 ECOS 完整架构](../../deep-research/Cognitive-Digital-Twin-Deep-Research.md) 已给出架构骨架：
+[v2.0 §3 ECOS 完整架构](../deep-research/Cognitive-Digital-Twin-Deep-Research.md) 已给出架构骨架：
 
 ```
 Bloom Goal Space → LCA → CTA → Student
@@ -22,9 +22,9 @@ Bloom Goal Space → LCA → CTA → Student
 
 | 整合内容 | 来源 | v2.0 缺口 |
 |---|---|---|
-| CTA L0-L4 数学栈 | [v0.3.0](../../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md) | §3.3 "只提 IRT/BKT/DKT 名字" |
-| LCA L3-L4 教学法栈 | [v0.4.0](../../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md) | §3.4 "有策略列表无理论论证" |
-| C 维度双轨内容库 | [v0.5.0](../../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md) | §3.3 "C 维度是抽象置信度" |
+| CTA L0-L4 数学栈 | [v0.3.0](../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md) | §3.3 "只提 IRT/BKT/DKT 名字" |
+| LCA L3-L4 教学法栈 | [v0.4.0](../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md) | §3.4 "有策略列表无理论论证" |
+| C 维度双轨内容库 | [v0.5.0](../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md) | §3.3 "C 维度是抽象置信度" |
 
 ### 0.2 文档目标读者
 
@@ -120,7 +120,7 @@ ECOS 的核心数学结构是 **三空间**：State Space（CTA 维护）+ Bloom
 
 ### 2.1 State Space（状态空间）
 
-**CTA 维护的学生状态完整结构**（整合 [v2.0 §3.3](../../deep-research/Cognitive-Digital-Twin-Deep-Research.md) + [v0.3.0 §1 MIRT](../../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md)）：
+**CTA 维护的学生状态完整结构**（整合 [v2.0 §3.3](../deep-research/Cognitive-Digital-Twin-Deep-Research.md) + [v0.3.0 §1 MIRT](../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md)）：
 
 ```python
 class StudentState:
@@ -152,11 +152,11 @@ class StudentState:
     TCStates: Dict[str, TCState]    # 每个 TC 的 liminal/post-liminal 状态（v0.5.0）
 ```
 
-**5D × 6 Bloom = 30 维状态空间**——MIRT 提供数学框架（[v0.3.0 §1](../../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md)）。
+**5D × 6 Bloom = 30 维状态空间**——MIRT 提供数学框架（[v0.3.0 §1](../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md)）。
 
 ### 2.2 Bloom Goal Space（目标坐标系）
 
-**6 层认知层级**（[v0.1 综合报告 §第八部分](../../gpt-dialogues/04-cognitive-digital-twin-v01-report.md)）：
+**6 层认知层级**（[v0.1 综合报告 §第八部分](../gpt-dialogues/04-cognitive-digital-twin-v01-report.md)）：
 
 | 层 | 名称 | 含义 | K12 例子（数学）|
 |---|---|---|---|
@@ -173,7 +173,7 @@ class StudentState:
 
 ### 2.3 Policy Space（策略空间）
 
-**5 类干预 × 4 参数**（整合 [v0.4.0 §4.3](../../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md)）：
+**5 类干预 × 4 参数**（整合 [v0.4.0 §4.3](../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md)）：
 
 ```
 Policy Space = 5 离散类型 × 4 连续参数 + Bloom 层选择
@@ -198,7 +198,7 @@ Policy Space = 5 离散类型 × 4 连续参数 + Bloom 层选择
 
 **核心职责**："这个学生现在是谁？卡在哪？" —— 维护 5D 信念分布，不主动干预。
 
-**内部结构（5 层数学栈）**（[v0.3.0 §6 整合](../../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md)）：
+**内部结构（5 层数学栈）**（[v0.3.0 §6 整合](../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md)）：
 
 ```
 ┌──────────────────────────────────────────────────────────┐
@@ -229,7 +229,7 @@ Policy Space = 5 离散类型 × 4 连续参数 + Bloom 层选择
 - ✅ LLM 可用：感知层（学生解释文本 → 5D 更新信号）+ 解释层（统计值 → 自然语言报告）+ Misconception 检测
 - ❌ LLM 不可用：直接生成 5D 状态估计——任何此类设计都是退路
 
-**C 维度内容库整合**（[v0.5.0](../../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md)）：
+**C 维度内容库整合**（[v0.5.0](../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md)）：
 
 ```
 CTA 状态更新：
@@ -243,7 +243,7 @@ CTA 状态更新：
 
 **核心职责**："下一步怎么办？如何成长最快？" —— 基于 CTA 状态选择最优干预，主动实验。
 
-**内部结构（L3-L4 教学法栈）**（[v0.4.0 §4 整合](../../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md)）：
+**内部结构（L3-L4 教学法栈）**（[v0.4.0 §4 整合](../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md)）：
 
 ```
 ┌──────────────────────────────────────────────────────────┐
@@ -266,7 +266,7 @@ CTA 状态更新：
 
 ### 3.3 双 Agent 互校机制
 
-**核心循环**（整合 [v2.0 §3.5](../../deep-research/Cognitive-Digital-Twin-Deep-Research.md) + POMDP 接口）：
+**核心循环**（整合 [v2.0 §3.5](../deep-research/Cognitive-Digital-Twin-Deep-Research.md) + POMDP 接口）：
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
@@ -294,12 +294,12 @@ CTA 状态更新：
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-**互校对抗幻觉的 3 个机制**（[v2.0 §3.5](../../deep-research/Cognitive-Digital-Twin-Deep-Research.md)）：
+**互校对抗幻觉的 3 个机制**（[v2.0 §3.5](../deep-research/Cognitive-Digital-Twin-Deep-Research.md)）：
 1. **CTA 保守 vs LCA 主动**：CTA 不轻易下结论，LCA 必须用实验验证
 2. **CTA 数学严格 vs LCA 教学法灵活**：数学层不容妥协，教学法可调整
 3. **L4 因果归因强制**：每个干预效果必须经因果归因（不能仅看相关性）
 
-**互校的 4 个交互模式**（[v2.0 §3.5](../../deep-research/Cognitive-Digital-Twin-Deep-Research.md)）：
+**互校的 4 个交互模式**（[v2.0 §3.5](../deep-research/Cognitive-Digital-Twin-Deep-Research.md)）：
 - **常态模式**：CTA 估计 → LCA 干预 → 数据反馈
 - **冲突模式**：CTA 与 LCA 对学生状态判断分歧（CTA 说"会"，LCA 实验发现"不会"）→ CTA 必须修正
 - **学习模式**：LCA 因果归因发现某类干预有效/无效 → 调整策略空间权重
@@ -309,7 +309,7 @@ CTA 状态更新：
 
 ## 4. 完整数据流（端到端）
 
-### 4.1 数据流伪代码（整合 [v2.0 §3.6](../../deep-research/Cognitive-Digital-Twin-Deep-Research.md)）
+### 4.1 数据流伪代码（整合 [v2.0 §3.6](../deep-research/Cognitive-Digital-Twin-Deep-Research.md)）
 
 ```python
 # ===== 1. 数据采集（App 层）=====
@@ -505,7 +505,7 @@ class Intervention:
 
 ### 6.3 L4 策略优化（MVP = Contextual Bandits）
 
-**MVP 阶段**：LCA 用 **Contextual Bandits**（[P1.8 待写](../../30-shared-cognitive-tools/theoretical-foundations/README.md)）作为轻量级 RL 框架：
+**MVP 阶段**：LCA 用 **Contextual Bandits**（[P1.8 待写](../30-shared-cognitive-tools/theoretical-foundations/README.md)）作为轻量级 RL 框架：
 
 ```
 状态（context） = CTA 5D + BloomProfile + LearningDNA
@@ -669,22 +669,22 @@ Student → App → CTA(BKT+MIRT+TC+Misconception)
   - [03-roadmap.md](03-roadmap.md) — 阶段划分（基于本架构）
   - [04-risks.md](04-risks.md) — 风险矩阵（基于本架构 + 路线图）
 - **P0 三件套（架构整合来源）**：
-  - [v0.3.0 CTA 数学基础](../../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md) — §3/5/7 整合到 §3.1/5
-  - [v0.4.0 LCA 教学法基础](../../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md) — §4 整合到 §3.2/6
-  - [v0.5.0 C 维度内容库](../../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md) — §3 整合到 §3.1/5.3
+  - [v0.3.0 CTA 数学基础](../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md) — §3/5/7 整合到 §3.1/5
+  - [v0.4.0 LCA 教学法基础](../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md) — §4 整合到 §3.2/6
+  - [v0.5.0 C 维度内容库](../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md) — §3 整合到 §3.1/5.3
 - **核心论证**：
-  - [v2.0 深度研究 §3 ECOS 完整架构](../../deep-research/Cognitive-Digital-Twin-Deep-Research.md) — 本文档的骨架来源
-  - [v2.0 §3.5 双 Agent 互校机制](../../deep-research/Cognitive-Digital-Twin-Deep-Research.md) — 整合到 §3.3
-  - [v2.0 §3.6 完整数据流](../../deep-research/Cognitive-Digital-Twin-Deep-Research.md) — 整合到 §4
+  - [v2.0 深度研究 §3 ECOS 完整架构](../deep-research/Cognitive-Digital-Twin-Deep-Research.md) — 本文档的骨架来源
+  - [v2.0 §3.5 双 Agent 互校机制](../deep-research/Cognitive-Digital-Twin-Deep-Research.md) — 整合到 §3.3
+  - [v2.0 §3.6 完整数据流](../deep-research/Cognitive-Digital-Twin-Deep-Research.md) — 整合到 §4
 - **工程层**（待填充）：
-  - [10-engineering/01-cta-belief-engine.md](../../10-engineering/01-cta-belief-engine.md) — CTA 工程实现（按本文档 §5）
-  - [10-engineering/02-lca-policy-engine.md](../../10-engineering/02-lca-policy-engine.md) — LCA 工程实现（按本文档 §6）
-  - [10-engineering/03-bloom-goal-library.md](../../10-engineering/03-bloom-goal-library.md) — Bloom 目标库（按本文档 §2.2）
-  - [10-engineering/04-dual-agent-calibration.md](../../10-engineering/04-dual-agent-calibration.md) — 双 Agent 互校（按本文档 §3.3）
-  - [10-engineering/05-persistence-session.md](../../10-engineering/05-persistence-session.md) — 持久化（按本文档 §7）
+  - [10-engineering/01-cta-belief-engine.md](../10-engineering/01-cta-belief-engine.md) — CTA 工程实现（按本文档 §5）
+  - [10-engineering/02-lca-policy-engine.md](../10-engineering/02-lca-policy-engine.md) — LCA 工程实现（按本文档 §6）
+  - [10-engineering/03-bloom-goal-library.md](../10-engineering/03-bloom-goal-library.md) — Bloom 目标库（按本文档 §2.2）
+  - [10-engineering/04-dual-agent-calibration.md](../10-engineering/04-dual-agent-calibration.md) — 双 Agent 互校（按本文档 §3.3）
+  - [10-engineering/05-persistence-session.md](../10-engineering/05-persistence-session.md) — 持久化（按本文档 §7）
 - **背景**：
   - [research/README.md](../../README.md) — Research SSOT 入口
-  - [MIGRATION-FROM-SELFLAB.md](../../MIGRATION-FROM-SELFLAB.md) — 项目迁移梳理
+  - [MIGRATION-FROM-SELFLAB.md](../MIGRATION-FROM-SELFLAB.md) — 项目迁移梳理
 
 ---
 
@@ -693,7 +693,7 @@ Student → App → CTA(BKT+MIRT+TC+Misconception)
 - **v1.0**（2026-06-25）— 初版，整合 P0 三件套到 ECOS 整体架构总图
 
 **待办（影响本文档时同步更新）**：
-- 当 [10-engineering/](../../10-engineering/) 任意文档完成后，回填对应章节的工程实现细节
+- 当 [10-engineering/](../10-engineering/) 任意文档完成后，回填对应章节的工程实现细节
 - 当 Phase 4 MVP 实验完成后，回填"实际效果"段落（MVP 架构的实证表现）
 - 当 P1 理论借鉴（Contextual Bandits / Cognitive Apprenticeship 深化 / Working Memory）完成后，相应更新 §6
 

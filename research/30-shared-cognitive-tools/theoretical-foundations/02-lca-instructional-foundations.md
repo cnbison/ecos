@@ -10,7 +10,7 @@
 
 ## 0. LCA 教学法基础的理论定位
 
-[v2.0 §3.4](../deep-research/Cognitive-Digital-Twin-Deep-Research.md) 已给出 LCA 的"干预空间"——按 Bloom 层级分类的策略字典：
+[v2.0 §3.4](../../deep-research/Cognitive-Digital-Twin-Deep-Research.md) 已给出 LCA 的"干预空间"——按 Bloom 层级分类的策略字典：
 
 ```python
 # v2.0 §3.4 已定义（无理论论证）

@@ -2,7 +2,7 @@
 
 > **版本**：v1.0（2026-06-25）
 > **性质**：工程层第 4 份文档——CTA ↔ LCA 互校机制的工程实现设计
-> **基于**：[v2.0 §3.5 双 Agent 互校](../../research/deep-research/Cognitive-Digital-Twin-Deep-Research.md)、[02-architecture.md §3.3 双 Agent 详细架构](../00-overview/02-architecture.md)、[01-cta-belief-engine.md](01-cta-belief-engine.md)、[02-lca-policy-engine.md](02-lca-policy-engine.md)、[03-bloom-goal-library.md](03-bloom-goal-library.md)、[03-roadmap.md §2.3 M3 假设验证](../00-overview/03-roadmap.md)、[04-risks.md §A1 + §A4](../00-overview/04-risks.md)
+> **基于**：[v2.0 §3.5 双 Agent 互校](../deep-research/Cognitive-Digital-Twin-Deep-Research.md)、[02-architecture.md §3.3 双 Agent 详细架构](../00-overview/02-architecture.md)、[01-cta-belief-engine.md](01-cta-belief-engine.md)、[02-lca-policy-engine.md](02-lca-policy-engine.md)、[03-bloom-goal-library.md](03-bloom-goal-library.md)、[03-roadmap.md §2.3 M3 假设验证](../00-overview/03-roadmap.md)、[04-risks.md §A1 + §A4](../00-overview/04-risks.md)
 > **后续**：[05-persistence-session.md](05-persistence-session.md)
 > **维护者**：Bisen & Claude
 
@@ -19,7 +19,7 @@
 3. **3 个对抗幻觉机制**——CTA 信念分布 / LCA 设计实验 / 因果归因
 4. **通信契约**——CTA 与 LCA 通过标准化消息格式交互
 
-**关键定位**：[02-architecture.md §3.3 互校循环](../00-overview/02-architecture.md) + [v2.0 §3.5 互校对抗幻觉的 3 个机制](../../research/deep-research/Cognitive-Digital-Twin-Deep-Research.md)
+**关键定位**：[02-architecture.md §3.3 互校循环](../00-overview/02-architecture.md) + [v2.0 §3.5 互校对抗幻觉的 3 个机制](../deep-research/Cognitive-Digital-Twin-Deep-Research.md)
 
 ### 0.2 与其他模块的接口
 
@@ -86,7 +86,7 @@
 
 ### 1.2 4 个交互模式
 
-[v2.0 §3.5 互校的 4 个交互模式](../../research/deep-research/Cognitive-Digital-Twin-Deep-Research.md)：
+[v2.0 §3.5 互校的 4 个交互模式](../deep-research/Cognitive-Digital-Twin-Deep-Research.md)：
 
 | 模式 | 触发条件 | 处理逻辑 |
 |---|---|---|
@@ -97,7 +97,7 @@
 
 ### 1.3 3 个对抗幻觉机制
 
-[v2.0 §3.5 互校对抗幻觉的 3 个机制](../../research/deep-research/Cognitive-Digital-Twin-Deep-Research.md)：
+[v2.0 §3.5 互校对抗幻觉的 3 个机制](../deep-research/Cognitive-Digital-Twin-Deep-Research.md)：
 
 1. **CTA 保守 vs LCA 主动**：CTA 不轻易下结论（维护信念分布），LCA 必须用实验验证
 2. **CTA 数学严格 vs LCA 教学法灵活**：数学层不容妥协，教学法可调整
@@ -295,7 +295,7 @@ class VersionCompatibility:
 
 ### 3.1 常态循环（新事件/新证据）
 
-[v2.0 §3.5 互校核心循环](../../research/deep-research/Cognitive-Digital-Twin-Deep-Research.md)：
+[v2.0 §3.5 互校核心循环](../deep-research/Cognitive-Digital-Twin-Deep-Research.md)：
 
 ```python
 # ecos/dual_agent/modes/normal.py
@@ -586,7 +586,7 @@ class MetaReflectionMode:
 
 ## 4. 对抗幻觉的 3 个机制
 
-[v2.0 §3.5 互校对抗幻觉的 3 个机制](../../research/deep-research/Cognitive-Digital-Twin-Deep-Research.md)：
+[v2.0 §3.5 互校对抗幻觉的 3 个机制](../deep-research/Cognitive-Digital-Twin-Deep-Research.md)：
 
 ### 4.1 机制 1：CTA 信念分布（非事实判断）
 
@@ -1128,8 +1128,8 @@ def test_scenario_human_review_triggered():
   - [03-roadmap.md §2.3 M3 假设验证](../00-overview/03-roadmap.md) — H3（双 Agent 互校抗幻觉）
   - [04-risks.md §A1 + §A4](../00-overview/04-risks.md) — 风险缓解策略
 - **核心论证**：
-  - [v2.0 §3.5 双 Agent 互校](../../research/deep-research/Cognitive-Digital-Twin-Deep-Research.md) — 4 模式 + 3 机制 + 互校核心循环
-  - [v0.3.0 CTA 数学基础 §4 POMDP](../research/30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md) — POMDP 接口
+  - [v2.0 §3.5 双 Agent 互校](../deep-research/Cognitive-Digital-Twin-Deep-Research.md) — 4 模式 + 3 机制 + 互校核心循环
+  - [v0.3.0 CTA 数学基础 §4 POMDP](../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md) — POMDP 接口
 
 ---
 

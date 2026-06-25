@@ -2,8 +2,8 @@
 
 > **目的**：M2.1 已经借鉴 AiBeing 的 9 个**引擎内部机制**。Phase 3 进入应用层，需要从 AiBeing 借鉴**应用级经验**（性能、状态管理、用户体验、生产鲁棒性）。
 > **关系文档**：
-> - [SGE-M21-AiBeing-Implementation-Mapping.md](../research/sge-feasibility/SGE-M21-AiBeing-Implementation-Mapping.md) — M2.1 引擎内部机制映射
-> - [SGE-Learning-from-AiBeing.md](../research/sge-learning/SGE-Learning-from-AiBeing.md) — 借鉴分析（概念层）
+> - **SGE-M21-AiBeing-Implementation-Mapping.md**（SelfLab 时代文件，ECOS 暂无对应） — M2.1 引擎内部机制映射
+> - **SGE-Learning-from-AiBeing.md**（SelfLab 时代文件，ECOS 暂无对应） — 借鉴分析（概念层）
 
 ---
 
@@ -387,11 +387,11 @@ sge/tests/
 
 ## 8. 关联文档
 
-- [SGE-M21-AiBeing-Implementation-Mapping.md](../research/sge-feasibility/SGE-M21-AiBeing-Implementation-Mapping.md) — M2.1 引擎层映射
-- [SGE-Learning-from-AiBeing.md](../research/sge-learning/SGE-Learning-from-AiBeing.md) — 概念层分析
-- [SGE-M22-Implementation-Plan.md §三 风险与缓解](../research/sge-feasibility/SGE-M22-Implementation-Plan.md) — Phase 3 风险
-- [2026-06-21-sge-strategic-significance.md](./2026-06-21-sge-strategic-significance.md) — SGE 战略意义（Phase 3 视角）
-- [sge/README.md §Phase 3 路线图](../../sge/README.md) — 工程路线图
+- **SGE-M21-AiBeing-Implementation-Mapping.md**（SelfLab 时代文件，ECOS 暂无对应） — M2.1 引擎层映射
+- **SGE-Learning-from-AiBeing.md**（SelfLab 时代文件，ECOS 暂无对应） — 概念层分析
+- **SGE-M22-Implementation-Plan.md §三 风险与缓解**（SelfLab 时代文件，ECOS 暂无对应） — Phase 3 风险
+- **2026-06-21-sge-strategic-significance.md**（SelfLab 时代文件，ECOS 暂无对应） — SGE 战略意义（Phase 3 视角）
+- **SelfLab SGE 文档**（ECOS 独立后无对应文件；ECOS 的路线图见 [03-roadmap.md](../00-overview/03-roadmap.md)） — 工程路线图
 
 ---
 

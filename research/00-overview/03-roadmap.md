@@ -2,7 +2,7 @@
 
 > **版本**：v1.0（2026-06-25）
 > **性质**：ECOS 战略层第 3 份文档，**基于架构定义 M0-M7 详细任务与阶段验证指标**
-> **基于**：[01-applications.md](01-applications.md) §7 MVP 范围、[02-architecture.md](02-architecture.md) §8 MVP 架构、[v2.0 §执行摘要 产品化路径](../../deep-research/Cognitive-Digital-Twin-Deep-Research.md)
+> **基于**：[01-applications.md](01-applications.md) §7 MVP 范围、[02-architecture.md](../00-overview/02-architecture.md) §8 MVP 架构、[v2.0 §执行摘要 产品化路径](../deep-research/Cognitive-Digital-Twin-Deep-Research.md)
 > **后续**：[04-risks.md](04-risks.md)（风险矩阵）
 > **维护者**：Bisen & Claude
 
@@ -12,7 +12,7 @@
 
 ### 0.1 与 v2.0 深度研究的关系
 
-[v2.0 §执行摘要 产品化路径](../../deep-research/Cognitive-Digital-Twin-Deep-Research.md) 已给出产品化路径：
+[v2.0 §执行摘要 产品化路径](../deep-research/Cognitive-Digital-Twin-Deep-Research.md) 已给出产品化路径：
 
 | 阶段 | 时间 | 目标 |
 |---|---|---|
@@ -22,7 +22,7 @@
 
 **本文档的扩展**：
 - 把 3 阶段细分为 **M0-M7 共 8 个里程碑**（每个 2-6 周）
-- 基于 [02-architecture.md §8](02-architecture.md) 给出每个里程碑的具体工程任务
+- 基于 [02-architecture.md §8](../00-overview/02-architecture.md) 给出每个里程碑的具体工程任务
 - 明确每个里程碑的**核心假设验证**（H1-H7）和**评估指标**
 - **批判性修正**：MVP "2-4 周" 偏乐观——根据架构组件数量，建议 **4-8 周**
 
@@ -100,7 +100,7 @@
 - **H2**：Bloom 目标空间在初中数学上可行（6 层是否需要重组？L1-L4 是否够用？）
 - **H3**：双 Agent 互校有效减少 LLM 幻觉（实验对比：单 Agent vs 双 Agent 信念质量）
 
-**MVP 范围**（与 [01-applications.md §7](01-applications.md) + [02-architecture.md §8](02-architecture.md) 一致）：
+**MVP 范围**（与 [01-applications.md §7](01-applications.md) + [02-architecture.md §8](../00-overview/02-architecture.md) 一致）：
 - **学科**：初中数学（代数 + 几何）
 - **规模**：50-100 学生（1 个班级 + 1-2 个对照班）
 - **场景**：A 学科诊断 + B 自适应干预 + C 成长轨迹（学期内）
@@ -376,18 +376,18 @@ M3 MVP 实验（2-4 周）
 
 - **战略层**：
   - [01-applications.md](01-applications.md) §7 MVP 范围（4 大场景对应）
-  - [02-architecture.md](02-architecture.md) §8 MVP 架构（12 个组件）
+  - [02-architecture.md](../00-overview/02-architecture.md) §8 MVP 架构（12 个组件）
   - [04-risks.md](04-risks.md) — 风险矩阵（基于本路线图）
 - **P0 三件套**（路线图各 Milestone 的理论依据）：
-  - [v0.3.0 CTA 数学基础](../../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md) §7 MVP 实施路线
-  - [v0.4.0 LCA 教学法基础](../../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md) §5 MVP 实施路线
-  - [v0.5.0 C 维度内容库](../../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md) §4 MVP 实施路线
+  - [v0.3.0 CTA 数学基础](../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md) §7 MVP 实施路线
+  - [v0.4.0 LCA 教学法基础](../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md) §5 MVP 实施路线
+  - [v0.5.0 C 维度内容库](../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md) §4 MVP 实施路线
 - **核心论证**：
-  - [v2.0 §执行摘要 产品化路径](../../deep-research/Cognitive-Digital-Twin-Deep-Research.md) — 本文档的扩展来源
+  - [v2.0 §执行摘要 产品化路径](../deep-research/Cognitive-Digital-Twin-Deep-Research.md) — 本文档的扩展来源
 - **教学法层 + 工程层**（待填充）：
-  - [10-engineering/](../../10-engineering/) — 工程实现（M2/M4/M6 的工程任务）
-  - [20-pedagogy/](../../20-pedagogy/) — 教学法落地（M2/M4 涉及）
-  - [90-mvp/](../../90-mvp/) — MVP 设计（M2/M3 的细化）
+  - [10-engineering/](../10-engineering/) — 工程实现（M2/M4/M6 的工程任务）
+  - [20-pedagogy/](../20-pedagogy/) — 教学法落地（M2/M4 涉及）
+  - [90-mvp/](../90-mvp/) — MVP 设计（M2/M3 的细化）
 
 ---
 
@@ -397,7 +397,7 @@ M3 MVP 实验（2-4 周）
 
 **待办（影响本文档时同步更新）**：
 - 当 [04-risks.md](04-risks.md) 完成后，§7 风险简表扩展为完整风险矩阵
-- 当 [90-mvp/](../../90-mvp/) 设计完成后，回填 M2/M3 的细化任务
+- 当 [90-mvp/](../90-mvp/) 设计完成后，回填 M2/M3 的细化任务
 - 当 Phase 4 实验完成后，回填"实际结果 vs 假设"对比
 - 每完成一个 Milestone（M0-M7），更新 §1.1 已完成清单
 

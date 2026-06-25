@@ -2,7 +2,7 @@
 
 > **版本**：v1.0（2026-06-25）
 > **性质**：工程层第 3 份文档——Bloom 目标库的工程实现设计
-> **基于**：[v2.0 §3.4 LCA + Bloom 映射](../../research/deep-research/Cognitive-Digital-Twin-Deep-Research.md)、[02-architecture.md §2.2 Bloom Goal Space](../00-overview/02-architecture.md)、[v0.5.0 C 维度内容库](../../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md)、[01-cta-belief-engine.md](01-cta-belief-engine.md)、[02-lca-policy-engine.md](02-lca-policy-engine.md)、[03-roadmap.md §2.2 M2 里程碑](../00-overview/03-roadmap.md)、[04-risks.md §B1 Bloom 风险](../00-overview/04-risks.md)
+> **基于**：[v2.0 §3.4 LCA + Bloom 映射](../deep-research/Cognitive-Digital-Twin-Deep-Research.md)、[02-architecture.md §2.2 Bloom Goal Space](../00-overview/02-architecture.md)、[v0.5.0 C 维度内容库](../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md)、[01-cta-belief-engine.md](01-cta-belief-engine.md)、[02-lca-policy-engine.md](02-lca-policy-engine.md)、[03-roadmap.md §2.2 M2 里程碑](../00-overview/03-roadmap.md)、[04-risks.md §B1 Bloom 风险](../00-overview/04-risks.md)
 > **后续**：[04-dual-agent-calibration.md](04-dual-agent-calibration.md)、[05-persistence-session.md](05-persistence-session.md)
 > **维护者**：Bisen & Claude
 
@@ -360,7 +360,7 @@ class BloomGoalLibrary:
 
 ### 3.1 数学 6 层定义
 
-基于 [v0.5.0 §1.7 初中数学 TC 库（MVP 候选）](../../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md) + 中国人教版数学课程标准：
+基于 [v0.5.0 §1.7 初中数学 TC 库（MVP 候选）](../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md) + 中国人教版数学课程标准：
 
 ```python
 # ecos/bloom/subject_libraries/math.py
@@ -464,7 +464,7 @@ def load_math_library() -> BloomGoalLibrary:
 
 ### 3.2 MVP 候选 8 个核心知识点（与 TC 库对齐）
 
-基于 [v0.5.0 §1.7 初中数学 TC 库](../../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md)：
+基于 [v0.5.0 §1.7 初中数学 TC 库](../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md)：
 
 | # | 知识点 | TC | L1 | L2 | L3 | L4 | L5 | L6 |
 |---|---|---|---|---|---|---|---|---|
@@ -1067,14 +1067,14 @@ def test_full_bloom_pipeline():
   - [04-dual-agent-calibration.md](04-dual-agent-calibration.md) — 双 Agent 互校（待写）
   - [05-persistence-session.md](05-persistence-session.md) — 持久化（BloomGoal 存储）
 - **P0 借鉴**（理论依据）：
-  - [v0.5.0 C 维度内容库 §1.7 数学 TC 库](../../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md) — 数学 8 个核心 TC
-  - [v0.5.0 §3.2 Q 矩阵集成](../../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md) — Q 矩阵扩展
+  - [v0.5.0 C 维度内容库 §1.7 数学 TC 库](../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md) — 数学 8 个核心 TC
+  - [v0.5.0 §3.2 Q 矩阵集成](../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md) — Q 矩阵扩展
 - **上层文档**：
   - [02-architecture.md §2.2 Bloom Goal Space](../00-overview/02-architecture.md) — 三空间架构
   - [03-roadmap.md §2.2 M2 里程碑](../00-overview/03-roadmap.md) — 工程任务
   - [04-risks.md §B1 Bloom 风险](../00-overview/04-risks.md) — 风险评估
 - **核心论证**：
-  - [v2.0 §3.4 LCA + Bloom 映射](../../research/deep-research/Cognitive-Digital-Twin-Deep-Research.md) — 干预策略与 Bloom 层映射
+  - [v2.0 §3.4 LCA + Bloom 映射](../deep-research/Cognitive-Digital-Twin-Deep-Research.md) — 干预策略与 Bloom 层映射
 
 ---
 

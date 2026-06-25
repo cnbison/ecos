@@ -2,7 +2,7 @@
 
 > **版本**：v1.0（2026-06-25）
 > **性质**：工程层第 5 份文档（最后 1 份）——ECOS 持久化层 + 长期会话管理
-> **基于**：[02-architecture.md §7 持久化与长期会话管理](../00-overview/02-architecture.md)、[v2.0 §4.2 SGE 中保留价值 + §4.4 AiBeing 借鉴](../../research/deep-research/Cognitive-Digital-Twin-Deep-Research.md)、[04-risks.md §B3 长期数据稀疏 + §D1 未成年人合规](../00-overview/04-risks.md)、[01-cta-belief-engine.md](01-cta-belief-engine.md)、[02-lca-policy-engine.md](02-lca-policy-engine.md)、[03-bloom-goal-library.md](03-bloom-goal-library.md)、[04-dual-agent-calibration.md](04-dual-agent-calibration.md)、[03-roadmap.md §2.2 M2 里程碑](../00-overview/03-roadmap.md)
+> **基于**：[02-architecture.md §7 持久化与长期会话管理](../00-overview/02-architecture.md)、[v2.0 §4.2 SGE 中保留价值 + §4.4 AiBeing 借鉴](../deep-research/Cognitive-Digital-Twin-Deep-Research.md)、[04-risks.md §B3 长期数据稀疏 + §D1 未成年人合规](../00-overview/04-risks.md)、[01-cta-belief-engine.md](01-cta-belief-engine.md)、[02-lca-policy-engine.md](02-lca-policy-engine.md)、[03-bloom-goal-library.md](03-bloom-goal-library.md)、[04-dual-agent-calibration.md](04-dual-agent-calibration.md)、[03-roadmap.md §2.2 M2 里程碑](../00-overview/03-roadmap.md)
 > **维护者**：Bisen & Claude
 
 ---
@@ -1318,9 +1318,9 @@ def test_encryption():
   - [03-roadmap.md §2.2 M2 里程碑](../00-overview/03-roadmap.md) — 工程任务
   - [04-risks.md §B3 + §D1](../00-overview/04-risks.md) — 风险缓解策略
 - **核心论证**：
-  - [v2.0 §4.2 SGE 中保留价值 + §4.4 AiBeing 借鉴](../../research/deep-research/Cognitive-Digital-Twin-Deep-Research.md) — 工程借鉴来源
+  - [v2.0 §4.2 SGE 中保留价值 + §4.4 AiBeing 借鉴](../deep-research/Cognitive-Digital-Twin-Deep-Research.md) — 工程借鉴来源
 - **背景**：
-  - [MIGRATION-FROM-SELFLAB.md](../../MIGRATION-FROM-SELFLAB.md) §2.2 共享基础文档
+  - [MIGRATION-FROM-SELFLAB.md](../MIGRATION-FROM-SELFLAB.md) §2.2 共享基础文档
 
 ---
 

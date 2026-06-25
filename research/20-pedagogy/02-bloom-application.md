@@ -2,7 +2,7 @@
 
 > **版本**：v1.0（2026-06-25）
 > **性质**：教学法层第 2 份文档——Bloom 6 层认知层级在 K12 各学段/各学科的应用与 ECOS 教学策略
-> **基于**：[01-k12-cognitive-structure.md](01-k12-cognitive-structure.md)、[03-bloom-goal-library.md](../research/10-engineering/03-bloom-goal-library.md)（工程层第 3 份 Bloom 库）、[v0.4.0 LCA 教学法基础 §3.1 Cognitive Apprenticeship 6 阶段](../research/30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md)、[v2.0 §1.4 Bloom 目标空间](../research/deep-research/Cognitive-Digital-Twin-Deep-Research.md)、[v0.3.0 CTA 数学基础 §2 CD-CAT](../research/30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md)
+> **基于**：[01-k12-cognitive-structure.md](01-k12-cognitive-structure.md)、[03-bloom-goal-library.md](../10-engineering/03-bloom-goal-library.md)（工程层第 3 份 Bloom 库）、[v0.4.0 LCA 教学法基础 §3.1 Cognitive Apprenticeship 6 阶段](../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md)、[v2.0 §1.4 Bloom 目标空间](../deep-research/Cognitive-Digital-Twin-Deep-Research.md)、[v0.3.0 CTA 数学基础 §2 CD-CAT](../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md)
 > **后续**：[03-learning-strategies.md](03-learning-strategies.md)、[04-zpd-application.md](04-zpd-application.md)
 > **维护者**：Bisen & Claude
 
@@ -14,8 +14,8 @@
 
 **Bloom 在 K12 的应用**文档回答：**ECOS 如何用 Bloom 6 层认知层级解决"会做但不会想"的中国教育痛点？**
 
-- [v0.1 综合报告 §第八部分 Bloom 分类学的价值](../research/gpt-dialogues/04-cognitive-digital-twin-v01-report.md) 给出 6 层定义
-- [03-bloom-goal-library.md](../research/10-engineering/03-bloom-goal-library.md) 给出工程化数据结构
+- [v0.1 综合报告 §第八部分 Bloom 分类学的价值](../gpt-dialogues/04-cognitive-digital-twin-v01-report.md) 给出 6 层定义
+- [03-bloom-goal-library.md](../10-engineering/03-bloom-goal-library.md) 给出工程化数据结构
 - **本文档填补**：教学法落地——如何在 K12 各学段/各学科中**实际应用** Bloom 目标
 
 ### 0.2 与 ECOS 其他模块的关系
@@ -24,11 +24,11 @@
 ┌─────────────────────────────────────────────────────────────┐
 │ Bloom 在 K12 的应用（本文档）—— 教学法落地                  │
 │   ↓ 跨层级策略 + 评估方法                                  │
-│ CTA（[01-cta-belief-engine.md](../research/10-engineering/01-cta-belief-engine.md)）│
+│ CTA（[01-cta-belief-engine.md](../10-engineering/01-cta-belief-engine.md)）│
 │   ↓ BloomProfile 估计                                       │
-│ LCA（[02-lca-policy-engine.md](../research/10-engineering/02-lca-policy-engine.md)）│
+│ LCA（[02-lca-policy-engine.md](../10-engineering/02-lca-policy-engine.md)）│
 │   ↓ 选择目标 Bloom 层 + 干预策略                            │
-│ Bloom Library（[03-bloom-goal-library.md](../research/10-engineering/03-bloom-goal-library.md)）│
+│ Bloom Library（[03-bloom-goal-library.md](../10-engineering/03-bloom-goal-library.md)）│
 │   ↓ 各知识点 × Bloom 层目标                                 │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -128,7 +128,7 @@ L6 █ <5%
 
 ### 2.1 数学
 
-[03-bloom-goal-library.md §3 数学 8 核心知识点](../research/10-engineering/03-bloom-goal-library.md) 已给出具体定义。
+[03-bloom-goal-library.md §3 数学 8 核心知识点](../10-engineering/03-bloom-goal-library.md) 已给出具体定义。
 
 **各 Bloom 层占比**（基于中国课程标准）：
 
@@ -267,7 +267,7 @@ L4: "能分析两种方法的优劣，选择合适方法"
 **具体方法**：
 - 探究型干预（INQUIRY）+ CLT PROFICIENT
 - 拆解 + 比较（修辞手法辨析、几何证明）
-- **Articulation（自我解释）**：学生讲出思路（[v0.4.0 §3.1 CA Stage 4](../research/30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md)）
+- **Articulation（自我解释）**：学生讲出思路（[v0.4.0 §3.1 CA Stage 4](../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md)）
   - Chi 1994：自我解释可产生 30% 学习增益
 - **Reflection（对比反思）**：学生对比自己与示范的差异
 - 元认知型干预（METACOGNITIVE）
@@ -295,7 +295,7 @@ L6: "能综合多种方法创造新方案"
 - 项目式学习（PBL）
 - 学生互评（peer review）—— 同时培养 L5 Evaluate
 
-**K12 L5-L6 的特殊考量**（[04-risks.md §B1 Bloom 风险](../research/00-overview/04-risks.md)）：
+**K12 L5-L6 的特殊考量**（[04-risks.md §B1 Bloom 风险](../00-overview/04-risks.md)）：
 - L5-L6 在 K12 不常达到，但 ECOS 应**主动引导**——不能因为"难"就放弃
 - 高中阶段可重点培养 L5（议论文 + 方案评价）
 - L6 通过研究性学习 + 项目式学习培养
@@ -306,7 +306,7 @@ L6: "能综合多种方法创造新方案"
 
 ### 4.1 行为锚定评估（与课程标准对接）
 
-[03-bloom-goal-library.md §3.3](../research/10-engineering/03-bloom-goal-library.md) 已给出课程标准对接。本节强调 BloomProfile 的评估方法：
+[03-bloom-goal-library.md §3.3](../10-engineering/03-bloom-goal-library.md) 已给出课程标准对接。本节强调 BloomProfile 的评估方法：
 
 ```python
 class BloomProfileEvaluator:
@@ -343,7 +343,7 @@ class BloomProfileEvaluator:
 
 ### 4.2 多题取样（避免单题偏差）
 
-[01-cta-belief-engine.md §2.1 BeliefState](../research/10-engineering/01-cta-belief-engine.md) 中 BloomProfile 是 6 层分布——每层应有多个样本题目。
+[01-cta-belief-engine.md §2.1 BeliefState](../10-engineering/01-cta-belief-engine.md) 中 BloomProfile 是 6 层分布——每层应有多个样本题目。
 
 **MVP 取样策略**：
 
@@ -360,7 +360,7 @@ class BloomProfileEvaluator:
 
 ### 4.3 LLM rubric 辅助（主观题）
 
-**问题**：L4-L6 评估需要 LLM rubric（主观性强）——但这违反 [v0.3.0 + v0.4.0 硬底线](../research/30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md)（数学层不用 LLM）。
+**问题**：L4-L6 评估需要 LLM rubric（主观性强）——但这违反 [v0.3.0 + v0.4.0 硬底线](../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md)（数学层不用 LLM）。
 
 **解决方案**：LLM rubric 仅用于**主观题评估**（如议论文、阅读理解），**不用于数学/物理等结构化答案**。
 
@@ -404,7 +404,7 @@ Bloom 目标层：{bloom_target.name} ({bloom_target.name_cn})
 
 > **学生能解题（L3 Apply）但不会分析（L4 Analyze）、评价（L5 Evaluate）、创造（L6 Create）**
 
-**根本原因**（基于 [v0.1 §第二部分 教育的真正问题](../research/gpt-dialogues/04-cognitive-digital-twin-v01-report.md)）：
+**根本原因**（基于 [v0.1 §第二部分 教育的真正问题](../gpt-dialogues/04-cognitive-digital-twin-v01-report.md)）：
 
 1. **教学导向**：以"掌握知识点"为目标（L1-L3），而非"培养思维能力"（L4-L6）
 2. **评估导向**：考试以"会解题"为标准（L3），不评估"会思考"（L4-L6）
@@ -535,17 +535,17 @@ CURRICULUM_VERB_TO_BLOOM = {
   - [03-learning-strategies.md](03-learning-strategies.md) — 学习策略空间
   - [04-zpd-application.md](04-zpd-application.md) — ZPD 在 ECOS 的应用
 - **工程层**（按本文档配置调整）：
-  - [03-bloom-goal-library.md](../research/10-engineering/03-bloom-goal-library.md) — BloomGoal 数据结构 + 32 条 MVP 数学目标
-  - [01-cta-belief-engine.md](../research/10-engineering/01-cta-belief-engine.md) — CTA 引擎（BloogProfile 估计）
-  - [02-lca-policy-engine.md](../research/10-engineering/02-lca-policy-engine.md) — LCA 引擎（基于 BloomProfile 选目标层）
+  - [03-bloom-goal-library.md](../10-engineering/03-bloom-goal-library.md) — BloomGoal 数据结构 + 32 条 MVP 数学目标
+  - [01-cta-belief-engine.md](../10-engineering/01-cta-belief-engine.md) — CTA 引擎（BloogProfile 估计）
+  - [02-lca-policy-engine.md](../10-engineering/02-lca-policy-engine.md) — LCA 引擎（基于 BloomProfile 选目标层）
 - **P0 借鉴**（理论依据）：
-  - [v0.4.0 LCA 教学法基础 §3.1 CA 6 阶段](../research/30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md) — 与 Bloom 跨层级的对应
-  - [v0.5.0 C 维度内容库 §1.3 Liminality](../research/30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md) — Bloom 跨越的 liminal 状态
+  - [v0.4.0 LCA 教学法基础 §3.1 CA 6 阶段](../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md) — 与 Bloom 跨层级的对应
+  - [v0.5.0 C 维度内容库 §1.3 Liminality](../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md) — Bloom 跨越的 liminal 状态
 - **上层文档**：
-  - [02-architecture.md §2.2 Bloom Goal Space](../research/00-overview/02-architecture.md) — 三空间架构
-  - [04-risks.md §B1 Bloom 风险](../research/00-overview/04-risks.md) — 风险评估
+  - [02-architecture.md §2.2 Bloom Goal Space](../00-overview/02-architecture.md) — 三空间架构
+  - [04-risks.md §B1 Bloom 风险](../00-overview/04-risks.md) — 风险评估
 - **核心论证**：
-  - [v2.0 §1.4 Bloom 目标空间](../research/deep-research/Cognitive-Digital-Twin-Deep-Research.md) — 三空间架构
+  - [v2.0 §1.4 Bloom 目标空间](../deep-research/Cognitive-Digital-Twin-Deep-Research.md) — 三空间架构
 
 ---
 

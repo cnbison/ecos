@@ -953,7 +953,7 @@ ecos.policy_optimizer.optimize(
 
 ## 4.1 与 SGE 共享的认知科学工具
 
-详细参考 [`Shared-Cognitive-Science-Toolbox.md`](./Shared-Cognitive-Science-Toolbox.md)。ECOS 与 SGE 共享 7 个工具：
+详细参考 **`Shared-Cognitive-Science-Toolbox.md`**（SelfLab 时代文件，ECOS 暂无对应）。ECOS 与 SGE 共享 7 个工具：
 
 | 工具 | SGE 应用 | ECOS 应用 |
 |------|---------|---------|
@@ -1046,7 +1046,7 @@ phase3/10-engineering/ 的设计可直接被 ECOS 借鉴：
 
 ## 4.4 AiBeing 应用层借鉴
 
-ECOS 借鉴 AiBeing 的应用层经验（详细参考 [`discussions/2026-06-22-sge-phase3-aibeing-reflection.md`](../../discussions/2026-06-22-sge-phase3-aibeing-reflection.md)）：
+ECOS 借鉴 AiBeing 的应用层经验（详细参考 [`discussions/2026-06-22-sge-phase3-aibeing-reflection.md`](../40-aibeing-borrowing/02-application-layer-borrowing.md)）：
 
 ### 借鉴 1：会话管理（chat_agent._chat_inner）
 
@@ -1616,7 +1616,7 @@ SelfLab 现在包含 2 个研究子项目 + 1 个工程包：
 
 ### ECOS（K12 教育认知操作系统）
 基于学生认知数字孪生 + AI 学习教练 + Bloom 目标空间的教育系统。
-- 详细：[Cognitive-Digital-Twin-Deep-Research.md v2.0](./research/cognitive-architecture/Cognitive-Digital-Twin-Deep-Research.md)
+- 详细：**Cognitive-Digital-Twin-Deep-Research.md v2.0**（本文档本身）
 - 规划：[research/ecos/]（待建立）
 ```
 
@@ -1718,40 +1718,40 @@ SelfLab 现在包含 2 个研究子项目 + 1 个工程包：
 
 ### 5 轮对话原文
 
-- [`research/cognitive-architecture/Cognitive-State-A-to-B-Research.md`](./Cognitive-State-A-to-B-Research.md) — 7 页综合调研站点（279 行）
-- [`research/cognitive-architecture/Cognitive-Digital-Twin.md`](./Cognitive-Digital-Twin.md) — 第 1-3 轮对话（1904 行）
-- [`research/cognitive-architecture/Cognitive-Digital-Twin02.md`](./Cognitive-Digital-Twin02.md) — 第 4-5 轮对话（1244 行）
-- [`research/cognitive-architecture/Cognitive-Digital-Twin03.md`](./Cognitive-Digital-Twin03.md) — 5 轮综合 v0.1（931 行）
+- [`research/cognitive-architecture/Cognitive-State-A-to-B-Research.md`](（SelfLab 时代文件，ECOS 暂无对应）) — 7 页综合调研站点（279 行）
+- [`research/cognitive-architecture/Cognitive-Digital-Twin.md`](（SelfLab 时代文件，ECOS 暂无对应）) — 第 1-3 轮对话（1904 行）
+- [`research/cognitive-architecture/Cognitive-Digital-Twin02.md`](（SelfLab 时代文件，ECOS 暂无对应）) — 第 4-5 轮对话（1244 行）
+- [`research/cognitive-architecture/Cognitive-Digital-Twin03.md`](（SelfLab 时代文件，ECOS 暂无对应）) — 5 轮综合 v0.1（931 行）
 
 ### SGE 项目关键文件
 
-- [`research/phase3/README.md`](../phase3/README.md) — SSOT 入口
-- [`research/phase3/00-overview/01-applications.md`](../phase3/00-overview/01-applications.md) — 4 个应用定义
-- [`research/phase3/00-overview/02-architecture.md`](../phase3/00-overview/02-architecture.md) — sge/ 包架构
-- [`research/phase3/00-overview/03-roadmap.md`](../phase3/00-overview/03-roadmap.md) — Phase 3.1/3.2/3.3 时间线
-- [`research/phase3/20-domain-k12/README.md`](../phase3/20-domain-k12/README.md) — K12 认知结构
-- [`research/phase3/30-atoB/README.md`](../phase3/30-atoB/README.md) — A→B 整合
-- [`research/phase3/90-applications/student-digital-twin.md`](../phase3/90-applications/student-digital-twin.md) — 占位
-- [`research/phase3/90-applications/teaching-ai-coach.md`](../phase3/90-applications/teaching-ai-coach.md) — 占位
+- **`research/phase3/README.md`**（SelfLab 时代路径）→ [`01-applications.md`](../00-overview/01-applications.md)（Phase 3 应用文档）
+- **`research/phase3/00-overview/01-applications.md`**（SelfLab 时代路径）→ [`01-applications.md`](../00-overview/01-applications.md)
+- **`research/phase3/00-overview/02-architecture.md`**（SelfLab 时代路径）→ [`02-architecture.md`](../00-overview/02-architecture.md)
+- **`research/phase3/00-overview/03-roadmap.md`**（SelfLab 时代路径）→ [`03-roadmap.md`](../00-overview/03-roadmap.md)
+- **`research/phase3/20-domain-k12/README.md`**（SelfLab 时代路径）→ [`01-k12-cognitive-structure.md`](../20-pedagogy/01-k12-cognitive-structure.md) — K12 认知结构
+- **`research/phase3/30-atoB/README.md`**（SelfLab 时代路径）→ [`v0.5.0 §1.7 数学 TC 库`](../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md)
+- **`research/phase3/90-applications/student-digital-twin.md`**（SelfLab 时代路径）→ [`01-applications.md §场景 A`](../00-overview/01-applications.md) — 占位
+- **`research/phase3/90-applications/teaching-ai-coach.md`**（SelfLab 时代路径）→ [`01-applications.md §场景 B`](../00-overview/01-applications.md) — 占位
 
 ### AiBeing 借鉴体系
 
-- [`research/sge-learning/SGE-Learning-from-AiBeing.md`](../sge-learning/SGE-Learning-from-AiBeing.md) — 概念层借鉴
-- [`research/sge-feasibility/SGE-M21-AiBeing-Implementation-Mapping.md`](../sge-feasibility/SGE-M21-AiBeing-Implementation-Mapping.md) — 引擎层映射
-- [`discussions/2026-06-22-sge-phase3-aibeing-reflection.md`](../../discussions/2026-06-22-sge-phase3-aibeing-reflection.md) — 应用层借鉴
-- [`references/AiBeing-Core-Engine-Reference.md`](../../references/AiBeing-Core-Engine-Reference.md) — AiBeing 完整参考
+- **`research/sge-learning/SGE-Learning-from-AiBeing.md`**（SelfLab 时代路径）→ [`01-concept-borrowing.md`](../40-aibeing-borrowing/01-concept-borrowing.md) — 概念层借鉴
+- **`research/sge-feasibility/SGE-M21-AiBeing-Implementation-Mapping.md`**（SelfLab 时代路径）→ [`01-concept-borrowing.md`](../40-aibeing-borrowing/01-concept-borrowing.md) — 引擎层映射
+- [`discussions/2026-06-22-sge-phase3-aibeing-reflection.md`](../40-aibeing-borrowing/02-application-layer-borrowing.md) — 应用层借鉴
+- [`references/AiBeing-Core-Engine-Reference.md`](../../references/aibeing-core-engine-reference.md) — AiBeing 完整参考
 
 ### 共享基础
 
-- [`research/cognitive-architecture/Shared-Cognitive-Science-Toolbox.md`](./Shared-Cognitive-Science-Toolbox.md) — 7 个认知科学工具
-- [`research/cognitive-architecture/SGE-Cognitive-Tools-Application.md`](./SGE-Cognitive-Tools-Application.md) — SGE 当前应用
-- [`research/sge-learning/SGE-Feasibility-Impact-on-AtoB.md`](../sge-learning/SGE-Feasibility-Impact-on-AtoB.md) — SGE 赋能 A→B
+- [`research/cognitive-architecture/Shared-Cognitive-Science-Toolbox.md`](（SelfLab 时代文件，ECOS 暂无对应）) — 7 个认知科学工具
+- [`research/cognitive-architecture/SGE-Cognitive-Tools-Application.md`](（SelfLab 时代文件，ECOS 暂无对应）) — SGE 当前应用
+- **`research/sge-learning/SGE-Feasibility-Impact-on-AtoB.md`**（SelfLab 时代路径）→ [`02-application-layer-borrowing.md`](../40-aibeing-borrowing/02-application-layer-borrowing.md) — SGE 赋能 A→B
 
 ### 项目级文档
 
-- [`SGE-Key-Insights.md`](../../SGE-Key-Insights.md) — 31 条核心洞察
+- **SGE-Key-Insights.md**（SelfLab 时代的核心洞察，ECOS 暂无对应文件；详见 ECOS [CHANGELOG.md](../../CHANGELOG.md) 中的 v0.1.0-v0.21.0 演进记录） — 31 条核心洞察
 - [`CLAUDE.md`](../../CLAUDE.md) — 项目协作指南
-- [`ROADMAP.md`](../../ROADMAP.md) — 项目路线图
+- [**`03-roadmap.md`**](../00-overview/03-roadmap.md) — 项目路线图
 - [`README.md`](../../README.md) — 项目概览
 
 ### v1.0 历史

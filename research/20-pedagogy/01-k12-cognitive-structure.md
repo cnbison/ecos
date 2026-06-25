@@ -2,7 +2,7 @@
 
 > **版本**：v1.0（2026-06-25）
 > **性质**：教学法层第 1 份文档——K12 各学段认知发展特征与 ECOS CTA 建模差异化
-> **基于**：[v2.0 §1.4 K12 三大优势](../../research/deep-research/Cognitive-Digital-Twin-Deep-Research.md)、[v0.5.0 C 维度内容库（TC 库）](../../research/30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md)、[02-architecture.md §2.1 State Space](../research/00-overview/02-architecture.md)、[01-cta-belief-engine.md §2](../research/10-engineering/01-cta-belief-engine.md)、[03-bloom-goal-library.md §11 MVP 范围](../research/10-engineering/03-bloom-goal-library.md)
+> **基于**：[v2.0 §1.4 K12 三大优势](../deep-research/Cognitive-Digital-Twin-Deep-Research.md)、[v0.5.0 C 维度内容库（TC 库）](../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md)、[02-architecture.md §2.1 State Space](../00-overview/02-architecture.md)、[01-cta-belief-engine.md §2](../10-engineering/01-cta-belief-engine.md)、[03-bloom-goal-library.md §11 MVP 范围](../10-engineering/03-bloom-goal-library.md)
 > **后续**：[02-bloom-application.md](02-bloom-application.md)、[03-learning-strategies.md](03-learning-strategies.md)、[04-zpd-application.md](04-zpd-application.md)
 > **维护者**：Bisen & Claude
 
@@ -58,7 +58,7 @@ TC（Threshold Concepts）跨越往往与学段过渡相关：
 
 ### 1.2 ECOS 小学阶段的 CTA 建模差异
 
-**5D 状态向量**（[v0.3.0 §1 MIRT](../../research/30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md)）：
+**5D 状态向量**（[v0.3.0 §1 MIRT](../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md)）：
 
 | 维度 | 小学特点 | CTA 建模调整 |
 |---|---|---|
@@ -77,7 +77,7 @@ TC（Threshold Concepts）跨越往往与学段过渡相关：
 
 ### 1.3 小学 TC 库候选（v0.5.0 §1.7 候选的细化）
 
-基于 [v0.5.0 C 维度内容库](../../research/30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md) + 小学阶段特征：
+基于 [v0.5.0 C 维度内容库](../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md) + 小学阶段特征：
 
 | # | TC 名 | 跨越年级 | 跨越标志 |
 |---|---|---|---|
@@ -96,7 +96,7 @@ TC（Threshold Concepts）跨越往往与学段过渡相关：
 
 ### 1.5 LCA 干预的难度梯度
 
-**关键约束**：小学阶段的学生**难以承受高认知负荷**（[v0.4.0 CLT](../../research/30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md)）：
+**关键约束**：小学阶段的学生**难以承受高认知负荷**（[v0.4.0 CLT](../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md)）：
 
 - 单次干预元素 ≤ 3 个（工作记忆容量有限）
 - CLT 4 级自适应默认 = NOVICE（full worked example）
@@ -136,7 +136,7 @@ TC（Threshold Concepts）跨越往往与学段过渡相关：
 
 ### 2.3 初中 TC 库候选（v0.5.0 §1.7）
 
-[03-bloom-goal-library.md §3.2 数学 8 核心知识点](../research/10-engineering/03-bloom-goal-library.md) 中前 8 个 TC：
+[03-bloom-goal-library.md §3.2 数学 8 核心知识点](../10-engineering/03-bloom-goal-library.md) 中前 8 个 TC：
 
 | # | TC 名 | 跨越年级 | 跨越标志 |
 |---|---|---|---|
@@ -147,7 +147,7 @@ TC（Threshold Concepts）跨越往往与学段过渡相关：
 | 5 | **二次函数** | 9 年级 | 从"一般式" → "顶点式 + 对称轴" |
 | 6 | **极限（初步）**| 9 年级 | 从"算术" → "无限接近的严格概念" |
 
-### 2.4 初中 Misconception 库候选（[v0.5.0 §2.6 候选 10 条](../../research/30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md)）
+### 2.4 初中 Misconception 库候选（[v0.5.0 §2.6 候选 10 条](../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md)）
 
 | ID | Misconception | 修正方法 |
 |---|---|---|
@@ -205,7 +205,7 @@ TC（Threshold Concepts）跨越往往与学段过渡相关：
 
 ### 3.3 高中 TC 库候选（Phase 5+ 扩展）
 
-基于 [v0.5.0 §1.7](../../research/30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md) + 高中特征：
+基于 [v0.5.0 §1.7](../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md) + 高中特征：
 
 | # | TC 名 | 跨越年级 | 跨越标志 |
 |---|---|---|---|
@@ -274,7 +274,7 @@ def handle_grade_transition(student_id, old_grade, new_grade):
 
 ### 4.3 学段过渡的诊断信号
 
-[04-risks.md §B1 Bloom 风险评估](../research/00-overview/04-risks.md) + [v0.5.0 §1.4 Liminality](../../research/30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md)：
+[04-risks.md §B1 Bloom 风险评估](../00-overview/04-risks.md) + [v0.5.0 §1.4 Liminality](../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md)：
 
 **Liminal 状态预警**：
 
@@ -416,7 +416,7 @@ class CrossSubjectTransfer:
 
 ## 7. 与中国课程标准对接
 
-[03-bloom-goal-library.md §3.3 中国课程标准](../research/10-engineering/03-bloom-goal-library.md) 已给出对接机制。本节强调学段差异：
+[03-bloom-goal-library.md §3.3 中国课程标准](../10-engineering/03-bloom-goal-library.md) 已给出对接机制。本节强调学段差异：
 
 ### 7.1 各学段核心知识点
 
@@ -486,18 +486,18 @@ class CrossSubjectTransfer:
   - [03-learning-strategies.md](03-learning-strategies.md) — 学习策略空间
   - [04-zpd-application.md](04-zpd-application.md) — ZPD 在 ECOS 的应用
 - **P0 借鉴**（理论依据）：
-  - [v0.5.0 C 维度内容库 §1.7 数学 TC 库](../../research/30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md) — TC 库候选
-  - [v0.5.0 §2.6 初中数学 Misconception 库](../../research/30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md) — Misconception 候选
+  - [v0.5.0 C 维度内容库 §1.7 数学 TC 库](../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md) — TC 库候选
+  - [v0.5.0 §2.6 初中数学 Misconception 库](../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md) — Misconception 候选
 - **上层文档**：
-  - [02-architecture.md §2.1 State Space](../research/00-overview/02-architecture.md) — 5D 状态向量
-  - [01-applications.md §6 不做清单](../research/00-overview/01-applications.md) — 学段边界
-  - [04-risks.md §B1 + §B3](../research/00-overview/04-risks.md) — 风险评估
+  - [02-architecture.md §2.1 State Space](../00-overview/02-architecture.md) — 5D 状态向量
+  - [01-applications.md §6 不做清单](../00-overview/01-applications.md) — 学段边界
+  - [04-risks.md §B1 + §B3](../00-overview/04-risks.md) — 风险评估
 - **核心论证**：
-  - [v2.0 §1.4 K12 三大优势](../../research/deep-research/Cognitive-Digital-Twin-Deep-Research.md) — 数据丰富 + B 易定义 + 易验证
+  - [v2.0 §1.4 K12 三大优势](../deep-research/Cognitive-Digital-Twin-Deep-Research.md) — 数据丰富 + B 易定义 + 易验证
 - **工程层**（按本文档配置调整）：
-  - [01-cta-belief-engine.md](../research/10-engineering/01-cta-belief-engine.md) — CTA 引擎
-  - [02-lca-policy-engine.md](../research/10-engineering/02-lca-policy-engine.md) — LCA 引擎
-  - [03-bloom-goal-library.md](../research/10-engineering/03-bloom-goal-library.md) — Bloom 库
+  - [01-cta-belief-engine.md](../10-engineering/01-cta-belief-engine.md) — CTA 引擎
+  - [02-lca-policy-engine.md](../10-engineering/02-lca-policy-engine.md) — LCA 引擎
+  - [03-bloom-goal-library.md](../10-engineering/03-bloom-goal-library.md) — Bloom 库
 
 ---
 

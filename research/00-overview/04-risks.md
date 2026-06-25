@@ -2,7 +2,7 @@
 
 > **版本**：v1.0（2026-06-25）
 > **性质**：ECOS 战略层第 4 份文档（最后 1 份），**基于路线图 §7 的 8 类风险详细展开**
-> **基于**：[03-roadmap.md §7](03-roadmap.md)、[v2.0 §5.5 风险与缓解](../../deep-research/Cognitive-Digital-Twin-Deep-Research.md)、[02-architecture.md](02-architecture.md)
+> **基于**：[03-roadmap.md §7](03-roadmap.md)、[v2.0 §5.5 风险与缓解](../deep-research/Cognitive-Digital-Twin-Deep-Research.md)、[02-architecture.md](../00-overview/02-architecture.md)
 > **后续**：战略层全部完成后进入工程层（`10-engineering/`）+ 教学法层（`20-pedagogy/`）
 > **维护者**：Bisen & Claude
 
@@ -12,7 +12,7 @@
 
 ### 0.1 与 v2.0 §5.5 的关系
 
-[v2.0 §5.5 风险与缓解](../../deep-research/Cognitive-Digital-Twin-Deep-Research.md) 已给出 5 大风险：
+[v2.0 §5.5 风险与缓解](../deep-research/Cognitive-Digital-Twin-Deep-Research.md) 已给出 5 大风险：
 
 | v2.0 §5.5 风险 | 本文档归类 |
 |---|---|
@@ -84,7 +84,7 @@ H7 失败 → E4 风险触发（数据护城河形成过慢）
 ### A2. CTA 5D 状态预测精度不足 🔴（对应 H1）
 
 **触发条件**：
-- CTA 5D 状态预测的 AUC < 0.75（[03-roadmap.md §2.3 H1 阈值](../../00-overview/03-roadmap.md)）
+- CTA 5D 状态预测的 AUC < 0.75（[03-roadmap.md §2.3 H1 阈值](03-roadmap.md)）
 - 5D 维度间相关性过高（Σ_θ 接近奇异矩阵）
 - MIRT 参数冷启动失败（新学科/新学生）
 
@@ -142,7 +142,7 @@ H7 失败 → E4 风险触发（数据护城河形成过慢）
 ### A4. 双 Agent 互校无法抗幻觉 🔴（对应 H3）
 
 **触发条件**：
-- 双 Agent 信念校准度（ECE）> 0.10（[03-roadmap.md H3 阈值](../../00-overview/03-roadmap.md)）
+- 双 Agent 信念校准度（ECE）> 0.10（[03-roadmap.md H3 阈值](03-roadmap.md)）
 - LLM 解释文本中 misconception 命中率 < 0.5
 - 互校循环陷入"CTA 错 → LCA 错 → CTA 跟着错"
 
@@ -173,7 +173,7 @@ H7 失败 → E4 风险触发（数据护城河形成过慢）
 ### B1. Bloom 6 层在 K12 不适用 🟡（对应 H2）
 
 **触发条件**：
-- Bloom 6 层在初中数学的方差解释 < 60%（[03-roadmap.md H2 阈值](../../00-overview/03-roadmap.md)）
+- Bloom 6 层在初中数学的方差解释 < 60%（[03-roadmap.md H2 阈值](03-roadmap.md)）
 - Evaluate/Create 层（L5-L6）数据稀疏（学生很少达到）
 - 跨学科泛化能力差（数学可用，语文失效）
 
@@ -470,7 +470,7 @@ H7 失败 → E4 风险触发（数据护城河形成过慢）
 
 **触发条件**：
 - B2C 转化率 < 5%
-- 4 个月留存率 < 60%（[03-roadmap.md H5 阈值](../../00-overview/03-roadmap.md)）
+- 4 个月留存率 < 60%（[03-roadmap.md H5 阈值](03-roadmap.md)）
 - 客单价 < 50 元/月（远低于预期 99-299 元）
 
 **影响评估**：
@@ -556,7 +556,7 @@ H7 失败 → E4 风险触发（数据护城河形成过慢）
 ### E4. 数据资产护城河形成过慢 🔴（对应 H7）
 
 **触发条件**：
-- 3 年纵向数据 < 5000 学生（[03-roadmap.md H7 阈值](../../00-overview/03-roadmap.md)）
+- 3 年纵向数据 < 5000 学生（[03-roadmap.md H7 阈值](03-roadmap.md)）
 - 学生流失率 > 60%/年
 - 跨学段数据断裂（初中毕业后数据丢失）
 
@@ -681,17 +681,17 @@ Level 4（暂停 + 回溯）
 
 - **战略层**（依赖链）：
   - [01-applications.md](01-applications.md) §7 MVP 范围
-  - [02-architecture.md](02-architecture.md) — 风险评估的架构基础
+  - [02-architecture.md](../00-overview/02-architecture.md) — 风险评估的架构基础
   - [03-roadmap.md](03-roadmap.md) — 风险与 H1-H7 假设的对应
 - **P0 三件套**（风险缓解的技术依据）：
-  - [v0.3.0 CTA 数学基础](../../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md) — A1/A2/A4 缓解
-  - [v0.4.0 LCA 教学法基础](../../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md) — A3 缓解
-  - [v0.5.0 C 维度内容库](../../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md) — B1 + C3 缓解
+  - [v0.3.0 CTA 数学基础](../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md) — A1/A2/A4 缓解
+  - [v0.4.0 LCA 教学法基础](../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md) — A3 缓解
+  - [v0.5.0 C 维度内容库](../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md) — B1 + C3 缓解
 - **核心论证**：
-  - [v2.0 §5.5 风险与缓解](../../deep-research/Cognitive-Digital-Twin-Deep-Research.md) — 本文档的扩展来源
+  - [v2.0 §5.5 风险与缓解](../deep-research/Cognitive-Digital-Twin-Deep-Research.md) — 本文档的扩展来源
 - **工程层 + 教学法层**（待填充，按风险缓解策略实现）：
-  - [10-engineering/](../../10-engineering/) — A1-A4 风险技术实现
-  - [20-pedagogy/](../../20-pedagogy/) — C1-C3 风险教学法实现
+  - [10-engineering/](../10-engineering/) — A1-A4 风险技术实现
+  - [20-pedagogy/](../20-pedagogy/) — C1-C3 风险教学法实现
 
 ---
 
