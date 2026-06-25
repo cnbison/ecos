@@ -658,3 +658,81 @@ Phase 0 完成度：~70%（待工程层 + 教学法层 + MVP 设计）
 - ⏳ 教学法层 4 份完成（K12 认知结构 + Bloom 应用 + 学习策略 + ZPD 应用）
 - ⏳ MVP 设计完成（90-mvp/）
 - **总文档 ≥ 5000 行**（当前 ~3300 行，需 ~1700 行补充）
+
+
+---
+
+## [0.10.0] - 2026-06-25 (工程层第 1 份文档：CTA 信念引擎)
+
+### 背景
+
+战略层全部完成后（v0.9.0），进入工程层（`10-engineering/`）。5 份工程文档按依赖顺序：01-cta → 02-lca → 03-bloom → 04-dual-agent → 05-persistence。
+
+CTA 信念引擎是双 Agent 架构的核心——基于 v0.3.0 数学基础 + v0.5.0 C 维度内容库 + 02-architecture.md §5 实现。
+
+### 新增
+
+- **`research/10-engineering/01-cta-belief-engine.md`**（v1.0，1409 行，14 章节）
+  - **§0 模块定位**：核心职责 + 与其他模块接口 + 文档目标读者
+  - **§1 整体架构**：5 层数学栈工程映射（L0 POMDP / L1 BKT / L2 MIRT / L3 CD-CAT / L4 Causal）+ L0.5 内容库 + 完整模块目录结构（13 个子目录）+ 与 LCA / Persistence 接口契约
+  - **§2 BeliefState 数据结构**：完整 Python dataclass（DimensionState / BloomProfileState / LearningDNAState / TrajectoryState / BeliefState）+ C 维度扩展（含 MisconceptionHit + TCState）+ 信念更新统一接口
+  - **§3 L0 POMDP**：CTAPOMDP 类（EKF + 离散属性精确推断）+ 转移矩阵 / 观测矩阵 / 过程噪声 + POMCP Phase 5+ 占位
+  - **§4 L1 BKT + Spaced Repetition**：BKTModel（4 参数）+ BKTEvolutionLayer（管理所有知识点）+ FSRS 间隔效应 + DKT Phase 5+ 占位
+  - **§5 L2 MIRT**：BiFactorMIRT5D（非补偿 Bi-factor）+ CovarianceLearner（学科自适应）+ 校准与冷启动
+  - **§6 L3 CD-CAT**：GDINAModel + Q 矩阵扩展（v0.5.0 TC + Misc 标注）+ PWKLSelector + 停止规则
+  - **§7 L4 Causal**：ABTestAttributor（MVP 简化版）+ CausalForestAttributor（Phase 5+）
+  - **§8 C 维度内容库集成**：MisconceptionDetector（LLM Critic + 关键词混合）+ TCStateDetector（Liminal/Post-liminal 识别）+ C 维度更新（伪置信折扣 + TC 不可逆性）
+  - **§9 LLM Critic 边界**：PerceptionCritic（感知层）+ ExplanationCritic（解释层）+ CriticPrompts（3 类 prompt 模板）
+  - **§10 CTA 主流程编排**：CTAOrchestrator（7 步骤完整流程）+ report 生成
+  - **§11 测试策略**：单元测试覆盖率（核心 ≥ 85%）+ 集成测试 + 评估指标对照（vs 04-risks.md §A 阈值）
+  - **§12 MVP 范围**：16 个 MVP 组件状态表
+  - **§13 关联文档** + **§14 版本与维护**
+- **`discussions/2026-06-25-ecos-cta-engine-doc.md`**（本次会话记录）
+
+### 关键工程实现决策
+
+| 决策项 | MVP 选择 | 理由 |
+|---|---|---|
+| **L0 POMDP 求解** | EKF + 离散属性精确推断 | 11D 状态空间需因子化，POMCP 太重 |
+| **L1 BKT 算法** | 经典 4 参数 | 可解释、易调参 |
+| **L2 MIRT 结构** | Bi-factor 非补偿 5D + 1 一般维度 | 避免"伪掌握" |
+| **L3 CD-CAT 算法** | GDINA + PWKL 选题 | DINA 最一般化 + 兼顾信息量 |
+| **L4 因果归因** | 单变量 A/B + T-test（MVP）/ Causal Forest（Phase 5+）| MVP 简化 |
+| **Misconception 检测** | LLM Critic + 关键词混合 | LLM 灵活 + 关键词精确 |
+| **TC 状态检测** | 启发式 + 元认知信号 | MVP 简化 |
+| **TC 不可逆性** | post-liminal C 维度永不下降 | TC 核心特征 |
+| **数学层是否用 LLM** | ❌ 否（硬底线）| 任何 LLM 直接生成信念估计都是退路 |
+
+### 测试覆盖目标
+
+| 模块 | 目标覆盖率 | 关键指标 |
+|---|---|---|
+| L0 POMDP | ≥ 90% | EKF 准确性 |
+| L1 BKT | ≥ 90% | 更新规则数学正确性 |
+| L2 MIRT | ≥ 85% | EM 收敛 |
+| L3 CD-CAT | ≥ 85% | PWKL 选题最优性 |
+| L4 Causal | ≥ 90% | T-test 显著性 |
+| Content | ≥ 80% | Misconception F1 ≥ 0.7, TC F1 ≥ 0.6 |
+| LLM Critic | ≥ 70% | JSON 解析正确性 |
+
+### 累计文档产出（v0.1.0 ~ v0.10.0）
+
+| 类别 | 数量 | 行数（约）|
+|---|---|---|
+| 战略层 00-overview/ | 4 份 ✅ | ~2200 行 |
+| **工程层 10-engineering/** | **1 份（进行中）** | **1409 行** |
+| P0 借鉴 theoretical-foundations/ | 4 份 ✅ | ~1700 行 |
+| 共享 + AiBeing 借鉴 + 5 轮对话 + 深度研究 | 8 份（迁移）| — |
+| 项目级 + 讨论记录 | 16+ 份 | ~2000 行 |
+| **总计** | **~33+ 份** | **~7300+ 行** |
+
+### 下一步
+
+| 优先级 | 任务 | 详见 |
+|---|---|---|
+| P1 | 工程层 02-lca-policy-engine.md（LCA 策略引擎）| `research/10-engineering/` |
+| P1 | 工程层 03-bloom-goal-library.md（Bloom 目标库）| `research/10-engineering/` |
+| P1 | 工程层 04-dual-agent-calibration.md（双 Agent 互校）| `research/10-engineering/` |
+| P1 | 工程层 05-persistence-session.md（持久化）| `research/10-engineering/` |
+| P2 | 教学法层 4 份（20-pedagogy/）| `research/20-pedagogy/` |
+| P2 | MVP 设计（90-mvp/）| `research/90-mvp/` |
