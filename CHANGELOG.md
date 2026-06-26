@@ -34,7 +34,10 @@
 | 0.17.0 | 2026-06-25 | 2dd2b6b | **教学法层第 3 份文档**：research/20-pedagogy/03-learning-strategies.md（v1.0，575 行，12 章节，学习策略空间：经典 Pintrich 1990 分类 + 学科特定策略 + Bloom 映射 + LearningDNA 匹配 + 效果归因）+ discussions/2026-06-25-ecos-learning-strategies-doc.md |
 | 0.18.0 | 2026-06-25 | fde98aa | **教学法层第 4 份文档**：research/20-pedagogy/04-zpd-application.md（v1.0，780 行，12 章节，ZPD 在 ECOS 的形式化：ADL + ZPD + PDL + 学段差异 + 突破检测 + 学习障碍识别）+ discussions/2026-06-25-ecos-zpd-application-doc.md（**教学法层 100% 完成**）|
 | 0.19.0 | 2026-06-25 | 5184956 | **Phase 0 最后 1 份文档：MVP 设计**：research/90-mvp/README.md（v1.0，598 行，12 章节，MVP 设计：W1-W8 任务分解 + 数据采集 + 3 组对照实验 + H1-H4 验证阈值 + 5 类关键风险）+ discussions/2026-06-25-ecos-mvp-design-doc.md（**🎉 Phase 0 100% 完成**）|
-| 0.20.0 | 2026-06-25 | (本次) | **项目状态同步**：更新 README.md（"当前状态"从 v0.1.0 占位更新到 Phase 0 完成状态 + "下一步"从 P0 文档填充更新到 Phase 4 启动清单）+ 更新 CLAUDE.md（"当前阶段"从 Phase 0 进行中更新到 Phase 0 已完成；"目录约定"90-mvp/ 去掉"占位"）+ 更新 CHANGELOG.md（补全 v0.8.0 ~ v0.19.0 提交索引 commit hash）|
+| 0.20.0 | 2026-06-25 | d7f3d8d | **项目状态同步**：更新 README.md（"当前状态"从 v0.1.0 占位更新到 Phase 0 完成状态 + "下一步"从 P0 文档填充更新到 Phase 4 启动清单）+ 更新 CLAUDE.md（"当前阶段"从 Phase 0 进行中更新到 Phase 0 已完成；"目录约定"90-mvp/ 去掉"占位"）+ 更新 CHANGELOG.md（补全 v0.8.0 ~ v0.19.0 提交索引 commit hash）|
+| 0.21.0 | 2026-06-25 | a63c93d | **业务流程演示**：discussions/2026-06-25-ecos-workflow-demo.md（v1.0，842 行）——初二学生小张的 4 周完整 ECOS 流程（知识点"二次函数顶点公式"学习全过程：诊断 → ZPD 推荐 → Bloom 目标 → LCA 干预 → CTA 状态估计 → 双 Agent 互校 → 误概念识别 → 成长轨迹）+ 会话记录 discussions/2026-06-25-ecos-workflow-demo-doc.md |
+| 0.22.0 | 2026-06-25 | 269025b | **链接修复**：系统性修复 research/ 目录下所有 markdown 链接错误（4 类错误：多上跳一级 / 多级上跳错误 / SelfLab 时代残留 / 真正 broken）；影响 17 份研究文档（00-overview 4 + 10-engineering 5 + 20-pedagogy 4 + 30-shared-cognitive-tools 3 + 90-mvp 1 + deep-research 1 + 40-aibeing-borrowing 1） |
+| 0.23.0 | 2026-06-26 | (本次) | **架构边界深度追问讨论**：discussions/2026-06-26-ecos-state-architecture-boundaries.md（v1.0，228 行）——回应用户对 workflow-demo 中 5D 状态 / BloomProfile / "含义" 三方面的核心追问：(1) 5D 状态是每个学生一份（聚合）vs 每个知识点一份；(2) BloomProfile 是两层结构（学生聚合 + 知识点×层级详细）；(3) K 维度"含义"是 LLM 解释层 ephemeral 输出（不持久化）；附 §3 当前架构边界总结表 + §4 Phase 5+ 推荐演进（diagnostic_reports 表 + per_skill 矩阵 + 聚合 vs 细粒度对比报告）+ §5 MVP 范围权衡 |
 
 ---
 
