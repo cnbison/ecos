@@ -38,6 +38,7 @@
 | 0.21.0 | 2026-06-25 | a63c93d | **业务流程演示**：discussions/2026-06-25-ecos-workflow-demo.md（v1.0，842 行）——初二学生小张的 4 周完整 ECOS 流程（知识点"二次函数顶点公式"学习全过程：诊断 → ZPD 推荐 → Bloom 目标 → LCA 干预 → CTA 状态估计 → 双 Agent 互校 → 误概念识别 → 成长轨迹）+ 会话记录 discussions/2026-06-25-ecos-workflow-demo-doc.md |
 | 0.22.0 | 2026-06-25 | 269025b | **链接修复**：系统性修复 research/ 目录下所有 markdown 链接错误（4 类错误：多上跳一级 / 多级上跳错误 / SelfLab 时代残留 / 真正 broken）；影响 17 份研究文档（00-overview 4 + 10-engineering 5 + 20-pedagogy 4 + 30-shared-cognitive-tools 3 + 90-mvp 1 + deep-research 1 + 40-aibeing-borrowing 1） |
 | 0.23.0 | 2026-06-26 | fa95a2c | **架构边界深度追问讨论**：discussions/2026-06-26-ecos-state-architecture-boundaries.md（v1.0，228 行）——回应用户对 workflow-demo 中 5D 状态 / BloomProfile / "含义" 三方面的核心追问：(1) 5D 状态是每个学生一份（聚合）vs 每个知识点一份；(2) BloomProfile 是两层结构（学生聚合 + 知识点×层级详细）；(3) K 维度"含义"是 LLM 解释层 ephemeral 输出（不持久化）；附 §3 当前架构边界总结表 + §4 Phase 5+ 推荐演进（diagnostic_reports 表 + per_skill 矩阵 + 聚合 vs 细粒度对比报告）+ §5 MVP 范围权衡 |
+| 0.24.0 | 2026-06-26 | （待提交）| **用户友好版业务流程演示**：research/00-overview/05-user-friendly-demo.md（v1.0，~600 行）——面向普通用户（家长/教师/合作方）的 ECOS 业务流程演示文档：小学四年级学生小明的"分数"学习之旅（A→B 转变，2 周流程）；包含 5 张流程图（互校循环/单次回合/A→B 闭环/TC 跨越/抽象-具象四层循环）；以小学四年级分数概念替代原初二二次函数例子（更直观、家长熟悉、误解典型）；用户哲学理解"具象-抽象-具象循环"作为开篇思想方针；术语简化（通俗版 + 专业版 + 英文对照表）；discussions/2026-06-26-ecos-user-friendly-demo.md（探讨存档，v1.0）同步完成 |
 
 ---
 
