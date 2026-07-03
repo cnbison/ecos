@@ -25,6 +25,7 @@ import re
 import time
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 
@@ -156,6 +157,92 @@ _MARKDOWN_FENCE_RE = re.compile(
     re.DOTALL,
 )
 
+# MiniMax-M3 / DeepSeek-R1 类推理模型的 <think>...</think> 块
+_THINK_BLOCK_RE = re.compile(
+    r"<think>.*?</think>\s*",
+    re.DOTALL,
+)
+
+
+def _load_dotenv(path: Optional[Path] = None, override: bool = False) -> bool:
+    """极简 .env 加载器（无 python-dotenv 依赖）.
+
+    从 path（默认 cwd + 父目录递归查找 .env）解析 KEY=VALUE 注入 os.environ。
+    仅当对应 key 在 os.environ 中不存在时设置（除非 override=True）。
+
+    支持：
+      - 注释行（# 开头）
+      - 空行
+      - 可选 'export ' 前缀
+      - 单/双引号包裹的值（自动去引号）
+
+    Returns:
+        True 如果成功加载至少一个 key
+    """
+    if path is None:
+        # 从 cwd 向父目录查找 .env（最多 5 层）
+        search = Path.cwd()
+        for _ in range(5):
+            candidate = search / ".env"
+            if candidate.is_file():
+                path = candidate
+                break
+            parent = search.parent
+            if parent == search:
+                break
+            search = parent
+    if path is None or not path.is_file():
+        return False
+
+    loaded = 0
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        # 去掉可选的 export 前缀
+        if line.lower().startswith("export "):
+            line = line[7:].strip()
+        if "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip()
+        # 去引号
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+            value = value[1:-1]
+        if not key:
+            continue
+        if override or key not in os.environ:
+            os.environ[key] = value
+            loaded += 1
+    return loaded > 0
+
+
+# 模块导入时自动加载一次 .env（幂等；已存在的 env 变量不被覆盖）
+_load_dotenv()
+
+
+def strip_think_blocks(text: str) -> str:
+    """剥离 <think>...</think> 推理块（MiniMax-M3 / DeepSeek-R1 等模型输出前置内容）.
+
+    注意：
+      - 仅剥离完整闭合的 <think>...</think>
+      - 若模型只开了 <think> 但未闭合，保留原文（避免误删后续内容）
+      - 剥离 think 后，如果剩余内容仅剩 markdown 围栏包裹，也一并剥离
+        （MiniMax-M3 常见模式：think → ```json → ... → ```）
+
+    Returns:
+        清理后的文本
+    """
+    if not text or "<think>" not in text:
+        return text
+    cleaned = _THINK_BLOCK_RE.sub("", text).strip()
+    # 链式调用：如果剥离 think 后只剩 markdown 围栏，也一并剥离
+    m = _MARKDOWN_FENCE_RE.match(cleaned)
+    if m:
+        return m.group("body").strip()
+    return cleaned
+
 
 def strip_markdown_fence(text: str) -> str:
     """剥离 LLM 输出中常见的 ```json ... ``` 围栏.
@@ -171,6 +258,16 @@ def strip_markdown_fence(text: str) -> str:
     if m:
         return m.group("body").strip()
     return text.strip()
+
+
+def clean_llm_output(text: str, strip_think: bool = True) -> str:
+    """综合清理 LLM 输出：先剥离 <think> 块，再剥离 markdown 围栏.
+
+    顺序重要：先剥离 <think>（可能含 ```），再处理 markdown 围栏。
+    """
+    if strip_think:
+        text = strip_think_blocks(text)
+    return strip_markdown_fence(text)
 
 
 class ECOSLLMClient:
@@ -216,6 +313,7 @@ class ECOSLLMClient:
         messages: List[Dict[str, str]],
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        strip_think: bool = True,
         **kwargs: Any,
     ) -> str:
         """发送 chat 请求，返回文本响应.
@@ -224,6 +322,8 @@ class ECOSLLMClient:
             messages: OpenAI 格式消息列表 [{"role": ..., "content": ...}]
             temperature: 覆盖默认温度
             max_tokens: 覆盖默认最大 token
+            strip_think: 是否剥离 <think>...</think> 推理块（默认 True；
+                        设为 False 可保留推理过程，用于 rationale 生成等场景）
             **kwargs: 透传给 openai SDK
 
         Returns:
@@ -237,7 +337,7 @@ class ECOSLLMClient:
         )
         text = self._extract_text(response)
         self._record_usage(response, success=True)
-        return text
+        return clean_llm_output(text, strip_think=strip_think)
 
     def chat_json(
         self,
@@ -248,23 +348,25 @@ class ECOSLLMClient:
     ) -> Any:
         """发送 chat 请求，解析 JSON 返回.
 
-        自动剥离 ```json ... ``` 围栏。解析失败时抛 ValueError 含原始文本。
+        自动剥离 <think> 推理块 + ```json ... ``` 围栏。解析失败时抛 ValueError 含原始文本。
 
         Returns:
             Python 对象（dict / list / 基本类型）
         """
-        text = self.chat(
+        response = self._call_with_retry(
             messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
+            temperature=temperature if temperature is not None else self.config.temperature,
+            max_tokens=max_tokens if max_tokens is not None else self.config.max_tokens,
             **kwargs,
         )
-        cleaned = strip_markdown_fence(text)
+        raw_text = self._extract_text(response)
+        self._record_usage(response, success=True)
+        cleaned = clean_llm_output(raw_text, strip_think=True)
         try:
             return json.loads(cleaned)
         except json.JSONDecodeError as e:
             raise ValueError(
-                f"LLM 输出无法解析为 JSON：{e}\n原始文本：\n{text}\n清理后：\n{cleaned}"
+                f"LLM 输出无法解析为 JSON：{e}\n原始文本：\n{raw_text}\n清理后：\n{cleaned}"
             ) from e
 
     # ---------------------------------------------------------------
@@ -337,4 +439,6 @@ __all__ = [
     "LLMStats",
     "PROVIDER_PRESETS",
     "strip_markdown_fence",
+    "strip_think_blocks",
+    "clean_llm_output",
 ]

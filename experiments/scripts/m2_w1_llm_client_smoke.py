@@ -36,7 +36,9 @@ from ecos.llm_client import (  # noqa: E402
     LLMConfig,
     LLMProvider,
     PROVIDER_PRESETS,
+    clean_llm_output,
     strip_markdown_fence,
+    strip_think_blocks,
 )
 
 
@@ -59,6 +61,56 @@ def test_markdown_fence() -> tuple[int, int]:
     print("\n--- 单元自检：strip_markdown_fence ---")
     for inp, expected, desc in cases:
         got = strip_markdown_fence(inp)
+        ok = got == expected
+        marker = "✅" if ok else "❌"
+        print(f"  {marker} {desc:<24} → {got!r}")
+        if ok:
+            passed += 1
+    return passed, total
+
+
+def test_strip_think_blocks() -> tuple[int, int]:
+    """验证 strip_think_blocks 各种场景（MiniMax-M3 / DeepSeek-R1 推理块剥离）."""
+    cases = [
+        # (输入, 期望, 描述)
+        ('<think>reasoning here</think>{"x": 1}', '{"x": 1}', "think + 裸 JSON"),
+        ('<think>\nmultiline\nreasoning\n</think>\n```json\n{"x": 1}\n```', '{"x": 1}', "think + json 围栏"),
+        ('{"x": 1}', '{"x": 1}', "无 think 原样返回"),
+        ('<think>unclosed', '<think>unclosed', "未闭合 think 保留原文"),
+        ('', '', "空字符串"),
+        ('<think>a</think><think>b</think>hello', 'hello', "连续 think 块"),
+    ]
+    passed, total = 0, len(cases)
+    print("\n--- 单元自检：strip_think_blocks ---")
+    for inp, expected, desc in cases:
+        got = strip_think_blocks(inp)
+        ok = got == expected
+        marker = "✅" if ok else "❌"
+        print(f"  {marker} {desc:<24} → {got!r}")
+        if ok:
+            passed += 1
+    return passed, total
+
+
+def test_clean_llm_output() -> tuple[int, int]:
+    """验证 clean_llm_output 综合清理（think + fence）。"""
+    cases = [
+        # (输入, 期望, 描述) —— strip_think=True (默认)
+        (
+            '<think>reasoning</think>```json\n{"x": 1}\n```',
+            '{"x": 1}',
+            "think + json 围栏 → JSON",
+        ),
+        (
+            '<think>reasoning</think>hello',
+            'hello',
+            "think + 文本 → 文本",
+        ),
+    ]
+    passed, total = 0, len(cases)
+    print("\n--- 单元自检：clean_llm_output ---")
+    for inp, expected, desc in cases:
+        got = clean_llm_output(inp)
         ok = got == expected
         marker = "✅" if ok else "❌"
         print(f"  {marker} {desc:<24} → {got!r}")
@@ -201,8 +253,14 @@ def main() -> int:
     print("=" * 78)
 
     # 1. 单元自检（不依赖 API）
-    passed, total = test_markdown_fence()
-    print(f"  → strip_markdown_fence: {passed}/{total}")
+    passed_mf, total_mf = test_markdown_fence()
+    print(f"  → strip_markdown_fence: {passed_mf}/{total_mf}")
+    passed_tb, total_tb = test_strip_think_blocks()
+    print(f"  → strip_think_blocks: {passed_tb}/{total_tb}")
+    passed_cl, total_cl = test_clean_llm_output()
+    print(f"  → clean_llm_output: {passed_cl}/{total_cl}")
+    passed = passed_mf + passed_tb + passed_cl
+    total = total_mf + total_tb + total_cl
     presets_ok = test_preset_configs()
 
     # 2. API key 缺失提示
@@ -219,7 +277,7 @@ def main() -> int:
     print("\n" + "=" * 78)
     print("Smoke test 总结")
     print("=" * 78)
-    print(f"  strip_markdown_fence:       {passed}/{total}")
+    print(f"  单元测试（3 类）:         {passed}/{total} （markdown_fence + think_blocks + clean_llm_output）")
     print(f"  PROVIDER_PRESETS 完整性:    {'✅' if presets_ok else '❌'}")
     print(f"  MiniMax 缺 key 友好提示:    {'✅' if missing_ok_minimax else '❌'}")
     print(f"  Moonshot 缺 key 友好提示:   {'✅' if missing_ok_moonshot else '❌'}")
