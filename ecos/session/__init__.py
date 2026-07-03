@@ -1,14 +1,16 @@
-"""Long-term Session Management（长期会话管理）.
+"""ECOS Session 层——跨会话状态管理 + chunk 隔离.
 
-实现 ECOS 长期会话管理：
-- TwinSession 类（单次学生与 ECOS 交互）
-- 多轮对话的状态维护
-- 滚动 epoch 计数器
-- session 期间状态驻内存
-
-借鉴 SelfLab SGE session.py（基于 AiBeing chat_agent._chat_inner 模式）。
-
-Phase 4+ 实施细节：见 research/10-engineering/05-persistence-session.md
+对应 research/10-engineering/05-persistence-session.md §4。
+MVP 范围：ECOSSession + ChunkIsolation + 自动保存 + epoch 快照。
 """
 
-__status__ = "placeholder"
+from .ecos_session import ECOSSession, ECOSSessionConfig
+from .chunk_isolation import ChunkIsolation
+
+__status__ = "m2-w3-persistence"
+
+__all__ = [
+    "ECOSSession",
+    "ECOSSessionConfig",
+    "ChunkIsolation",
+]

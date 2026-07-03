@@ -1,13 +1,14 @@
-"""Student State Persistence（学生状态持久化）.
+"""Persistence 层——学生状态持久化 + 4 层记忆 + 会话管理.
 
-实现学生长期认知画像的持久化：
-- SQLite + JSON（参考 SelfLab SGE Phase 3 的 TwinStateDB 设计）
-- Per-user 隔离
-- 4 层记忆（Hawking 短期 / Crystallizer 中期 / Identity / Narrative）
-
-借鉴 SelfLab SGE persistence.py 的工程经验（详见 discussions/2026-06-22-sge-phase3-aibeing-reflection.md）。
-
-Phase 4+ 实施细节：见 research/10-engineering/05-persistence-session.md
+对应 research/10-engineering/05-persistence-session.md。
+MVP 范围：6 张 SQLite 表 + ECOSSession + chunk 隔离。
 """
 
-__status__ = "placeholder"
+from .db import Database, DatabaseConfig
+
+__status__ = "m2-w3-persistence"
+
+__all__ = [
+    "Database",
+    "DatabaseConfig",
+]
