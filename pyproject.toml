@@ -33,8 +33,8 @@ classifiers = [
 ]
 dependencies = [
     "numpy>=1.24",
+    "openai>=1.0",  # OpenAI-Compatible Protocol：MiniMax-M3 / Moonshot Kimi 共用
     # "pydantic>=2.0",   # Phase 4+ 按需加入
-    # "openai>=1.0",     # Phase 4+ 按需加入
 ]
 
 [project.optional-dependencies]
