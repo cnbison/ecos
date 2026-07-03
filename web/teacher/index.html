@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ECOS 教师端</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>ECOS 教师后台</h1>
+
+        <!-- 班级学生列表 -->
+        <section class="section">
+            <h2>班级学生列表</h2>
+            <div class="table-container">
+                <table class="student-table">
+                    <thead>
+                        <tr>
+                            <th>学生ID</th>
+                            <th>最近活跃</th>
+                            <th>Bloom L3</th>
+                            <th>5D 综合</th>
+                            <th>本周干预</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="student-list">
+                        <!-- 占位数据 -->
+                        <tr>
+                            <td>S001</td>
+                            <td>2026-07-04</td>
+                            <td>0.75</td>
+                            <td>0.68</td>
+                            <td>3</td>
+                            <td><button class="btn-view">查看详情</button></td>
+                        </tr>
+                        <tr>
+                            <td>S002</td>
+                            <td>2026-07-04</td>
+                            <td>0.60</td>
+                            <td>0.55</td>
+                            <td>5</td>
+                            <td><button class="btn-view">查看详情</button></td>
+                        </tr>
+                        <tr>
+                            <td>S003</td>
+                            <td>2026-07-03</td>
+                            <td>0.82</td>
+                            <td>0.71</td>
+                            <td>2</td>
+                            <td><button class="btn-view">查看详情</button></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- 单个学生详情（默认隐藏，点击查看后显示） -->
+        <section class="section student-detail" id="student-detail" style="display: none;">
+            <h2>学生详情：<span id="detail-student-id">S001</span></h2>
+
+            <!-- BloomProfile + 5D 状态 -->
+            <div class="detail-grid">
+                <div class="detail-card">
+                    <h3>BloomProfile</h3>
+                    <div class="bloom-placeholder">
+                        <div class="placeholder-text">[BloomProfile 雷达图占位]</div>
+                    </div>
+                    <div class="bloom-bars">
+                        <div class="bloom-row">
+                            <span>L1 Remember</span>
+                            <div class="bloom-bar"><div class="bloom-fill" style="width: 0%"></div></div>
+                            <span class="bloom-value">0%</span>
+                        </div>
+                        <div class="bloom-row">
+                            <span>L2 Understand</span>
+                            <div class="bloom-bar"><div class="bloom-fill" style="width: 0%"></div></div>
+                            <span class="bloom-value">0%</span>
+                        </div>
+                        <div class="bloom-row">
+                            <span>L3 Apply</span>
+                            <div class="bloom-bar"><div class="bloom-fill" style="width: 0%"></div></div>
+                            <span class="bloom-value">0%</span>
+                        </div>
+                        <div class="bloom-row">
+                            <span>L4 Analyze</span>
+                            <div class="bloom-bar"><div class="bloom-fill" style="width: 0%"></div></div>
+                            <span class="bloom-value">0%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="detail-card">
+                    <h3>5D 学习状态</h3>
+                    <div class="five-d-placeholder">
+                        <div class="placeholder-text">[5D 状态占位]</div>
+                    </div>
+                    <div class="five-d-rows">
+                        <div class="five-d-row">
+                            <span>K 知识</span>
+                            <div class="five-d-bar"><div class="five-d-fill" style="width: 0%"></div></div>
+                            <span class="five-d-value">0%</span>
+                        </div>
+                        <div class="five-d-row">
+                            <span>P 程序</span>
+                            <div class="five-d-bar"><div class="five-d-fill" style="width: 0%"></div></div>
+                            <span class="five-d-value">0%</span>
+                        </div>
+                        <div class="five-d-row">
+                            <span>S 策略</span>
+                            <div class="five-d-bar"><div class="five-d-fill" style="width: 0%"></div></div>
+                            <span class="five-d-value">0%</span>
+                        </div>
+                        <div class="five-d-row">
+                            <span>C 置信</span>
+                            <div class="five-d-bar"><div class="five-d-fill" style="width: 0%"></div></div>
+                            <span class="five-d-value">0%</span>
+                        </div>
+                        <div class="five-d-row">
+                            <span>X 支架</span>
+                            <div class="five-d-bar"><div class="five-d-fill" style="width: 0%"></div></div>
+                            <span class="five-d-value">0%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn-close" id="btn-close-detail">关闭详情</button>
+        </section>
+
+        <!-- 干预历史记录表 -->
+        <section class="section">
+            <h2>干预历史记录</h2>
+            <div class="table-container">
+                <table class="intervention-table">
+                    <thead>
+                        <tr>
+                            <th>时间</th>
+                            <th>学生ID</th>
+                            <th>干预类型</th>
+                            <th>目标 Bloom</th>
+                            <th>Rationale</th>
+                            <th>效果</th>
+                        </tr>
+                    </thead>
+                    <tbody id="intervention-history">
+                        <!-- 占位数据 -->
+                        <tr>
+                            <td>2026-07-04 10:30</td>
+                            <td>S001</td>
+                            <td>PRACTICE</td>
+                            <td>L3 Apply</td>
+                            <td>连续2次L3题正确，ZPD内</td>
+                            <td>-</td>
+                        </tr>
+                        <tr>
+                            <td>2026-07-04 10:15</td>
+                            <td>S002</td>
+                            <td>EXPLANATORY</td>
+                            <td>L2 Understand</td>
+                            <td>概念理解不足，需类比</td>
+                            <td>-</td>
+                        </tr>
+                        <tr>
+                            <td>2026-07-04 09:45</td>
+                            <td>S003</td>
+                            <td>FEEDBACK</td>
+                            <td>L4 Analyze</td>
+                            <td>分析步骤缺失</td>
+                            <td>-</td>
+                        </tr>
+                        <tr>
+                            <td>2026-07-03 16:20</td>
+                            <td>S001</td>
+                            <td>METACOGNITIVE</td>
+                            <td>L4 Analyze</td>
+                            <td>策略反思触发</td>
+                            <td>-</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        // 骨架阶段：所有逻辑为占位符
+        document.querySelectorAll('.btn-view').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                const row = e.target.closest('tr');
+                const studentId = row.cells[0].textContent;
+                document.getElementById('detail-student-id').textContent = studentId;
+                document.getElementById('student-detail').style.display = 'block';
+            });
+        });
+
+        document.getElementById('btn-close-detail').addEventListener('click', function() {
+            document.getElementById('student-detail').style.display = 'none';
+        });
+    </script>
+</body>
+</html>
