@@ -1,0 +1,759 @@
+{
+  "metadata": {
+    "subject": "math",
+    "grade_levels": [7, 8],
+    "version": "v1.0",
+    "description": "Q矩阵——题目属性标注（供教师协作填写）",
+    "instructions": "每个 problem_id 对应一道具体题目。请标注：1) 该题考察的 attribute（知识点）；2) Bloom 层（学生实际表现出的认知层级）；3) 是否跨越 TC；4) 是否触发 misconception；5) MIRT 参数（difficulty 0-1，discrimination > 0，guessing 0-1）；6) CLT 难度级别 1-4；7) 推荐干预类型。每个 topic 建议 12-25 道题，MVP 总计 100-200 道。",
+    "references": [
+      "research/10-engineering/03-bloom-goal-library.md §8.3",
+      "research/10-engineering/01-cta-belief-engine.md §6.2",
+      "research/30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md §1.7 (TC) / §2.6 (Misconception)"
+    ],
+    "bloom_goal_coverage": [
+      {"topic": "math.algebra.linear", "bloom_goals": ["math.algebra.linear-L1","math.algebra.linear-L2","math.algebra.linear-L3","math.algebra.linear-L4"], "skill_name": "一次方程与方程组"},
+      {"topic": "math.algebra.quadratic", "bloom_goals": ["math.algebra.quadratic-L1","math.algebra.quadratic-L2","math.algebra.quadratic-L3","math.algebra.quadratic-L4"], "skill_name": "一元二次方程"},
+      {"topic": "math.fraction", "bloom_goals": ["math.fraction-L1","math.fraction-L2","math.fraction-L3","math.fraction-L4"], "skill_name": "分数运算"},
+      {"topic": "math.function.basics", "bloom_goals": ["math.function.basics-L1","math.function.basics-L2","math.function.basics-L3","math.function.basics-L4"], "skill_name": "函数基础"},
+      {"topic": "math.geometry.triangle", "bloom_goals": ["math.geometry.triangle-L1","math.geometry.triangle-L2","math.geometry.triangle-L3","math.geometry.triangle-L4"], "skill_name": "三角形与全等"},
+      {"topic": "math.geometry.circle", "bloom_goals": ["math.geometry.circle-L1","math.geometry.circle-L2","math.geometry.circle-L3","math.geometry.circle-L4"], "skill_name": "圆的基本性质"},
+      {"topic": "math.statistics", "bloom_goals": ["math.statistics-L1","math.statistics-L2","math.statistics-L3","math.statistics-L4"], "skill_name": "统计与概率基础"},
+      {"topic": "math.inequality", "bloom_goals": ["math.inequality-L1","math.inequality-L2","math.inequality-L3","math.inequality-L4"], "skill_name": "不等式与不等式组"}
+    ],
+    "tc_library": ["TC_function","TC_variable","TC_equation_vs_inequality","TC_geometric_proof","TC_negative_number","TC_fraction","TC_function_graph","TC_limit"],
+    "misconception_library": ["M1","M2","M3","M4","M5","M6","M7","M8","M9","M10","M11","M12","M13","M14","M15","M16","M17","M18","M19","M20","M21","M22","M23","M24","M25","M26","M27","M28","M29","M30"]
+  },
+
+  "problems": [
+    {
+      "problem_id": "placeholder_P1",
+      "bloom_goal_id": "math.algebra.linear-L1",
+      "topic": "math.algebra.linear",
+      "skill_name": "一次方程与方程组",
+      "problem_text": "【待教师填写】",
+      "correct_answer": "【待教师填写】",
+      "attributes": ["【待填写：考察的知识点，如 linear_equation_solve】"],
+      "bloom_layer_observed": "L1",
+      "threshold_concepts": [],
+      "misconceptions": [],
+      "mirt_params": {
+        "difficulty": 0.3,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
+      "clt_level": 1,
+      "intervention_types": ["PRACTICE"],
+      "teacher_notes": "【教师备注：如题目的典型错误、变式建议等】",
+      "verified": false
+    },
+
+    {
+      "problem_id": "placeholder_P2",
+      "bloom_goal_id": "math.algebra.linear-L2",
+      "topic": "math.algebra.linear",
+      "skill_name": "一次方程与方程组",
+      "problem_text": "【待教师填写】",
+      "correct_answer": "【待教师填写】",
+      "attributes": ["【待填写】"],
+      "bloom_layer_observed": "L2",
+      "threshold_concepts": [],
+      "misconceptions": [],
+      "mirt_params": {
+        "difficulty": 0.5,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
+      "clt_level": 2,
+      "intervention_types": ["EXPLANATORY"],
+      "teacher_notes": "",
+      "verified": false
+    },
+
+    {
+      "problem_id": "placeholder_P3",
+      "bloom_goal_id": "math.algebra.linear-L3",
+      "topic": "math.algebra.linear",
+      "skill_name": "一次方程与方程组",
+      "problem_text": "【待教师填写】",
+      "correct_answer": "【待教师填写】",
+      "attributes": ["【待填写】"],
+      "bloom_layer_observed": "L3",
+      "threshold_concepts": [],
+      "misconceptions": [],
+      "mirt_params": {
+        "difficulty": 0.6,
+        "discrimination": 1.2,
+        "guessing": 0.1
+      },
+      "clt_level": 3,
+      "intervention_types": ["PRACTICE", "FEEDBACK"],
+      "teacher_notes": "",
+      "verified": false
+    },
+
+    {
+      "problem_id": "placeholder_P4",
+      "bloom_goal_id": "math.algebra.linear-L4",
+      "topic": "math.algebra.linear",
+      "skill_name": "一次方程与方程组",
+      "problem_text": "【待教师填写——建议：应用题列方程】",
+      "correct_answer": "【待教师填写】",
+      "attributes": ["【待填写】"],
+      "bloom_layer_observed": "L4",
+      "threshold_concepts": [],
+      "misconceptions": ["M11"],
+      "mirt_params": {
+        "difficulty": 0.7,
+        "discrimination": 1.2,
+        "guessing": 0.1
+      },
+      "clt_level": 3,
+      "intervention_types": ["INQUIRY", "FEEDBACK"],
+      "teacher_notes": "【建议包含 M11（移项不变号）触发点】",
+      "verified": false
+    },
+
+    {
+      "problem_id": "placeholder_P5",
+      "bloom_goal_id": "math.algebra.quadratic-L1",
+      "topic": "math.algebra.quadratic",
+      "skill_name": "一元二次方程",
+      "problem_text": "【待教师填写】",
+      "correct_answer": "【待教师填写】",
+      "attributes": ["【待填写】"],
+      "bloom_layer_observed": "L1",
+      "threshold_concepts": [],
+      "misconceptions": [],
+      "mirt_params": {
+        "difficulty": 0.3,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
+      "clt_level": 1,
+      "intervention_types": ["PRACTICE"],
+      "teacher_notes": "",
+      "verified": false
+    },
+
+    {
+      "problem_id": "placeholder_P6",
+      "bloom_goal_id": "math.algebra.quadratic-L2",
+      "topic": "math.algebra.quadratic",
+      "skill_name": "一元二次方程",
+      "problem_text": "【待教师填写——建议：推导求根公式的过程】",
+      "correct_answer": "【待教师填写】",
+      "attributes": ["【待填写】"],
+      "bloom_layer_observed": "L2",
+      "threshold_concepts": [],
+      "misconceptions": ["M13"],
+      "mirt_params": {
+        "difficulty": 0.5,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
+      "clt_level": 2,
+      "intervention_types": ["EXPLANATORY"],
+      "teacher_notes": "【建议包含 M13（判别式记错）触发点】",
+      "verified": false
+    },
+
+    {
+      "problem_id": "placeholder_P7",
+      "bloom_goal_id": "math.algebra.quadratic-L3",
+      "topic": "math.algebra.quadratic",
+      "skill_name": "一元二次方程",
+      "problem_text": "【待教师填写】",
+      "correct_answer": "【待教师填写】",
+      "attributes": ["【待填写】"],
+      "bloom_layer_observed": "L3",
+      "threshold_concepts": [],
+      "misconceptions": [],
+      "mirt_params": {
+        "difficulty": 0.6,
+        "discrimination": 1.2,
+        "guessing": 0.1
+      },
+      "clt_level": 3,
+      "intervention_types": ["PRACTICE", "FEEDBACK"],
+      "teacher_notes": "",
+      "verified": false
+    },
+
+    {
+      "problem_id": "placeholder_P8",
+      "bloom_goal_id": "math.algebra.quadratic-L4",
+      "topic": "math.algebra.quadratic",
+      "skill_name": "一元二次方程",
+      "problem_text": "【待教师填写——建议：韦达定理应用】",
+      "correct_answer": "【待教师填写】",
+      "attributes": ["【待填写】"],
+      "bloom_layer_observed": "L4",
+      "threshold_concepts": [],
+      "misconceptions": [],
+      "mirt_params": {
+        "difficulty": 0.8,
+        "discrimination": 1.2,
+        "guessing": 0.1
+      },
+      "clt_level": 4,
+      "intervention_types": ["INQUIRY", "METACOGNITIVE"],
+      "teacher_notes": "",
+      "verified": false
+    },
+
+    {
+      "problem_id": "placeholder_P9",
+      "bloom_goal_id": "math.fraction-L1",
+      "topic": "math.fraction",
+      "skill_name": "分数运算",
+      "problem_text": "【待教师填写】",
+      "correct_answer": "【待教师填写】",
+      "attributes": ["【待填写】"],
+      "bloom_layer_observed": "L1",
+      "threshold_concepts": [],
+      "misconceptions": [],
+      "mirt_params": {
+        "difficulty": 0.2,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
+      "clt_level": 1,
+      "intervention_types": ["PRACTICE"],
+      "teacher_notes": "",
+      "verified": false
+    },
+
+    {
+      "problem_id": "placeholder_P10",
+      "bloom_goal_id": "math.fraction-L2",
+      "topic": "math.fraction",
+      "skill_name": "分数运算",
+      "problem_text": "【待教师填写——建议：通分意义】",
+      "correct_answer": "【待教师填写】",
+      "attributes": ["【待填写】"],
+      "bloom_layer_observed": "L2",
+      "threshold_concepts": ["TC_fraction"],
+      "misconceptions": ["M2"],
+      "mirt_params": {
+        "difficulty": 0.5,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
+      "clt_level": 2,
+      "intervention_types": ["EXPLANATORY"],
+      "teacher_notes": "【建议包含 M2（分母大→分数大）触发点】",
+      "verified": false
+    },
+
+    {
+      "problem_id": "placeholder_P11",
+      "bloom_goal_id": "math.fraction-L3",
+      "topic": "math.fraction",
+      "skill_name": "分数运算",
+      "problem_text": "【待教师填写】",
+      "correct_answer": "【待教师填写】",
+      "attributes": ["【待填写】"],
+      "bloom_layer_observed": "L3",
+      "threshold_concepts": [],
+      "misconceptions": ["M12"],
+      "mirt_params": {
+        "difficulty": 0.6,
+        "discrimination": 1.2,
+        "guessing": 0.1
+      },
+      "clt_level": 3,
+      "intervention_types": ["PRACTICE", "FEEDBACK"],
+      "teacher_notes": "【建议包含 M12（分母相加）触发点】",
+      "verified": false
+    },
+
+    {
+      "problem_id": "placeholder_P12",
+      "bloom_goal_id": "math.fraction-L4",
+      "topic": "math.fraction",
+      "skill_name": "分数运算",
+      "problem_text": "【待教师填写——建议：分析典型错误】",
+      "correct_answer": "【待教师填写】",
+      "attributes": ["【待填写】"],
+      "bloom_layer_observed": "L4",
+      "threshold_concepts": [],
+      "misconceptions": [],
+      "mirt_params": {
+        "difficulty": 0.7,
+        "discrimination": 1.2,
+        "guessing": 0.1
+      },
+      "clt_level": 3,
+      "intervention_types": ["INQUIRY", "METACOGNITIVE"],
+      "teacher_notes": "",
+      "verified": false
+    },
+
+    {
+      "problem_id": "placeholder_P13",
+      "bloom_goal_id": "math.function.basics-L1",
+      "topic": "math.function.basics",
+      "skill_name": "函数基础",
+      "problem_text": "【待教师填写】",
+      "correct_answer": "【待教师填写】",
+      "attributes": ["【待填写】"],
+      "bloom_layer_observed": "L1",
+      "threshold_concepts": [],
+      "misconceptions": [],
+      "mirt_params": {
+        "difficulty": 0.3,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
+      "clt_level": 1,
+      "intervention_types": ["PRACTICE"],
+      "teacher_notes": "",
+      "verified": false
+    },
+
+    {
+      "problem_id": "placeholder_P14",
+      "bloom_goal_id": "math.function.basics-L2",
+      "topic": "math.function.basics",
+      "skill_name": "函数基础",
+      "problem_text": "【待教师填写——建议：k的几何意义】",
+      "correct_answer": "【待教师填写】",
+      "attributes": ["【待填写】"],
+      "bloom_layer_observed": "L2",
+      "threshold_concepts": ["TC_function_graph"],
+      "misconceptions": ["M8"],
+      "mirt_params": {
+        "difficulty": 0.5,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
+      "clt_level": 2,
+      "intervention_types": ["EXPLANATORY"],
+      "teacher_notes": "【建议包含 M8（函数必过原点）触发点】",
+      "verified": false
+    },
+
+    {
+      "problem_id": "placeholder_P15",
+      "bloom_goal_id": "math.function.basics-L3",
+      "topic": "math.function.basics",
+      "skill_name": "函数基础",
+      "problem_text": "【待教师填写】",
+      "correct_answer": "【待教师填写】",
+      "attributes": ["【待填写】"],
+      "bloom_layer_observed": "L3",
+      "threshold_concepts": [],
+      "misconceptions": [],
+      "mirt_params": {
+        "difficulty": 0.6,
+        "discrimination": 1.2,
+        "guessing": 0.1
+      },
+      "clt_level": 3,
+      "intervention_types": ["PRACTICE", "FEEDBACK"],
+      "teacher_notes": "",
+      "verified": false
+    },
+
+    {
+      "problem_id": "placeholder_P16",
+      "bloom_goal_id": "math.function.basics-L4",
+      "topic": "math.function.basics",
+      "skill_name": "函数基础",
+      "problem_text": "【待教师填写——建议：分析正/反比例函数差异】",
+      "correct_answer": "【待教师填写】",
+      "attributes": ["【待填写】"],
+      "bloom_layer_observed": "L4",
+      "threshold_concepts": [],
+      "misconceptions": ["M17", "M18"],
+      "mirt_params": {
+        "difficulty": 0.7,
+        "discrimination": 1.2,
+        "guessing": 0.1
+      },
+      "clt_level": 4,
+      "intervention_types": ["INQUIRY", "METACOGNITIVE"],
+      "teacher_notes": "【建议包含 M17（象限判断）和 M18（双曲线画法）触发点】",
+      "verified": false
+    },
+
+    {
+      "problem_id": "placeholder_P17",
+      "bloom_goal_id": "math.geometry.triangle-L1",
+      "topic": "math.geometry.triangle",
+      "skill_name": "三角形与全等",
+      "problem_text": "【待教师填写】",
+      "correct_answer": "【待教师填写】",
+      "attributes": ["【待填写】"],
+      "bloom_layer_observed": "L1",
+      "threshold_concepts": [],
+      "misconceptions": [],
+      "mirt_params": {
+        "difficulty": 0.3,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
+      "clt_level": 1,
+      "intervention_types": ["PRACTICE"],
+      "teacher_notes": "",
+      "verified": false
+    },
+
+    {
+      "problem_id": "placeholder_P18",
+      "bloom_goal_id": "math.geometry.triangle-L2",
+      "topic": "math.geometry.triangle",
+      "skill_name": "三角形与全等",
+      "problem_text": "【待教师填写——建议：内角和=180°的证明】",
+      "correct_answer": "【待教师填写】",
+      "attributes": ["【待填写】"],
+      "bloom_layer_observed": "L2",
+      "threshold_concepts": ["TC_geometric_proof"],
+      "misconceptions": ["M15"],
+      "mirt_params": {
+        "difficulty": 0.5,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
+      "clt_level": 2,
+      "intervention_types": ["EXPLANATORY"],
+      "teacher_notes": "【建议包含 M15（死记内角和）触发点】",
+      "verified": false
+    },
+
+    {
+      "problem_id": "placeholder_P19",
+      "bloom_goal_id": "math.geometry.triangle-L3",
+      "topic": "math.geometry.triangle",
+      "skill_name": "三角形与全等",
+      "problem_text": "【待教师填写】",
+      "correct_answer": "【待教师填写】",
+      "attributes": ["【待填写】"],
+      "bloom_layer_observed": "L3",
+      "threshold_concepts": [],
+      "misconceptions": [],
+      "mirt_params": {
+        "difficulty": 0.6,
+        "discrimination": 1.2,
+        "guessing": 0.1
+      },
+      "clt_level": 3,
+      "intervention_types": ["PRACTICE", "FEEDBACK"],
+      "teacher_notes": "",
+      "verified": false
+    },
+
+    {
+      "problem_id": "placeholder_P20",
+      "bloom_goal_id": "math.geometry.triangle-L4",
+      "topic": "math.geometry.triangle",
+      "skill_name": "三角形与全等",
+      "problem_text": "【待教师填写——建议：SSA反例分析】",
+      "correct_answer": "【待教师填写】",
+      "attributes": ["【待填写】"],
+      "bloom_layer_observed": "L4",
+      "threshold_concepts": [],
+      "misconceptions": [],
+      "mirt_params": {
+        "difficulty": 0.8,
+        "discrimination": 1.2,
+        "guessing": 0.1
+      },
+      "clt_level": 4,
+      "intervention_types": ["INQUIRY", "METACOGNITIVE"],
+      "teacher_notes": "",
+      "verified": false
+    },
+
+    {
+      "problem_id": "placeholder_P21",
+      "bloom_goal_id": "math.geometry.circle-L1",
+      "topic": "math.geometry.circle",
+      "skill_name": "圆的基本性质",
+      "problem_text": "【待教师填写】",
+      "correct_answer": "【待教师填写】",
+      "attributes": ["【待填写】"],
+      "bloom_layer_observed": "L1",
+      "threshold_concepts": [],
+      "misconceptions": [],
+      "mirt_params": {
+        "difficulty": 0.3,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
+      "clt_level": 1,
+      "intervention_types": ["PRACTICE"],
+      "teacher_notes": "",
+      "verified": false
+    },
+
+    {
+      "problem_id": "placeholder_P22",
+      "bloom_goal_id": "math.geometry.circle-L2",
+      "topic": "math.geometry.circle",
+      "skill_name": "圆的基本性质",
+      "problem_text": "【待教师填写——建议：π是无理数】",
+      "correct_answer": "【待教师填写】",
+      "attributes": ["【待填写】"],
+      "bloom_layer_observed": "L2",
+      "threshold_concepts": ["TC_limit"],
+      "misconceptions": ["M6", "M14"],
+      "mirt_params": {
+        "difficulty": 0.5,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
+      "clt_level": 2,
+      "intervention_types": ["EXPLANATORY"],
+      "teacher_notes": "【建议包含 M6（π=3.14）和 M14（圆面积=2πr）触发点】",
+      "verified": false
+    },
+
+    {
+      "problem_id": "placeholder_P23",
+      "bloom_goal_id": "math.geometry.circle-L3",
+      "topic": "math.geometry.circle",
+      "skill_name": "圆的基本性质",
+      "problem_text": "【待教师填写】",
+      "correct_answer": "【待教师填写】",
+      "attributes": ["【待填写】"],
+      "bloom_layer_observed": "L3",
+      "threshold_concepts": [],
+      "misconceptions": [],
+      "mirt_params": {
+        "difficulty": 0.6,
+        "discrimination": 1.2,
+        "guessing": 0.1
+      },
+      "clt_level": 3,
+      "intervention_types": ["PRACTICE", "FEEDBACK"],
+      "teacher_notes": "",
+      "verified": false
+    },
+
+    {
+      "problem_id": "placeholder_P24",
+      "bloom_goal_id": "math.geometry.circle-L4",
+      "topic": "math.geometry.circle",
+      "skill_name": "圆的基本性质",
+      "problem_text": "【待教师填写——建议：圆周角定理逆定理分析】",
+      "correct_answer": "【待教师填写】",
+      "attributes": ["【待填写】"],
+      "bloom_layer_observed": "L4",
+      "threshold_concepts": [],
+      "misconceptions": [],
+      "mirt_params": {
+        "difficulty": 0.8,
+        "discrimination": 1.2,
+        "guessing": 0.1
+      },
+      "clt_level": 4,
+      "intervention_types": ["INQUIRY", "METACOGNITIVE"],
+      "teacher_notes": "",
+      "verified": false
+    },
+
+    {
+      "problem_id": "placeholder_P25",
+      "bloom_goal_id": "math.statistics-L1",
+      "topic": "math.statistics",
+      "skill_name": "统计与概率基础",
+      "problem_text": "【待教师填写】",
+      "correct_answer": "【待教师填写】",
+      "attributes": ["【待填写】"],
+      "bloom_layer_observed": "L1",
+      "threshold_concepts": [],
+      "misconceptions": [],
+      "mirt_params": {
+        "difficulty": 0.3,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
+      "clt_level": 1,
+      "intervention_types": ["PRACTICE"],
+      "teacher_notes": "",
+      "verified": false
+    },
+
+    {
+      "problem_id": "placeholder_P26",
+      "bloom_goal_id": "math.statistics-L2",
+      "topic": "math.statistics",
+      "skill_name": "统计与概率基础",
+      "problem_text": "【待教师填写——建议：平均数 vs 中位数适用场景】",
+      "correct_answer": "【待教师填写】",
+      "attributes": ["【待填写】"],
+      "bloom_layer_observed": "L2",
+      "threshold_concepts": [],
+      "misconceptions": ["M22"],
+      "mirt_params": {
+        "difficulty": 0.5,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
+      "clt_level": 2,
+      "intervention_types": ["EXPLANATORY"],
+      "teacher_notes": "【建议包含 M22（混淆平均数与中位数）触发点】",
+      "verified": false
+    },
+
+    {
+      "problem_id": "placeholder_P27",
+      "bloom_goal_id": "math.statistics-L3",
+      "topic": "math.statistics",
+      "skill_name": "统计与概率基础",
+      "problem_text": "【待教师填写——建议：古典概型计算】",
+      "correct_answer": "【待教师填写】",
+      "attributes": ["【待填写】"],
+      "bloom_layer_observed": "L3",
+      "threshold_concepts": [],
+      "misconceptions": ["M10"],
+      "mirt_params": {
+        "difficulty": 0.6,
+        "discrimination": 1.2,
+        "guessing": 0.1
+      },
+      "clt_level": 3,
+      "intervention_types": ["PRACTICE", "FEEDBACK"],
+      "teacher_notes": "【建议包含 M10（概率=运气）触发点】",
+      "verified": false
+    },
+
+    {
+      "problem_id": "placeholder_P28",
+      "bloom_goal_id": "math.statistics-L4",
+      "topic": "math.statistics",
+      "skill_name": "统计与概率基础",
+      "problem_text": "【待教师填写——建议：相关≠因果分析】",
+      "correct_answer": "【待教师填写】",
+      "attributes": ["【待填写】"],
+      "bloom_layer_observed": "L4",
+      "threshold_concepts": [],
+      "misconceptions": ["M23"],
+      "mirt_params": {
+        "difficulty": 0.7,
+        "discrimination": 1.2,
+        "guessing": 0.1
+      },
+      "clt_level": 4,
+      "intervention_types": ["INQUIRY", "METACOGNITIVE"],
+      "teacher_notes": "【建议包含 M23（相关=因果）触发点】",
+      "verified": false
+    },
+
+    {
+      "problem_id": "placeholder_P29",
+      "bloom_goal_id": "math.inequality-L1",
+      "topic": "math.inequality",
+      "skill_name": "不等式与不等式组",
+      "problem_text": "【待教师填写】",
+      "correct_answer": "【待教师填写】",
+      "attributes": ["【待填写】"],
+      "bloom_layer_observed": "L1",
+      "threshold_concepts": [],
+      "misconceptions": [],
+      "mirt_params": {
+        "difficulty": 0.3,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
+      "clt_level": 1,
+      "intervention_types": ["PRACTICE"],
+      "teacher_notes": "",
+      "verified": false
+    },
+
+    {
+      "problem_id": "placeholder_P30",
+      "bloom_goal_id": "math.inequality-L2",
+      "topic": "math.inequality",
+      "skill_name": "不等式与不等式组",
+      "problem_text": "【待教师填写——建议：不等式性质数轴解释】",
+      "correct_answer": "【待教师填写】",
+      "attributes": ["【待填写】"],
+      "bloom_layer_observed": "L2",
+      "threshold_concepts": ["TC_equation_vs_inequality"],
+      "misconceptions": ["M3"],
+      "mirt_params": {
+        "difficulty": 0.5,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
+      "clt_level": 2,
+      "intervention_types": ["EXPLANATORY"],
+      "teacher_notes": "【建议包含 M3（等式性质错误推广）触发点】",
+      "verified": false
+    },
+
+    {
+      "problem_id": "placeholder_P31",
+      "bloom_goal_id": "math.inequality-L3",
+      "topic": "math.inequality",
+      "skill_name": "不等式与不等式组",
+      "problem_text": "【待教师填写】",
+      "correct_answer": "【待教师填写】",
+      "attributes": ["【待填写】"],
+      "bloom_layer_observed": "L3",
+      "threshold_concepts": [],
+      "misconceptions": [],
+      "mirt_params": {
+        "difficulty": 0.6,
+        "discrimination": 1.2,
+        "guessing": 0.1
+      },
+      "clt_level": 3,
+      "intervention_types": ["PRACTICE", "FEEDBACK"],
+      "teacher_notes": "",
+      "verified": false
+    },
+
+    {
+      "problem_id": "placeholder_P32",
+      "bloom_goal_id": "math.inequality-L4",
+      "topic": "math.inequality",
+      "skill_name": "不等式与不等式组",
+      "problem_text": "【待教师填写——建议：等式与不等式变换规则对比】",
+      "correct_answer": "【待教师填写】",
+      "attributes": ["【待填写】"],
+      "bloom_layer_observed": "L4",
+      "threshold_concepts": [],
+      "misconceptions": [],
+      "mirt_params": {
+        "difficulty": 0.8,
+        "discrimination": 1.2,
+        "guessing": 0.1
+      },
+      "clt_level": 4,
+      "intervention_types": ["INQUIRY", "METACOGNITIVE"],
+      "teacher_notes": "",
+      "verified": false
+    }
+  ],
+
+  "instructions_for_teachers": {
+    "overview": "MVP 阶段需要 100-200 道题目，覆盖 8 个 topic × 4 个 Bloom 层。本模板为每个 BloomGoal 提供了 1 个 placeholder，实际每个 BloomGoal 建议填充 12-25 道题。",
+    "per_problem_fields": {
+      "problem_text": "具体题目内容",
+      "correct_answer": "正确答案",
+      "attributes": "考察的知识点列表（如 linear_equation_solve, fraction_add）",
+      "bloom_layer_observed": "学生在这道题上实际表现出的 Bloom 层级（L1-L4）",
+      "threshold_concepts": "跨越的 TC ID（如有），参见 metadata.tc_library",
+      "misconceptions": "触发的 Misconception ID（如有），参见 metadata.misconception_library",
+      "mirt_params": {
+        "difficulty": "0.0-1.0，0.3=容易，0.5=中等，0.8=困难",
+        "discrimination": "> 0，建议 1.0-1.5",
+        "guessing": "0.0-1.0，纯猜测正确率（如选择题四选一=0.25）"
+      },
+      "clt_level": "1=极简题干，2=标准呈现，3=变式呈现，4=复杂/多步",
+      "intervention_types": "推荐干预类型：PRACTICE / EXPLANATORY / INQUIRY / FEEDBACK / METACOGNITIVE",
+      "teacher_notes": "其他备注（如典型错误、变式建议）"
+    },
+    "tips": [
+      "每个 BloomGoal 至少 12 道题，以保证 MIRT 估计精度",
+      "L1 题目偏记忆/识别，difficulty 建议 0.2-0.4",
+      "L4 题目偏分析/评估，difficulty 建议 0.7-0.9",
+      "在含 TC/Misconception 触发点的题目上标注清楚（已有 pre-populated）",
+      "verified=false 表示待教师审核，审核后改为 true"
+    ]
+  }
+}
