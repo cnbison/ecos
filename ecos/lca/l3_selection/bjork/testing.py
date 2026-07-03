@@ -77,7 +77,7 @@ class BjorkTestingEffect:
             return False
         recent = snapshots[-self.config.consecutive_practice_threshold:]
         # 如果最近 N 次都在同一 Bloom 层，认为是"练习未测试"
-        bloom_layers = {s.bloom_level for s in recent}
+        bloom_layers = {s.bloom_profile.dominant_layer for s in recent}
         return len(bloom_layers) == 1
 
 
