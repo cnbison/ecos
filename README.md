@@ -136,6 +136,50 @@ ecos/
 
 **累计产出**：19 个版本 / ~57+ 份文档 / ~19000+ 行研究产出（**1 天完成**，2026-06-24 ~ 2026-06-25）
 
+## 开发环境设置
+
+ECOS Python 包需要 Python 3.11+。**强烈建议使用虚拟环境**：
+
+```bash
+# 1. 创建虚拟环境（使用 conda 提供的 python3 或系统 python3）
+python3 -m venv .venv
+
+# 2. 激活虚拟环境
+source .venv/bin/activate          # macOS / Linux
+# .venv\Scripts\activate           # Windows
+
+# 3. 安装项目（editable 模式，依赖自动解析）
+pip install -e ".[dev]"            # 含 dev extras（pytest/black/ruff/mypy）
+
+# 4. 配置 LLM API（可选，仅在调用 LLM 时需要）
+cp .env.example .env               # .env 已在 .gitignore 中
+# 编辑 .env 填入 MINIMAX_API_KEY=sk-...
+
+# 5. 验证安装
+python experiments/scripts/m2_w1_cta_basics_validation.py   # CTA 数学骨架
+python experiments/scripts/m2_w1_llm_client_smoke.py         # LLM 客户端
+```
+
+### 依赖清单（自动从 pyproject.toml 解析）
+
+| 包 | 用途 |
+|---|---|
+| `numpy>=1.24` | 5D 状态向量、BKT/MIRT 计算 |
+| `scipy>=1.11` | MIRT MAP 估计的 L-BFGS-B + Hessian 逆 |
+| `openai>=1.0` | LLM 客户端（OpenAI-Compatible Protocol：MiniMax-M3 / Moonshot Kimi）|
+| `pytest` / `black` / `ruff` / `mypy`（dev extras）| 测试 + 格式化 + 静态检查 |
+
+### LLM Provider 配置
+
+`ECOSLLMClient.from_env(provider="...")` 支持两个 provider：
+
+| Provider | 用途 | Base URL | 模型 | 环境变量 |
+|---|---|---|---|---|
+| `minimax`（默认）| 项目主用 | `https://api.minimax.io/v1` | `MiniMax-M3` | `MINIMAX_API_KEY` |
+| `moonshot` | 中文教育场景备选 | `https://api.moonshot.cn/v1` | `moonshot-v1-8k` | `MOONSHOT_API_KEY` 或 `KIMI_API_KEY` |
+
+> `.env` 文件会在 `from_env()` 调用时自动加载，无需手动 `source`。
+
 ## 下一步（Phase 4 启动）
 
 | 优先级 | 任务 | 详见 |

@@ -196,11 +196,13 @@ discussions/YYYY-MM-DD-主题关键词.md
 
 ## 目录约定
 
-- `README.md` — 项目入口
+- `README.md` — 项目入口（含开发环境设置）
 - `CLAUDE.md` — Claude Code 协作指南（本文件）
 - `CHANGELOG.md` — 变更日志
 - `LICENSE` — MIT 许可证
 - `pyproject.toml` — Python 包配置（ecos 命名空间）
+- `.venv/` — Python 虚拟环境（已 .gitignore，开发时 `pip install -e ".[dev]"`）
+- `.env` — LLM API 配置（已 .gitignore，从 `.env.example` 复制）
 - `research/` — 核心研究文档
   - `README.md` — SSOT 入口
   - `deep-research/` — 深度研究文档
