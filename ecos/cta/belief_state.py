@@ -244,7 +244,7 @@ class BeliefState:
     K: DimensionState = field(default_factory=lambda: DimensionState(dimension="K"))
     P: DimensionState = field(default_factory=lambda: DimensionState(dimension="P"))
     S: DimensionState = field(default_factory=lambda: DimensionState(dimension="S"))
-    C: DimensionState = field(default_factory=lambda: DimensionState(dimension="C"))
+    C: ConfidenceDimensionState = field(default_factory=lambda: ConfidenceDimensionState(dimension="C"))
     X: DimensionState = field(default_factory=lambda: DimensionState(dimension="X"))
     theta_mean: np.ndarray = field(default_factory=lambda: np.zeros(5))
     theta_cov: np.ndarray = field(default_factory=lambda: np.eye(5))

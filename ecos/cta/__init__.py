@@ -13,7 +13,9 @@
 - GrowthTrajectory：成长轨迹
 
 工程文档：research/10-engineering/01-cta-belief-engine.md
-M2 W1 状态：5D BeliefState + BKT + 5D MIRT(MAP) + BeliefEngine 编排器
+M2 W3 状态：5D BeliefState + BKT + 5D MIRT(MAP) + BeliefEngine 编排器
+        + LLM Critic（感知层 + 解释层 + Misconception 检测）
+        + Content Libraries（30 条 misconception + 8 条 TC + 32 条 Bloom 目标）
 """
 
 from .belief_engine import (
@@ -35,6 +37,13 @@ from .belief_state import (
     TCState,
     TrajectoryState,
 )
+from .content import (
+    MisconceptionEntry,
+    MisconceptionLibrary,
+    ThresholdConceptEntry,
+    ThresholdConceptLibrary,
+    TCStatus,
+)
 from .l1_evolution import (
     BKTModel,
     BKTParams,
@@ -46,8 +55,13 @@ from .l2_mirt import (
     MIRTConfig,
     MIRTItemParams,
 )
+from .llm_critic import (
+    ExplanationCritic,
+    MisconceptionDetector,
+    PerceptionCritic,
+)
 
-__status__ = "m2-w1-skeleton"
+__status__ = "m2-w3-llm-critic"
 
 __all__ = [
     # Engine
@@ -67,6 +81,12 @@ __all__ = [
     "StateSnapshot",
     "TCState",
     "TrajectoryState",
+    # Content Libraries
+    "MisconceptionEntry",
+    "MisconceptionLibrary",
+    "ThresholdConceptEntry",
+    "ThresholdConceptLibrary",
+    "TCStatus",
     # L1 BKT
     "BKTModel",
     "BKTParams",
@@ -76,4 +96,8 @@ __all__ = [
     "BiFactorMIRT5D",
     "MIRTConfig",
     "MIRTItemParams",
+    # LLM Critic
+    "PerceptionCritic",
+    "ExplanationCritic",
+    "MisconceptionDetector",
 ]
