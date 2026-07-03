@@ -32,10 +32,9 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    # 当前为占位，未来 Phase 4+ 实施时添加
-    # "pydantic>=2.0",
-    # "numpy>=1.24",
-    # "openai>=1.0",
+    "numpy>=1.24",
+    # "pydantic>=2.0",   # Phase 4+ 按需加入
+    # "openai>=1.0",     # Phase 4+ 按需加入
 ]
 
 [project.optional-dependencies]
