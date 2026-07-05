@@ -25,6 +25,7 @@ ECOS M2 阶段（Phase 4 MVP 实施）进度快照（截至 2026-07-05）：
 | W5 | strip_think_blocks 修复（贪婪匹配）| — | ✅ | 3dea91a |
 | W6+ | Claude Skills 4-gate 深化（L1-L4 + U/A 强化）| — | ✅ | c62db56 |
 | W6+ | 跨领域 Demo（批判性思维）| — | ✅ | 5a11721 |
+| W6+ | BeliefEngine.update() BKT/MIRT 追踪（10题）| — | ✅ | f6a6b74 |
 | W6 | 教师协作（TC/Misc 审核）| — | 🔜 待开始 | — |
 | W6 | 合作学校招募 + 家长同意书 | — | 🔜 待开始 | — |
 | W7-8 | Beta 测试（10-20 学生）| — | 待办 | — |
