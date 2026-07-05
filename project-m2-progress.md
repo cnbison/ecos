@@ -23,8 +23,8 @@ ECOS M2 阶段（Phase 4 MVP 实施）进度快照（截至 2026-07-05）：
 | W5 | Claude Skills 领域库 + library_str 注入 | v0.34.0 | ✅ | aa54341 |
 | W5 | Claude Skills Demo Round 1-3 闭环验证 | — | ✅ | b841aff |
 | W5 | strip_think_blocks 修复（贪婪匹配）| — | ✅ | 3dea91a |
-| W6+ | Demo 深化（M3-M5 全清除 + Bloom L1→L4）| — | 🔜 进行中 | — |
-| W6+ | 跨领域 Demo（注入新领域 misconception 库）| — | 🔜 待开始 | — |
+| W6+ | Claude Skills 4-gate 深化（L1-L4 + U/A 强化）| — | ✅ | c62db56 |
+| W6+ | 跨领域 Demo（批判性思维）| — | ✅ | 5a11721 |
 | W6 | 教师协作（TC/Misc 审核）| — | 🔜 待开始 | — |
 | W6 | 合作学校招募 + 家长同意书 | — | 🔜 待开始 | — |
 | W7-8 | Beta 测试（10-20 学生）| — | 待办 | — |
