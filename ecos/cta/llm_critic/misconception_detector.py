@@ -57,34 +57,32 @@ M30 | 函数定义域默认全体实数 | 忽略分母不为零等限制 | "y=1/
 """
 
 
-_MISCONCEPTION_PROMPT = """你是一位数学教师。请检查学生的解释文本是否触发了常见 misconception。
+_MISCONCEPTION_PROMPT = """请检查学生的回答是否触发了以下任意一条 misconception。
 
-学生解释文本：
+学生回答：
 ---
 {student_explanation}
 ---
 
-题目（参考）：
+相关情境（参考）：
 {problem}
 
 {candidate_library}
 
-请判断该解释文本是否触发了上述任意一条 misconception。
-
-如果触发了，请指出最可能的 ID（只选 1 条），并给出你的置信度。
+请判断该回答是否触发了上述任意一条 misconception。
 
 JSON 输出格式：
 {{
   "misc_id": "M1"（如果命中，返回ID；无命中返回空字符串""），
   "confidence": 0.0到1.0之间（无命中时为0.0），
-  "evidence_text": "支持该判断的学生解释文本片段（直接引用，不改写）",
+  "evidence_text": "支持该判断的学生回答原文片段（直接引用，不改写）",
   "correction_strategy": "对应misconception的修正策略（从表中查找）"
 }}
 
 注意：
 - evidence_text 必须直接引用学生原文，不要改写或概括
 - 如果没有明确的 misconception 触发迹象，confidence 设为 0.0，misc_id 设为 ""
-- 一条解释可能同时反映多个问题，但请只选置信度最高的那一条
+- 一条回答可能同时反映多个问题，但请只选置信度最高的那一条
 """
 
 
@@ -108,12 +106,15 @@ class MisconceptionDetector:
         self,
         student_explanation: str,
         problem: str = "",
+        library_str: str | None = None,
     ) -> MisconceptionDetectionOutput:
         """检测学生解释文本中的 misconception 命中。
 
         Args:
             student_explanation: 学生的解释文本
             problem: 题目描述（可选，提供上下文）
+            library_str: 自定义 misconception 库字符串（默认使用数学库，
+                        传入其他库内容可覆盖默认行为）
 
         Returns:
             MisconceptionDetectionOutput
@@ -127,7 +128,7 @@ class MisconceptionDetector:
                 "content": _MISCONCEPTION_PROMPT.format(
                     student_explanation=student_explanation,
                     problem=problem or "（未提供题目）",
-                    candidate_library=_MISCONCEPTION_LIBRARY_STR,
+                    candidate_library=library_str or _MISCONCEPTION_LIBRARY_STR,
                 ),
             }
         ]
@@ -146,6 +147,7 @@ class MisconceptionDetector:
         student_explanation: str,
         problem: str = "",
         trigger_problem_id: str = "",
+        library_str: str | None = None,
     ) -> MisconceptionHit | None:
         """检测并返回 MisconceptionHit（供 BeliefEngine.update() 直接使用）。
 
@@ -153,11 +155,12 @@ class MisconceptionDetector:
             student_explanation: 学生解释文本
             problem: 题目描述
             trigger_problem_id: 触发题目的 ID（来自 Observation）
+            library_str: 自定义 misconception 库字符串
 
         Returns:
             MisconceptionHit 或 None（无命中时）
         """
-        result = self.detect(student_explanation, problem)
+        result = self.detect(student_explanation, problem, library_str=library_str)
         if not result.misc_id or result.confidence <= 0.0:
             return None
 

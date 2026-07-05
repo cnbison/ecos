@@ -96,8 +96,6 @@ class PerceptionCritic:
         ]
 
         raw: dict[str, Any] = self.llm.chat_json(messages, temperature=0.2)
-
-        # bloom_level 字符串 → BloomLevel 枚举
         raw_bloom = raw.get("bloom_level", "L2")
         bloom_level: BloomLevel | None = None
         if raw_bloom in ("L1", "L2", "L3", "L4", "L5", "L6"):
