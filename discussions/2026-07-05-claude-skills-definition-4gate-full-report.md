@@ -285,7 +285,44 @@ M3后:    discount_factor = 1.0（全部清除）
 
 ---
 
-## 8. 关键洞察
+## 8. Demo 覆盖范围与局限性
+
+### 8.1 覆盖范围
+
+本次 Demo 验证了 ECOS 架构中的以下组件：
+
+| 组件 | 是否验证 | 说明 |
+|------|---------|------|
+| **MisconceptionDetector** | ✅ | library_str 注入 Claude Skills 库，成功检测 M1/M2/M3 |
+| **PerceptionCritic** | ✅ | 成功评估 L1-L4 认知深度，驱动 BloomProfile 更新 |
+| **C 维度折扣机制** | ✅ | discount_factor 0.43 → 1.0，正确反映 misconception 清除 |
+| **LLM Critic 3 层集成** | ✅ | 感知层 + Misconception 层协同工作 |
+| **library_str 注入** | ✅ | 不同领域 misconception 库可切换（数学库 ↔ Claude Skills 库）|
+
+### 8.2 局限性
+
+| 局限性 | 原因 | 影响 |
+|--------|------|------|
+| **K/P/S/X 维度未更新** | Demo 是概念性讨论，不是结构化做题。BeliefEngine.update() 需要 Observation 对象（problem + correct_answer + student_correctness）才能驱动 BKT/MIRT | 无法验证 CTA L1 BKT / L2 MIRT 的状态跃迁机制 |
+| **TC_skill 跨越未正式检测** | TC 跨越需要持续观测学生在多个 TC 边界题上的表现（liminal state 检测），本次 Demo 仅验证了 M1-M5 misconception 清除 | 4-gate ① 的"TC跨越"标准实际上是通过 M1-M5 清除间接满足的，不是独立检测 |
+| **BeliefEngine.update() 未实际调用** | update() 需要完整的 Observation，而 Demo 的 Q&A 缺乏结构化的对错数据 | LLM Critic 的输出无法闭环回到 BeliefState 的 K/P/S 维度 |
+| **无真实学生数据** | Demo 由项目发起人（Bisen）扮演学生角色，认知水平不代表真实学生 | 结论的泛化性有待真实用户验证 |
+
+### 8.3 对 ECOS 架构验证的启示
+
+本次 Demo 证明了 **ECOS 的 LLM Critic 层可以在无需真实学生的情况下跑通**——这是巨大的效率提升。但：
+
+```
+ECOS 完整闭环 = LLM Critic（感知+检测） + BeliefEngine（BKT/MIRT） + LCA（策略）
+                                         ↑
+                              本次 Demo 只验证了这一半
+```
+
+**跨领域泛化验证**（下一步）将在同等的"概念讨论"约束下，验证 LLM Critic 层对不同领域 misconception 库的适应性。
+
+---
+
+## 9. 关键洞察
 
 1. **Misconception 清除效率**：M1/M2 通过一轮类比干预即可清除；M3 需要明确否定"自动触发"的核心误解。
 
@@ -297,7 +334,7 @@ M3后:    discount_factor = 1.0（全部清除）
 
 ---
 
-## 9. 相关文件
+## 10. 相关文件
 
 - `ecos/cta/content/claude_skills_misconceptions.py` — M1-M5 Misconception 库
 - `ecos/bloom/subject_libraries/claude_skills.py` — 20 条 Bloom Goal 库
