@@ -159,7 +159,7 @@ _MARKDOWN_FENCE_RE = re.compile(
 
 # MiniMax-M3 / DeepSeek-R1 类推理模型的 <think>...</think> 块
 _THINK_BLOCK_RE = re.compile(
-    r"<think>.*?</think>\s*",
+    r"<think>.*</think>",
     re.DOTALL,
 )
 
@@ -344,14 +344,16 @@ class ECOSLLMClient:
         messages: List[Dict[str, str]],
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        strip_think: bool = True,
         **kwargs: Any,
     ) -> Any:
         """发送 chat 请求，解析 JSON 返回.
 
         自动剥离 <think> 推理块 + ```json ... ``` 围栏。解析失败时抛 ValueError 含原始文本。
 
-        Returns:
-            Python 对象（dict / list / 基本类型）
+        Args:
+            strip_think: 是否剥离 <think>...</think> 推理块（默认 True；
+                        设为 False 可保留推理过程用于调试）。
         """
         response = self._call_with_retry(
             messages=messages,
@@ -361,7 +363,7 @@ class ECOSLLMClient:
         )
         raw_text = self._extract_text(response)
         self._record_usage(response, success=True)
-        cleaned = clean_llm_output(raw_text, strip_think=True)
+        cleaned = clean_llm_output(raw_text, strip_think=strip_think)
         try:
             return json.loads(cleaned)
         except json.JSONDecodeError as e:
