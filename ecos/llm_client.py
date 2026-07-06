@@ -222,26 +222,63 @@ def _load_dotenv(path: Optional[Path] = None, override: bool = False) -> bool:
 _load_dotenv()
 
 
-def strip_think_blocks(text: str) -> str:
-    """剥离 <think>...</think> 推理块（MiniMax-M3 / DeepSeek-R1 等模型输出前置内容）.
+def _find_markdown_json(text: str) -> str | None:
+    """在文本中查找 markdown JSON 围栏内容，返回 JSON 字符串或 None。"""
+    # 匹配 ```json\n{...}\n``` 或 ```\n{...}\n```
+    fence_patterns = [
+        re.compile(r"```json\s*\n(.*?)\n\s*```", re.DOTALL),
+        re.compile(r"```\s*\n(.*?)\n\s*```", re.DOTALL),
+    ]
+    for pattern in fence_patterns:
+        m = pattern.search(text)
+        if m:
+            candidate = m.group(1).strip()
+            if candidate.startswith("{"):
+                return candidate
+    return None
 
-    注意：
-      - 仅剥离完整闭合的 <think>...</think>
-      - 若模型只开了 <think> 但未闭合，保留原文（避免误删后续内容）
-      - 剥离 think 后，如果剩余内容仅剩 markdown 围栏包裹，也一并剥离
-        （MiniMax-M3 常见模式：think → ```json → ... → ```）
+
+def strip_think_blocks(text: str) -> str:
+    """剥离 <think>...</think> 推理块，优先保留 markdown JSON 内容。
+
+    边缘情况处理（MiniMax-M3 常见）：
+      - JSON 在 </think> 之后 → 直接剥离 think 块，保留 JSON
+      - JSON 在 <think> 之前 → 剥离 think 块，保留 JSON（在 before_think 中）
 
     Returns:
         清理后的文本
     """
-    if not text or "<think>" not in text:
+    if not text:
         return text
-    cleaned = _THINK_BLOCK_RE.sub("", text).strip()
-    # 链式调用：如果剥离 think 后只剩 markdown 围栏，也一并剥离
-    m = _MARKDOWN_FENCE_RE.match(cleaned)
-    if m:
-        return m.group("body").strip()
-    return cleaned
+
+    # 先尝试提取 markdown JSON（最优先）
+    json_content = _find_markdown_json(text)
+
+    if "<think>" not in text:
+        # 无 think 块：直接返回 JSON 或原文
+        return json_content if json_content else text.strip()
+
+    # 定位 think 块
+    first_think_start = text.find("<think>")
+    last_think_end = text.rfind("</think>")
+
+    if last_think_end <= first_think_start:
+        # 无完整闭合的 think 块
+        return json_content if json_content else text.strip()
+
+    before_think = text[:first_think_start]
+    after_think = text[last_think_end + len("</think>"):]
+
+    # 关键：JSON 在 before_think 中（即在 think 之前生成）
+    # 此时 before_think 包含 JSON，不能丢弃
+    result = (before_think + after_think).strip()
+
+    # 如果剥离后只剩 markdown 围栏，再剥一层
+    if json_content is None:
+        m = _MARKDOWN_FENCE_RE.match(result)
+        if m:
+            return m.group("body").strip()
+    return result
 
 
 def strip_markdown_fence(text: str) -> str:
