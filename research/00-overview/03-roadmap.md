@@ -1,6 +1,6 @@
 # ECOS 路线图（Roadmap）
 
-> **版本**：v1.0（2026-06-25）
+> **版本**：v1.1（2026-07-06，战略调整：聚焦 Python 基础认知助手）
 > **性质**：ECOS 战略层第 3 份文档，**基于架构定义 M0-M7 详细任务与阶段验证指标**
 > **基于**：[01-applications.md](01-applications.md) §7 MVP 范围、[02-architecture.md](../00-overview/02-architecture.md) §8 MVP 架构、[v2.0 §执行摘要 产品化路径](../deep-research/Cognitive-Digital-Twin-Deep-Research.md)
 > **后续**：[04-risks.md](04-risks.md)（风险矩阵）
@@ -97,14 +97,15 @@
 
 **验证 ECOS 核心假设**（H1-H3）：
 - **H1**：CTA 5D 状态预测力 ≥ 传统 IRT/BKT（baseline 比较）
-- **H2**：Bloom 目标空间在初中数学上可行（6 层是否需要重组？L1-L4 是否够用？）
+- **H2**：Bloom 目标空间在 Python 基础上可行（L1-L4 是否够用？）
 - **H3**：双 Agent 互校有效减少 LLM 幻觉（实验对比：单 Agent vs 双 Agent 信念质量）
 
-**MVP 范围**（与 [01-applications.md §7](01-applications.md) + [02-architecture.md §8](../00-overview/02-architecture.md) 一致）：
-- **学科**：初中数学（代数 + 几何）
-- **规模**：50-100 学生（1 个班级 + 1-2 个对照班）
-- **场景**：A 学科诊断 + B 自适应干预 + C 成长轨迹（学期内）
-- **时长**：4-8 周（含工程实现 + 数据采集 + 分析）
+**MVP 范围**（v1.2 战略调整——聚焦 Python 基础认知助手）：
+- **学科**：Python 基础（变量+循环+函数+递归+作用域）
+- **用户**：自学者（Bisen 作为第一个真实用户）
+- **核心交互**：做题 → 解释思路 → AI 批改 + 靶向干预
+- **场景**：认知诊断 + 自适应干预 + 成长轨迹可视化
+- **LLM 角色**：LLM 充当领域专家（生成题目 + 评估 + 检测 misconception + 干预）
 
 ### 2.2 M2 里程碑（MVP 工程实现）
 
@@ -112,8 +113,8 @@
 
 **Definition of Done**：
 - [ ] `ecos/` Python 包可运行（CTA + LCA + 双 Agent 互校 + Bloom + Persistence + Session）
-- [ ] Q 矩阵覆盖 100-200 个初中数学题目（含 TC + Misconception 标注）
-- [ ] TC 库 ≥ 8 个 + Misconceptions 库 ≥ 30 条
+- [ ] Python 基础 Q 矩阵覆盖 100-200 道题目（含 TC + Misconception 标注；LLM 充当领域专家）
+- [ ] Python 基础 TC 库 ≥ 8 个 + Misconceptions 库 ≥ 8 条
 - [ ] LLM Critic misconception 检测 F1 ≥ 0.7（在 100 个标注样本上）
 - [ ] CTA BKT/MIRT 单元测试覆盖率 ≥ 80%
 - [ ] LCA Contextual Bandits LinUCB 可运行
@@ -126,15 +127,15 @@
 |---|---|---|
 | W1 | `ecos/cta/` 基础类实现（BKT + MIRT）| Phase 0 完成 |
 | W1 | `ecos/lca/` 基础类实现（Contextual Bandits）| Phase 0 完成 |
-| W2 | `ecos/bloom/` 目标库（6 层 × 初中数学）| Phase 0 完成 |
+| W2 | `ecos/bloom/` 目标库（Python 基础 Bloom L1-L4）| Phase 0 完成 |
 | W2 | `ecos/dual_agent/` 互校循环 | CTA + LCA |
 | W3 | `ecos/persistence/` SQLite + JSON 序列化 | CTA + LCA |
 | W3 | `ecos/session/` 跨会话状态继承 | Persistence |
-| W4 | LLM Critic 集成（misconception 检测）| C 维度库 |
+| W4 | LLM Critic 集成（Python 基础 misconception 检测）| C 维度库 |
 | W4 | UI（MVP 学生端）| 后端 API |
-| W5 | 题目库 + Q 矩阵构建（与教师协作）| — |
+| W5 | Python 基础题目库 + Q 矩阵构建（LLM 充当领域专家）| — |
 | W5-W6 | 内部测试（开发团队）| 上述全部 |
-| W6 | 教师培训 + 学生招募 | — |
+| W6 | 自学者 Beta 测试 + 产品迭代 | — |
 
 **风险预警**：
 - 教师协作时间成本——题目库 + Q 矩阵构建可能延后 2 周
