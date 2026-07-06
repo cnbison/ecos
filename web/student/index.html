@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ECOS 学生端</title>
+    <title>ECOS 学生端 — Python 基础</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -13,7 +13,7 @@
             <h2>登录</h2>
             <div class="form-group">
                 <label for="student-id">学生 ID：</label>
-                <input type="text" id="student-id" placeholder="请输入学生ID">
+                <input type="text" id="student-id" placeholder="请输入学生ID" value="python_student_001">
                 <button id="btn-login">进入学习</button>
             </div>
         </section>
@@ -25,129 +25,304 @@
             <!-- BloomProfile 雷达图占位 -->
             <div class="bloom-profile-card">
                 <h3>BloomProfile</h3>
-                <div class="radar-placeholder">
-                    <div class="placeholder-text">[BloomProfile 雷达图占位]</div>
-                    <div class="placeholder-note">L1 Remember | L2 Understand | L3 Apply | L4 Analyze</div>
-                </div>
                 <div class="bloom-levels">
                     <div class="bloom-level">
-                        <span class="level-label">L1</span>
-                        <div class="level-bar"><div class="level-fill" style="width: 0%"></div></div>
+                        <span class="level-label">L1 Remember</span>
+                        <div class="level-bar"><div class="level-fill" id="bloom-L1" style="width: 0%"></div></div>
+                        <span class="level-pct" id="bloom-L1-pct">0%</span>
                     </div>
                     <div class="bloom-level">
-                        <span class="level-label">L2</span>
-                        <div class="level-bar"><div class="level-fill" style="width: 0%"></div></div>
+                        <span class="level-label">L2 Understand</span>
+                        <div class="level-bar"><div class="level-fill" id="bloom-L2" style="width: 0%"></div></div>
+                        <span class="level-pct" id="bloom-L2-pct">0%</span>
                     </div>
                     <div class="bloom-level">
-                        <span class="level-label">L3</span>
-                        <div class="level-bar"><div class="level-fill" style="width: 0%"></div></div>
+                        <span class="level-label">L3 Apply</span>
+                        <div class="level-bar"><div class="level-fill" id="bloom-L3" style="width: 0%"></div></div>
+                        <span class="level-pct" id="bloom-L3-pct">0%</span>
                     </div>
                     <div class="bloom-level">
-                        <span class="level-label">L4</span>
-                        <div class="level-bar"><div class="level-fill" style="width: 0%"></div></div>
+                        <span class="level-label">L4 Analyze</span>
+                        <div class="level-bar"><div class="level-fill" id="bloom-L4" style="width: 0%"></div></div>
+                        <span class="level-pct" id="bloom-L4-pct">0%</span>
                     </div>
                 </div>
+                <div class="dominant-level" id="dominant-level">Dominant: —</div>
             </div>
 
-            <!-- 5D 状态条形图占位 -->
+            <!-- 5D 状态条形图 -->
             <div class="five-d-card">
                 <h3>5D 学习状态</h3>
-                <div class="bar-placeholder">
-                    <div class="placeholder-text">[5D 状态条形图占位]</div>
-                </div>
                 <div class="five-d-bars">
                     <div class="five-d-item">
                         <span class="dim-label">K 知识</span>
-                        <div class="dim-bar"><div class="dim-fill" style="width: 0%"></div></div>
+                        <div class="dim-bar"><div class="dim-fill" id="dim-K" style="width: 0%"></div></div>
+                        <span class="dim-val" id="val-K">0.00</span>
                     </div>
                     <div class="five-d-item">
                         <span class="dim-label">P 程序</span>
-                        <div class="dim-bar"><div class="dim-fill" style="width: 0%"></div></div>
+                        <div class="dim-bar"><div class="dim-fill" id="dim-P" style="width: 0%"></div></div>
+                        <span class="dim-val" id="val-P">0.00</span>
                     </div>
                     <div class="five-d-item">
                         <span class="dim-label">S 策略</span>
-                        <div class="dim-bar"><div class="dim-fill" style="width: 0%"></div></div>
+                        <div class="dim-bar"><div class="dim-fill" id="dim-S" style="width: 0%"></div></div>
+                        <span class="dim-val" id="val-S">0.00</span>
                     </div>
                     <div class="five-d-item">
                         <span class="dim-label">C 置信</span>
-                        <div class="dim-bar"><div class="dim-fill" style="width: 0%"></div></div>
+                        <div class="dim-bar"><div class="dim-fill" id="dim-C" style="width: 0%"></div></div>
+                        <span class="dim-val" id="val-C">0.00</span>
                     </div>
                     <div class="five-d-item">
                         <span class="dim-label">X 支架</span>
-                        <div class="dim-bar"><div class="dim-fill" style="width: 0%"></div></div>
+                        <div class="dim-bar"><div class="dim-fill" id="dim-X" style="width: 0%"></div></div>
+                        <span class="dim-val" id="val-X">0.00</span>
                     </div>
                 </div>
+                <div class="c-discount" id="c-discount">C 折扣因子: 1.00</div>
             </div>
         </section>
 
         <!-- 题目展示区域 -->
         <section class="section problem-section" style="display: none;">
-            <h2>当前题目</h2>
+            <h2>当前题目 <span id="prob-badge" class="prob-badge"></span></h2>
             <div class="problem-card">
-                <div class="problem-text" id="problem-text">
-                    [题目文本占位]
+                <div class="problem-meta" id="problem-meta">
+                    <span class="topic-tag" id="topic-tag">—</span>
+                    <span class="bloom-tag" id="bloom-tag">—</span>
                 </div>
-                <div class="problem-options" id="problem-options">
-                    <!-- 选择题选项占位 -->
-                    <div class="option-item">A. [选项A]</div>
-                    <div class="option-item">B. [选项B]</div>
-                    <div class="option-item">C. [选项C]</div>
-                    <div class="option-item">D. [选项D]</div>
+                <div class="problem-text" id="problem-text">
+                    [加载中...]
                 </div>
                 <div class="problem-input">
-                    <input type="text" id="answer-input" placeholder="输入你的答案">
+                    <textarea id="answer-input" rows="4" placeholder="输入你的代码或答案..."></textarea>
                 </div>
                 <button id="btn-submit">提交答案</button>
+            </div>
+        </section>
+
+        <!-- 反馈展示区域 -->
+        <section class="section feedback-section" style="display: none;">
+            <h2>反馈</h2>
+            <div class="feedback-card" id="feedback-card">
+                <div class="feedback-result" id="feedback-result"></div>
+                <div class="feedback-state" id="feedback-state"></div>
             </div>
         </section>
 
         <!-- 干预展示区域 -->
         <section class="section intervention-section" style="display: none;">
             <h2>学习推荐</h2>
-            <div class="intervention-card">
+            <div class="intervention-card" id="intervention-card">
                 <div class="intervention-type" id="intervention-type">
                     [干预类型占位]
                 </div>
                 <div class="intervention-content" id="intervention-content">
-                    [干预内容占位]
-                </div>
-                <div class="intervention-rationale" id="intervention-rationale">
-                    <strong>推荐理由：</strong>[LCA rationale 占位]
+                    [干预内容加载中...]
                 </div>
             </div>
         </section>
 
-        <!-- 解释文本输入区域（BeliefEngine.explanation_text） -->
-        <section class="section explanation-section" style="display: none;">
-            <h2>思路解释</h2>
-            <div class="explanation-card">
-                <p class="explanation-hint">请描述你的解题思路（用于认知状态分析）：</p>
-                <textarea id="explanation-text" rows="4" placeholder="用你自己的话解释一下这道题是怎么做的..."></textarea>
-                <button id="btn-submit-explanation">提交解释</button>
-            </div>
+        <!-- 下一题按钮 -->
+        <section class="section next-section" style="display: none;">
+            <button id="btn-next" class="btn-next">下一题 →</button>
         </section>
     </div>
 
     <script>
-        // 骨架阶段：所有逻辑为占位符，不实现实际功能
-        document.getElementById('btn-login')?.addEventListener('click', function() {
-            const studentId = document.getElementById('student-id').value;
-            if (studentId) {
-                document.querySelector('.student-id-section').style.display = 'none';
-                document.querySelector('.status-section').style.display = 'block';
-                document.querySelector('.problem-section').style.display = 'block';
-                document.querySelector('.explanation-section').style.display = 'block';
+        const API_BASE = "http://localhost:5173/api";
+
+        let currentStudentId = "";
+        let currentQuestion = null;
+
+        // ─── 登录 ────────────────────────────────────────────────────────────────
+        document.getElementById("btn-login")?.addEventListener("click", async function () {
+            const studentId = document.getElementById("student-id").value.trim();
+            if (!studentId) {
+                alert("请输入学生 ID");
+                return;
+            }
+            currentStudentId = studentId;
+            document.querySelector(".student-id-section").style.display = "none";
+            document.querySelector(".status-section").style.display = "block";
+            document.querySelector(".problem-section").style.display = "block";
+            await refreshState();
+            await loadNextQuestion();
+        });
+
+        // ─── 加载下一题 ────────────────────────────────────────────────────────
+        async function loadNextQuestion() {
+            hideAllSections(["status-section", "problem-section"]);
+            document.querySelector(".problem-section").style.display = "block";
+
+            try {
+                const resp = await fetch(`${API_BASE}/question/${currentStudentId}`);
+                const data = await resp.json();
+
+                if (data.done) {
+                    document.getElementById("problem-text").innerHTML =
+                        `<p style="color:#22c55e;font-weight:bold;">🎉 恭喜！所有题目已完成！</p>`;
+                    return;
+                }
+
+                currentQuestion = data;
+                document.getElementById("problem-text").innerText = data.problem_text;
+                document.getElementById("prob-badge").innerText = data.problem_id;
+                document.getElementById("topic-tag").innerText = data.skill_name;
+                document.getElementById("bloom-tag").innerText = data.bloom_layer;
+                document.getElementById("answer-input").value = "";
+                hideAllSections(["status-section", "problem-section", "feedback-section", "intervention-section", "next-section"]);
+                document.querySelector(".problem-section").style.display = "block";
+            } catch (e) {
+                document.getElementById("problem-text").innerHTML =
+                    `<p style="color:#ef4444;">加载失败: ${e.message}</p>`;
+            }
+        }
+
+        // ─── 提交答案 ─────────────────────────────────────────────────────────
+        document.getElementById("btn-submit")?.addEventListener("click", async function () {
+            if (!currentQuestion) return;
+            const answer = document.getElementById("answer-input").value.trim();
+            if (!answer) {
+                alert("请输入答案");
+                return;
+            }
+
+            // 正确性由后端判断（这里先让用户自评，或传给后端判断）
+            const correct = confirm("你认为你的答案正确吗？点确定表示正确，取消表示错误。");
+
+            try {
+                // 提交答案
+                const resp = await fetch(`${API_BASE}/answer`, {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({
+                        student_id: currentStudentId,
+                        problem_id: currentQuestion.problem_id,
+                        skill_id: currentQuestion.topic,
+                        correct: correct,
+                        bloom_layer: currentQuestion.bloom_layer,
+                        explanation_text: answer,
+                    }),
+                });
+                const result = await resp.json();
+
+                // 显示反馈
+                document.querySelector(".feedback-section").style.display = "block";
+                document.querySelector(".intervention-section").style.display = "none";
+                document.querySelector(".next-section").style.display = "none";
+
+                const resultEl = document.getElementById("feedback-result");
+                const stateEl = document.getElementById("feedback-state");
+
+                if (correct) {
+                    resultEl.innerHTML = `<span class="correct">✅ 正确！</span>`;
+                } else {
+                    resultEl.innerHTML = `<span class="incorrect">❌ 错误</span>`;
+                }
+
+                const dims = result.theta;
+                stateEl.innerHTML = `
+                    <div class="theta-row">K=${dims.K}  P=${dims.P}  S=${dims.S}  C=${dims.C}  X=${dims.X}</div>
+                    <div class="misc-info">${result.misc_triggered ? `⚠️ 触发了 ${result.misc_id}（置信度 ${result.misc_confidence}）` : "无 misconception 触发"}</div>
+                    <div class="c-discount">C 折扣因子: ${result.c_discount_factor}</div>
+                `;
+
+                // 如果触发了 misconception，生成干预
+                if (result.misc_triggered) {
+                    await generateIntervention(result.misc_id, answer, currentQuestion.problem_text);
+                } else {
+                    document.querySelector(".next-section").style.display = "block";
+                }
+
+                // 刷新状态
+                await refreshState();
+            } catch (e) {
+                alert(`提交失败: ${e.message}`);
             }
         });
 
-        document.getElementById('btn-submit')?.addEventListener('click', function() {
-            document.querySelector('.intervention-section').style.display = 'block';
+        // ─── 生成干预 ─────────────────────────────────────────────────────────
+        async function generateIntervention(misc_id, student_answer, problem_text) {
+            try {
+                const resp = await fetch(`${API_BASE}/intervention/${currentStudentId}`, {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({
+                        misc_id: misc_id,
+                        student_answer: student_answer,
+                        problem_text: problem_text,
+                    }),
+                });
+                const data = await resp.json();
+
+                if (data.intervention) {
+                    document.querySelector(".intervention-section").style.display = "block";
+                    document.getElementById("intervention-type").innerHTML =
+                        `<span class="misc-tag">${data.misc_id} ${data.misc_name}</span> ${data.type}`;
+                    document.getElementById("intervention-content").innerText = data.intervention;
+                }
+                document.querySelector(".next-section").style.display = "block";
+            } catch (e) {
+                document.getElementById("intervention-content").innerText = `干预生成失败: ${e.message}`;
+                document.querySelector(".next-section").style.display = "block";
+            }
+        }
+
+        // ─── 下一题 ───────────────────────────────────────────────────────────
+        document.getElementById("btn-next")?.addEventListener("click", async function () {
+            await refreshState();
+            await loadNextQuestion();
         });
 
-        document.getElementById('btn-submit-explanation')?.addEventListener('click', function() {
-            const text = document.getElementById('explanation-text').value;
-            console.log('Explanation submitted:', text);
-        });
+        // ─── 刷新状态 ─────────────────────────────────────────────────────────
+        async function refreshState() {
+            try {
+                const resp = await fetch(`${API_BASE}/state/${currentStudentId}`);
+                const data = await resp.json();
+
+                // 5D 状态
+                const maxTheta = 2.0;  // 归一化参考值
+                for (const dim of ["K", "P", "S", "C", "X"]) {
+                    const val = data.theta[dim] || 0;
+                    const pct = Math.min(100, Math.abs(val) / maxTheta * 100);
+                    const el = document.getElementById(`dim-${dim}`);
+                    const valEl = document.getElementById(`val-${dim}`);
+                    if (el) el.style.width = pct + "%";
+                    if (valEl) valEl.innerText = val.toFixed(3);
+                }
+
+                // C 折扣因子
+                const cDiscount = document.getElementById("c-discount");
+                if (cDiscount) cDiscount.innerText = `C 折扣因子: ${data.c_discount_factor}`;
+
+                // BloomProfile
+                const bloomLevels = data.bloom_profile?.bloom_levels || {};
+                for (const lvl of ["L1", "L2", "L3", "L4"]) {
+                    const pct = (bloomLevels[lvl] || 0) * 100;
+                    const el = document.getElementById(`bloom-${lvl}`);
+                    const pctEl = document.getElementById(`bloom-${lvl}-pct`);
+                    if (el) el.style.width = pct + "%";
+                    if (pctEl) pctEl.innerText = (pct).toFixed(0) + "%";
+                }
+
+                const dominantEl = document.getElementById("dominant-level");
+                if (dominantEl) dominantEl.innerText = `Dominant: ${data.bloom_profile?.dominant || "—"}`;
+            } catch (e) {
+                console.warn("状态刷新失败:", e.message);
+            }
+        }
+
+        function hideAllSections(except = []) {
+            for (const cls of ["student-id-section", "status-section", "problem-section",
+                               "feedback-section", "intervention-section", "next-section"]) {
+                if (!except.includes(cls)) {
+                    const el = document.querySelector(`.${cls}`);
+                    if (el) el.style.display = "none";
+                }
+            }
+        }
     </script>
 </body>
 </html>
