@@ -7,10 +7,17 @@
 from .misconceptions import MisconceptionEntry, MisconceptionLibrary
 from .threshold_concepts import TCStatus, ThresholdConceptEntry, ThresholdConceptLibrary
 
+from .python_basics_misconceptions import (
+    PYTHON_BASICS_MISCONCEPTION_LIBRARY_STR,
+    PythonBasicsMisconceptionLibrary,
+)
+
 __all__ = [
     "MisconceptionEntry",
     "MisconceptionLibrary",
     "ThresholdConceptEntry",
     "ThresholdConceptLibrary",
     "TCStatus",
+    "PythonBasicsMisconceptionLibrary",
+    "PYTHON_BASICS_MISCONCEPTION_LIBRARY_STR",
 ]
