@@ -1,0 +1,286 @@
+{
+  "timestamp": "2026-07-06T22:20:02.998069",
+  "student_id": "demo_python_belief",
+  "trajectory": [
+    {
+      "step": 1,
+      "prob_id": "PB-Q01",
+      "correct": true,
+      "bloom": "REMEMBER",
+      "skill": "python.variables",
+      "theta": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "K": 0.0,
+      "P": 0.0,
+      "S": 0.0
+    },
+    {
+      "step": 2,
+      "prob_id": "PB-Q02",
+      "correct": true,
+      "bloom": "UNDERSTAND",
+      "skill": "python.variables",
+      "theta": [
+        0.6526,
+        0.1958,
+        0.3263,
+        0.1305,
+        0.1305
+      ],
+      "K": 0.6526,
+      "P": 0.1958,
+      "S": 0.3263
+    },
+    {
+      "step": 3,
+      "prob_id": "PB-Q05",
+      "correct": true,
+      "bloom": "REMEMBER",
+      "skill": "python.loops",
+      "theta": [
+        0.6631,
+        0.2906,
+        0.5829,
+        0.174,
+        0.174
+      ],
+      "K": 0.6631,
+      "P": 0.2906,
+      "S": 0.5829
+    },
+    {
+      "step": 4,
+      "prob_id": "PB-Q06",
+      "correct": true,
+      "bloom": "UNDERSTAND",
+      "skill": "python.loops",
+      "theta": [
+        0.6744,
+        0.3667,
+        0.7879,
+        0.2091,
+        0.2091
+      ],
+      "K": 0.6744,
+      "P": 0.3667,
+      "S": 0.7879
+    },
+    {
+      "step": 5,
+      "prob_id": "PB-Q12",
+      "correct": true,
+      "bloom": "REMEMBER",
+      "skill": "python.recursion",
+      "theta": [
+        0.6839,
+        0.4244,
+        0.9432,
+        0.2358,
+        0.2358
+      ],
+      "K": 0.6839,
+      "P": 0.4244,
+      "S": 0.9432
+    },
+    {
+      "step": 6,
+      "prob_id": "PB-Q13",
+      "correct": true,
+      "bloom": "UNDERSTAND",
+      "skill": "python.recursion",
+      "theta": [
+        0.6945,
+        0.4776,
+        1.0855,
+        0.2605,
+        0.2605
+      ],
+      "K": 0.6945,
+      "P": 0.4776,
+      "S": 1.0855
+    },
+    {
+      "step": 7,
+      "prob_id": "PB-Q14",
+      "correct": true,
+      "bloom": "APPLY",
+      "skill": "python.recursion",
+      "theta": [
+        0.7039,
+        0.5213,
+        1.2023,
+        0.2808,
+        0.2808
+      ],
+      "K": 0.7039,
+      "P": 0.5213,
+      "S": 1.2023
+    },
+    {
+      "step": 8,
+      "prob_id": "PB-Q07",
+      "correct": true,
+      "bloom": "APPLY",
+      "skill": "python.loops",
+      "theta": [
+        0.713,
+        0.5555,
+        1.2931,
+        0.2969,
+        0.2969
+      ],
+      "K": 0.713,
+      "P": 0.5555,
+      "S": 1.2931
+    },
+    {
+      "step": 9,
+      "prob_id": "PB-Q08",
+      "correct": true,
+      "bloom": "ANALYZE",
+      "skill": "python.loops",
+      "theta": [
+        0.7222,
+        0.5903,
+        1.3856,
+        0.3132,
+        0.3132
+      ],
+      "K": 0.7222,
+      "P": 0.5903,
+      "S": 1.3856
+    },
+    {
+      "step": 10,
+      "prob_id": "PB-Q15",
+      "correct": true,
+      "bloom": "UNDERSTAND",
+      "skill": "python.scope",
+      "theta": [
+        0.7628,
+        0.7786,
+        1.3652,
+        0.338,
+        0.338
+      ],
+      "K": 0.7628,
+      "P": 0.7786,
+      "S": 1.3652
+    },
+    {
+      "step": 11,
+      "prob_id": "PB-Q16",
+      "correct": true,
+      "bloom": "APPLY",
+      "skill": "python.scope",
+      "theta": [
+        0.797,
+        0.9334,
+        1.3497,
+        0.3587,
+        0.3587
+      ],
+      "K": 0.797,
+      "P": 0.9334,
+      "S": 1.3497
+    },
+    {
+      "step": 12,
+      "prob_id": "PB-Q03",
+      "correct": true,
+      "bloom": "APPLY",
+      "skill": "python.variables",
+      "theta": [
+        0.9178,
+        0.9363,
+        1.3645,
+        0.3733,
+        0.3733
+      ],
+      "K": 0.9178,
+      "P": 0.9363,
+      "S": 1.3645
+    },
+    {
+      "step": 13,
+      "prob_id": "PB-Q09",
+      "correct": true,
+      "bloom": "REMEMBER",
+      "skill": "python.functions",
+      "theta": [
+        0.9341,
+        1.0241,
+        1.3565,
+        0.3848,
+        0.3848
+      ],
+      "K": 0.9341,
+      "P": 1.0241,
+      "S": 1.3565
+    },
+    {
+      "step": 14,
+      "prob_id": "PB-Q10",
+      "correct": false,
+      "bloom": "UNDERSTAND",
+      "skill": "python.functions",
+      "theta": [
+        0.8564,
+        0.5916,
+        1.3999,
+        0.3289,
+        0.3289
+      ],
+      "K": 0.8564,
+      "P": 0.5916,
+      "S": 1.3999
+    },
+    {
+      "step": 15,
+      "prob_id": "PB-Q11",
+      "correct": true,
+      "bloom": "APPLY",
+      "skill": "python.functions",
+      "theta": [
+        0.8779,
+        0.7157,
+        1.3865,
+        0.3448,
+        0.3448
+      ],
+      "K": 0.8779,
+      "P": 0.7157,
+      "S": 1.3865
+    },
+    {
+      "step": 16,
+      "prob_id": "PB-Q04",
+      "correct": false,
+      "bloom": "ANALYZE",
+      "skill": "python.variables",
+      "theta": [
+        0.4749,
+        0.7619,
+        1.3376,
+        0.303,
+        0.303
+      ],
+      "K": 0.4749,
+      "P": 0.7619,
+      "S": 1.3376
+    }
+  ],
+  "final_theta": {
+    "K": 0.4749,
+    "P": 0.7619,
+    "S": 1.3376,
+    "C": 0.303,
+    "X": 0.303
+  },
+  "k_p_s_max_diff": 0.8627
+}
