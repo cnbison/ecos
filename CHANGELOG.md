@@ -11,6 +11,33 @@
 - **修订号（patch）**：0.x.y —— y 用于小修正（错别字、链接失效等）
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
+
+## [0.39.0] 2026-07-10
+
+### 战略转型：MVP → Product Demo 完整化
+
+> 重大方向调整：不再以"学校场景 + MVP 能用就行"为目标，转向 **Python 基础自学产品 Demo**——完整展示 ECOS 7 组件，面向真实用户可分发。
+
+**文档变更**：
+- README.md：状态 `planning` → `demo`，版本 `0.1.0` → `0.4.0`，"下一步" 重写
+- CLAUDE.md：Phase 4 定位从"MVP 工程实现"改为"Product Demo 完整化"；删除"不允许完整 CLI/Web UI"等限制
+- research/00-overview/03-roadmap.md：v1.1 → v1.2，Phase 4 里程碑重定义，H2 改为 L1-L6，DoD 重新定义
+- research/90-mvp/ → research/90-demo/（待完成）
+- research/00-overview/01-applications.md / 02-architecture.md：MVP 语言 → Demo 语言
+
+**代码变更**：
+- web/api/：Flask REST API（学生端 + LLM Judge + BeliefEngine 封装）
+- web/student/：HTML UI（5D + Bloom L1-L4 + misconception 检测 + 干预展示）
+- ecos/cta/：BeliefEngine + MIRT + BloomProfile + MisconceptionDetector 全部实现
+- Q-matrix L5/L6 扩展（待完成）
+- 7 组件前端完整展示（待完成）
+- TC 检测器实现（待完成）
+- 持久化层接入（待完成）
+
+**新文档**：
+- discussions/2026-07-10-mvp-to-product-demo-pivot.md（本次转型记录）
+- research/00-overview/06-product-demo-strategy.md（待创建）
+
 ## 提交索引
 
 | 版本 | 日期 | commit hash | 主要内容 |

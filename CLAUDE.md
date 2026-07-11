@@ -18,23 +18,24 @@
 | 阶段 | 文档产出 | 代码产出 | 产物形态 |
 |------|---------|---------|---------|
 | **Phase 0（理论奠基，✅ 已完成 2026-06-25）** | 战略层 + 工程层 + 教学法层 + MVP 设计 14 份 | ❌ 无 | 纯研究 |
-| **Phase 4（MVP 实施，待启动）** | 实验报告 + 修订文档 | ✅ 一次性实验代码 | 验证假设 |
-| **Phase 5（产品化，待启动）** | 实验报告 + 修订文档 | ✅ 实验代码 + 小工具 | 完整验证 |
+| **Phase 4（Product Demo 完整化，🔄 进行中）** | 实验报告 + 修订文档 | ✅ 完整 Python 包 + Web UI | 产品 Demo |
+| **Phase 5（产品化，✅ 准备启动）** | 实验报告 + 修订文档 | ✅ 完整 Python 包 + Web UI | 完整产品 |
 | **Phase 6（系统完善，待启动）** | 研究文档 + 应用原型设计 | ✅ ecos/ Python 包 + 实验代码 | 应用探索 |
 
-> **当前阶段（2026-07-06）**：**Phase 4（M2 MVP 工程实现）** — 战略调整：聚焦 **Python 基础认知助手**（自学者产品方向）。ECOS 领域无关，Python 基础作为首个产品领域验证核心价值，LLM 充当领域专家。详见 [03-roadmap.md §2.4](./research/00-overview/03-roadmap.md)。
+> **当前阶段（2026-07-10）**：**Phase 4（Product Demo 完整化）** — 战略调整：聚焦 **Python 基础自学产品 Demo**（完整产品形态）。ECOS 7 组件全部实现并通过 UI 可视化展示：5D+cov/Bloom 6级/TC/LearningDNA/Trajectory/Misconceptions/overall_confidence。详见 [03-roadmap.md v1.2](./research/00-overview/03-roadmap.md)。
 > 权威状态源：[README.md §当前状态](./README.md)。任何"当前阶段是 Phase 0"或类似过时标注都以此为准。
 
 **关键区分**：
-- **实验代码 ≠ 应用代码**：未来 Phase 4+ 的代码用于**生成研究数据**（学生状态估计、干预效果、成长轨迹），不是**可被他人复用的应用系统**
-- **ecos/ Python 包将建立**（Phase 4+）—— pip install ecos 即可使用，是 ECOS 应用探索的**基础设施**
-- **一次性 vs 可复用**：Phase 4+ 的实验代码应**一次性**——验证后归档，**不演进为可复用系统**
+- **Product Demo 代码 = 可分发应用**：Phase 4 的代码不再是"一次性实验"，而是**完整可展示的产品 Demo**——需要错误处理、边界状态、用户可感知价值
+- **ecos/ Python 包**（Phase 4）—— pip install ecos 即可使用，是 ECOS 应用探索的**基础设施**，当前已实现 BeliefEngine/Bloom/MIRT/Misconception/TC 全部核心组件
+- **ecos/ Python 包**（Phase 5+）—— 扩展为完整产品化包，含教师端、家长端、跨领域注入
 
 详细约定见 [§实验代码约定](#实验代码约定) 章节。
 
-## 实验代码约定
+## Product Demo 代码约定
 
-> **本节定义 Phase 4+ 实验代码的边界**——什么允许、什么不允许、放哪里、如何与文档同步。
+> **本节定义 Phase 4 Product Demo 代码的边界**——什么允许、什么不允许、放哪里、如何与文档同步。
+> **2026-07-10 更新**：Phase 4 从"MVP 能用就行"转向"完整产品 Demo 形态"，本约定同步更新。
 
 ### 允许的代码形态
 
@@ -45,22 +46,20 @@
 | **数据处理脚本** | 实验结果分析（统计、可视化、报告生成）| `experiments/analysis/` | 实验完成后归档 |
 | **配置文件** | 实验参数（YAML）| `experiments/configs/` | 与对应实验归档 |
 
-### 不允许的代码形态（v0.1.0 当前）
+### Product Demo 阶段要求
 
 | 形态 | 原因 |
 |------|------|
 | ~~**可复用的 ecos/ Python 包**~~ | ✅ v0.1.0 已创建包骨架（仅 __init__.py 占位），未来 Phase 4+ 逐步实现 |
 | **生产级代码（CI/CD、测试套件、部署配置）** | 这是应用项目，不是研究项目 |
-| **完整的 CLI/Web UI** | 不在当前阶段的研究目标内 |
+| **无文档的核心组件** | BeliefEngine/MIRT 等核心组件需有模块级 docstring |
 
 ### 命名约定
 
-- **Notebook 命名**：`YYYY-MM-DD-{phase}-m{milestone}-{description}.ipynb`
-  - 例：`2026-07-15-phase4-m41-cta-belief-prototype.ipynb`
-- **脚本命名**：`{milestone}_{action}.py`
-  - 例：`m41_estimate_student_state.py`, `m41_analyze_intervention.py`
-- **配置命名**：`{milestone}_{variant}.yaml`
-  - 例：`m41_math_mvp.yaml`, `m41_english_mvp.yaml`
+- **API 路由**：`/api/<resource>/<action>`（如 `/api/answer`, `/api/judge`）
+- **学生端**：`web/student/index.html`
+- **教师端**：`web/teacher/index.html`
+- **核心组件**：`ecos/cta/belief_engine.py`, `ecos/cta/l2_mirt.py`
 
 ### 与项目级文档的同步
 

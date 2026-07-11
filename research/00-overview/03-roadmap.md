@@ -1,6 +1,6 @@
 # ECOS 路线图（Roadmap）
 
-> **版本**：v1.1（2026-07-06，战略调整：聚焦 Python 基础认知助手）
+> **版本**：v1.2（2026-07-10，战略调整：MVP → Product Demo 完整化）
 > **性质**：ECOS 战略层第 3 份文档，**基于架构定义 M0-M7 详细任务与阶段验证指标**
 > **基于**：[01-applications.md](01-applications.md) §7 MVP 范围、[02-architecture.md](../00-overview/02-architecture.md) §8 MVP 架构、[v2.0 §执行摘要 产品化路径](../deep-research/Cognitive-Digital-Twin-Deep-Research.md)
 > **后续**：[04-risks.md](04-risks.md)（风险矩阵）
@@ -40,7 +40,7 @@
 | Milestone | 对应 v2.0 Phase |
 |---|---|
 | M0-M1 | Phase 0（理论奠基）|
-| M2-M3 | Phase 4（MVP 验证）|
+| M2-M5 | Phase 4（Product Demo 完整化）|
 | M4-M5 | Phase 5（产品化）|
 | M6-M7 | Phase 6（系统完善）|
 
@@ -91,25 +91,26 @@
 
 ---
 
-## 2. Phase 4 / M2-M3（MVP 验证）
+## 2. Phase 4 / M2-M5（Product Demo 完整化）
 
 ### 2.1 目标
 
 **验证 ECOS 核心假设**（H1-H3）：
 - **H1**：CTA 5D 状态预测力 ≥ 传统 IRT/BKT（baseline 比较）
-- **H2**：Bloom 目标空间在 Python 基础上可行（L1-L4 是否够用？）
+- **H2**：Bloom 目标空间在 Python 基础上可行（L1-L6 是否够用？）
 - **H3**：双 Agent 互校有效减少 LLM 幻觉（实验对比：单 Agent vs 双 Agent 信念质量）
 
-**MVP 范围**（v1.2 战略调整——聚焦 Python 基础认知助手）：
+**Product Demo 范围**（v1.2 战略调整——完整产品形态）：
 - **学科**：Python 基础（变量+循环+函数+递归+作用域）
-- **用户**：自学者（Bisen 作为第一个真实用户）
-- **核心交互**：做题 → 解释思路 → AI 批改 + 靶向干预
+- **用户**：自学者（Bisen 作为第一个真实用户）+ 跨领域 Demo 展示
+- **核心交互**：做题 → LLM 评判对错 → AI 靶向干预
 - **场景**：认知诊断 + 自适应干预 + 成长轨迹可视化
-- **LLM 角色**：LLM 充当领域专家（生成题目 + 评估 + 检测 misconception + 干预）
+- **LLM 角色**：LLM 充当领域专家（评判答案 + 检测 misconception + 干预）
+- **7 组件全展示**：5D+cov / 6级Bloom / TC状态 / LearningDNA / Trajectory / Misconceptions / overall_confidence
 
-### 2.2 M2 里程碑（MVP 工程实现）
+### 2.2 M2-M5 里程碑（Product Demo 完整化）
 
-**时间**：4-6 周
+**时间**：8-12 周
 
 **Definition of Done**：
 - [ ] `ecos/` Python 包可运行（CTA + LCA + 双 Agent 互校 + Bloom + Persistence + Session）
@@ -213,7 +214,7 @@ W7+: 跨领域泛化（快速注入新领域，再次跑通闭环）
 
 ### 3.2 M4 里程碑（学科扩展 + 算法升级）
 
-**时间**：4-6 周
+**时间**：8-12 周
 
 **Definition of Done**：
 - [ ] 新增 1-2 个学科（高中数学 + 初中物理）
@@ -236,7 +237,7 @@ W7+: 跨领域泛化（快速注入新领域，再次跑通闭环）
 
 ### 3.3 M5 里程碑（商业模式 + 教师/家长端）
 
-**时间**：4-6 周
+**时间**：8-12 周
 
 **Definition of Done**：
 - [ ] 教师/家长端 UI 实现（[01-applications.md §4 场景 D](01-applications.md)）
@@ -357,7 +358,7 @@ M3 MVP 实验（2-4 周）
 
 ### 6.2 预算粗估（仅供路线图参考）
 
-| 项目 | MVP（M2-M3）| 产品化（M4-M5）| 系统完善（M6-M7）|
+| 项目 | Product Demo（M2-M5）| 产品化（M4-M5）| 系统完善（M6-M7）|
 |---|---|---|---|
 | 人力（年化）| 80-150 万 | 200-400 万 | 500-1000 万 |
 | LLM API | 5-10 万 | 30-100 万 | 200-500 万 |

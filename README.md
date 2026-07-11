@@ -3,8 +3,8 @@
 > **教育认知操作系统**：面向 K12 学生的下一代 AI 辅助学习系统
 > 基于"**学生认知数字孪生 + AI 学习教练**"双 Agent 共进化架构
 
-[![Status](https://img.shields.io/badge/status-planning-yellow)]()
-[![Version](https://img.shields.io/badge/version-0.1.0-blue)]()
+[![Status](https://img.shields.io/badge/status-demo-brightgreen)]()
+[![Version](https://img.shields.io/badge/version-0.4.0-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)]()
 
 ---
@@ -119,7 +119,23 @@ ecos/
 └── prototypes/                        # 架构原型
 ```
 
-## 当前状态（2026-06-25）— **🎉 Phase 0 100% 完成**
+## 当前状态（2026-07-10）— **🎉 Phase 4 Product Demo 完整化**
+
+> **战略方向调整（2026-07-10）**：不再以"学校场景 + MVP 能用就行"为目标，转向 **Python 基础自学产品 Demo**——完整展示 ECOS 7 组件（5D+cov/Bloom 6级/TC/LearningDNA/Trajectory/Misconceptions/overall_confidence），面向真实用户可分发。
+
+| 层级 | 状态 | 行数 |
+|------|------|------|
+| 战略层（research/00-overview/）| ✅ **100% 完成**（4/4：应用/架构/路线图/风险）| ~2400 行 |
+| 工程层（research/10-engineering/）| ✅ **100% 完成**（5/5：CTA/LCA/Bloom/互校/持久化）| ~6100 行 |
+| 教学法层（research/20-pedagogy/）| ✅ **100% 完成**（4/4：K12 认知/Bloom 应用/学习策略/ZPD）| ~2435 行 |
+| Product Demo 设计（research/90-demo/）| 🔄 **进行中**（原 90-mvp/，已重命名）| ~600 行 |
+| P0 借鉴（theoretical-foundations/）| ✅ 已建立（从 SelfLab 迁移 + P0 借鉴）| ~1700 行 |
+| Python 包（ecos/cta/）| ✅ **已完成**（CTA 全部组件：BeliefEngine/Bloom/MIRT/Misconception/TCDetector）| — |
+| Python 基础 Demo（web/api/ + web/student/）| ✅ **端到端闭环**（Flask API + HTML UI + LLM Judge）| — |
+| 深度研究文档 | ✅ v2.0（从 SelfLab 迁移，1778 行）| — |
+| 5 轮 GPT 对话 | ✅ 已迁移（4 份文件）| — |
+
+**累计产出**：19 个版本 / ~57+ 份文档 / ~19000+ 行研究产出 + 完整 Python 实现
 
 | 层级 | 状态 | 行数 |
 |------|------|------|
@@ -180,18 +196,18 @@ python experiments/scripts/m2_w1_llm_client_smoke.py         # LLM 客户端
 
 > `.env` 文件会在 `from_env()` 调用时自动加载，无需手动 `source`。
 
-## 下一步（Phase 4 启动）
+## 下一步（Phase 4 Product Demo 完整化）
 
 | 优先级 | 任务 | 详见 |
 |--------|------|------|
-| **P0** | 团队组建（3.5 FTE：算法 1 + 后端 1 + 前端 1 + 教研 0.5）| `research/90-mvp/README.md §1.3` |
-| **P0** | 合作学校招募（1 所初中，50-100 学生）| `research/90-mvp/README.md §3.1` |
-| **P0** | LLM API 预算（5-10 万）+ 服务器预算（5-10 万）| `research/90-mvp/README.md §1.4` |
-| **P0** | M2 工程实现（W1-W6：CTA + LCA + Bloom + 互校 + 持久化 + UI）| `research/90-mvp/README.md §2.1-2.4` |
-| **P0** | M3 实验（W7-W8：50-100 学生 + H1-H4 验证）| `research/90-mvp/README.md §2.4` |
-| P1 | 教师协作（Q 矩阵 + TC + Misconceptions 库审核）| `research/90-mvp/README.md §2.3` |
-| P2 | 理论借鉴 P1（工程实施遇 gap 时按需写）| `research/30-shared-cognitive-tools/theoretical-foundations/README.md` |
-| P2 | `ecos/` Python 包实现 | `ecos/` |
+| **P0** | 文档转型（90-mvp → 90-demo，重命名 + 内容重定位）| `research/90-demo/` |
+| **P0** | Q-matrix 扩展（L5 Evaluate + L6 Create，每 topic 至少 1 道）| `data/python_basics_q_matrix.json` |
+| **P0** | 前端 7 组件完整 UI（5D+cov/6级Bloom/TC/LearningDNA/Trajectory/overall_conf）| `web/student/index.html` |
+| P0 | TC 检测器实现（liminal/post-liminal 启发式）| `ecos/cta/tc_detector.py` |
+| P0 | 持久化层接入（ecos/persistence/db.py → web/api/belief.py）| `web/api/belief.py` |
+| P1 | 教师/家长端最小版 | `web/teacher/` |
+| P1 | 一键启动脚本 + 部署文档 | `docs/DEPLOYMENT.md` |
+| P2 | Product Demo Showcase 报告 v2 | `research/90-demo/` |
 
 ## 关联项目
 
