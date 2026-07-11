@@ -33,6 +33,7 @@ from .belief_state import (
 )
 from .l1_evolution import BKTEvolutionLayer, EvolutionConfig
 from .l2_mirt import BiFactorMIRT5D, MIRTConfig, MIRTItemParams
+from .tc_detector import TCStateDetector
 
 if TYPE_CHECKING:
     from ...llm_client import ECOSLLMClient
@@ -116,6 +117,7 @@ class BeliefEngine:
         self.llm_client = llm_client
         self.l1 = BKTEvolutionLayer(self.config.evolution_config)
         self.l2 = BiFactorMIRT5D(self.config.mirt_config)
+        self.tc_detector = TCStateDetector()
         self._response_history: Dict[str, List[Tuple[str, int, BloomLevel]]] = {}
 
         # LLM Critic（M2 W3，延迟初始化）
@@ -224,16 +226,28 @@ class BeliefEngine:
         if observation.explanation_text and self.llm_client is not None:
             self._llm_critic_misconception(state, observation)
 
-        # Step 7: 整体置信度（融入 C 维度折扣后的修正）
+        # Step 7: TC 状态检测（挂在 C 维度上）
+        has_misc = bool(state.C.misconception_hits)
+        current_tc = state.C.tc_states.get(skill_id, None)
+        updated_tc = self.tc_detector.detect(
+            topic=skill_id,
+            correct=correct,
+            bloom_level=bloom_level,
+            current_tc_state=current_tc,
+            has_active_misc=has_misc,
+        )
+        state.C.tc_states[skill_id] = updated_tc
+
+        # Step 8: 整体置信度（融入 C 维度折扣后的修正）
         c5d = np.mean([getattr(state, d).confidence for d in ["K", "P", "S", "C", "X"]])
         state.overall_confidence = 0.6 * c5d + 0.4 * state.bloom_profile.confidence
 
-        # Step 8: 追加轨迹快照
+        # Step 9: 追加轨迹快照
         state.trajectory.append(state.snapshot())
         if len(state.trajectory.snapshots) > self.config.trajectory_maxlen:
             state.trajectory.snapshots = state.trajectory.snapshots[-self.config.trajectory_maxlen:]
 
-        # Step 9: 时间戳
+        # Step 10: 时间戳
         state.last_updated = observation.timestamp
 
         return state
