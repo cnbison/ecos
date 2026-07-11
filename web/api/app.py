@@ -70,6 +70,69 @@ def api_get_question(student_id: str):
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/judge", methods=["POST"])
+def api_judge_answer():
+    """LLM 充当老师，评判学生答案对错。"""
+    try:
+        data = request.get_json()
+        student_id = data["student_id"]
+        problem_id = data["problem_id"]
+        student_answer = data.get("student_answer", "").strip()
+
+        if not student_answer:
+            return jsonify({"error": "答案不能为空"}), 400
+
+        # 加载题目
+        prob = get_question_detail(problem_id)
+        if not prob:
+            return jsonify({"error": "题目不存在"}), 404
+
+        correct_answer = prob.get("correct_answer", "")
+        problem_text = prob.get("problem_text", "")
+
+        prompt = f"""你是一位严格的 Python 老师。请评判学生答案是否正确。
+
+题目：
+{problem_text}
+
+正确答案：
+{correct_answer}
+
+学生答案：
+{student_answer}
+
+请以 JSON 格式返回评判结果（只返回 JSON，不要其他内容）：
+{{"correct": true/false, "reasoning": "简短说明为什么对或错（1-2句话）"}}
+"""
+
+        llm = get_llm()
+        raw = llm.chat(
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1,
+            strip_think=True,
+        )
+
+        import json as _json
+        try:
+            result = _json.loads(raw)
+        except Exception:
+            # LLM 输出格式不对，降级为字符串匹配
+            result = {
+                "correct": student_answer.strip().lower() == correct_answer.strip().lower(),
+                "reasoning": "（自动评判）答案文本匹配"
+            }
+
+        return jsonify({
+            "judged": True,
+            "problem_id": problem_id,
+            "student_id": student_id,
+            "correct": bool(result.get("correct", False)),
+            "reasoning": str(result.get("reasoning", "")),
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/answer", methods=["POST"])
 def api_submit_answer():
     """提交答案，返回 BeliefEngine 更新结果。"""
@@ -81,6 +144,7 @@ def api_submit_answer():
         correct = bool(data["correct"])
         bloom_layer = data.get("bloom_layer", "L2")
         explanation_text = data.get("explanation_text", "")
+        reasoning = data.get("reasoning", "")
 
         result = submit_answer(
             student_id=student_id,
@@ -90,6 +154,7 @@ def api_submit_answer():
             bloom_layer=bloom_layer,
             explanation_text=explanation_text,
         )
+        result["reasoning"] = reasoning
         return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
