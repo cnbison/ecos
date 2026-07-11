@@ -9,22 +9,135 @@
       "ecos/cta/l2_mirt.py"
     ],
     "bloom_goal_coverage": [
-      {"topic": "python.variables", "bloom_goals": ["python.variables-L1","python.variables-L2","python.variables-L3","python.variables-L4"], "skill_name": "变量与赋值"},
-      {"topic": "python.loops", "bloom_goals": ["python.loops-L1","python.loops-L2","python.loops-L3","python.loops-L4"], "skill_name": "循环"},
-      {"topic": "python.functions", "bloom_goals": ["python.functions-L1","python.functions-L2","python.functions-L3","python.functions-L4"], "skill_name": "函数"},
-      {"topic": "python.recursion", "bloom_goals": ["python.recursion-L1","python.recursion-L2","python.recursion-L3","python.recursion-L4"], "skill_name": "递归"},
-      {"topic": "python.scope", "bloom_goals": ["python.scope-L1","python.scope-L2","python.scope-L3","python.scope-L4"], "skill_name": "作用域"}
+      {
+        "topic": "python.variables",
+        "bloom_goals": [
+          "python.variables-L1",
+          "python.variables-L2",
+          "python.variables-L3",
+          "python.variables-L4",
+          "python.variables-L5",
+          "python.variables-L6"
+        ],
+        "skill_name": "变量与赋值"
+      },
+      {
+        "topic": "python.loops",
+        "bloom_goals": [
+          "python.loops-L1",
+          "python.loops-L2",
+          "python.loops-L3",
+          "python.loops-L4",
+          "python.loops-L5",
+          "python.loops-L6"
+        ],
+        "skill_name": "循环"
+      },
+      {
+        "topic": "python.functions",
+        "bloom_goals": [
+          "python.functions-L1",
+          "python.functions-L2",
+          "python.functions-L3",
+          "python.functions-L4",
+          "python.functions-L5",
+          "python.functions-L6"
+        ],
+        "skill_name": "函数"
+      },
+      {
+        "topic": "python.recursion",
+        "bloom_goals": [
+          "python.recursion-L1",
+          "python.recursion-L2",
+          "python.recursion-L3",
+          "python.recursion-L4",
+          "python.recursion-L5",
+          "python.recursion-L6"
+        ],
+        "skill_name": "递归"
+      },
+      {
+        "topic": "python.scope",
+        "bloom_goals": [
+          "python.scope-L1",
+          "python.scope-L2",
+          "python.scope-L3",
+          "python.scope-L4",
+          "python.scope-L5",
+          "python.scope-L6"
+        ],
+        "skill_name": "作用域"
+      }
     ],
     "a_specialized_design": {
-      "python.variables":   {"dimension": "K", "vector": [0.9, 0.2, 0.4, 0.1, 0.1], "note": "K 主导：概念理解"},
-      "python.loops":      {"dimension": "S", "vector": [0.2, 0.3, 0.9, 0.1, 0.1], "note": "S 主导：策略性知识"},
-      "python.functions":   {"dimension": "P", "vector": [0.3, 0.9, 0.2, 0.1, 0.1], "note": "P 主导：程序性知识"},
-      "python.recursion":  {"dimension": "S", "vector": [0.2, 0.3, 0.9, 0.1, 0.1], "note": "S 主导：策略性知识"},
-      "python.scope":      {"dimension": "P", "vector": [0.3, 0.9, 0.2, 0.1, 0.1], "note": "P 主导：程序性知识"}
+      "python.variables": {
+        "dimension": "K",
+        "vector": [
+          0.9,
+          0.2,
+          0.4,
+          0.1,
+          0.1
+        ],
+        "note": "K 主导：概念理解"
+      },
+      "python.loops": {
+        "dimension": "S",
+        "vector": [
+          0.2,
+          0.3,
+          0.9,
+          0.1,
+          0.1
+        ],
+        "note": "S 主导：策略性知识"
+      },
+      "python.functions": {
+        "dimension": "P",
+        "vector": [
+          0.3,
+          0.9,
+          0.2,
+          0.1,
+          0.1
+        ],
+        "note": "P 主导：程序性知识"
+      },
+      "python.recursion": {
+        "dimension": "S",
+        "vector": [
+          0.2,
+          0.3,
+          0.9,
+          0.1,
+          0.1
+        ],
+        "note": "S 主导：策略性知识"
+      },
+      "python.scope": {
+        "dimension": "P",
+        "vector": [
+          0.3,
+          0.9,
+          0.2,
+          0.1,
+          0.1
+        ],
+        "note": "P 主导：程序性知识"
+      }
     },
-    "misconception_library": ["M1","M2","M3","M4","M5","M6","M7","M8"]
+    "misconception_library": [
+      "M1",
+      "M2",
+      "M3",
+      "M4",
+      "M5",
+      "M6",
+      "M7",
+      "M8"
+    ]
   },
-
   "problems": [
     {
       "problem_id": "PB-Q01",
@@ -34,10 +147,22 @@
       "problem_text": "以下代码的输出是什么？\n\nx = 5\nprint(x)",
       "correct_answer": "5",
       "bloom_layer_observed": "L1",
-      "a_specialized": [0.9, 0.2, 0.4, 0.1, 0.1],
-      "mirt_params": {"difficulty": 0.1, "discrimination": 1.2, "guessing": 0.05},
+      "a_specialized": [
+        0.9,
+        0.2,
+        0.4,
+        0.1,
+        0.1
+      ],
+      "mirt_params": {
+        "difficulty": 0.1,
+        "discrimination": 1.2,
+        "guessing": 0.05
+      },
       "misconceptions": [],
-      "intervention_types": ["PRACTICE"]
+      "intervention_types": [
+        "PRACTICE"
+      ]
     },
     {
       "problem_id": "PB-Q02",
@@ -47,10 +172,24 @@
       "problem_text": "以下代码的输出是什么？\n\nx = 5\nx = x + 1\nprint(x)",
       "correct_answer": "6",
       "bloom_layer_observed": "L2",
-      "a_specialized": [0.9, 0.2, 0.4, 0.1, 0.1],
-      "mirt_params": {"difficulty": 0.3, "discrimination": 1.2, "guessing": 0.05},
-      "misconceptions": ["M2"],
-      "intervention_types": ["EXPLANATORY"]
+      "a_specialized": [
+        0.9,
+        0.2,
+        0.4,
+        0.1,
+        0.1
+      ],
+      "mirt_params": {
+        "difficulty": 0.3,
+        "discrimination": 1.2,
+        "guessing": 0.05
+      },
+      "misconceptions": [
+        "M2"
+      ],
+      "intervention_types": [
+        "EXPLANATORY"
+      ]
     },
     {
       "problem_id": "PB-Q03",
@@ -60,10 +199,22 @@
       "problem_text": "写出代码实现：交换变量 a 和 b 的值（不许用第三变量）",
       "correct_answer": "a, b = b, a",
       "bloom_layer_observed": "L3",
-      "a_specialized": [0.9, 0.2, 0.4, 0.1, 0.1],
-      "mirt_params": {"difficulty": 0.5, "discrimination": 1.0, "guessing": 0.0},
+      "a_specialized": [
+        0.9,
+        0.2,
+        0.4,
+        0.1,
+        0.1
+      ],
+      "mirt_params": {
+        "difficulty": 0.5,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
       "misconceptions": [],
-      "intervention_types": ["PRACTICE"]
+      "intervention_types": [
+        "PRACTICE"
+      ]
     },
     {
       "problem_id": "PB-Q04",
@@ -73,10 +224,24 @@
       "problem_text": "以下代码的输出是什么？\n\na = [1, 2]\nb = a\nb.append(3)\nprint(a)",
       "correct_answer": "[1, 2, 3]",
       "bloom_layer_observed": "L4",
-      "a_specialized": [0.9, 0.2, 0.4, 0.1, 0.1],
-      "mirt_params": {"difficulty": 0.6, "discrimination": 1.0, "guessing": 0.0},
-      "misconceptions": ["M6"],
-      "intervention_types": ["EXPLANATORY"]
+      "a_specialized": [
+        0.9,
+        0.2,
+        0.4,
+        0.1,
+        0.1
+      ],
+      "mirt_params": {
+        "difficulty": 0.6,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
+      "misconceptions": [
+        "M6"
+      ],
+      "intervention_types": [
+        "EXPLANATORY"
+      ]
     },
     {
       "problem_id": "PB-Q05",
@@ -86,10 +251,22 @@
       "problem_text": "以下代码的输出是什么？\n\nfor i in range(3):\n    print(i)",
       "correct_answer": "0\n1\n2",
       "bloom_layer_observed": "L1",
-      "a_specialized": [0.2, 0.3, 0.9, 0.1, 0.1],
-      "mirt_params": {"difficulty": 0.1, "discrimination": 1.2, "guessing": 0.05},
+      "a_specialized": [
+        0.2,
+        0.3,
+        0.9,
+        0.1,
+        0.1
+      ],
+      "mirt_params": {
+        "difficulty": 0.1,
+        "discrimination": 1.2,
+        "guessing": 0.05
+      },
       "misconceptions": [],
-      "intervention_types": ["PRACTICE"]
+      "intervention_types": [
+        "PRACTICE"
+      ]
     },
     {
       "problem_id": "PB-Q06",
@@ -99,10 +276,24 @@
       "problem_text": "以下代码的输出是什么？\n\nfor i in range(1, 5):\n    print(i)",
       "correct_answer": "1\n2\n3\n4",
       "bloom_layer_observed": "L2",
-      "a_specialized": [0.2, 0.3, 0.9, 0.1, 0.1],
-      "mirt_params": {"difficulty": 0.3, "discrimination": 1.2, "guessing": 0.05},
-      "misconceptions": ["M3"],
-      "intervention_types": ["EXPLANATORY"]
+      "a_specialized": [
+        0.2,
+        0.3,
+        0.9,
+        0.1,
+        0.1
+      ],
+      "mirt_params": {
+        "difficulty": 0.3,
+        "discrimination": 1.2,
+        "guessing": 0.05
+      },
+      "misconceptions": [
+        "M3"
+      ],
+      "intervention_types": [
+        "EXPLANATORY"
+      ]
     },
     {
       "problem_id": "PB-Q07",
@@ -112,10 +303,22 @@
       "problem_text": "用 for 循环写代码计算 1+2+...+100 的和",
       "correct_answer": "total = 0\nfor i in range(1, 101):\n    total += i\nprint(total)",
       "bloom_layer_observed": "L3",
-      "a_specialized": [0.2, 0.3, 0.9, 0.1, 0.1],
-      "mirt_params": {"difficulty": 0.4, "discrimination": 1.0, "guessing": 0.0},
+      "a_specialized": [
+        0.2,
+        0.3,
+        0.9,
+        0.1,
+        0.1
+      ],
+      "mirt_params": {
+        "difficulty": 0.4,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
       "misconceptions": [],
-      "intervention_types": ["PRACTICE"]
+      "intervention_types": [
+        "PRACTICE"
+      ]
     },
     {
       "problem_id": "PB-Q08",
@@ -125,10 +328,24 @@
       "problem_text": "以下代码为什么会卡住？如何修复？\n\nx = 5\nwhile x > 0:\n    print(x)\n    # 少了什么？",
       "correct_answer": "缺少 x = x - 1（循环基准情形更新），应改为 while x > 0: print(x); x -= 1",
       "bloom_layer_observed": "L4",
-      "a_specialized": [0.2, 0.3, 0.9, 0.1, 0.1],
-      "mirt_params": {"difficulty": 0.6, "discrimination": 1.0, "guessing": 0.0},
-      "misconceptions": ["M7"],
-      "intervention_types": ["EXPLANATORY"]
+      "a_specialized": [
+        0.2,
+        0.3,
+        0.9,
+        0.1,
+        0.1
+      ],
+      "mirt_params": {
+        "difficulty": 0.6,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
+      "misconceptions": [
+        "M7"
+      ],
+      "intervention_types": [
+        "EXPLANATORY"
+      ]
     },
     {
       "problem_id": "PB-Q09",
@@ -138,10 +355,22 @@
       "problem_text": "以下代码的输出是什么？\n\ndef greet():\n    print('Hello')\n\ngreet()",
       "correct_answer": "Hello",
       "bloom_layer_observed": "L1",
-      "a_specialized": [0.3, 0.9, 0.2, 0.1, 0.1],
-      "mirt_params": {"difficulty": 0.1, "discrimination": 1.2, "guessing": 0.05},
+      "a_specialized": [
+        0.3,
+        0.9,
+        0.2,
+        0.1,
+        0.1
+      ],
+      "mirt_params": {
+        "difficulty": 0.1,
+        "discrimination": 1.2,
+        "guessing": 0.05
+      },
       "misconceptions": [],
-      "intervention_types": ["PRACTICE"]
+      "intervention_types": [
+        "PRACTICE"
+      ]
     },
     {
       "problem_id": "PB-Q10",
@@ -151,10 +380,24 @@
       "problem_text": "以下代码的返回值是什么？\n\ndef f():\n    return\n\nresult = f()\nprint(result)",
       "correct_answer": "None",
       "bloom_layer_observed": "L2",
-      "a_specialized": [0.3, 0.9, 0.2, 0.1, 0.1],
-      "mirt_params": {"difficulty": 0.4, "discrimination": 1.0, "guessing": 0.0},
-      "misconceptions": ["M4"],
-      "intervention_types": ["EXPLANATORY"]
+      "a_specialized": [
+        0.3,
+        0.9,
+        0.2,
+        0.1,
+        0.1
+      ],
+      "mirt_params": {
+        "difficulty": 0.4,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
+      "misconceptions": [
+        "M4"
+      ],
+      "intervention_types": [
+        "EXPLANATORY"
+      ]
     },
     {
       "problem_id": "PB-Q11",
@@ -164,10 +407,22 @@
       "problem_text": "写一个函数 is_prime(n) 判断质数",
       "correct_answer": "def is_prime(n):\n    if n <= 1: return False\n    for i in range(2, int(n**0.5)+1):\n        if n % i == 0: return False\n    return True",
       "bloom_layer_observed": "L3",
-      "a_specialized": [0.3, 0.9, 0.2, 0.1, 0.1],
-      "mirt_params": {"difficulty": 0.5, "discrimination": 1.0, "guessing": 0.0},
+      "a_specialized": [
+        0.3,
+        0.9,
+        0.2,
+        0.1,
+        0.1
+      ],
+      "mirt_params": {
+        "difficulty": 0.5,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
       "misconceptions": [],
-      "intervention_types": ["PRACTICE"]
+      "intervention_types": [
+        "PRACTICE"
+      ]
     },
     {
       "problem_id": "PB-Q12",
@@ -177,10 +432,22 @@
       "problem_text": "以下代码的输出是什么？\n\ndef f(n):\n    if n <= 0:\n        return\n    print(n)\n    f(n-1)\n\nf(3)",
       "correct_answer": "3\n2\n1",
       "bloom_layer_observed": "L1",
-      "a_specialized": [0.2, 0.3, 0.9, 0.1, 0.1],
-      "mirt_params": {"difficulty": 0.3, "discrimination": 1.2, "guessing": 0.0},
+      "a_specialized": [
+        0.2,
+        0.3,
+        0.9,
+        0.1,
+        0.1
+      ],
+      "mirt_params": {
+        "difficulty": 0.3,
+        "discrimination": 1.2,
+        "guessing": 0.0
+      },
       "misconceptions": [],
-      "intervention_types": ["PRACTICE"]
+      "intervention_types": [
+        "PRACTICE"
+      ]
     },
     {
       "problem_id": "PB-Q13",
@@ -190,10 +457,24 @@
       "problem_text": "递归和循环有什么区别？请从执行机制和适用场景说明",
       "correct_answer": "递归通过函数调用自身分解问题，需要 base case 终止；循环通过重复执行代码块。递归适合树结构，循环适合线性遍历。",
       "bloom_layer_observed": "L2",
-      "a_specialized": [0.2, 0.3, 0.9, 0.1, 0.1],
-      "mirt_params": {"difficulty": 0.5, "discrimination": 1.0, "guessing": 0.0},
-      "misconceptions": ["M5"],
-      "intervention_types": ["EXPLANATORY"]
+      "a_specialized": [
+        0.2,
+        0.3,
+        0.9,
+        0.1,
+        0.1
+      ],
+      "mirt_params": {
+        "difficulty": 0.5,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
+      "misconceptions": [
+        "M5"
+      ],
+      "intervention_types": [
+        "EXPLANATORY"
+      ]
     },
     {
       "problem_id": "PB-Q14",
@@ -203,10 +484,22 @@
       "problem_text": "用递归实现阶乘函数 fact(n)",
       "correct_answer": "def fact(n):\n    if n <= 1: return 1\n    return n * fact(n-1)",
       "bloom_layer_observed": "L3",
-      "a_specialized": [0.2, 0.3, 0.9, 0.1, 0.1],
-      "mirt_params": {"difficulty": 0.5, "discrimination": 1.0, "guessing": 0.0},
+      "a_specialized": [
+        0.2,
+        0.3,
+        0.9,
+        0.1,
+        0.1
+      ],
+      "mirt_params": {
+        "difficulty": 0.5,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
       "misconceptions": [],
-      "intervention_types": ["PRACTICE"]
+      "intervention_types": [
+        "PRACTICE"
+      ]
     },
     {
       "problem_id": "PB-Q15",
@@ -216,10 +509,24 @@
       "problem_text": "以下代码的输出是什么？\n\nx = 10\ndef foo():\n    x = 20\n    print(x)\n\nfoo()\nprint(x)",
       "correct_answer": "20\n10",
       "bloom_layer_observed": "L2",
-      "a_specialized": [0.3, 0.9, 0.2, 0.1, 0.1],
-      "mirt_params": {"difficulty": 0.4, "discrimination": 1.0, "guessing": 0.0},
-      "misconceptions": ["M8"],
-      "intervention_types": ["EXPLANATORY"]
+      "a_specialized": [
+        0.3,
+        0.9,
+        0.2,
+        0.1,
+        0.1
+      ],
+      "mirt_params": {
+        "difficulty": 0.4,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
+      "misconceptions": [
+        "M8"
+      ],
+      "intervention_types": [
+        "EXPLANATORY"
+      ]
     },
     {
       "problem_id": "PB-Q16",
@@ -229,10 +536,278 @@
       "problem_text": "如何在函数内修改全局变量 x？请写出代码",
       "correct_answer": "x = 10\ndef foo():\n    global x\n    x = 20\nfoo()\nprint(x)  # 输出 20",
       "bloom_layer_observed": "L3",
-      "a_specialized": [0.3, 0.9, 0.2, 0.1, 0.1],
-      "mirt_params": {"difficulty": 0.5, "discrimination": 1.0, "guessing": 0.0},
+      "a_specialized": [
+        0.3,
+        0.9,
+        0.2,
+        0.1,
+        0.1
+      ],
+      "mirt_params": {
+        "difficulty": 0.5,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
       "misconceptions": [],
-      "intervention_types": ["PRACTICE"]
+      "intervention_types": [
+        "PRACTICE"
+      ]
+    },
+    {
+      "problem_id": "PB-Q17",
+      "bloom_goal_id": "python.variables-L5",
+      "topic": "python.variables",
+      "skill_name": "变量与赋值",
+      "problem_text": "以下两段代码都能实现交换 a 和 b 的值，哪种更好？为什么？\n\n# 方案一\na, b = b, a\n\n# 方案二\ntmp = a\na = b\nb = tmp",
+      "correct_answer": "方案一更好。方案一更简洁（1行 vs 3行）、更 Pythonic、不需要额外变量。方案二在某些语言中是唯一方式，但 Python 中不推荐。",
+      "bloom_layer_observed": "L5",
+      "a_specialized": [
+        0.9,
+        0.2,
+        0.4,
+        0.1,
+        0.1
+      ],
+      "mirt_params": {
+        "difficulty": 0.7,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
+      "misconceptions": [],
+      "intervention_types": [
+        "EXPLANATORY"
+      ]
+    },
+    {
+      "problem_id": "PB-Q18",
+      "bloom_goal_id": "python.variables-L6",
+      "topic": "python.variables",
+      "skill_name": "变量与赋值",
+      "problem_text": "设计一个程序：用户输入一个三位数，程序输出它的逆序数（例如 123 → 321）。要求使用变量和算术运算。",
+      "correct_answer": "n = int(input())\na = n // 100\nb = (n // 10) % 10\nc = n % 10\nprint(a + b*10 + c*100)  # 或 print(c*100 + b*10 + a)",
+      "bloom_layer_observed": "L6",
+      "a_specialized": [
+        0.9,
+        0.2,
+        0.4,
+        0.1,
+        0.1
+      ],
+      "mirt_params": {
+        "difficulty": 0.8,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
+      "misconceptions": [],
+      "intervention_types": [
+        "PRACTICE"
+      ]
+    },
+    {
+      "problem_id": "PB-Q19",
+      "bloom_goal_id": "python.loops-L5",
+      "topic": "python.loops",
+      "skill_name": "循环",
+      "problem_text": "以下代码想计算 1+2+...+100 的和，但输出结果是 505000 而不是 5050。找出问题所在并说明原因。\n\ntotal = 0\nfor i in range(1, 101):\n    total = i + total\nprint('Result:', total * 100)",
+      "correct_answer": "最后一行多乘了 100。for 循环里 total 累加的是 1+2+...+100=5050，但 print 时又乘以 100 导致结果变成 505000。",
+      "bloom_layer_observed": "L5",
+      "a_specialized": [
+        0.2,
+        0.3,
+        0.9,
+        0.1,
+        0.1
+      ],
+      "mirt_params": {
+        "difficulty": 0.7,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
+      "misconceptions": [
+        "M7"
+      ],
+      "intervention_types": [
+        "EXPLANATORY"
+      ]
+    },
+    {
+      "problem_id": "PB-Q20",
+      "bloom_goal_id": "python.loops-L6",
+      "topic": "python.loops",
+      "skill_name": "循环",
+      "problem_text": "设计代码：输出 1-100 之间的所有质数，每行一个。",
+      "correct_answer": "for n in range(2, 101):\n    is_prime = True\n    for i in range(2, int(n**0.5)+1):\n        if n % i == 0:\n            is_prime = False\n            break\n    if is_prime:\n        print(n)",
+      "bloom_layer_observed": "L6",
+      "a_specialized": [
+        0.2,
+        0.3,
+        0.9,
+        0.1,
+        0.1
+      ],
+      "mirt_params": {
+        "difficulty": 0.8,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
+      "misconceptions": [],
+      "intervention_types": [
+        "PRACTICE"
+      ]
+    },
+    {
+      "problem_id": "PB-Q21",
+      "bloom_goal_id": "python.functions-L5",
+      "topic": "python.functions",
+      "skill_name": "函数",
+      "problem_text": "以下两个函数都能判断质数，哪个效率更高？为什么？\n\n# 函数A\ndef is_prime_a(n):\n    for i in range(2, n):\n        if n % i == 0: return False\n    return True\n\n# 函数B\ndef is_prime_b(n):\n    for i in range(2, int(n**0.5)+1):\n        if n % i == 0: return False\n    return True",
+      "correct_answer": "函数B效率更高。函数A需要检查到 n-1，而函数B只需检查到 sqrt(n)。对于 n=100，函数A检查99次，函数B只检查9次。",
+      "bloom_layer_observed": "L5",
+      "a_specialized": [
+        0.3,
+        0.9,
+        0.2,
+        0.1,
+        0.1
+      ],
+      "mirt_params": {
+        "difficulty": 0.7,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
+      "misconceptions": [],
+      "intervention_types": [
+        "EXPLANATORY"
+      ]
+    },
+    {
+      "problem_id": "PB-Q22",
+      "bloom_goal_id": "python.functions-L6",
+      "topic": "python.functions",
+      "skill_name": "函数",
+      "problem_text": "设计一个高阶函数 filter_primes(nums)，接收一个整数列表，返回其中的所有质数。必须使用 filter() 和 lambda。",
+      "correct_answer": "def is_prime(n):\n    return n > 1 and all(n % i != 0 for i in range(2, int(n**0.5)+1))\n\ndef filter_primes(nums):\n    return list(filter(lambda x: is_prime(x), nums))",
+      "bloom_layer_observed": "L6",
+      "a_specialized": [
+        0.3,
+        0.9,
+        0.2,
+        0.1,
+        0.1
+      ],
+      "mirt_params": {
+        "difficulty": 0.8,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
+      "misconceptions": [],
+      "intervention_types": [
+        "PRACTICE"
+      ]
+    },
+    {
+      "problem_id": "PB-Q23",
+      "bloom_goal_id": "python.recursion-L5",
+      "topic": "python.recursion",
+      "skill_name": "递归",
+      "problem_text": "以下递归函数计算斐波那契数列，运行 fib(10) 会发生什么问题？如何优化？\n\ndef fib(n):\n    if n <= 1: return n\n    return fib(n-1) + fib(n-2)",
+      "correct_answer": "问题：重复计算导致指数级时间复杂度。fib(10)会重复计算 fib(8)、fib(7) 等多次。优化方案：1）记忆化递归（@lru_cache）；2）迭代改写。",
+      "bloom_layer_observed": "L5",
+      "a_specialized": [
+        0.2,
+        0.3,
+        0.9,
+        0.1,
+        0.1
+      ],
+      "mirt_params": {
+        "difficulty": 0.7,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
+      "misconceptions": [
+        "M5"
+      ],
+      "intervention_types": [
+        "EXPLANATORY"
+      ]
+    },
+    {
+      "problem_id": "PB-Q24",
+      "bloom_goal_id": "python.recursion-L6",
+      "topic": "python.recursion",
+      "skill_name": "递归",
+      "problem_text": "设计递归函数 reverse_list(s)，接受一个字符串，返回逆序字符串。不能使用切片 s[::-1]，必须用递归。",
+      "correct_answer": "def reverse_list(s):\n    if len(s) <= 1: return s\n    return s[-1] + reverse_list(s[:-1])",
+      "bloom_layer_observed": "L6",
+      "a_specialized": [
+        0.2,
+        0.3,
+        0.9,
+        0.1,
+        0.1
+      ],
+      "mirt_params": {
+        "difficulty": 0.8,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
+      "misconceptions": [],
+      "intervention_types": [
+        "PRACTICE"
+      ]
+    },
+    {
+      "problem_id": "PB-Q25",
+      "bloom_goal_id": "python.scope-L5",
+      "topic": "python.scope",
+      "skill_name": "作用域",
+      "problem_text": "以下代码为什么无法把 x 改成 20？修改它使函数能真正改变全局变量。\n\nx = 10\ndef foo():\n    x = 20\n    print(x)\nfoo()\nprint(x)",
+      "correct_answer": "因为函数内的 x=20 创建了一个局部变量，覆盖了全局变量。需要用 global x 声明：\ndef foo():\n    global x\n    x = 20",
+      "bloom_layer_observed": "L5",
+      "a_specialized": [
+        0.3,
+        0.9,
+        0.2,
+        0.1,
+        0.1
+      ],
+      "mirt_params": {
+        "difficulty": 0.7,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
+      "misconceptions": [
+        "M8"
+      ],
+      "intervention_types": [
+        "EXPLANATORY"
+      ]
+    },
+    {
+      "problem_id": "PB-Q26",
+      "bloom_goal_id": "python.scope-L6",
+      "topic": "python.scope",
+      "skill_name": "作用域",
+      "problem_text": "设计一个闭包函数 make_counter(start=0)，返回一个计数器函数，每次调用返回并递增计数器的值。",
+      "correct_answer": "def make_counter(start=0):\n    count = [start]\n    def counter():\n        count[0] += 1\n        return count[0]\n    return counter",
+      "bloom_layer_observed": "L6",
+      "a_specialized": [
+        0.3,
+        0.9,
+        0.2,
+        0.1,
+        0.1
+      ],
+      "mirt_params": {
+        "difficulty": 0.8,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
+      "misconceptions": [],
+      "intervention_types": [
+        "PRACTICE"
+      ]
     }
   ]
 }
