@@ -1,328 +1,442 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ECOS 学生端 — Python 基础</title>
-    <link rel="stylesheet" href="styles.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ECOS 学生端</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font: 14px/1.5 system-ui, sans-serif; background: #f5f5f5; color: #222; }
+a { color: #2563eb; }
+
+/* 容器 */
+.wrap { max-width: 800px; margin: 0 auto; padding: 0 12px; }
+
+/* 顶栏 */
+.topbar { background: #1e40af; color: #fff; padding: 8px 0; margin-bottom: 12px; }
+.topbar .wrap { display: flex; align-items: center; gap: 16px; }
+.topbar h1 { font-size: 15px; font-weight: 600; }
+.topbar .kpi { display: flex; gap: 16px; font-size: 12px; }
+.topbar .kpi span { opacity: 0.85; }
+
+/* 面板 */
+.card { background: #fff; border-radius: 8px; margin-bottom: 8px; }
+.ch { padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 11px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: .05em; display: flex; gap: 6px; align-items: center; }
+.ch .t { font-size: 11px; background: #f3f4f6; color: #666; padding: 1px 7px; border-radius: 20px; }
+.ch .t.blue { background: #dbeafe; color: #1e40af; }
+.ch .t.green { background: #dcfce7; color: #166534; }
+
+/* 5D 网格 */
+.dim-grid { display: grid; grid-template-columns: repeat(5,1fr); gap: 6px; margin-bottom: 10px; }
+.dim { background: #fff; border-radius: 6px; padding: 8px 6px; text-align: center; }
+.dim .lbl { font-size: 13px; font-weight: 700; color: #1e40af; text-transform: uppercase; }
+.dim .cn { font-size: 10px; color: #888; }
+.dim .theta { font-size: 18px; font-weight: 700; color: #1e40af; margin: 2px 0; }
+.dim .bar { height: 4px; background: #e5e7eb; border-radius: 2px; overflow: hidden; }
+.dim .bar div { height: 100%; background: #2563eb; border-radius: 2px; }
+.dim .conf-label { font-size: 9px; color: #aaa; margin-top: 3px; }
+.dim .conf-bar { height: 3px; background: #dbe4f5; border-radius: 2px; overflow: hidden; }
+.dim .conf-bar div { height: 100%; background: #8b5cf6; border-radius: 2px; }
+
+/* Bloom + 右侧面板 两栏 */
+.state-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+.state-row .card { margin-bottom: 0; }
+
+/* Bloom */
+.bloom-rows { padding: 6px 10px; }
+.br { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.br span { width: 36px; font-size: 11px; color: #6b7280; font-weight: 500; text-align: right; }
+.br .fill { flex: 1; height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden; }
+.br .fill div { height: 100%; background: #3b82f6; border-radius: 4px; transition: width 0.3s; }
+.br .pct { width: 30px; text-align: right; font-size: 10px; color: #9ca3af; }
+
+/* TC 状态 */
+.tc-rows { padding: 6px 10px; }
+.tc-r { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; font-size: 11px; }
+.tc-r .tc-id { font-weight: 600; color: #92400e; min-width: 30px; }
+.tc-r .tc-status { font-size: 10px; padding: 1px 6px; border-radius: 10px; font-weight: 500; }
+.tc-r .tc-status.pre { background: #f3f4f6; color: #6b7280; }
+.tc-r .tc-status.liminal { background: #fef3c7; color: #92400e; }
+.tc-r .tc-status.post { background: #dcfce7; color: #166534; }
+.tc-r .tc-progress { flex: 1; height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden; }
+.tc-r .tc-progress div { height: 100%; background: #f59e0b; border-radius: 3px; transition: width 0.3s; }
+.tc-r .tc-pct { font-size: 10px; color: #9ca3af; width: 28px; text-align: right; }
+
+/* LearningDNA */
+.ldn-row { padding: 6px 10px; font-size: 11px; color: #6b7280; }
+.ldn-row div { margin-bottom: 3px; }
+.ldn-row strong { color: #374151; }
+
+/* Trajectory */
+.traj-list { padding: 6px 10px; max-height: 120px; overflow-y: auto; font-size: 11px; }
+.traj-item { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; padding: 3px 6px; background: #f9fafb; border-radius: 4px; }
+.traj-item .t-num { color: #9ca3af; font-size: 10px; min-width: 20px; }
+.traj-item .t-k, .traj-item .t-p, .traj-item .t-s { font-family: monospace; font-size: 10px; }
+.traj-item .t-k { color: #1e40af; }
+.traj-item .t-p { color: #7c3aed; }
+.traj-item .t-s { color: #059669; }
+
+/* Misc 历史 */
+.misc-list { padding: 6px 10px; font-size: 11px; }
+.misc-badge { display: inline-block; background: #fef3c7; color: #92400e; border: 1px solid #fde68a; padding: 1px 6px; border-radius: 10px; font-size: 10px; font-weight: 600; margin: 2px 4px 2px 0; }
+
+/* 题目 */
+.prob { padding: 12px; font-family: monospace; font-size: 13px; white-space: pre-wrap; line-height: 1.6; min-height: 52px; }
+
+/* 输入 */
+.ta { width: 100%; min-height: 80px; padding: 10px 12px; border: none; border-bottom: 1px solid #eee; font: 13px monospace; resize: vertical; outline: none; }
+.btns { display: flex; gap: 6px; padding: 8px 10px; }
+button { flex: 1; padding: 8px; background: #2563eb; color: #fff; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; font-weight: 500; }
+button:hover { background: #1d4ed8; }
+button.g { background: #16a34a; }
+button.g:hover { background: #15803d; }
+button:disabled { opacity: 0.5; cursor: default; }
+
+/* 反馈 */
+.fb { padding: 10px 12px; font-size: 13px; }
+.fb.ok { color: #16a34a; font-weight: 600; }
+.fb.err { color: #dc2626; font-weight: 600; }
+.fb .meta { margin-top: 4px; font-size: 11px; color: #888; font-family: monospace; }
+.fb .misc { color: #d97706; font-size: 12px; margin-top: 3px; }
+
+/* 干预 */
+.iv { background: #fffbeb; border-radius: 8px; margin-bottom: 8px; }
+.iv .ch { background: #fef3c7; border-color: #fde68a; color: #92400e; }
+.iv .bd { padding: 10px 12px; font-size: 13px; color: #78350f; line-height: 1.7; }
+.iv .lbl { display: inline-block; background: #fef3c7; border: 1px solid #fde68a; color: #92400e; font-size: 11px; font-weight: 600; padding: 0 6px; border-radius: 4px; margin-right: 4px; }
+
+/* 登录 */
+.login { max-width: 360px; margin: 80px auto; text-align: center; }
+.login h2 { font-size: 18px; margin-bottom: 16px; color: #1e40af; }
+.login input { width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; margin-bottom: 8px; }
+.login button { width: 100%; margin-top: 4px; }
+</style>
 </head>
 <body>
-    <div class="container">
-        <!-- 学生 ID 输入区域 -->
-        <section class="section student-id-section">
-            <h2>登录</h2>
-            <div class="form-group">
-                <label for="student-id">学生 ID：</label>
-                <input type="text" id="student-id" placeholder="请输入学生ID" value="python_student_001">
-                <button id="btn-login">进入学习</button>
-            </div>
-        </section>
 
-        <!-- 当前状态展示区域 -->
-        <section class="section status-section" style="display: none;">
-            <h2>学习状态</h2>
+<!-- 顶栏 -->
+<div class="topbar" id="topbar" style="display:none;">
+  <div class="wrap">
+    <h1>ECOS Python 基础</h1>
+    <div class="kpi">
+      <span id="kb">Bloom: —</span>
+      <span id="kc">C折扣: 1.00</span>
+      <span id="kov">总置信度: —</span>
+    </div>
+  </div>
+</div>
 
-            <!-- BloomProfile 雷达图占位 -->
-            <div class="bloom-profile-card">
-                <h3>BloomProfile</h3>
-                <div class="bloom-levels">
-                    <div class="bloom-level">
-                        <span class="level-label">L1 Remember</span>
-                        <div class="level-bar"><div class="level-fill" id="bloom-L1" style="width: 0%"></div></div>
-                        <span class="level-pct" id="bloom-L1-pct">0%</span>
-                    </div>
-                    <div class="bloom-level">
-                        <span class="level-label">L2 Understand</span>
-                        <div class="level-bar"><div class="level-fill" id="bloom-L2" style="width: 0%"></div></div>
-                        <span class="level-pct" id="bloom-L2-pct">0%</span>
-                    </div>
-                    <div class="bloom-level">
-                        <span class="level-label">L3 Apply</span>
-                        <div class="level-bar"><div class="level-fill" id="bloom-L3" style="width: 0%"></div></div>
-                        <span class="level-pct" id="bloom-L3-pct">0%</span>
-                    </div>
-                    <div class="bloom-level">
-                        <span class="level-label">L4 Analyze</span>
-                        <div class="level-bar"><div class="level-fill" id="bloom-L4" style="width: 0%"></div></div>
-                        <span class="level-pct" id="bloom-L4-pct">0%</span>
-                    </div>
-                </div>
-                <div class="dominant-level" id="dominant-level">Dominant: —</div>
-            </div>
+<div class="wrap">
 
-            <!-- 5D 状态条形图 -->
-            <div class="five-d-card">
-                <h3>5D 学习状态</h3>
-                <div class="five-d-bars">
-                    <div class="five-d-item">
-                        <span class="dim-label">K 知识</span>
-                        <div class="dim-bar"><div class="dim-fill" id="dim-K" style="width: 0%"></div></div>
-                        <span class="dim-val" id="val-K">0.00</span>
-                    </div>
-                    <div class="five-d-item">
-                        <span class="dim-label">P 程序</span>
-                        <div class="dim-bar"><div class="dim-fill" id="dim-P" style="width: 0%"></div></div>
-                        <span class="dim-val" id="val-P">0.00</span>
-                    </div>
-                    <div class="five-d-item">
-                        <span class="dim-label">S 策略</span>
-                        <div class="dim-bar"><div class="dim-fill" id="dim-S" style="width: 0%"></div></div>
-                        <span class="dim-val" id="val-S">0.00</span>
-                    </div>
-                    <div class="five-d-item">
-                        <span class="dim-label">C 置信</span>
-                        <div class="dim-bar"><div class="dim-fill" id="dim-C" style="width: 0%"></div></div>
-                        <span class="dim-val" id="val-C">0.00</span>
-                    </div>
-                    <div class="five-d-item">
-                        <span class="dim-label">X 支架</span>
-                        <div class="dim-bar"><div class="dim-fill" id="dim-X" style="width: 0%"></div></div>
-                        <span class="dim-val" id="val-X">0.00</span>
-                    </div>
-                </div>
-                <div class="c-discount" id="c-discount">C 折扣因子: 1.00</div>
-            </div>
-        </section>
+  <!-- 登录 -->
+  <div class="login" id="login">
+    <h2>ECOS Python 基础</h2>
+    <input type="text" id="sid" value="python_student_001" placeholder="学生 ID">
+    <button onclick="start()">进入学习</button>
+  </div>
 
-        <!-- 题目展示区域 -->
-        <section class="section problem-section" style="display: none;">
-            <h2>当前题目 <span id="prob-badge" class="prob-badge"></span></h2>
-            <div class="problem-card">
-                <div class="problem-meta" id="problem-meta">
-                    <span class="topic-tag" id="topic-tag">—</span>
-                    <span class="bloom-tag" id="bloom-tag">—</span>
-                </div>
-                <div class="problem-text" id="problem-text">
-                    [加载中...]
-                </div>
-                <div class="problem-input">
-                    <textarea id="answer-input" rows="4" placeholder="输入你的代码或答案..."></textarea>
-                </div>
-                <button id="btn-submit">提交答案</button>
-            </div>
-        </section>
+  <!-- 学习区 -->
+  <div id="study" style="display:none;">
 
-        <!-- 反馈展示区域 -->
-        <section class="section feedback-section" style="display: none;">
-            <h2>反馈</h2>
-            <div class="feedback-card" id="feedback-card">
-                <div class="feedback-result" id="feedback-result"></div>
-                <div class="feedback-state" id="feedback-state"></div>
-            </div>
-        </section>
-
-        <!-- 干预展示区域 -->
-        <section class="section intervention-section" style="display: none;">
-            <h2>学习推荐</h2>
-            <div class="intervention-card" id="intervention-card">
-                <div class="intervention-type" id="intervention-type">
-                    [干预类型占位]
-                </div>
-                <div class="intervention-content" id="intervention-content">
-                    [干预内容加载中...]
-                </div>
-            </div>
-        </section>
-
-        <!-- 下一题按钮 -->
-        <section class="section next-section" style="display: none;">
-            <button id="btn-next" class="btn-next">下一题 →</button>
-        </section>
+    <!-- 5D 状态 + overall_confidence -->
+    <div class="dim-grid" id="dimGrid">
+      <!-- JS 动态渲染 -->
     </div>
 
-    <script>
-        const API_BASE = "http://localhost:5173/api";
+    <!-- 右侧面板（Bloom + TC + LearningDNA + Trajectory + Misc）-->
+    <div class="state-row">
+      <!-- 左：Blooom -->
+      <div class="card">
+        <div class="ch">Bloom Profile <span class="t" id="bdom">—</span></div>
+        <div class="bloom-rows" id="bloomRows">
+          <!-- JS 动态渲染 L1-L6 -->
+        </div>
+      </div>
+      <!-- 右：TC + LearningDNA -->
+      <div class="card">
+        <div class="ch">TC 状态 <span class="t blue">阈值概念</span></div>
+        <div class="tc-rows" id="tcRows">
+          <!-- JS 动态渲染 -->
+        </div>
+        <div class="ch" style="border-top:1px solid #eee; background:#f9fafb;">LearningDNA</div>
+        <div class="ldn-row" id="ldnRow">
+          <!-- JS 动态渲染 -->
+        </div>
+      </div>
+    </div>
 
-        let currentStudentId = "";
-        let currentQuestion = null;
+    <!-- Trajectory 历史 -->
+    <div class="card" id="trajCard" style="display:none;">
+      <div class="ch">成长轨迹 <span class="t" id="trajN">0</span> 条</div>
+      <div class="traj-list" id="trajList">
+        <!-- JS 动态渲染 -->
+      </div>
+    </div>
 
-        // ─── 登录 ────────────────────────────────────────────────────────────────
-        document.getElementById("btn-login")?.addEventListener("click", async function () {
-            const studentId = document.getElementById("student-id").value.trim();
-            if (!studentId) {
-                alert("请输入学生 ID");
-                return;
-            }
-            currentStudentId = studentId;
-            document.querySelector(".student-id-section").style.display = "none";
-            document.querySelector(".status-section").style.display = "block";
-            document.querySelector(".problem-section").style.display = "block";
-            await refreshState();
-            await loadNextQuestion();
-        });
+    <!-- Misconceptions 历史 -->
+    <div class="card" id="miscCard" style="display:none;">
+      <div class="ch">误概念历史 <span class="t" id="miscN">0</span></div>
+      <div class="misc-list" id="miscList">
+        <!-- JS 动态渲染 -->
+      </div>
+    </div>
 
-        // ─── 加载下一题 ────────────────────────────────────────────────────────
-        async function loadNextQuestion() {
-            hideAllSections(["status-section", "problem-section"]);
-            document.querySelector(".problem-section").style.display = "block";
+    <!-- 题目 -->
+    <div class="card">
+      <div class="ch">当前题目 <span class="t" id="qid"></span> <span class="t blue" id="qtopic"></span> <span class="t green" id="qbloom"></span></div>
+      <div class="prob" id="qtext">—</div>
+    </div>
 
-            try {
-                const resp = await fetch(`${API_BASE}/question/${currentStudentId}`);
-                const data = await resp.json();
+    <!-- 答题 -->
+    <div class="card">
+      <div class="ch">你的答案</div>
+      <textarea class="ta" id="ans" placeholder="输入代码或答案..."></textarea>
+      <div class="btns">
+        <button id="btnSub" onclick="submit()">提交答案</button>
+        <button id="btnNext" class="g" onclick="nextQ()" style="display:none;">下一题 →</button>
+      </div>
+    </div>
 
-                if (data.done) {
-                    document.getElementById("problem-text").innerHTML =
-                        `<p style="color:#22c55e;font-weight:bold;">🎉 恭喜！所有题目已完成！</p>`;
-                    return;
-                }
+    <!-- 反馈 -->
+    <div class="card" id="fbox" style="display:none;">
+      <div class="ch">反馈</div>
+      <div class="fb" id="fbres"></div>
+    </div>
 
-                currentQuestion = data;
-                document.getElementById("problem-text").innerText = data.problem_text;
-                document.getElementById("prob-badge").innerText = data.problem_id;
-                document.getElementById("topic-tag").innerText = data.skill_name;
-                document.getElementById("bloom-tag").innerText = data.bloom_layer;
-                document.getElementById("answer-input").value = "";
-                hideAllSections(["status-section", "problem-section", "feedback-section", "intervention-section", "next-section"]);
-                document.querySelector(".problem-section").style.display = "block";
-            } catch (e) {
-                document.getElementById("problem-text").innerHTML =
-                    `<p style="color:#ef4444;">加载失败: ${e.message}</p>`;
-            }
-        }
+    <!-- 干预 -->
+    <div class="iv" id="ivbox" style="display:none;">
+      <div class="ch" id="ivtype"></div>
+      <div class="bd" id="ivbd"></div>
+    </div>
 
-        // ─── 提交答案 ─────────────────────────────────────────────────────────
-        document.getElementById("btn-submit")?.addEventListener("click", async function () {
-            if (!currentQuestion) return;
-            const answer = document.getElementById("answer-input").value.trim();
-            if (!answer) {
-                alert("请输入答案");
-                return;
-            }
+  </div>
+</div>
 
-            // 正确性由后端判断（这里先让用户自评，或传给后端判断）
-            const correct = confirm("你认为你的答案正确吗？点确定表示正确，取消表示错误。");
+<script>
+const API = 'http://localhost:5173/api';
+let sid = '', q = null;
 
-            try {
-                // 提交答案
-                const resp = await fetch(`${API_BASE}/answer`, {
-                    method: "POST",
-                    headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({
-                        student_id: currentStudentId,
-                        problem_id: currentQuestion.problem_id,
-                        skill_id: currentQuestion.topic,
-                        correct: correct,
-                        bloom_layer: currentQuestion.bloom_layer,
-                        explanation_text: answer,
-                    }),
-                });
-                const result = await resp.json();
+const DIMS = [
+  {k:'K', label:'概念理解', color:'#1e40af'},
+  {k:'P', label:'程序知识', color:'#7c3aed'},
+  {k:'S', label:'策略知识', color:'#059669'},
+  {k:'C', label:'元认知',   color:'#d97706'},
+  {k:'X', label:'跨域迁移', color:'#dc2626'},
+];
 
-                // 显示反馈
-                document.querySelector(".feedback-section").style.display = "block";
-                document.querySelector(".intervention-section").style.display = "none";
-                document.querySelector(".next-section").style.display = "none";
+function start() {
+  sid = document.getElementById('sid').value.trim() || 'python_student_001';
+  document.getElementById('login').style.display = 'none';
+  document.getElementById('study').style.display = 'block';
+  document.getElementById('topbar').style.display = 'block';
+  refresh();
+  loadQ();
+}
 
-                const resultEl = document.getElementById("feedback-result");
-                const stateEl = document.getElementById("feedback-state");
+async function loadQ() {
+  try {
+    const r = await fetch(API + '/question/' + sid);
+    const d = await r.json();
+    if (d.done) {
+      document.getElementById('qtext').innerHTML = '<b style="color:#16a34a">🎉 全部完成！</b>';
+      return;
+    }
+    q = d;
+    const h = v => String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    document.getElementById('qtext').innerHTML = h(d.problem_text).replace(/\n/g,'<br>');
+    document.getElementById('qid').innerText = d.problem_id;
+    document.getElementById('qtopic').innerText = d.skill_name;
+    document.getElementById('qbloom').innerText = d.bloom_layer;
+    document.getElementById('ans').value = '';
+    document.getElementById('fbox').style.display = 'none';
+    document.getElementById('ivbox').style.display = 'none';
+    document.getElementById('btnSub').style.display = '';
+    document.getElementById('btnNext').style.display = 'none';
+  } catch(e) { alert(e.message); }
+}
 
-                if (correct) {
-                    resultEl.innerHTML = `<span class="correct">✅ 正确！</span>`;
-                } else {
-                    resultEl.innerHTML = `<span class="incorrect">❌ 错误</span>`;
-                }
+async function submit() {
+  if (!q) return;
+  const a = document.getElementById('ans').value.trim();
+  if (!a) { alert('请输入答案'); return; }
+  document.getElementById('btnSub').disabled = true;
+  document.getElementById('btnSub').innerText = 'AI 评判中…';
+  try {
+    const jr = await fetch(API + '/judge', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ student_id: sid, problem_id: q.problem_id, student_answer: a })
+    });
+    const jd = await jr.json();
+    if (jd.error) { alert(jd.error); return; }
+    const ok = jd.correct;
+    const reasoning = jd.reasoning || '';
 
-                const dims = result.theta;
-                stateEl.innerHTML = `
-                    <div class="theta-row">K=${dims.K}  P=${dims.P}  S=${dims.S}  C=${dims.C}  X=${dims.X}</div>
-                    <div class="misc-info">${result.misc_triggered ? `⚠️ 触发了 ${result.misc_id}（置信度 ${result.misc_confidence}）` : "无 misconception 触发"}</div>
-                    <div class="c-discount">C 折扣因子: ${result.c_discount_factor}</div>
-                `;
+    const r = await fetch(API + '/answer', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ student_id: sid, problem_id: q.problem_id, skill_id: q.topic,
+        correct: ok, bloom_layer: q.bloom_layer, explanation_text: a, reasoning: reasoning })
+    });
+    const d = await r.json();
 
-                // 如果触发了 misconception，生成干预
-                if (result.misc_triggered) {
-                    await generateIntervention(result.misc_id, answer, currentQuestion.problem_text);
-                } else {
-                    document.querySelector(".next-section").style.display = "block";
-                }
+    document.getElementById('fbox').style.display = 'block';
+    document.getElementById('fbres').className = 'fb ' + (ok ? 'ok' : 'err');
+    document.getElementById('fbres').innerHTML = (ok ? '✅ 正确' : '❌ 错误') + `<div style="margin-top:4px;font-size:12px;color:#6b7280;">AI 评判：${reasoning}</div>`;
+    let meta = `K=${d.theta.K}  P=${d.theta.P}  S=${d.theta.S}  C=${d.theta.C}  X=${d.theta.X}`;
+    if (d.misc_triggered) meta += ` &nbsp;|&nbsp; ⚠️ ${d.misc_id} (${d.misc_confidence})`;
+    document.getElementById('fbres').innerHTML += `<div class="meta">${meta}</div>`;
+    if (d.misc_triggered) {
+      const r2 = await fetch(API + '/intervention/' + sid, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ misc_id: d.misc_id, student_answer: a, problem_text: q.problem_text })
+      });
+      const d2 = await r2.json();
+      if (d2.intervention) {
+        document.getElementById('ivbox').style.display = 'block';
+        document.getElementById('ivtype').innerHTML = `<span class="lbl">${d2.misc_id} ${d2.misc_name}</span> ${d2.type}`;
+        document.getElementById('ivbd').innerText = d2.intervention;
+      }
+    }
+    document.getElementById('btnSub').style.display = 'none';
+    document.getElementById('btnNext').style.display = '';
+    await refresh();
+  } catch(e) { alert(e.message); } finally {
+    document.getElementById('btnSub').disabled = false;
+    document.getElementById('btnSub').innerText = '提交答案';
+  }
+}
 
-                // 刷新状态
-                await refreshState();
-            } catch (e) {
-                alert(`提交失败: ${e.message}`);
-            }
-        });
+async function nextQ() {
+  await refresh();
+  await loadQ();
+}
 
-        // ─── 生成干预 ─────────────────────────────────────────────────────────
-        async function generateIntervention(misc_id, student_answer, problem_text) {
-            try {
-                const resp = await fetch(`${API_BASE}/intervention/${currentStudentId}`, {
-                    method: "POST",
-                    headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({
-                        misc_id: misc_id,
-                        student_answer: student_answer,
-                        problem_text: problem_text,
-                    }),
-                });
-                const data = await resp.json();
+// 渲染 5D 维度
+function renderDims(d) {
+  const mx = 2.0;
+  let html = '';
+  for (const dim of DIMS) {
+    const v = parseFloat(d.theta[dim.k]) || 0;
+    const conf = parseFloat(d.theta_confidence?.[dim.k]) || 0;
+    const pct = Math.min(100, Math.abs(v)/mx*100);
+    const confPct = Math.min(100, conf*100);
+    html += `<div class="dim">
+      <div class="lbl">${dim.k}</div>
+      <div class="cn">${dim.label}</div>
+      <div class="theta">${Number(v).toFixed(4)}</div>
+      <div class="bar"><div style="width:${pct}%;background:${dim.color}"></div></div>
+      <div class="conf-label">置信度 ${Math.round(confPct)}%</div>
+      <div class="conf-bar"><div style="width:${confPct}%"></div></div>
+    </div>`;
+  }
+  document.getElementById('dimGrid').innerHTML = html;
+}
 
-                if (data.intervention) {
-                    document.querySelector(".intervention-section").style.display = "block";
-                    document.getElementById("intervention-type").innerHTML =
-                        `<span class="misc-tag">${data.misc_id} ${data.misc_name}</span> ${data.type}`;
-                    document.getElementById("intervention-content").innerText = data.intervention;
-                }
-                document.querySelector(".next-section").style.display = "block";
-            } catch (e) {
-                document.getElementById("intervention-content").innerText = `干预生成失败: ${e.message}`;
-                document.querySelector(".next-section").style.display = "block";
-            }
-        }
+// 渲染 Bloom L1-L6
+function renderBloom(d) {
+  document.getElementById('bdom').innerText = d.bloom_profile?.dominant || '—';
+  const bl = d.bloom_profile?.bloom_levels || {};
+  const labels = {L1:'记忆',L2:'理解',L3:'应用',L4:'分析',L5:'评价',L6:'创造'};
+  let html = '';
+  for (const lvl of ['L1','L2','L3','L4','L5','L6']) {
+    const v = parseFloat(bl[lvl]) || 0;
+    const pct = Math.round(v * 100);
+    html += `<div class="br">
+      <span>${lvl} ${labels[lvl]}</span>
+      <div class="fill"><div style="width:${pct}%"></div></div>
+      <span class="pct">${pct}%</span>
+    </div>`;
+  }
+  document.getElementById('bloomRows').innerHTML = html;
+}
 
-        // ─── 下一题 ───────────────────────────────────────────────────────────
-        document.getElementById("btn-next")?.addEventListener("click", async function () {
-            await refreshState();
-            await loadNextQuestion();
-        });
+// 渲染 TC states
+function renderTC(d) {
+  const tc = d.tc_states || [];
+  if (tc.length === 0) {
+    document.getElementById('tcRows').innerHTML = '<div style="font-size:11px;color:#9ca3af;padding:6px 10px;">暂无 TC 数据（答对高水平题触发）</div>';
+    return;
+  }
+  let html = '';
+  for (const t of tc) {
+    const statusLabel = {pre_liminal:'前',liminal:'LIMINAL',post_liminal:'已跨越'}[t.status] || t.status;
+    const statusClass = {pre_liminal:'pre',liminal:'liminal',post_liminal:'post'}[t.status] || 'pre';
+    const pct = Math.round((t.progress || 0) * 100);
+    html += `<div class="tc-r">
+      <span class="tc-id">${t.id}</span>
+      <span class="tc-status ${statusClass}">${statusLabel}</span>
+      <div class="tc-progress"><div style="width:${pct}%"></div></div>
+      <span class="tc-pct">${pct}%</span>
+    </div>`;
+  }
+  document.getElementById('tcRows').innerHTML = html;
+}
 
-        // ─── 刷新状态 ─────────────────────────────────────────────────────────
-        async function refreshState() {
-            try {
-                const resp = await fetch(`${API_BASE}/state/${currentStudentId}`);
-                const data = await resp.json();
+// 渲染 LearningDNA
+function renderLDN(d) {
+  const ldn = d.learning_dna || {};
+  document.getElementById('ldnRow').innerHTML = `
+    <div><strong>输入偏好:</strong> ${ldn.input_preference || '—'}</div>
+    <div><strong>反馈偏好:</strong> ${ldn.feedback_preference || '—'}</div>
+  `;
+}
 
-                // 5D 状态
-                const maxTheta = 2.0;  // 归一化参考值
-                for (const dim of ["K", "P", "S", "C", "X"]) {
-                    const val = data.theta[dim] || 0;
-                    const pct = Math.min(100, Math.abs(val) / maxTheta * 100);
-                    const el = document.getElementById(`dim-${dim}`);
-                    const valEl = document.getElementById(`val-${dim}`);
-                    if (el) el.style.width = pct + "%";
-                    if (valEl) valEl.innerText = val.toFixed(3);
-                }
+// 渲染 Trajectory
+function renderTraj(d) {
+  const traj = d.trajectory || [];
+  if (traj.length === 0) {
+    document.getElementById('trajCard').style.display = 'none';
+    return;
+  }
+  document.getElementById('trajCard').style.display = 'block';
+  document.getElementById('trajN').innerText = traj.length;
+  let html = '';
+  // 反序，最近的在前
+  for (let i = traj.length - 1; i >= 0; i--) {
+    const t = traj[i];
+    const theta = t.theta_5d || [];
+    const ts = t.timestamp ? t.timestamp.substring(5,16) : `#${i+1}`;
+    html += `<div class="traj-item">
+      <span class="t-num">${ts}</span>
+      <span class="t-k">K${theta[0]?.toFixed(2)||'—'}</span>
+      <span class="t-p">P${theta[1]?.toFixed(2)||'—'}</span>
+      <span class="t-s">S${theta[2]?.toFixed(2)||'—'}</span>
+      <span style="margin-left:auto;font-size:10px;color:#9ca3af;">${t.bloom_dominant||''}</span>
+    </div>`;
+  }
+  document.getElementById('trajList').innerHTML = html;
+}
 
-                // C 折扣因子
-                const cDiscount = document.getElementById("c-discount");
-                if (cDiscount) cDiscount.innerText = `C 折扣因子: ${data.c_discount_factor}`;
+// 渲染 Misconceptions
+function renderMisc(d) {
+  const misc = d.misc_history || [];
+  if (misc.length === 0) {
+    document.getElementById('miscCard').style.display = 'none';
+    return;
+  }
+  document.getElementById('miscCard').style.display = 'block';
+  document.getElementById('miscN').innerText = misc.length;
+  document.getElementById('miscList').innerHTML = misc.slice(-10).map(m =>
+    `<span class="misc-badge">${m}</span>`
+  ).join('');
+}
 
-                // BloomProfile
-                const bloomLevels = data.bloom_profile?.bloom_levels || {};
-                for (const lvl of ["L1", "L2", "L3", "L4"]) {
-                    const pct = (bloomLevels[lvl] || 0) * 100;
-                    const el = document.getElementById(`bloom-${lvl}`);
-                    const pctEl = document.getElementById(`bloom-${lvl}-pct`);
-                    if (el) el.style.width = pct + "%";
-                    if (pctEl) pctEl.innerText = (pct).toFixed(0) + "%";
-                }
+async function refresh() {
+  try {
+    const r = await fetch(API + '/state/' + sid);
+    const d = await r.json();
 
-                const dominantEl = document.getElementById("dominant-level");
-                if (dominantEl) dominantEl.innerText = `Dominant: ${data.bloom_profile?.dominant || "—"}`;
-            } catch (e) {
-                console.warn("状态刷新失败:", e.message);
-            }
-        }
+    document.getElementById('kb').innerText = 'Bloom: ' + (d.bloom_profile?.dominant || '—');
+    document.getElementById('kc').innerText = 'C折扣: ' + (d.c_discount_factor || 1.0).toFixed(2);
+    document.getElementById('kov').innerText = '总置信度: ' + (d.overall_confidence || 0).toFixed(3);
 
-        function hideAllSections(except = []) {
-            for (const cls of ["student-id-section", "status-section", "problem-section",
-                               "feedback-section", "intervention-section", "next-section"]) {
-                if (!except.includes(cls)) {
-                    const el = document.querySelector(`.${cls}`);
-                    if (el) el.style.display = "none";
-                }
-            }
-        }
-    </script>
+    renderDims(d);
+    renderBloom(d);
+    renderTC(d);
+    renderLDN(d);
+    renderTraj(d);
+    renderMisc(d);
+  } catch(e) { console.warn(e.message); }
+}
+</script>
 </body>
 </html>
