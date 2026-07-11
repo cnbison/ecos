@@ -62,7 +62,6 @@ logs/
 Thumbs.db
 
 # Project specific
-/data/
 /cache/
 /output/
 /checkpoints/
