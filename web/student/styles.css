@@ -195,3 +195,19 @@ h2 {
   color: inherit !important;
   opacity: 1;
 }
+
+/* W3+ (2026-07-17): 导出报告按钮（C 端接口） */
+.export-btn {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-left: auto;
+  transition: background 0.2s ease;
+}
+.export-btn:hover { background: rgba(255, 255, 255, 0.3); }
+.export-btn:disabled { opacity: 0.5; cursor: default; }

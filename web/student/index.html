@@ -147,6 +147,22 @@ button:disabled { opacity: 0.5; cursor: default; }
   color: inherit !important;
   opacity: 1;
 }
+
+/* W3+ (2026-07-17): 导出报告按钮（C 端接口） */
+.export-btn {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-left: auto;
+  transition: background 0.2s ease;
+}
+.export-btn:hover { background: rgba(255, 255, 255, 0.3); }
+.export-btn:disabled { opacity: 0.5; cursor: default; }
 </style>
 </head>
 <body>
@@ -163,6 +179,7 @@ button:disabled { opacity: 0.5; cursor: default; }
       <span id="kc">C折扣: 1.00</span>
       <span id="kov">总置信度: —</span>
       <span id="warmup-pill" class="warmup-pill" style="display:none;" title="我们还在熟悉你的节奏，状态估计置信度较低">🌱 正在熟悉你的节奏</span>
+      <button id="export-btn" class="export-btn" onclick="exportReport()" title="导出当前学习状态为 JSON 文件（C 端接口,可发给家长/教师）">📊 导出报告</button>
     </div>
   </div>
 </div>
@@ -351,7 +368,7 @@ async function nextQ() {
   await loadQ();
 }
 
-// 渲染 5D 维度
+// 渲染 5D 维度（W3+ 升级：per-dim confidence < 0.5 独立灰显 + tooltip）
 function renderDims(d) {
   const mx = 2.0;
   const isWarmup = !!d.is_warmup;
@@ -359,14 +376,20 @@ function renderDims(d) {
   for (const dim of DIMS) {
     const v = parseFloat(d.theta[dim.k]) || 0;
     const conf = parseFloat(d.theta_confidence?.[dim.k]) || 0;
+    // 每维度独立判断：< 0.5 灰显 + tooltip 解释
+    const isDimUncertain = conf < 0.5;
+    const isGray = isWarmup || isDimUncertain;
+    const grayReason = isDimUncertain
+      ? `我们还在熟悉你的${dim.label}（置信度 ${Math.round(conf*100)}%）`
+      : (isWarmup ? '整体置信度还在压低中（warm-up 期）' : '');
     const pct = Math.min(100, Math.abs(v)/mx*100);
     const confPct = Math.min(100, conf*100);
     html += `<div class="dim">
       <div class="lbl">${dim.k}</div>
       <div class="cn">${dim.label}</div>
-      <div class="theta ${isWarmup ? 'is-warmup' : ''}">${Number(v).toFixed(4)}</div>
+      <div class="theta ${isGray ? 'is-warmup' : ''}" title="${grayReason}">${Number(v).toFixed(4)}</div>
       <div class="bar"><div style="width:${pct}%;background:${dim.color}"></div></div>
-      <div class="conf-label ${isWarmup ? 'is-warmup' : ''}">置信度 ${Math.round(confPct)}%</div>
+      <div class="conf-label ${isGray ? 'is-warmup' : ''}" title="${grayReason}">置信度 ${Math.round(confPct)}%</div>
       <div class="conf-bar"><div style="width:${confPct}%"></div></div>
     </div>`;
   }
@@ -523,6 +546,39 @@ async function refresh() {
     renderTraj(d);
     renderMisc(d);
   } catch(e) { console.warn(e.message); }
+}
+
+// W3+：导出学习报告（C 端接口）
+async function exportReport() {
+  const btn = document.getElementById('export-btn');
+  const oldText = btn.innerText;
+  btn.disabled = true;
+  btn.innerText = '导出中…';
+  try {
+    const r = await fetch(API + '/report/' + sid);
+    if (!r.ok) {
+      alert('导出失败：HTTP ' + r.status);
+      return;
+    }
+    const data = await r.json();
+    // 触发下载 JSON 文件
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const today = new Date().toISOString().slice(0, 10);
+    a.download = `ecos_report_${sid}_${today}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    btn.innerText = '✅ 已导出';
+    setTimeout(() => { btn.innerText = oldText; }, 1500);
+  } catch(e) {
+    alert('导出失败：' + e.message);
+  } finally {
+    btn.disabled = false;
+  }
 }
 </script>
 </body>

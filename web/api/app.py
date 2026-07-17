@@ -201,6 +201,51 @@ def api_submit_answer():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/report/<student_id>")
+def api_get_report(student_id: str):
+    """导出学生学习报告（W3+ 落地，详见 discussions/2026-07-17-方向选择-A先C后.md §任务 4）。
+
+    C 端接口:学生/家长可下载 JSON 格式的完整学习状态。
+    数据层留好接口,UI 上做"导出报告"按钮(C 端场景)。
+    """
+    try:
+        from datetime import datetime as _dt
+        state = get_student_state(student_id)
+        # 计算一些 summary
+        trajectory = state.get("trajectory", [])
+        answered_count = len(trajectory)
+        current_bloom = state.get("bloom_profile", {}).get("dominant", "—")
+        warmup_complete = not state.get("is_warmup", True)
+        bloom_distance = state.get("bloom_layer_distance", {})
+
+        report = {
+            "student_id": student_id,
+            "generated_at": _dt.now().isoformat(),
+            "ecos_version": "0.42.0",
+            "summary": {
+                "answered_count": answered_count,
+                "current_bloom_layer": current_bloom,
+                "bloom_layer_distance": bloom_distance,
+                "warmup_complete": warmup_complete,
+                "warmup_progress": {
+                    "count": state.get("warmup_count", 0),
+                    "total": state.get("warmup_total", 5),
+                },
+                "probe_progress": {
+                    "count": state.get("probe_count", 0),
+                    "interval": state.get("probe_interval", 8),
+                    "due_in": state.get("probe_due_in", 0),
+                },
+                "overall_confidence": state.get("overall_confidence", 0.0),
+                "c_discount_factor": state.get("c_discount_factor", 1.0),
+            },
+            "state": state,
+        }
+        return jsonify(report)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/intervention/<student_id>", methods=["POST"])
 def api_generate_intervention(student_id: str):
     """生成靶向干预（LLM 充当领域专家）。"""
