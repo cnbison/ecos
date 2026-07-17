@@ -52,7 +52,7 @@ def api_get_state(student_id: str):
 
 @app.route("/api/question/<student_id>")
 def api_get_question(student_id: str):
-    """获取下一道题目。"""
+    """获取下一道题目（W1 升级：透传 is_warmup + 自适应选题信息）。"""
     try:
         # 获取已答题目的 ID（从 _STUDENT_STATES 历史）
         answered_ids: set[str] = set()
@@ -61,11 +61,41 @@ def api_get_question(student_id: str):
             if hasattr(engine, "_response_history") and student_id in engine._response_history:
                 answered_ids = {h[0] for h in engine._response_history[student_id]}
 
-        prob = select_question_for_student(answered_ids)
+        # W1: 透传 warm-up 状态 + 5D 状态给选题器
+        engine = None
+        state = None
+        if student_id in _STUDENT_STATES:
+            engine = _STUDENT_STATES[student_id]["engine"]
+            state = _STUDENT_STATES[student_id]["state"]
+
+        is_warmup = engine.is_warmup(student_id) if engine is not None else True
+        theta_mean = state.theta_mean.tolist() if state is not None else None
+        theta_cov_diag = [float(state.theta_cov[i, i]) for i in range(5)] if state is not None else None
+        target_bloom = None
+        if state is not None and hasattr(state.bloom_profile, "distance_to_next_layer"):
+            d = state.bloom_profile.distance_to_next_layer()
+            target_bloom = d.get("next") if d.get("next") else None
+
+        prob = select_question_for_student(
+            answered_ids=answered_ids,
+            is_warmup=is_warmup,
+            theta_mean=theta_mean,
+            theta_cov_diag=theta_cov_diag,
+            target_bloom=target_bloom,
+            student_id=student_id,
+        )
         if prob is None:
             return jsonify({"done": True, "message": "所有题目已完成"})
 
-        return jsonify(normalize_problem(prob))
+        normalized = normalize_problem(prob)
+        # W1: 在响应里加 is_warmup + strategy
+        normalized["is_warmup"] = is_warmup
+        normalized["strategy"] = prob.get("_strategy", "unknown")
+        if "_warmup_group" in prob:
+            normalized["warmup_group"] = prob["_warmup_group"]
+        if "_adaptive_dim_star" in prob:
+            normalized["adaptive_dim_star"] = prob["_adaptive_dim_star"]
+        return jsonify(normalized)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

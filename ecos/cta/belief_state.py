@@ -113,6 +113,59 @@ class BloomProfileState:
         # BloomLevel 是 1-indexed，对应数组索引 0..5
         self.dominant_layer = BloomLevel(int(probs.argmax()) + 1)
 
+    def __post_init__(self) -> None:
+        """W1（2026-07-17）：初始化时按 6 层概率重新计算 dominant_layer。
+
+        不依赖硬编码默认值（L2 UNDERSTAND），让默认状态由实际数据驱动。
+        """
+        self.update_dominant()
+
+    def distance_to_next_layer(self) -> dict:
+        """计算"距下一层"的距离（W1 2026-07-17 新增）。
+
+        用于 dashboard 展示"当前 Bloom 层 → 下一层"的进步空间。
+
+        Returns:
+            {
+                "current": str,        # 当前 dominant 层名，如 "L2"
+                "current_value": int,  # 当前 dominant 层数值 (1-6)
+                "next": str | None,    # 下一层名（L6 时为 None）
+                "next_value": int | None,  # 下一层数值
+                "current_prob": float, # 当前层掌握概率
+                "next_prob": float | None,  # 下一层掌握概率
+                "gap": float | None,   # next_prob - current_prob（gap > 0 表示已超过）
+            }
+        """
+        current_val = int(self.dominant_layer.value)
+        current_name = f"L{current_val}"
+        current_prob = float(self.as_vector()[current_val - 1])
+
+        if current_val >= 6:
+            return {
+                "current": current_name,
+                "current_value": current_val,
+                "next": None,
+                "next_value": None,
+                "current_prob": round(current_prob, 4),
+                "next_prob": None,
+                "gap": None,
+            }
+
+        next_val = current_val + 1
+        next_name = f"L{next_val}"
+        next_prob = float(self.as_vector()[next_val - 1])
+        gap = next_prob - current_prob
+
+        return {
+            "current": current_name,
+            "current_value": current_val,
+            "next": next_name,
+            "next_value": next_val,
+            "current_prob": round(current_prob, 4),
+            "next_prob": round(next_prob, 4),
+            "gap": round(gap, 4),
+        }
+
 
 @dataclass
 class LearningDNAState:

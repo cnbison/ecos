@@ -108,9 +108,10 @@ def _get_or_create_student(student_id: str) -> dict:
 
 
 def get_student_state(student_id: str) -> dict[str, Any]:
-    """获取学生当前完整信念状态（7 组件）。"""
+    """获取学生当前完整信念状态（7 组件）。W1 升级：增加 warm-up + bloom Δ 字段。"""
     student = _get_or_create_student(student_id)
     state = student["state"]
+    engine = student["engine"]
     theta = state.theta_mean
     dims = ["K", "P", "S", "C", "X"]
     bloom = state.bloom_profile
@@ -156,6 +157,12 @@ def get_student_state(student_id: str) -> dict[str, Any]:
     except Exception:
         trajectory_snapshots = []
 
+    # W1: warm-up 状态机字段
+    warmup = engine.warmup_progress(student_id)
+
+    # W1: Bloom 距下一层距离
+    bloom_distance = bloom.distance_to_next_layer() if hasattr(bloom, "distance_to_next_layer") else None
+
     return {
         "student_id": student_id,
         # 组件1: 5D mean
@@ -177,6 +184,8 @@ def get_student_state(student_id: str) -> dict[str, Any]:
                 "L6": round(float(bloom.create), 3),
             },
         },
+        # W1 新增: Bloom 距下一层距离
+        "bloom_layer_distance": bloom_distance,
         # 组件3: TC states
         "tc_states": tc_list,
         # 组件4: LearningDNA
@@ -190,6 +199,8 @@ def get_student_state(student_id: str) -> dict[str, Any]:
         "c_discount_factor": round(
             state.C.discount_factor if hasattr(state.C, "discount_factor") else 1.0, 3
         ),
+        # W1 新增: warm-up 状态机
+        **warmup,
     }
 
 

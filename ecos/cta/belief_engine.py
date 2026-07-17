@@ -90,6 +90,9 @@ class BeliefEngineConfig:
     mirt_config: MIRTConfig = field(default_factory=MIRTConfig)
     bloom_update_step: float = 0.05
     trajectory_maxlen: int = 100
+    # ── W1 warm-up 窗口（W1 2026-07-17 落地，详见 discussions/2026-07-17-方向选择-A先C后.md）──
+    warmup_questions: int = 5
+    warmup_step: float = 0.1  # warm-up 期 Bloom 更新步长（更大，让学生感到进步）
 
 
 class BeliefEngine:
@@ -120,9 +123,45 @@ class BeliefEngine:
         self.tc_detector = TCStateDetector()
         self._response_history: Dict[str, List[Tuple[str, int, BloomLevel]]] = {}
 
+        # ── W1 warm-up 状态（W1 2026-07-17 落地）──
+        # _warmup_count[student_id] = 已答题数（前 warmup_questions 题为 warm-up 期）
+        self._warmup_count: Dict[str, int] = {}
+        # _warmup_pool_cursor[student_id] = warm-up 覆盖性选题的轮询游标
+        self._warmup_pool_cursor: Dict[str, int] = {}
+
         # LLM Critic（M2 W3，延迟初始化）
         self._perception_critic: Optional["PerceptionCritic"] = None
         self._misc_detector: Optional["MisconceptionDetector"] = None
+
+    # ── W1 warm-up 状态机（W1 2026-07-17 新增）──
+
+    def is_warmup(self, student_id: str) -> bool:
+        """是否处于 warm-up 期（前 N 题）。"""
+        return self._warmup_count.get(student_id, 0) < self.config.warmup_questions
+
+    def warmup_remaining(self, student_id: str) -> int:
+        """距离 warm-up 结束还剩几题。0 表示刚刚结束。"""
+        n = self._warmup_count.get(student_id, 0)
+        return max(0, self.config.warmup_questions - n)
+
+    def warmup_progress(self, student_id: str) -> dict:
+        """返回 warm-up 状态完整信息（供 API 层使用）。
+
+        Returns:
+            {
+                "is_warmup": bool,
+                "warmup_remaining": int,
+                "warmup_total": int,
+                "warmup_count": int,
+            }
+        """
+        count = self._warmup_count.get(student_id, 0)
+        return {
+            "is_warmup": count < self.config.warmup_questions,
+            "warmup_remaining": max(0, self.config.warmup_questions - count),
+            "warmup_total": self.config.warmup_questions,
+            "warmup_count": count,
+        }
 
     @property
     def perception_critic(self) -> "PerceptionCritic":
@@ -178,6 +217,13 @@ class BeliefEngine:
         correct = observation.correct
         bloom_level = observation.bloom_level
 
+        # ── W1 warm-up 计数累加（W1 2026-07-17 新增，在 Step 1 之前）──
+        self._warmup_count[student_id] = self._warmup_count.get(student_id, 0) + 1
+        in_warmup = self.is_warmup(student_id)
+
+        # ── W1 warm-up 期 Bloom 步长切换（更大，让学生感到"在进步"）──
+        step = self.config.warmup_step if in_warmup else self.config.bloom_update_step
+
         # Step 1: L1 BKT 更新
         self.l1.update(skill_id, correct)
 
@@ -208,7 +254,6 @@ class BeliefEngine:
         # Step 4: BloomProfile 更新（基于题目预设 bloom_level）
         bloom_name = bloom_level.name.lower()
         current_prob = getattr(state.bloom_profile, bloom_name)
-        step = self.config.bloom_update_step
         if correct:
             new_prob = min(1.0, current_prob + step)
         else:
@@ -336,3 +381,6 @@ class BeliefEngine:
         """重置某学生的累积历史."""
         if student_id in self._response_history:
             del self._response_history[student_id]
+        # W1 warm-up 状态一并重置
+        self._warmup_count.pop(student_id, None)
+        self._warmup_pool_cursor.pop(student_id, None)
