@@ -163,6 +163,21 @@ button:disabled { opacity: 0.5; cursor: default; }
 }
 .export-btn:hover { background: rgba(255, 255, 255, 0.3); }
 .export-btn:disabled { opacity: 0.5; cursor: default; }
+
+/* W4 (2026-07-17): Bloom 未探测层视觉 */
+.br.unprobed { opacity: 0.5; }
+.br.unprobed .pct { color: #9ca3af; font-style: italic; }
+.unprobed-bar {
+  width: 100%;
+  height: 100%;
+  background: repeating-linear-gradient(90deg, #e5e7eb 0, #e5e7eb 4px, transparent 4px, transparent 8px);
+  border-radius: 4px;
+}
+
+/* W4 (2026-07-17): TC progress 颜色分级 */
+.tc-low { background: #d1d5db; }    /* < 0.3 灰 */
+.tc-mid { background: #f59e0b; }    /* 0.3-0.7 黄 */
+.tc-high { background: #10b981; }   /* > 0.7 绿 */
 </style>
 </head>
 <body>
@@ -368,35 +383,38 @@ async function nextQ() {
   await loadQ();
 }
 
-// 渲染 5D 维度（W3+ 升级：per-dim confidence < 0.5 独立灰显 + tooltip）
+// 渲染 5D 维度（W4 升级：theta 数字保持清晰,只灰显"置信度"标签 + 信息量 tooltip）
 function renderDims(d) {
   const mx = 2.0;
-  const isWarmup = !!d.is_warmup;
   let html = '';
   for (const dim of DIMS) {
     const v = parseFloat(d.theta[dim.k]) || 0;
     const conf = parseFloat(d.theta_confidence?.[dim.k]) || 0;
-    // 每维度独立判断：< 0.5 灰显 + tooltip 解释
-    const isDimUncertain = conf < 0.5;
-    const isGray = isWarmup || isDimUncertain;
-    const grayReason = isDimUncertain
-      ? `我们还在熟悉你的${dim.label}（置信度 ${Math.round(conf*100)}%）`
-      : (isWarmup ? '整体置信度还在压低中（warm-up 期）' : '');
+    const se = parseFloat(d.theta_se?.[dim.k]) || 1.0;
+    // W4 核心改进：theta 数字始终清晰,只灰显"置信度"标签
+    //   - conf < 0.5 → 灰显 conf label + tooltip 解释
+    //   - conf < 0.5 + SE > 0.7 → tooltip 加"信息量严重不足"
+    const isConfLow = conf < 0.5;
+    const isHighSE = se > 0.7;
+    const confClass = isConfLow ? 'is-warmup' : '';
+    const confReason = isConfLow
+      ? `${dim.label}:置信度仅 ${Math.round(conf*100)}%（SE=${se.toFixed(2)}）信息量${isHighSE ? '严重' : ''}不足,估计暂不可靠`
+      : '';
     const pct = Math.min(100, Math.abs(v)/mx*100);
     const confPct = Math.min(100, conf*100);
     html += `<div class="dim">
       <div class="lbl">${dim.k}</div>
       <div class="cn">${dim.label}</div>
-      <div class="theta ${isGray ? 'is-warmup' : ''}" title="${grayReason}">${Number(v).toFixed(4)}</div>
+      <div class="theta">${Number(v).toFixed(4)}</div>
       <div class="bar"><div style="width:${pct}%;background:${dim.color}"></div></div>
-      <div class="conf-label ${isGray ? 'is-warmup' : ''}" title="${grayReason}">置信度 ${Math.round(confPct)}%</div>
+      <div class="conf-label ${confClass}" title="${confReason}">置信度 ${Math.round(confPct)}%</div>
       <div class="conf-bar"><div style="width:${confPct}%"></div></div>
     </div>`;
   }
   document.getElementById('dimGrid').innerHTML = html;
 }
 
-// 渲染 Bloom L1-L6
+// 渲染 Bloom L1-L6（W4 升级：未探测层用虚线 + 灰色 + 「—」）
 function renderBloom(d) {
   document.getElementById('bdom').innerText = d.bloom_profile?.dominant || '—';
   const bl = d.bloom_profile?.bloom_levels || {};
@@ -404,17 +422,28 @@ function renderBloom(d) {
   let html = '';
   for (const lvl of ['L1','L2','L3','L4','L5','L6']) {
     const v = parseFloat(bl[lvl]) || 0;
+    // 未探测判定：v 偏离默认 0.5 < 0.01（说明 update 几乎没碰过这层）
+    const isProbed = Math.abs(v - 0.5) > 0.01;
     const pct = Math.round(v * 100);
-    html += `<div class="br">
-      <span>${lvl} ${labels[lvl]}</span>
-      <div class="fill"><div style="width:${pct}%"></div></div>
-      <span class="pct">${pct}%</span>
-    </div>`;
+    if (isProbed) {
+      html += `<div class="br">
+        <span>${lvl} ${labels[lvl]}</span>
+        <div class="fill"><div style="width:${pct}%"></div></div>
+        <span class="pct">${pct}%</span>
+      </div>`;
+    } else {
+      // 未探测层:虚线 + 灰色 + 显示「—」
+      html += `<div class="br unprobed" title="${lvl} 尚未被题目探测到（默认 0.5）">
+        <span>${lvl} ${labels[lvl]}</span>
+        <div class="fill"><div class="unprobed-bar"></div></div>
+        <span class="pct">—</span>
+      </div>`;
+    }
   }
   document.getElementById('bloomRows').innerHTML = html;
 }
 
-// 渲染 TC states
+// 渲染 TC states（W4 升级：progress 颜色分级 <0.3 灰 / 0.3-0.7 黄 / >0.7 绿）
 function renderTC(d) {
   const tc = d.tc_states || [];
   if (tc.length === 0) {
@@ -426,10 +455,14 @@ function renderTC(d) {
     const statusLabel = {pre_liminal:'前',liminal:'LIMINAL',post_liminal:'已跨越'}[t.status] || t.status;
     const statusClass = {pre_liminal:'pre',liminal:'liminal',post_liminal:'post'}[t.status] || 'pre';
     const pct = Math.round((t.progress || 0) * 100);
+    // 颜色分级
+    let progClass = 'tc-low';
+    if (t.progress >= 0.7) progClass = 'tc-high';
+    else if (t.progress >= 0.3) progClass = 'tc-mid';
     html += `<div class="tc-r">
       <span class="tc-id">${t.id}</span>
       <span class="tc-status ${statusClass}">${statusLabel}</span>
-      <div class="tc-progress"><div style="width:${pct}%"></div></div>
+      <div class="tc-progress"><div class="${progClass}" style="width:${pct}%"></div></div>
       <span class="tc-pct">${pct}%</span>
     </div>`;
   }
@@ -511,16 +544,18 @@ async function refresh() {
       kdelta.style.display = 'none';
     }
 
-    // W1 (2026-07-17): C折扣 + 总置信度
+    // W1 (2026-07-17): C折扣 + 总置信度（W4 改进:overall_confidence 数字保持清晰,仅 tooltip 提示）
     const isWarmup = !!d.is_warmup;
     const kcEl = document.getElementById('kc');
     const kovEl = document.getElementById('kov');
     kcEl.innerText = 'C折扣: ' + (d.c_discount_factor || 1.0).toFixed(2);
     kovEl.innerText = '总置信度: ' + (d.overall_confidence || 0).toFixed(3);
     kcEl.className = isWarmup ? 'is-warmup' : '';
-    kovEl.className = isWarmup ? 'is-warmup' : '';
-    kcEl.title = isWarmup ? '置信度还在压低中（warm-up 期）' : '';
-    kovEl.title = isWarmup ? '置信度还在压低中（warm-up 期）' : '';
+    // W4: overall_confidence 数字本身保持清晰,只在 < 0.5 时 tooltip 提示
+    kovEl.className = '';
+    kovEl.title = (d.overall_confidence || 0) < 0.5
+      ? `整体置信度仅 ${((d.overall_confidence || 0) * 100).toFixed(0)}%,需要更多题目收敛`
+      : '';
 
     // W1 (2026-07-17): warm-up 状态机
     const prevWarmup = window._lastIsWarmup;
