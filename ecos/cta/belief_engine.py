@@ -93,6 +93,9 @@ class BeliefEngineConfig:
     # ── W1 warm-up 窗口（W1 2026-07-17 落地，详见 discussions/2026-07-17-方向选择-A先C后.md）──
     warmup_questions: int = 5
     warmup_step: float = 0.1  # warm-up 期 Bloom 更新步长（更大，让学生感到进步）
+    # ── W3 探针题机制（2026-07-17 落地）──
+    probe_interval: int = 8  # 每 8-10 题穿插 1 道（无痕不计学习时长）
+    probe_first_after_warmup: bool = True  # warm-up 结束后第 1 次探针何时插入
 
 
 class BeliefEngine:
@@ -129,6 +132,14 @@ class BeliefEngine:
         # _warmup_pool_cursor[student_id] = warm-up 覆盖性选题的轮询游标
         self._warmup_pool_cursor: Dict[str, int] = {}
 
+        # ── W3 探针题状态机（2026-07-17 落地）──
+        # _probe_due_in[student_id] = 距下一次探针题还剩几题
+        #   - warm-up 期间探针题禁用（避免冷启动干扰）
+        #   - 答完 warm-up 期后,初始化为 probe_interval（即再答 N 题才触发）
+        #   - 触发后重置为 probe_interval
+        self._probe_due_in: Dict[str, int] = {}
+        self._probe_count: Dict[str, int] = {}  # 已插入的探针题数
+
         # LLM Critic（M2 W3，延迟初始化）
         self._perception_critic: Optional["PerceptionCritic"] = None
         self._misc_detector: Optional["MisconceptionDetector"] = None
@@ -161,6 +172,46 @@ class BeliefEngine:
             "warmup_remaining": max(0, self.config.warmup_questions - count),
             "warmup_total": self.config.warmup_questions,
             "warmup_count": count,
+        }
+
+    # ── W3 探针题状态机 API（W3 2026-07-17 新增）──
+
+    def should_probe_now(self, student_id: str) -> bool:
+        """下次选题是否应插入探针题。
+
+        条件:
+          - 不在 warm-up 期
+          - _probe_due_in[student_id] == 0（已经答了 N 题,下次该插入探针）
+        """
+        if self.is_warmup(student_id):
+            return False
+        return self._probe_due_in.get(student_id, 0) == 0
+
+    def consume_probe(self, student_id: str) -> None:
+        """标记"已插入探针题",重置 _probe_due_in 为 probe_interval。
+
+        调用时机：API 层在 /api/question 中检测 should_probe_now=True 后,
+        走 _select_probe_question 路径,然后调用本方法重置状态机。
+        """
+        self._probe_count[student_id] = self._probe_count.get(student_id, 0) + 1
+        self._probe_due_in[student_id] = self.config.probe_interval
+
+    def probe_progress(self, student_id: str) -> dict:
+        """返回探针题状态完整信息（供 API 层使用）。
+
+        Returns:
+            {
+                "should_probe": bool,
+                "probe_due_in": int,
+                "probe_interval": int,
+                "probe_count": int,
+            }
+        """
+        return {
+            "should_probe": self.should_probe_now(student_id),
+            "probe_due_in": self._probe_due_in.get(student_id, self.config.probe_interval),
+            "probe_interval": self.config.probe_interval,
+            "probe_count": self._probe_count.get(student_id, 0),
         }
 
     @property
@@ -220,6 +271,25 @@ class BeliefEngine:
         # ── W1 warm-up 计数累加（W1 2026-07-17 新增，在 Step 1 之前）──
         self._warmup_count[student_id] = self._warmup_count.get(student_id, 0) + 1
         in_warmup = self.is_warmup(student_id)
+
+        # ── W3 探针题状态机触发（W3 2026-07-17 新增）──
+        #   - warm-up 期间不触发探针（避免冷启动干扰）
+        #   - 刚出 warm-up 期时初始化 _probe_due_in = probe_interval
+        #   - 每次 update() 后 _probe_due_in -= 1
+        #   - 当 _probe_due_in == 0 时,下次选题应插入探针题
+        was_warmup = (
+            self._warmup_count[student_id] - 1 < self.config.warmup_questions
+        )  # 上一题是否还在 warm-up
+        just_exited_warmup = was_warmup and not in_warmup
+        if just_exited_warmup and self.config.probe_first_after_warmup:
+            # 刚出 warm-up 期,初始化 _probe_due_in
+            self._probe_due_in[student_id] = self.config.probe_interval
+        elif student_id not in self._probe_due_in and not in_warmup:
+            # 异常情况:不在 warm-up 但 _probe_due_in 未初始化（DB 恢复场景）
+            self._probe_due_in[student_id] = self.config.probe_interval
+
+        if student_id in self._probe_due_in:
+            self._probe_due_in[student_id] = max(0, self._probe_due_in[student_id] - 1)
 
         # ── W1 warm-up 期 Bloom 步长切换（更大，让学生感到"在进步"）──
         step = self.config.warmup_step if in_warmup else self.config.bloom_update_step
@@ -384,3 +454,6 @@ class BeliefEngine:
         # W1 warm-up 状态一并重置
         self._warmup_count.pop(student_id, None)
         self._warmup_pool_cursor.pop(student_id, None)
+        # W3 探针题状态一并重置
+        self._probe_due_in.pop(student_id, None)
+        self._probe_count.pop(student_id, None)

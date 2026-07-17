@@ -52,7 +52,7 @@ def api_get_state(student_id: str):
 
 @app.route("/api/question/<student_id>")
 def api_get_question(student_id: str):
-    """获取下一道题目（W1 升级：透传 is_warmup + 自适应选题信息）。"""
+    """获取下一道题目（W3 升级：探针题机制 + is_warmup + 自适应选题信息）。"""
     try:
         # 获取已答题目的 ID（从 _STUDENT_STATES 历史）
         answered_ids: set[str] = set()
@@ -76,6 +76,12 @@ def api_get_question(student_id: str):
             d = state.bloom_profile.distance_to_next_layer()
             target_bloom = d.get("next") if d.get("next") else None
 
+        # W3: 探针题判断（最高优先级）
+        should_probe = engine.should_probe_now(student_id) if engine is not None else False
+        force_probe = should_probe
+        if force_probe:
+            engine.consume_probe(student_id)  # 重置 _probe_due_in
+
         prob = select_question_for_student(
             answered_ids=answered_ids,
             is_warmup=is_warmup,
@@ -83,6 +89,7 @@ def api_get_question(student_id: str):
             theta_cov_diag=theta_cov_diag,
             target_bloom=target_bloom,
             student_id=student_id,
+            force_probe=force_probe,
         )
         if prob is None:
             return jsonify({"done": True, "message": "所有题目已完成"})
@@ -95,6 +102,10 @@ def api_get_question(student_id: str):
             normalized["warmup_group"] = prob["_warmup_group"]
         if "_adaptive_dim_star" in prob:
             normalized["adaptive_dim_star"] = prob["_adaptive_dim_star"]
+        # W3: 探针题信息
+        normalized["is_probe"] = force_probe
+        if "_probe_dim_star" in prob:
+            normalized["probe_dim_star"] = prob["_probe_dim_star"]
         return jsonify(normalized)
     except Exception as e:
         return jsonify({"error": str(e)}), 500

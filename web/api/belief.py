@@ -163,6 +163,9 @@ def get_student_state(student_id: str) -> dict[str, Any]:
     # W1: Bloom 距下一层距离
     bloom_distance = bloom.distance_to_next_layer() if hasattr(bloom, "distance_to_next_layer") else None
 
+    # W3: 探针题状态机字段
+    probe = engine.probe_progress(student_id)
+
     return {
         "student_id": student_id,
         # 组件1: 5D mean
@@ -201,6 +204,8 @@ def get_student_state(student_id: str) -> dict[str, Any]:
         ),
         # W1 新增: warm-up 状态机
         **warmup,
+        # W3 新增: 探针题状态机
+        **probe,
     }
 
 

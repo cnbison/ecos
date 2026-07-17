@@ -124,13 +124,13 @@ def _select_adaptive_question(
     theta_cov_diag: list[float] | None = None,
     target_bloom: str | None = None,
 ) -> dict:
-    """自适应选题——基于 SE 最大维度 + 弱 topic + Bloom Δ（W1 2026-07-17 落地）。
+    """自适应选题——基于 SE 最大维度 + 弱 topic + Bloom Δ 加权（W2 2026-07-17 深化）。
 
-    策略：
-      1. 找 SE 最大的维度 d*（theta_cov_diag 最大）
-      2. 该维度薄弱 topic（theta_mean[d*] 较低）
-      3. 当前 Bloom 层 → 下一层（target_bloom 优先）
-      4. 综合上述权重选 1 道
+    评分函数（4 维加权,归一化到 0-1）：
+      1. 维度 SE 匹配（权重 0.4）: 题目 a_specialized[d_star] × SE 归一化
+      2. Topic 弱度（权重 0.3）: 题目 topic 的 a_specialized 加权 × theta_mean<0 折扣
+      3. Bloom Δ 匹配（权重 0.2）: 题目 bloom_layer 与 target_bloom 的距离
+      4. 随机性（权重 0.1）: 避免每次都选同一道
 
     Args:
         unanswered: 未答过的题目列表
@@ -150,38 +150,113 @@ def _select_adaptive_question(
         if preferred:
             candidates = preferred
 
-    # target_bloom 优先
-    if target_bloom:
-        bloom_matched = [p for p in candidates if p["bloom_goal_id"].endswith(f"-{target_bloom}")]
-        if bloom_matched:
-            candidates = bloom_matched
-
-    # 基于 a_specialized 权重：题目对 SE 最大维度的"匹配度" = a_specialized[d*]
-    # d* = argmax(theta_cov_diag)
+    # 找 SE 最大的维度 d*（W1 已有,W2 增加对 d_star 维度的细致处理）
     if theta_cov_diag is not None and len(theta_cov_diag) == 5:
         d_star = int(max(range(5), key=lambda i: theta_cov_diag[i]))
+        # 维度 SE 归一化到 0-1（最大 SE 维度 = 1.0）
+        max_se = max(theta_cov_diag)
+        se_normalized = [s / max_se if max_se > 0 else 0.0 for s in theta_cov_diag]
     else:
         d_star = None
+        se_normalized = [0.0] * 5
+
+    # target_bloom 数字（用于计算 Bloom Δ 距离）
+    target_bloom_num = None
+    if target_bloom and target_bloom.startswith("L"):
+        try:
+            target_bloom_num = int(target_bloom[1:])
+        except ValueError:
+            pass
 
     def _score(p: dict) -> float:
         score = 0.0
-        # 1. a_specialized 对 d* 的匹配度（信息量）
+
+        # 1. 维度 SE 匹配（权重 0.4）: 题目 a_specialized 对 d_star 的匹配度
         if d_star is not None and "a_specialized" in p and len(p["a_specialized"]) == 5:
-            score += float(p["a_specialized"][d_star]) * 1.0
-        # 2. 优先 Bloom 匹配加权
-        if target_bloom and p["bloom_goal_id"].endswith(f"-{target_bloom}"):
-            score += 0.3
-        # 3. prefer_topics 加权
-        if prefer_topics and p["topic"] in prefer_topics:
-            score += 0.2
-        # 4. 加入少量随机性（避免每次都选同一道）
-        score += random.random() * 0.1
+            a_specialized_d_star = float(p["a_specialized"][d_star])
+            score += 0.4 * a_specialized_d_star * se_normalized[d_star]
+
+        # 2. Topic 弱度（权重 0.3）: 题目 topic 在 d_star 维度的"信息贡献"
+        #    如果 theta_mean[d] < 0 → 维度弱 → 该维度的题目更值得做
+        if d_star is not None and "a_specialized" in p and len(p["a_specialized"]) == 5:
+            # 题目在所有维度的 a_specialized 加权和
+            info_contrib = sum(
+                float(p["a_specialized"][i]) * se_normalized[i]
+                for i in range(5)
+            ) / 5.0
+            # 弱维度加权: theta_mean[d_star] 越负加权越大
+            weakness_bonus = 1.0
+            if theta_mean is not None and len(theta_mean) == 5 and theta_mean[d_star] < 0:
+                weakness_bonus = 1.0 + min(abs(theta_mean[d_star]), 1.0) * 0.5
+            score += 0.3 * info_contrib * weakness_bonus
+
+        # 3. Bloom Δ 匹配（权重 0.2）: 题目 bloom_layer 与 target_bloom 的距离
+        if target_bloom_num is not None:
+            p_bloom = p["bloom_goal_id"].split("-")[-1]
+            if p_bloom.startswith("L"):
+                try:
+                    p_bloom_num = int(p_bloom[1:])
+                    # 距离越近分越高（距离 0 = 1.0,距离 5 = 0.0）
+                    distance = abs(p_bloom_num - target_bloom_num)
+                    bloom_match = max(0.0, 1.0 - distance * 0.2)
+                    score += 0.2 * bloom_match
+                except ValueError:
+                    pass
+
+        # 4. 随机性（权重 0.1）: 避免每次都选同一道
+        score += 0.1 * random.random()
+
         return score
 
     candidates_scored = sorted(candidates, key=_score, reverse=True)
     chosen = candidates_scored[0]
     chosen["_strategy"] = "adaptive"
     chosen["_adaptive_dim_star"] = d_star
+    return chosen
+
+
+def _select_probe_question(
+    unanswered: list[dict],
+    theta_cov_diag: list[float] | None = None,
+) -> dict:
+    """探针题选题（W3 2026-07-17 落地）——专挑"能压低某维度 SE"的题。
+
+    目标：让 SE 最大的维度的估计更准，**不**考虑教学目标（prefer_topics / target_bloom 都忽略）。
+    选题策略：
+      1. 找 SE 最大的维度 d*
+      2. 选 a_specialized[d*] 最大的题（即对 d* 维度信息量最大的题）
+      3. 不考虑该题是否在其他维度已经做过
+
+    Args:
+        unanswered: 未答过的题目列表
+        theta_cov_diag: 5D 协方差对角线（若为 None 退化为随机）
+
+    Returns:
+        选中的题目 dict（带 _strategy="probe" 标记）
+    """
+    candidates = list(unanswered)
+    if not candidates:
+        return None
+
+    if theta_cov_diag is None or len(theta_cov_diag) != 5:
+        # 无 SE 信息时退化为随机
+        chosen = random.choice(candidates)
+        chosen["_strategy"] = "probe"
+        chosen["_probe_dim_star"] = None
+        return chosen
+
+    # d* = SE 最大的维度
+    d_star = int(max(range(5), key=lambda i: theta_cov_diag[i]))
+    # 选 a_specialized[d*] 最大的题
+    def _probe_score(p: dict) -> float:
+        if "a_specialized" in p and len(p["a_specialized"]) == 5:
+            return float(p["a_specialized"][d_star])
+        return 0.0
+
+    candidates_scored = sorted(candidates, key=_probe_score, reverse=True)
+    chosen = candidates_scored[0]
+    chosen["_strategy"] = "probe"
+    chosen["_probe_dim_star"] = d_star
     return chosen
 
 
@@ -194,6 +269,7 @@ def select_question_for_student(
     theta_cov_diag: list[float] | None = None,
     target_bloom: str | None = None,
     student_id: str = "_default",
+    force_probe: bool = False,
 ) -> dict | None:
     """为学生选一道未答的题目。
 
@@ -201,12 +277,20 @@ def select_question_for_student(
       - is_warmup=True → 走覆盖性选题（按 topic × bloom 分组轮询）
       - is_warmup=False → 走自适应选题（基于 SE + Bloom Δ）
 
-    旧版兼容：is_warmup 默认 False，走"prefer_topics → 随机"逻辑。
+    W3 升级（2026-07-17）：
+      - force_probe=True → 走探针题选题（忽略教学目标，专挑能压低 SE 的题）
+      - 优先级：force_probe > is_warmup > 自适应/legacy
+
+    旧版兼容：is_warmup 默认 False + 无 cov，走"prefer_topics → 随机"逻辑。
     """
     all_probs = get_all_problems()
     unanswered = [p for p in all_probs if p["problem_id"] not in answered_ids]
     if not unanswered:
         return None
+
+    # W3: 探针题路径（最高优先级）
+    if force_probe:
+        return _select_probe_question(unanswered, theta_cov_diag=theta_cov_diag)
 
     if is_warmup:
         return _select_warmup_question(unanswered, student_id, prefer_topics)
