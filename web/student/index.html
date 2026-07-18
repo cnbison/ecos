@@ -16,6 +16,30 @@ a { color: #2563eb; }
 .topbar { background: #1e40af; color: #fff; padding: 8px 0; margin-bottom: 12px; }
 .topbar .wrap { display: flex; align-items: center; gap: 16px; }
 .topbar h1 { font-size: 15px; font-weight: 600; }
+
+/* W5+ (2026-07-18): 版本号 + 当前学生 ID */
+.version {
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-left: 6px;
+  font-weight: 400;
+  font-family: monospace;
+  vertical-align: middle;
+  cursor: help;
+}
+.topbar-sid {
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: help;
+  font-family: monospace;
+}
 .topbar .kpi { display: flex; gap: 16px; font-size: 12px; }
 .topbar .kpi span { opacity: 0.85; }
 
@@ -231,7 +255,7 @@ button:disabled { opacity: 0.5; cursor: default; }
 <!-- 顶栏 -->
 <div class="topbar" id="topbar" style="display:none;">
   <div class="wrap">
-    <h1>ECOS Python 基础</h1>
+    <h1>ECOS Python 基础 <span class="version" id="ecos-version" title="当前 ECOS 版本号（防止浏览器缓存混淆）">v?.?.?</span></h1>
     <div class="kpi">
       <span id="kb-wrap">
         Bloom: <span id="kb">—</span>
@@ -240,6 +264,7 @@ button:disabled { opacity: 0.5; cursor: default; }
       <span id="kc">C折扣: 1.00</span>
       <span id="kov">总置信度: —</span>
       <span id="warmup-pill" class="warmup-pill" style="display:none;" title="我们还在熟悉你的节奏，状态估计置信度较低">🌱 正在熟悉你的节奏</span>
+      <span class="topbar-sid" title="当前学生 ID">👤 <span id="current-sid">—</span></span>
       <button id="export-btn" class="export-btn" onclick="exportReport()" title="导出当前学习状态为 JSON 文件（C 端接口,可发给家长/教师）">📊 导出报告</button>
     </div>
   </div>
@@ -342,6 +367,7 @@ let sid = '', q = null;
 
 // 页面加载时,自动填 localStorage 里的 sid + 加载最近学生列表
 initLogin();
+loadEcosVersion();
 
 const DIMS = [
   {k:'K', label:'概念理解', color:'#1e40af'},
@@ -355,11 +381,29 @@ function start() {
   sid = document.getElementById('sid').value.trim() || 'python_student_001';
   // 记住 sid 到 localStorage（W4 改进：避免重启后忘记 ID）
   try { localStorage.setItem('ecos_last_sid', sid); } catch(e) {}
+  // W5+: topbar 显示当前学生 ID
+  document.getElementById('current-sid').innerText = sid;
   document.getElementById('login').style.display = 'none';
   document.getElementById('study').style.display = 'block';
   document.getElementById('topbar').style.display = 'block';
   refresh();
   loadQ();
+}
+
+function clearLastSid() {
+  try { localStorage.removeItem('ecos_last_sid'); } catch(e) {}
+  alert('已清除浏览器记住的 ID');
+}
+
+// W5+: 加载 ECOS 版本号到 topbar
+async function loadEcosVersion() {
+  try {
+    const r = await fetch(API + '/version');
+    if (!r.ok) return;
+    const data = await r.json();
+    document.getElementById('ecos-version').innerText = 'v' + data.version;
+    document.getElementById('ecos-version').title = `当前 ECOS 版本: ${data.version}`;
+  } catch(e) { console.warn('version:', e.message); }
 }
 
 function clearLastSid() {

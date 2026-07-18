@@ -57,6 +57,19 @@ def api_get_recent_students():
         return jsonify({"error": str(e), "students": []}), 500
 
 
+@app.route("/api/version")
+def api_get_version():
+    """返回 ECOS 版本号（W5+ 改进,用于 dashboard 角标显示）。
+
+    用途:Bisen 反馈问题时能立即知道跑的代码版本,避免'是 cache 还是真 bug'的混淆。
+    """
+    try:
+        import ecos
+        return jsonify({"version": ecos.__version__})
+    except Exception as e:
+        return jsonify({"error": str(e), "version": "unknown"}), 500
+
+
 @app.route("/api/state/<student_id>")
 def api_get_state(student_id: str):
     """获取学生当前 5D 信念状态。"""
