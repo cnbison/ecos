@@ -339,6 +339,53 @@ class Database:
             ]
             response_history_json = json.dumps(history_serializable)
 
+        # W5+ (2026-07-18): 持久化 TC states（之前漏了——Bisen 反馈"TC 状态重启后没了"）
+        tc_states_dict = {
+            tc_id: {
+                "tc_id": tc.tc_id,
+                "status": tc.status,
+                "progress": tc.progress,
+                "confidence": tc.confidence,
+                "liminal_signals": tc.liminal_signals,
+                "post_liminal_jump_detected": tc.post_liminal_jump_detected,
+                "irreversible": tc.irreversible,
+                "timestamp": tc.timestamp.isoformat() if hasattr(tc.timestamp, "isoformat") else str(tc.timestamp),
+            }
+            for tc_id, tc in getattr(state.C, "tc_states", {}).items()
+        }
+        tc_states_json = json.dumps(tc_states_dict)
+
+        # W5+ (2026-07-18): 持久化 trajectory 最近 N 个 snapshot
+        # （之前漏了——Bisen 反馈"成长轨迹重启后没了"）
+        trajectory_snapshots = []
+        try:
+            recent_snapshots = state.trajectory.last_n(20)  # 最近 20 个
+            for snap in recent_snapshots:
+                try:
+                    snap_dict = {
+                        "timestamp": snap.timestamp.isoformat() if hasattr(snap.timestamp, "isoformat") else str(snap.timestamp),
+                        "theta_5d": [float(v) for v in snap.theta_5d],
+                        "confidence": float(snap.confidence),
+                        "bloom_dominant": snap.bloom_profile.dominant_layer.name if (snap.bloom_profile and snap.bloom_profile.dominant_layer) else None,
+                        "misc_history": list(snap.misc_history) if hasattr(snap, "misc_history") else [],
+                    }
+                    # TC states in snapshot
+                    snap_tc = {}
+                    if hasattr(snap, "tc_states") and snap.tc_states:
+                        for tc_id, tc in snap.tc_states.items():
+                            snap_tc[tc_id] = {
+                                "status": tc.status,
+                                "progress": tc.progress,
+                            }
+                    if snap_tc:
+                        snap_dict["tc_states"] = snap_tc
+                    trajectory_snapshots.append(snap_dict)
+                except Exception:
+                    continue
+        except Exception:
+            trajectory_snapshots = []
+        trajectory_summary_json = json.dumps(trajectory_snapshots)
+
         with self.tx() as _:
             self.conn.execute(
                 """
@@ -346,7 +393,9 @@ class Database:
                     current_state_5d = :theta,
                     current_bloom_profile = :bloom,
                     current_learning_dna = :dna,
+                    tc_states = :tc_states,
                     misconception_history = :misc,
+                    trajectory_summary = :trajectory,
                     confidence = :conf,
                     warmup_count = :warmup_count,
                     probe_due_in = :probe_due_in,
@@ -360,7 +409,9 @@ class Database:
                     theta=theta_5d,
                     bloom=json.dumps(bloom_profile_dict),
                     dna=json.dumps(learning_dna_dict),
+                    tc_states=tc_states_json,
                     misc=json.dumps(misc_hits),
+                    trajectory=trajectory_summary_json,
                     conf=state.overall_confidence,
                     warmup_count=warmup_count,
                     probe_due_in=probe_due_in,

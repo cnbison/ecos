@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime as _dt
 from typing import Any
 
 import numpy as np
@@ -86,6 +87,57 @@ def _get_or_create_student(student_id: str) -> dict:
                     state.learning_dna.confidence = dna.get("confidence", 0.0)
                 except Exception:
                     pass
+
+            # W5+ (2026-07-18): 恢复 TC states（Bisen 反馈"TC 状态重启后没了"）
+            tc_states_str = db_row.get("tc_states")
+            if tc_states_str:
+                try:
+                    from ecos.cta.belief_state import TCState as _TCState
+                    tc_dict = _json.loads(tc_states_str)
+                    for tc_id, tc_data in tc_dict.items():
+                        try:
+                            ts_str = tc_data.get("timestamp")
+                            ts = _dt.fromisoformat(ts_str) if ts_str else _dt.now()
+                        except Exception:
+                            ts = _dt.now()
+                        tc_state = _TCState(
+                            tc_id=tc_data.get("tc_id", tc_id),
+                            status=tc_data.get("status", "pre_liminal"),
+                            progress=tc_data.get("progress", 0.0),
+                            confidence=tc_data.get("confidence", 0.0),
+                            liminal_signals=tc_data.get("liminal_signals", []),
+                            post_liminal_jump_detected=tc_data.get("post_liminal_jump_detected", False),
+                            irreversible=tc_data.get("irreversible", False),
+                            timestamp=ts,
+                        )
+                        state.C.tc_states[tc_id] = tc_state
+                except Exception:
+                    pass
+
+            # W5+ (2026-07-18): 恢复 trajectory 最近 N 个 snapshot（Bisen 反馈"成长轨迹重启后没了"）
+            trajectory_str = db_row.get("trajectory_summary")
+            if trajectory_str:
+                try:
+                    from ecos.cta.belief_state import StateSnapshot as _Snapshot
+                    snap_list = _json.loads(trajectory_str)
+                    for snap_data in snap_list:
+                        try:
+                            ts_str = snap_data.get("timestamp")
+                            ts = _dt.fromisoformat(ts_str) if ts_str else _dt.now()
+                        except Exception:
+                            ts = _dt.now()
+                        snap = _Snapshot(
+                            timestamp=ts,
+                            theta_5d=np.array(snap_data.get("theta_5d", [0, 0, 0, 0, 0]), dtype=float),
+                            bloom_profile=state.bloom_profile,  # 共享当前 bloom profile
+                            confidence=snap_data.get("confidence", 0.0),
+                        )
+                        if "misc_history" in snap_data:
+                            snap.misc_history = list(snap_data["misc_history"])
+                        state.trajectory.snapshots.append(snap)
+                except Exception:
+                    pass
+
             _STUDENT_STATES[student_id] = {"engine": engine, "state": state}
 
             # W5 (2026-07-18): 恢复整体置信度(从 DB confidence 字段)
