@@ -178,6 +178,46 @@ button:disabled { opacity: 0.5; cursor: default; }
 .tc-low { background: #d1d5db; }    /* < 0.3 灰 */
 .tc-mid { background: #f59e0b; }    /* 0.3-0.7 黄 */
 .tc-high { background: #10b981; }   /* > 0.7 绿 */
+
+/* W5 (2026-07-18): 最近学生列表 */
+.recent-list {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #e5e7eb;
+  text-align: left;
+}
+.recent-label {
+  font-size: 11px;
+  color: #6b7280;
+  margin-bottom: 6px;
+}
+#recent-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.recent-btn {
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 400;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.recent-btn:hover { background: #e5e7eb; }
+.clear-recent {
+  background: transparent;
+  color: #9ca3af;
+  border: none;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 4px 0;
+}
+.clear-recent:hover { color: #ef4444; }
 </style>
 </head>
 <body>
@@ -206,6 +246,11 @@ button:disabled { opacity: 0.5; cursor: default; }
     <h2>ECOS Python 基础</h2>
     <input type="text" id="sid" value="python_student_001" placeholder="学生 ID">
     <button onclick="start()">进入学习</button>
+    <div id="recent-students" class="recent-list" style="display:none;">
+      <div class="recent-label">📚 最近学生（点击快速选择）</div>
+      <div id="recent-buttons"></div>
+      <button class="clear-recent" onclick="clearLastSid()">🗑 清除浏览器记住的 ID</button>
+    </div>
   </div>
 
   <!-- 学习区 -->
@@ -289,6 +334,9 @@ button:disabled { opacity: 0.5; cursor: default; }
 const API = 'http://localhost:5173/api';
 let sid = '', q = null;
 
+// 页面加载时,自动填 localStorage 里的 sid + 加载最近学生列表
+initLogin();
+
 const DIMS = [
   {k:'K', label:'概念理解', color:'#1e40af'},
   {k:'P', label:'程序知识', color:'#7c3aed'},
@@ -299,11 +347,47 @@ const DIMS = [
 
 function start() {
   sid = document.getElementById('sid').value.trim() || 'python_student_001';
+  // 记住 sid 到 localStorage（W4 改进：避免重启后忘记 ID）
+  try { localStorage.setItem('ecos_last_sid', sid); } catch(e) {}
   document.getElementById('login').style.display = 'none';
   document.getElementById('study').style.display = 'block';
   document.getElementById('topbar').style.display = 'block';
   refresh();
   loadQ();
+}
+
+function clearLastSid() {
+  try { localStorage.removeItem('ecos_last_sid'); } catch(e) {}
+  alert('已清除浏览器记住的 ID');
+}
+
+// 页面加载时,自动填 localStorage 里的 sid + 加载最近学生列表
+function initLogin() {
+  try {
+    const lastSid = localStorage.getItem('ecos_last_sid');
+    if (lastSid) {
+      document.getElementById('sid').value = lastSid;
+    }
+  } catch(e) {}
+  loadRecentStudents();
+}
+
+async function loadRecentStudents() {
+  try {
+    const r = await fetch(API + '/students/recent');
+    if (!r.ok) return;
+    const data = await r.json();
+    const list = data.students || [];
+    if (list.length === 0) return;
+    const container = document.getElementById('recent-students');
+    const btns = document.getElementById('recent-buttons');
+    let html = '';
+    for (const s of list) {
+      html += `<button class="recent-btn" onclick="document.getElementById('sid').value='${s.replace(/'/g, "\\'")}'">${s}</button>`;
+    }
+    btns.innerHTML = html;
+    container.style.display = 'block';
+  } catch(e) { console.warn('recent students:', e.message); }
 }
 
 async function loadQ() {

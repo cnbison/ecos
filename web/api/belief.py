@@ -1,6 +1,6 @@
-"""BeliefEngine Web 封装——会话状态管理 + API 集成。
+"""BeliefEngine Web 封装--会话状态管理 + API 集成。
 
-每个学生 ID 对应一个 BeliefEngine 实例 + 当前 BeliefState（内存中）。
+每个学生 ID 对应一个 BeliefEngine 实例 + 当前 BeliefState(内存中)。
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from ecos.cta.l2_mirt import MIRTConfig, MIRTItemParams
 from ecos.llm_client import ECOSLLMClient
 from ecos.persistence.db import Database
 
-# 数据库实例（全局单例）
+# 数据库实例(全局单例)
 _db: Database | None = None
 
 
@@ -29,7 +29,7 @@ def _get_db() -> Database:
     return _db
 
 
-# 全局状态映射（student_id → {engine, state}）
+# 全局状态映射(student_id → {engine, state})
 _STUDENT_STATES: dict[str, dict] = {}
 
 
@@ -39,7 +39,7 @@ def _get_or_create_student(student_id: str) -> dict:
         # 尝试从 DB 恢复
         db_row = db.load_student_state(student_id)
         if db_row is not None:
-            # DB 中有记录——创建 engine + state（MVP：部分字段从 DB 恢复）
+            # DB 中有记录--创建 engine + state(MVP:部分字段从 DB 恢复)
             mirt_config = MIRTConfig(
                 prior_mean=np.zeros(5),
                 prior_cov=np.eye(5),
@@ -54,7 +54,7 @@ def _get_or_create_student(student_id: str) -> dict:
             engine = BeliefEngine(config=config)
             state = engine.create_initial_state(student_id)
 
-            # 部分恢复：theta_mean / bloom_profile / learning_dna
+            # 部分恢复:theta_mean / bloom_profile / learning_dna
             import json as _json
             theta_str = db_row.get("current_state_5d")
             if theta_str:
@@ -87,8 +87,41 @@ def _get_or_create_student(student_id: str) -> dict:
                 except Exception:
                     pass
             _STUDENT_STATES[student_id] = {"engine": engine, "state": state}
+
+            # W5 (2026-07-18): 恢复整体置信度(从 DB confidence 字段)
+            db_conf = db_row.get("confidence")
+            if db_conf is not None:
+                try:
+                    state.overall_confidence = float(db_conf)
+                except (TypeError, ValueError):
+                    pass
+
+            # W5 (2026-07-18): 恢复状态机字段(从 DB 读)
+            warmup_count = int(db_row.get("warmup_count") or 0)
+            probe_due_in = int(db_row.get("probe_due_in") or engine.config.probe_interval)
+            probe_count = int(db_row.get("probe_count") or 0)
+            response_history_json = db_row.get("response_history")
+            engine._warmup_count[student_id] = warmup_count
+            engine._probe_due_in[student_id] = probe_due_in
+            engine._probe_count[student_id] = probe_count
+            if response_history_json:
+                try:
+                    history_serializable = json.loads(response_history_json)
+                    # 反序列化为 [(problem_id, int(correct), BloomLevel), ...]
+                    from ecos.cta.belief_state import BloomLevel as _BloomLevel
+                    history = []
+                    for item in history_serializable:
+                        pid, correct, bl_name = item[0], item[1], item[2]
+                        try:
+                            bl = _BloomLevel[bl_name]
+                        except KeyError:
+                            bl = _BloomLevel.APPLY
+                        history.append((pid, correct, bl))
+                    engine._response_history[student_id] = history
+                except Exception:
+                    pass
         else:
-            # DB 中无记录——创建全新状态并写入 DB
+            # DB 中无记录--创建全新状态并写入 DB
             mirt_config = MIRTConfig(
                 prior_mean=np.zeros(5),
                 prior_cov=np.eye(5),
@@ -108,7 +141,7 @@ def _get_or_create_student(student_id: str) -> dict:
 
 
 def get_student_state(student_id: str) -> dict[str, Any]:
-    """获取学生当前完整信念状态（7 组件）。W1 升级：增加 warm-up + bloom Δ 字段。"""
+    """获取学生当前完整信念状态(7 组件)。W1 升级:增加 warm-up + bloom Δ 字段。"""
     student = _get_or_create_student(student_id)
     state = student["state"]
     engine = student["engine"]
@@ -116,7 +149,7 @@ def get_student_state(student_id: str) -> dict[str, Any]:
     dims = ["K", "P", "S", "C", "X"]
     bloom = state.bloom_profile
 
-    # 每维的 confidence 和 se（来自 DimensionState）
+    # 每维的 confidence 和 se(来自 DimensionState)
     dim_conf = {}
     dim_se = {}
     for i, d in enumerate(dims):
@@ -124,7 +157,7 @@ def get_student_state(student_id: str) -> dict[str, Any]:
         dim_conf[d] = round(float(dim_state.confidence), 4)
         dim_se[d] = round(float(dim_state.se), 4)
 
-    # TC states（挂在 C 维度上）
+    # TC states(挂在 C 维度上)
     tc_list = []
     for tc_id, tc_state in state.C.tc_states.items():
         tc_list.append({
@@ -170,7 +203,7 @@ def get_student_state(student_id: str) -> dict[str, Any]:
         "student_id": student_id,
         # 组件1: 5D mean
         "theta": {dims[i]: round(float(theta[i]), 4) for i in range(5)},
-        # 组件1补充: 每维方差（对角线）和置信度
+        # 组件1补充: 每维方差(对角线)和置信度
         "theta_cov_diag": {dims[i]: round(float(state.theta_cov[i, i]), 4) for i in range(5)},
         "theta_confidence": dim_conf,
         "theta_se": dim_se,
@@ -195,7 +228,7 @@ def get_student_state(student_id: str) -> dict[str, Any]:
         "learning_dna": learning_dna,
         # 组件5: Trajectory
         "trajectory": trajectory_snapshots,
-        # 组件6: Misconceptions（来自快照历史）
+        # 组件6: Misconceptions(来自快照历史)
         "misc_history": [],  # 在 trajectory snapshots 中
         # 组件7: overall_confidence
         "overall_confidence": round(state.overall_confidence, 4),
@@ -217,12 +250,12 @@ def submit_answer(
     bloom_layer: str,
     explanation_text: str = "",
 ) -> dict[str, Any]:
-    """提交答案 → BeliefEngine.update() → 返回干预建议（如果需要）。"""
+    """提交答案 → BeliefEngine.update() → 返回干预建议(如果需要)。"""
     student = _get_or_create_student(student_id)
     engine = student["engine"]
     current_state = student["state"]
 
-    # 注册该题目的 loading vector（从 Q-matrix）
+    # 注册该题目的 loading vector(从 Q-matrix)
     from web.api.qmatrix import get_question_detail
     prob = get_question_detail(problem_id)
     if prob and "a_specialized" in prob:
@@ -256,9 +289,9 @@ def submit_answer(
     updated_state = engine.update(current_state, obs)
     student["state"] = updated_state
 
-    # 持久化：每次答题后保存到 SQLite
+    # 持久化:每次答题后保存到 SQLite（W5 传 engine 持久化状态机）
     try:
-        _get_db().save_student_state(student_id, updated_state)
+        _get_db().save_student_state(student_id, updated_state, engine=engine)
     except Exception:
         pass  # 持久化失败不影响主流程
 

@@ -231,6 +231,20 @@ class Database:
         """初始化数据库 schema（幂等）."""
         with self.tx() as _:
             self.conn.executescript(SCHEMA_SQL)
+        # W5 (2026-07-18): 增量 schema 迁移,加 warmup_count / probe_due_in / probe_count / response_history
+        # 用 try/except 容忍 "duplicate column" 错误(老 DB 已有字段)
+        for alter_sql in [
+            "ALTER TABLE students ADD COLUMN warmup_count INTEGER DEFAULT 0",
+            "ALTER TABLE students ADD COLUMN probe_due_in INTEGER DEFAULT 8",
+            "ALTER TABLE students ADD COLUMN probe_count INTEGER DEFAULT 0",
+            "ALTER TABLE students ADD COLUMN response_history TEXT",
+        ]:
+            try:
+                with self.tx() as _:
+                    self.conn.execute(alter_sql)
+            except Exception:
+                # 字段已存在(老 DB),忽略
+                pass
 
     def close(self) -> None:
         if self._conn is not None:
@@ -259,8 +273,14 @@ class Database:
                 dict(id=student_id, grade=grade_level, subject=subject, now=now, anon_id=anonymized_id),
             )
 
-    def save_student_state(self, student_id: str, state: BeliefState) -> None:
-        """保存学生完整 BeliefState（MVP JSON 序列化）。"""
+    def save_student_state(self, student_id: str, state: BeliefState, engine=None) -> None:
+        """保存学生完整 BeliefState（MVP JSON 序列化, W5 扩展:warm-up / probe / response_history）。
+
+        Args:
+            student_id: 学生 ID
+            state: 完整 BeliefState
+            engine: 可选 BeliefEngine 实例(W5 用于持久化 warmup_count / probe 状态 / response_history)
+        """
         now = datetime.now().isoformat()
 
         # 5D theta
@@ -301,6 +321,24 @@ class Database:
             for h in getattr(state.C, "misconception_hits", [])
         ]
 
+        # W5 (2026-07-18): 持久化状态机字段(从 engine 读)
+        warmup_count = 0
+        probe_due_in = 8
+        probe_count = 0
+        response_history_json = None
+        if engine is not None:
+            warmup_count = engine._warmup_count.get(student_id, 0)
+            probe_due_in = engine._probe_due_in.get(student_id, engine.config.probe_interval)
+            probe_count = engine._probe_count.get(student_id, 0)
+            # response_history: List[Tuple[problem_id, int(correct), bloom_level]]
+            history = engine._response_history.get(student_id, [])
+            # 序列化为 [problem_id, correct_int, bloom_name]
+            history_serializable = [
+                [pid, int(correct), bl.name if hasattr(bl, "name") else str(bl)]
+                for (pid, correct, bl) in history
+            ]
+            response_history_json = json.dumps(history_serializable)
+
         with self.tx() as _:
             self.conn.execute(
                 """
@@ -310,6 +348,10 @@ class Database:
                     current_learning_dna = :dna,
                     misconception_history = :misc,
                     confidence = :conf,
+                    warmup_count = :warmup_count,
+                    probe_due_in = :probe_due_in,
+                    probe_count = :probe_count,
+                    response_history = :rh,
                     last_active_at = :now
                 WHERE student_id = :id
                 """,
@@ -320,6 +362,10 @@ class Database:
                     dna=json.dumps(learning_dna_dict),
                     misc=json.dumps(misc_hits),
                     conf=state.overall_confidence,
+                    warmup_count=warmup_count,
+                    probe_due_in=probe_due_in,
+                    probe_count=probe_count,
+                    rh=response_history_json,
                     now=now,
                 ),
             )

@@ -40,6 +40,23 @@ def get_llm() -> ECOSLLMClient:
 
 # ─── 学生端 API ────────────────────────────────────────────────────────────────
 
+@app.route("/api/students/recent")
+def api_get_recent_students():
+    """返回最近活跃学生列表（W5 改进,用于登录页快捷选择）。
+
+    数据源:SQLite `students` 表按 last_active_at 倒序前 N 个。
+    """
+    try:
+        from ecos.persistence.db import Database
+        # 共享 web/ecos.db 同一个 DB
+        db = Database("web/ecos.db")
+        # 不调用 init_schema(已存在),只读
+        sids = db.load_student_ids(limit=5)
+        return jsonify({"students": sids})
+    except Exception as e:
+        return jsonify({"error": str(e), "students": []}), 500
+
+
 @app.route("/api/state/<student_id>")
 def api_get_state(student_id: str):
     """获取学生当前 5D 信念状态。"""
