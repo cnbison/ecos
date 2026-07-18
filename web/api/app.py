@@ -22,6 +22,7 @@ from flask import Flask, jsonify, request, send_from_directory
 from ecos.llm_client import ECOSLLMClient
 
 from web.api.belief import get_student_state, submit_answer, _STUDENT_STATES
+from web.api.interpretation import build_interpretation
 from web.api.qmatrix import get_question_detail, normalize_problem, select_question_for_student
 
 # Flask app
@@ -236,10 +237,14 @@ def api_get_report(student_id: str):
     """导出学生学习报告（W3+ 落地，详见 discussions/2026-07-17-方向选择-A先C后.md §任务 4）。
 
     C 端接口:学生/家长可下载 JSON 格式的完整学习状态。
-    数据层留好接口,UI 上做"导出报告"按钮(C 端场景)。
+    v0.47.0 升级:
+    - ecos_version 改为读 ecos.__version__(避免硬编码漂移)
+    - 新增 interpretation 字段(规则引擎生成,无 LLM 调用,离线可用)
+      详见 web/api/interpretation.py
     """
     try:
         from datetime import datetime as _dt
+        import ecos as _ecos
         state = get_student_state(student_id)
         # 计算一些 summary
         trajectory = state.get("trajectory", [])
@@ -248,10 +253,17 @@ def api_get_report(student_id: str):
         warmup_complete = not state.get("is_warmup", True)
         bloom_distance = state.get("bloom_layer_distance", {})
 
+        # v0.47.0: 规则引擎生成自然语言解读(5D/Bloom/TC/轨迹/总评/建议)
+        try:
+            interpretation = build_interpretation(state)
+        except Exception as interp_err:
+            # 解读失败不阻塞主报告,降级为 None + 错误信息
+            interpretation = {"error": str(interp_err)}
+
         report = {
             "student_id": student_id,
             "generated_at": _dt.now().isoformat(),
-            "ecos_version": "0.42.0",
+            "ecos_version": _ecos.__version__,
             "summary": {
                 "answered_count": answered_count,
                 "current_bloom_layer": current_bloom,
@@ -269,6 +281,7 @@ def api_get_report(student_id: str):
                 "overall_confidence": state.get("overall_confidence", 0.0),
                 "c_discount_factor": state.get("c_discount_factor", 1.0),
             },
+            "interpretation": interpretation,
             "state": state,
         }
         return jsonify(report)
