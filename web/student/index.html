@@ -375,14 +375,15 @@ function initLogin() {
 async function loadRecentStudents() {
   try {
     const r = await fetch(API + '/students/recent');
-    if (!r.ok) return;
+    const input = document.getElementById('sid');
+    if (!r.ok) { input.disabled = false; return; }
     const data = await r.json();
     const list = data.students || [];
     if (list.length === 0) {
       // DB 无最近学生,保留默认 placeholder
-      const input = document.getElementById('sid');
       input.value = '';
       input.placeholder = '请输入学生 ID';
+      input.disabled = false;
       return;
     }
     const container = document.getElementById('recent-students');
@@ -397,18 +398,22 @@ async function loadRecentStudents() {
     // W5 改进：input 默认值 = localStorage 里的 lastSid;否则 = 最近学生第一个
     const lastSid = (() => { try { return localStorage.getItem('ecos_last_sid'); } catch(e) { return null; } })();
     if (lastSid && list.includes(lastSid)) {
-      document.getElementById('sid').value = lastSid;
+      input.value = lastSid;
       // 高亮对应的按钮
       const btn = btns.querySelector(`[data-sid="${lastSid}"]`);
       if (btn) btn.classList.add('selected');
     } else {
       // 默认选第一个最近学生
-      document.getElementById('sid').value = list[0];
+      input.value = list[0];
       const firstBtn = btns.querySelector(`[data-sid="${list[0]}"]`);
       if (firstBtn) firstBtn.classList.add('selected');
     }
-    document.getElementById('sid').placeholder = '或输入新学生 ID';
-  } catch(e) { console.warn('recent students:', e.message); }
+    input.placeholder = '或输入新学生 ID';
+    input.disabled = false;  // 关键：加载完成后启用 input
+  } catch(e) {
+    console.warn('recent students:', e.message);
+    document.getElementById('sid').disabled = false;  // 出错也要启用
+  }
 }
 
 function selectRecent(sid, btn) {
