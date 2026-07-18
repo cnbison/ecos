@@ -320,23 +320,41 @@ Misconception ID: {entry.misc_id}
 
 @app.route("/")
 def index():
-    return send_from_directory(
+    """W5 修复：加 Cache-Control: no-cache 头,避免浏览器缓存旧版 index.html。
+    Bisen 反馈：input 默认值是 W5 改动后的逻辑，但浏览器渲染异常，
+    根因是浏览器缓存了 W4 之前版本的 JS。
+    """
+    response = send_from_directory(
         Path(__file__).parent.parent / "student", "index.html"
     )
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 
 @app.route("/student/<path:filename>")
 def student_static(filename: str):
-    return send_from_directory(
+    """W5 修复：加 Cache-Control: no-cache 头（同上）。"""
+    response = send_from_directory(
         Path(__file__).parent.parent / "student", filename
     )
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 
 @app.route("/teacher/<path:filename>")
 def teacher_static(filename: str):
-    return send_from_directory(
+    """W5 修复：加 Cache-Control: no-cache 头（同上）。"""
+    response = send_from_directory(
         Path(__file__).parent.parent / "teacher", filename
     )
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 
 if __name__ == "__main__":
