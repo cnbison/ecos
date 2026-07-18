@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime as _dt
 from typing import Any
 
@@ -172,6 +173,13 @@ def _get_or_create_student(student_id: str) -> dict:
                     engine._response_history[student_id] = history
                 except Exception:
                     pass
+
+            # W5+: 从 history 长度重新算 overall_confidence（覆盖 DB 存的老值）
+            # 解决老数据 dim.confidence 字段没存导致 c5d=0 的 bug
+            # 放在 try 块外,确保即使 try 块抛异常也能正确算 ov
+            state.overall_confidence = min(
+                1.0, len(engine._response_history.get(student_id, [])) / 30.0
+            )
         else:
             # DB 中无记录--创建全新状态并写入 DB
             mirt_config = MIRTConfig(

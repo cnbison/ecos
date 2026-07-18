@@ -353,9 +353,12 @@ class BeliefEngine:
         )
         state.C.tc_states[skill_id] = updated_tc
 
-        # Step 8: 整体置信度（融入 C 维度折扣后的修正）
-        c5d = np.mean([getattr(state, d).confidence for d in ["K", "P", "S", "C", "X"]])
-        state.overall_confidence = 0.6 * c5d + 0.4 * state.bloom_profile.confidence
+        # Step 8: 整体置信度（W5+ 改进：直接用 history 长度算,不再依赖 dim.confidence 字段）
+        # 旧公式:0.6 * c5d + 0.4 * bp.confidence,其中 c5d 和 bp.confidence 都是
+        #   min(1.0, len(history) / 30.0) 的派生值
+        # 新公式:ov = min(1.0, len(history) / 30.0) — 等价但更可靠
+        # 优势:不需要存 dim.confidence 5 维,重启后从 response_history 长度直接算
+        state.overall_confidence = min(1.0, len(history) / 30.0)
 
         # Step 9: 追加轨迹快照
         state.trajectory.append(state.snapshot())
