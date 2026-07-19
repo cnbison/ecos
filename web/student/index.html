@@ -514,17 +514,37 @@ const DIMS = [
   {k:'X', label:'跨域迁移', color:'#dc2626'},
 ];
 
-function start() {
+async function start() {
   sid = document.getElementById('sid').value.trim() || 'python_student_001';
   // 记住 sid 到 localStorage（W4 改进：避免重启后忘记 ID）
   try { localStorage.setItem('ecos_last_sid', sid); } catch(e) {}
   // W5+: topbar 显示当前学生 ID
   document.getElementById('current-sid').innerText = sid;
   document.getElementById('login').style.display = 'none';
-  document.getElementById('study').style.display = 'block';
   document.getElementById('topbar').style.display = 'block';
-  refresh();
-  loadQ();
+  // 0.47.7: 改 async + await,先 fetch state/question 再显示 study
+  //   修复 race condition(Bisen 反馈"重新登录刚开始 5D/Bloom/TC 区域空白,刷新才好")
+  //   根因:之前 study.style.display='block' 同步执行,refresh() 还没返回,
+  //         用户先看到的是 5D/Bloom/TC 区域未渲染的初始 HTML 注释
+  //   修复:Promise.all 并行 fetch state + question,完成后再显示 study
+  //   副作用:fetch 慢时用户卡在 login 区——加 loading 文字提示
+  const loginBtn = document.querySelector('.form-row button');
+  const origBtnText = loginBtn ? loginBtn.innerText : null;
+  if (loginBtn) {
+    loginBtn.disabled = true;
+    loginBtn.innerText = '加载中…';
+  }
+  try {
+    await Promise.all([refresh(), loadQ()]);
+  } catch (e) {
+    console.warn('start() fetch 失败,仍显示 study:', e);
+  } finally {
+    if (loginBtn) {
+      loginBtn.disabled = false;
+      if (origBtnText !== null) loginBtn.innerText = origBtnText;
+    }
+  }
+  document.getElementById('study').style.display = 'block';
 }
 
 function clearLastSid() {
