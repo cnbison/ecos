@@ -237,3 +237,68 @@ discussions/YYYY-MM-DD-主题关键词.md
 ## 讨论风格
 
 鼓励批判性思考与深度追问。不回避哲学层面的硬问题（教育本质、认知发展、主体性与学习的关系）。欢迎挑战既有框架，而非仅在框架内做修补。
+
+## 防御性自检规范（2026-07-19 Bisen 反馈后新增）
+
+> 起源：本日（2026-07-19）项目连发 6 个 commit，期间 Bisen 多次反馈"重启后状态丢失"、"重启后题目从头开始"、"重启后错一题 K 暴跌 0.91"、"成长轨迹只显示 10 条"、"CSS 没生效纯文本显示"等连续 bug。
+>
+> 反思：根因是"修一处即提交一处"心态——每次只修 Bisen 报的那一个点，没顺手做同类问题扫描，**导致同一类问题（silent pass、版本号、文件引用、字段恢复）在 1-2 周内反复出现 3 次以上**。
+>
+> 本节规范从此强制生效。
+
+### 每次 commit 前的自检清单（必跑）
+
+```bash
+# 1) silent failure 扫描：禁止新增 'except Exception: pass' / 'except: continue'
+grep -nE "except.*: *$" --include="*.py" -r ecos/ web/
+#   输出任何 'except Exception: pass' 都先改成 logger.warning(..., exc_info=True)
+
+# 2) 版本号同步检查：ecos/__init__.py 是否 bump
+grep "__version__" ecos/__init__.py
+#   commit message 含功能/修复时,版本号必须同步 bump,否则 push 前补
+
+# 3) git diff stat 全文扫一遍
+git diff --stat HEAD
+#   任何"看起来跟当前任务无关"的文件改动都要确认意图
+
+# 4) CSS 引用关系检查（动样式时）
+grep "<link rel=stylesheet\|<style" web/student/index.html
+#   student 项目 CSS 全部 inline;styles.css 是 teacher 用的孤儿文件
+#   改 .report-* 等 student 样式必须写进 <style> 块,不能写到 styles.css
+
+# 5) DB 恢复路径检查（动 belief.py / db.py 时）
+grep -n "_get_or_create_student\|save_student_state\|load_student_state" web/api/belief.py ecos/persistence/db.py
+#   任何 DB 恢复字段变更,都要查"对应持久化字段是否也恢复"——历史上至少 3 次漏
+#   (import json 漏 import / tc_states 漏 / trajectory 漏 / item_params 漏)
+```
+
+### 修一处 bug 时的"同类模式扫描"
+
+**规范**：修一个 bug 后，**至少 grep 一次**确认同类问题没在别处出现。
+
+- 修 `except: pass` → grep `except.*pass` 全文件
+- 修 `_get_or_create_student` 恢复流程 → grep `_STUDENT_STATES` 全部字段，检查持久化是否对齐
+- 修 `__version__` 漏 bump → grep `__version__` + git log 最近 5 个 commit 的 `__version__` 改动
+- 修 CSS 渲染 → grep `<link rel=stylesheet` 确认是 inline 还是外链
+
+### commit message 表达规范
+
+**禁止**混用"已做"和"计划"标记，导致 Bisen 误以为已落地。
+
+- ✅ 已做：用 `✅` / `🆕` / 直接陈述
+- 📋 计划 / TODO：用 `📋 后续` / `Phase X+ 计划` / `TODO:`
+- commit message 末尾的 "后续" 章节**单独标注**，不与主变更混排
+
+### 沉默失败原则
+
+> 任何 `except ...: pass`（无日志、无告警）都是 **anti-pattern**。
+> 必须改成 `except ...: _log.warning(..., exc_info=True)` 或显式 `raise`。
+>
+> 例外：仅在 `__init__.py` 的 `Optional` import 兜底，或 `feature flag` 关闭分支允许 silent pass——但**必须加注释说明**。
+
+### 计划中的防御机制（v0.47.6+ TODO）
+
+- [ ] CI gate：`grep -nE "except Exception: *$" --include="*.py" -r ecos/ web/` 命中非空则 fail
+- [ ] `save_student_state` 加 `fail_count` 字段，统计丢了几条 snapshot
+- [ ] `db.py` 持久化后做 integrity check（存完再 load，对比 length）
+- [ ] Bisen 反馈过任何 2 次以上的同类 bug，必须写 CI gate 堵住第 3 次
