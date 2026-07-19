@@ -174,6 +174,30 @@ def _get_or_create_student(student_id: str) -> dict:
                 except Exception:
                     pass
 
+                # v0.47.4: 重新注册 history 中所有题目的 MIRT 参数（避免 default fallback 放大信号）
+                # Bisen 反馈: 重启后错一题 K 暴跌 0.86 → -0.05（掉了 0.91）
+                # 根因: default_a_specialized = [0.8]*5, 所有维度都被等权放大,signal 暴增
+                # 修复: 从 Q 矩阵按 problem_id 加载真实 a_specialized,再 register 到 engine.l2
+                try:
+                    from web.api.qmatrix import get_question_detail
+                    seen_pids: set[str] = set()
+                    for (pid, _c, _bl) in engine._response_history.get(student_id, []):
+                        if pid in seen_pids:
+                            continue
+                        seen_pids.add(pid)
+                        prob = get_question_detail(pid)
+                        if not prob or "a_specialized" not in prob:
+                            continue
+                        item_params = MIRTItemParams(
+                            problem_id=pid,
+                            a_specialized=np.array(prob["a_specialized"]),
+                            a_general=prob.get("mirt_params", {}).get("discrimination", 1.0) * 0.5,
+                            difficulty=prob.get("mirt_params", {}).get("difficulty", 0.0),
+                        )
+                        engine.l2.register_item(item_params)
+                except Exception:
+                    pass
+
             # W5+: 从 history 长度重新算 overall_confidence（覆盖 DB 存的老值）
             # 解决老数据 dim.confidence 字段没存导致 c5d=0 的 bug
             # 放在 try 块外,确保即使 try 块抛异常也能正确算 ov
