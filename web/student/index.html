@@ -330,6 +330,19 @@ button:disabled { opacity: 0.5; cursor: default; }
       </div>
     </div>
 
+    <!-- W5+ (2026-07-19): 个人学习画像（C 端 A 端,纯前端渲染后端 interpretation 字段） -->
+    <div class="card report-card" id="reportCard" style="display:none;">
+      <div class="ch">
+        📋 个人学习画像
+        <span class="t" id="reportStamp">—</span>
+        <button class="report-toggle" id="reportToggle" onclick="toggleReport()">展开 ↓</button>
+      </div>
+      <div class="report-body" id="reportBody" style="display:none;">
+        <!-- JS 动态渲染 6 段：overall / five_d / bloom / tc / trajectory / next_steps -->
+        <div class="report-loading" id="reportLoading">加载中…</div>
+      </div>
+    </div>
+
     <!-- 题目 -->
     <div class="card">
       <div class="ch">当前题目 <span class="t" id="qid"></span> <span class="t blue" id="qtopic"></span> <span class="t green" id="qbloom"></span></div>
@@ -741,7 +754,157 @@ async function refresh() {
     renderLDN(d);
     renderTraj(d);
     renderMisc(d);
+    renderReportCard(d);  // W5+ (2026-07-19): 个人学习画像面板
   } catch(e) { console.warn(e.message); }
+}
+
+// W5+ (2026-07-19): 个人学习画像面板——纯前端渲染后端 interpretation 字段
+async function renderReportCard(stateData) {
+  // 只在有答题数据后才显示（answered_count > 0）
+  const answered = stateData?.summary?.answered_count
+    || (stateData?.trajectory ? stateData.trajectory.length : 0)
+    || 0;
+  const card = document.getElementById('reportCard');
+  if (answered < 1) {
+    card.style.display = 'none';
+    return;
+  }
+  card.style.display = '';
+  document.getElementById('reportStamp').innerText = `${answered} 题后生成`;
+
+  // 第一次展开时才拉报告（不阻塞主 refresh）
+  const body = document.getElementById('reportBody');
+  if (body.dataset.loaded === '1') return;  // 已加载过不重拉
+
+  try {
+    const r = await fetch(API + '/report/' + sid);
+    if (!r.ok) {
+      body.innerHTML = `<div class="report-loading">❌ 报告加载失败: HTTP ${r.status}</div>`;
+      return;
+    }
+    const data = await r.json();
+    if (data.error) {
+      body.innerHTML = `<div class="report-loading">❌ 报告错误: ${data.error}</div>`;
+      return;
+    }
+    body.innerHTML = renderInterpretationHTML(data.interpretation, data.ecos_version);
+    body.dataset.loaded = '1';
+  } catch(e) {
+    body.innerHTML = `<div class="report-loading">❌ 报告加载异常: ${e.message}</div>`;
+  }
+}
+
+function renderInterpretationHTML(interp, ecosVersion) {
+  if (!interp || interp.error) {
+    return `<div class="report-loading">⚠ 解读暂不可用: ${interp?.error || 'unknown'}</div>`;
+  }
+  const fiveD = interp.five_d || {};
+  const bloom = interp.bloom || {};
+  const tc = interp.tc || {};
+  const traj = interp.trajectory || {};
+  const steps = interp.next_steps || [];
+
+  // 5D 维度顺序
+  const dimOrder = ['K', 'P', 'S', 'C', 'X'];
+  const fiveDRows = dimOrder
+    .filter(d => fiveD[d])
+    .map(d => {
+      const v = fiveD[d];
+      return `<div class="report-5d-row">
+        <div class="report-5d-name">${d} ${esc(v.name || '')}</div>
+        <div><span class="report-tag ${esc(v.level || 'medium')}">${esc(v.level_label || '')}</span></div>
+        <div class="report-5d-comment">${esc(v.comment || '')}</div>
+      </div>`;
+    }).join('');
+
+  // TC topic 列表
+  const tcRows = (tc.topics || []).map(t => {
+    const tagClass = t.tag === '接近 liminal' ? 'approaching'
+      : t.tag === '进行中' ? 'progressing' : 'untouched';
+    return `<div class="report-tc-row">
+      <div class="report-tc-name">${esc(t.id)}</div>
+      <div class="report-tc-prog">${(t.progress * 100).toFixed(0)}%</div>
+      <div><span class="report-tag ${tagClass}">${esc(t.tag)}</span></div>
+    </div>`;
+  }).join('');
+
+  // 轨迹 Δ5D 芯片
+  const deltaChips = Object.entries(traj.delta_5d || {})
+    .map(([dim, val]) => {
+      const cls = val > 0.01 ? 'up' : val < -0.01 ? 'down' : '';
+      const sign = val > 0 ? '+' : '';
+      return `<span class="report-delta-chip ${cls}">${dim} ${sign}${val.toFixed(2)}</span>`;
+    }).join('');
+
+  // next_steps 列表
+  const stepItems = steps.map(s => `<li>${esc(s)}</li>`).join('');
+
+  return `
+    <div class="report-section">
+      <div class="report-section-title">📌 总评</div>
+      <div class="report-overall">${esc(interp.overall || '')}</div>
+    </div>
+
+    <div class="report-section">
+      <div class="report-section-title">📊 5D 维度解读</div>
+      ${fiveDRows}
+    </div>
+
+    <div class="report-section">
+      <div class="report-section-title">🎯 Bloom 认知深度</div>
+      <div class="report-bloom-meta">
+        主导层: <strong>${esc(bloom.dominant_label || bloom.dominant || '—')}</strong>
+        ${bloom.next_layer ? `· 下一层 <strong>${esc(bloom.next_layer)}</strong> gap = <strong>${(bloom.gap_to_next || 0).toFixed(3)}</strong>` : ''}
+        ${bloom.unprobed_layers && bloom.unprobed_layers.length ? `· 未探及: ${bloom.unprobed_layers.map(esc).join(', ')}` : ''}
+      </div>
+      <div class="report-comment">${esc(bloom.comment || '')}</div>
+    </div>
+
+    <div class="report-section">
+      <div class="report-section-title">🧠 阈值概念 (TC)</div>
+      <div class="report-comment">${esc(tc.comment || '')}</div>
+      ${tcRows}
+    </div>
+
+    <div class="report-section">
+      <div class="report-section-title">📈 成长轨迹</div>
+      <div class="report-comment">${esc(traj.trend || '')}</div>
+      <div class="report-traj-delta">${deltaChips}</div>
+      <div class="report-comment">${esc(traj.comment || '')}</div>
+    </div>
+
+    <div class="report-section">
+      <div class="report-section-title">💡 下一步建议</div>
+      <ol class="report-steps">${stepItems}</ol>
+    </div>
+
+    <div class="report-comment" style="text-align:right; color:#9ca3af; font-size:10px; margin-top:8px;">
+      ECOS v${esc(ecosVersion || '?')} · 规则引擎生成 · 无 LLM 调用
+    </div>
+  `;
+}
+
+function toggleReport() {
+  const body = document.getElementById('reportBody');
+  const btn = document.getElementById('reportToggle');
+  if (body.style.display === 'none') {
+    body.style.display = '';
+    btn.innerText = '收起 ↑';
+  } else {
+    body.style.display = 'none';
+    btn.innerText = '展开 ↓';
+  }
+}
+
+// 简单 HTML escape 工具（避免 interpretation 中的引号/尖括号被解释成 HTML）
+function esc(s) {
+  if (s === null || s === undefined) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 // W3+：导出学习报告（C 端接口）
