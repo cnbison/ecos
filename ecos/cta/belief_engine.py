@@ -89,7 +89,9 @@ class BeliefEngineConfig:
     evolution_config: EvolutionConfig = field(default_factory=EvolutionConfig)
     mirt_config: MIRTConfig = field(default_factory=MIRTConfig)
     bloom_update_step: float = 0.05
-    trajectory_maxlen: int = 100
+    # v0.47.5: 100 → 500,配合 API / DB 持久化 last_n(500) 一起放大
+    # Bisen 反馈"成长轨迹应该按实际数量显示",12 道题应该显示 12 条
+    trajectory_maxlen: int = 500
     # ── W1 warm-up 窗口（W1 2026-07-17 落地，详见 discussions/2026-07-17-方向选择-A先C后.md）──
     warmup_questions: int = 5
     warmup_step: float = 0.1  # warm-up 期 Bloom 更新步长（更大，让学生感到进步）

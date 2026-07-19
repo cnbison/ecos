@@ -1,11 +1,18 @@
 """BeliefEngine Web 封装--会话状态管理 + API 集成。
 
 每个学生 ID 对应一个 BeliefEngine 实例 + 当前 BeliefState(内存中)。
+
+v0.47.5: silent failure 治理
+  - 所有 except: pass 改为 logger.warning(..., exc_info=True)
+  - DB 恢复 / 持久化 失败不再静默
+  - Bisen 反馈 7-19 17:14 答的题 response_history/trajectory_summary 都没存,
+    怀疑就是 submit_answer 内某处 except: pass 吞了异常
 """
 
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime as _dt
 from typing import Any
 
@@ -13,6 +20,8 @@ import numpy as np
 
 from ecos.cta.belief_engine import BeliefEngine, BeliefEngineConfig, Observation
 from ecos.cta.belief_state import BloomLevel, BeliefState
+
+_log = logging.getLogger(__name__)
 from ecos.cta.content import PYTHON_BASICS_MISCONCEPTION_LIBRARY_STR
 from ecos.cta.l1_evolution import EvolutionConfig
 from ecos.cta.l2_mirt import MIRTConfig, MIRTItemParams
@@ -64,7 +73,10 @@ def _get_or_create_student(student_id: str) -> dict:
                     theta_list = _json.loads(theta_str)
                     state.theta_mean = np.array(theta_list, dtype=float)
                 except Exception:
-                    pass
+                    _log.warning(
+                        "_get_or_create_student DB 恢复失败(student=%s)",
+                        student_id, exc_info=True,
+                    )
             bloom_str = db_row.get("current_bloom_profile")
             if bloom_str:
                 try:
@@ -78,7 +90,10 @@ def _get_or_create_student(student_id: str) -> dict:
                     state.bloom_profile.confidence = bp.get("confidence", 0.0)
                     state.bloom_profile.update_dominant()
                 except Exception:
-                    pass
+                    _log.warning(
+                        "_get_or_create_student DB 恢复失败(student=%s)",
+                        student_id, exc_info=True,
+                    )
             dna_str = db_row.get("current_learning_dna")
             if dna_str:
                 try:
@@ -87,7 +102,10 @@ def _get_or_create_student(student_id: str) -> dict:
                     state.learning_dna.feedback_preference = dna.get("feedback_preference")
                     state.learning_dna.confidence = dna.get("confidence", 0.0)
                 except Exception:
-                    pass
+                    _log.warning(
+                        "_get_or_create_student DB 恢复失败(student=%s)",
+                        student_id, exc_info=True,
+                    )
 
             # W5+ (2026-07-18): 恢复 TC states（Bisen 反馈"TC 状态重启后没了"）
             tc_states_str = db_row.get("tc_states")
@@ -113,7 +131,10 @@ def _get_or_create_student(student_id: str) -> dict:
                         )
                         state.C.tc_states[tc_id] = tc_state
                 except Exception:
-                    pass
+                    _log.warning(
+                        "_get_or_create_student DB 恢复失败(student=%s)",
+                        student_id, exc_info=True,
+                    )
 
             # W5+ (2026-07-18): 恢复 trajectory 最近 N 个 snapshot（Bisen 反馈"成长轨迹重启后没了"）
             trajectory_str = db_row.get("trajectory_summary")
@@ -137,7 +158,10 @@ def _get_or_create_student(student_id: str) -> dict:
                             snap.misc_history = list(snap_data["misc_history"])
                         state.trajectory.snapshots.append(snap)
                 except Exception:
-                    pass
+                    _log.warning(
+                        "_get_or_create_student DB 恢复失败(student=%s)",
+                        student_id, exc_info=True,
+                    )
 
             _STUDENT_STATES[student_id] = {"engine": engine, "state": state}
 
@@ -147,7 +171,10 @@ def _get_or_create_student(student_id: str) -> dict:
                 try:
                     state.overall_confidence = float(db_conf)
                 except (TypeError, ValueError):
-                    pass
+                    _log.warning(
+                        "_get_or_create_student DB 恢复失败(student=%s)",
+                        student_id, exc_info=True,
+                    )
 
             # W5 (2026-07-18): 恢复状态机字段(从 DB 读)
             warmup_count = int(db_row.get("warmup_count") or 0)
@@ -172,7 +199,10 @@ def _get_or_create_student(student_id: str) -> dict:
                         history.append((pid, correct, bl))
                     engine._response_history[student_id] = history
                 except Exception:
-                    pass
+                    _log.warning(
+                        "_get_or_create_student DB 恢复失败(student=%s)",
+                        student_id, exc_info=True,
+                    )
 
                 # v0.47.4: 重新注册 history 中所有题目的 MIRT 参数（避免 default fallback 放大信号）
                 # Bisen 反馈: 重启后错一题 K 暴跌 0.86 → -0.05（掉了 0.91）
@@ -196,7 +226,10 @@ def _get_or_create_student(student_id: str) -> dict:
                         )
                         engine.l2.register_item(item_params)
                 except Exception:
-                    pass
+                    _log.warning(
+                        "_get_or_create_student DB 恢复失败(student=%s)",
+                        student_id, exc_info=True,
+                    )
 
             # W5+: 从 history 长度重新算 overall_confidence（覆盖 DB 存的老值）
             # 解决老数据 dim.confidence 字段没存导致 c5d=0 的 bug
@@ -260,10 +293,11 @@ def get_student_state(student_id: str) -> dict[str, Any]:
         "confidence": round(float(ldn.confidence), 4),
     }
 
-    # Trajectory 最近 10 条
+    # Trajectory 全量（v0.47.5: 之前 last_n(10) 截断,Bisen 反馈"应该按实际数量显示"）
+    # 配合 in-memory cap (trajectory_maxlen=500) 和 DB persist last_n(500)
     trajectory_snapshots = []
     try:
-        snapshots = state.trajectory.last_n(10)
+        snapshots = state.trajectory.last_n(500)
         for snap in snapshots:
             trajectory_snapshots.append({
                 "timestamp": snap.timestamp.isoformat() if hasattr(snap.timestamp, 'isoformat') else str(snap.timestamp),
@@ -271,7 +305,13 @@ def get_student_state(student_id: str) -> dict[str, Any]:
                 "confidence": round(float(snap.confidence), 4),
                 "bloom_dominant": snap.bloom_profile.dominant_layer.name if snap.bloom_profile.dominant_layer else None,
             })
-    except Exception:
+    except Exception as e:
+        # v0.47.5: 之前 except: pass 静默吞,Bisen 反馈"答了题没存"也看不到
+        import logging
+        logging.getLogger(__name__).warning(
+            "trajectory 序列化失败 (%d snapshots): %s", len(state.trajectory.snapshots), e,
+            exc_info=True,
+        )
         trajectory_snapshots = []
 
     # W1: warm-up 状态机字段
@@ -374,10 +414,15 @@ def submit_answer(
     student["state"] = updated_state
 
     # 持久化:每次答题后保存到 SQLite（W5 传 engine 持久化状态机）
+    # v0.47.5: silent pass → logger.warning
+    # Bisen 反馈 7-19 17:14 答的题没存 → 这条 except 吞了异常,response_history + trajectory 全丢
     try:
         _get_db().save_student_state(student_id, updated_state, engine=engine)
     except Exception:
-        pass  # 持久化失败不影响主流程
+        _log.warning(
+            "submit_answer: save_student_state 失败(student=%s, problem=%s), 答题数据全丢!",
+            student_id, problem_id, exc_info=True,
+        )
 
     # 检测 misconception
     misc_triggered = False
@@ -391,7 +436,10 @@ def submit_answer(
             )
             misc_triggered = detection.misc_id != ""
         except Exception:
-            pass
+            _log.warning(
+                "submit_answer: misconception 检测失败(student=%s, problem=%s)",
+                student_id, problem_id, exc_info=True,
+            )
 
     # 构建响应
     theta = updated_state.theta_mean

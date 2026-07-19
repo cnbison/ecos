@@ -357,9 +357,14 @@ class Database:
 
         # W5+ (2026-07-18): 持久化 trajectory 最近 N 个 snapshot
         # （之前漏了——Bisen 反馈"成长轨迹重启后没了"）
+        # v0.47.5: last_n(20) → last_n(500),配 in-memory cap 扩大,完整保留成长轨迹
+        # v0.47.5: except: pass/continue 改 logger.warning(..., exc_info=True)
+        #   解决"silent failure 丢数据"问题(Bisen 反馈 7-19 17:14 答的那题没存但 history 里也没有)
         trajectory_snapshots = []
+        import logging
+        _log = logging.getLogger(__name__)
         try:
-            recent_snapshots = state.trajectory.last_n(20)  # 最近 20 个
+            recent_snapshots = state.trajectory.last_n(500)
             for snap in recent_snapshots:
                 try:
                     snap_dict = {
@@ -380,9 +385,22 @@ class Database:
                     if snap_tc:
                         snap_dict["tc_states"] = snap_tc
                     trajectory_snapshots.append(snap_dict)
-                except Exception:
+                except Exception as e:
+                    # v0.47.5: 之前静默 continue,某条 snapshot 失败直接丢,数据不完整但没人知道
+                    _log.warning(
+                        "trajectory snapshot 序列化失败 (student=%s, ts=%s): %s",
+                        student_id,
+                        getattr(snap, "timestamp", "?"),
+                        e,
+                        exc_info=True,
+                    )
                     continue
-        except Exception:
+        except Exception as e:
+            _log.warning(
+                "trajectory 整体序列化失败 (student=%s, %d snapshots): %s",
+                student_id, len(state.trajectory.snapshots), e,
+                exc_info=True,
+            )
             trajectory_snapshots = []
         trajectory_summary_json = json.dumps(trajectory_snapshots)
 
