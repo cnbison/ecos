@@ -83,8 +83,19 @@ def api_get_state(student_id: str):
 
 @app.route("/api/question/<student_id>")
 def api_get_question(student_id: str):
-    """获取下一道题目（W3 升级：探针题机制 + is_warmup + 自适应选题信息）。"""
+    """获取下一道题目（W3 升级：探针题机制 + is_warmup + 自适应选题信息）。
+
+    v0.47.1 修复（Bisen 反馈"重启后题目从头开始"）：
+      兜底触发 _get_or_create_student,保证 engine/state 已加载(DB → in-memory),
+      否则重启后第一次访问会因 _STUDENT_STATES 为空,导致:
+        - answered_ids 空集
+        - is_warmup 默认 True
+        - 选题器走 warmup 路径,从 Q 矩阵任意抽题(可能选到已答过的)
+    """
     try:
+        # v0.47.1: 兜底——确保 _STUDENT_STATES[student_id] 存在
+        get_student_state(student_id)
+
         # 获取已答题目的 ID（从 _STUDENT_STATES 历史）
         answered_ids: set[str] = set()
         if student_id in _STUDENT_STATES:
