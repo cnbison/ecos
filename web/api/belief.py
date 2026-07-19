@@ -77,6 +77,21 @@ def _get_or_create_student(student_id: str) -> dict:
                         "_get_or_create_student DB 恢复失败(student=%s)",
                         student_id, exc_info=True,
                     )
+            # v0.47.9: 恢复 theta_cov (5x5 后验协方差矩阵)
+            #   之前不存 → 重启后 theta_se 全是 1.0
+            #   存上后,dim.se = sqrt(cov[i,i]) 才是真实估算值
+            # 老数据(0.47.9 之前)没这个字段 → 走 default np.eye(5)
+            theta_cov_str = db_row.get("theta_cov")
+            if theta_cov_str:
+                try:
+                    cov_list = _json.loads(theta_cov_str)
+                    if isinstance(cov_list, list) and len(cov_list) == 5 and all(len(row) == 5 for row in cov_list):
+                        state.theta_cov = np.array(cov_list, dtype=float)
+                except Exception:
+                    _log.warning(
+                        "_get_or_create_student 恢复 theta_cov 失败(student=%s), 走 np.eye(5) 默认",
+                        student_id, exc_info=True,
+                    )
             bloom_str = db_row.get("current_bloom_profile")
             if bloom_str:
                 try:
@@ -256,12 +271,13 @@ def _get_or_create_student(student_id: str) -> dict:
                 for i, dim_char in enumerate(["K", "P", "S", "C", "X"]):
                     dim_state = getattr(state, dim_char)
                     dim_state.theta = float(state.theta_mean[i])
-                    # theta_cov 可能没从 DB 恢复(MVP schema 只存 mean),用 I 默认
-                    cov_i = (
-                        float(state.theta_cov[i, i])
-                        if state.theta_cov is not None and state.theta_cov.shape == (5, 5)
-                        else 1.0
-                    )
+                    # v0.47.9: 用恢复的 theta_cov 算真实 SE(不再走 np.eye(5) 默认 1.0)
+                    # 老数据(0.47.9 之前)没存 theta_cov → state.theta_cov 是 default I
+                    #   se = sqrt(1.0) = 1.0 (与之前行为一致,平滑过渡)
+                    if state.theta_cov is not None and state.theta_cov.shape == (5, 5):
+                        cov_i = float(state.theta_cov[i, i])
+                    else:
+                        cov_i = 1.0
                     dim_state.se = float(_np.sqrt(max(cov_i, 1e-6)))
                     dim_state.mastery_prob = float(1.0 / (1.0 + _np.exp(-dim_state.theta)))
                     dim_state.mastered = dim_state.mastery_prob >= 0.5

@@ -232,12 +232,16 @@ class Database:
         with self.tx() as _:
             self.conn.executescript(SCHEMA_SQL)
         # W5 (2026-07-18): 增量 schema 迁移,加 warmup_count / probe_due_in / probe_count / response_history
+        # v0.47.9: 加 theta_cov (5x5 MIRT 后验协方差矩阵,JSON 序列化)
+        #   Bisen 反馈: 重启后 theta_se 全是 1.0,因为 theta_cov 不存 DB → 走 np.eye(5) 默认
+        #   存上后才能正确反映 MIRT 估算的不确定度
         # 用 try/except 容忍 "duplicate column" 错误(老 DB 已有字段)
         for alter_sql in [
             "ALTER TABLE students ADD COLUMN warmup_count INTEGER DEFAULT 0",
             "ALTER TABLE students ADD COLUMN probe_due_in INTEGER DEFAULT 8",
             "ALTER TABLE students ADD COLUMN probe_count INTEGER DEFAULT 0",
             "ALTER TABLE students ADD COLUMN response_history TEXT",
+            "ALTER TABLE students ADD COLUMN theta_cov TEXT",
         ]:
             try:
                 with self.tx() as _:
@@ -285,6 +289,10 @@ class Database:
 
         # 5D theta
         theta_5d = json.dumps(state.theta_vector().tolist())
+        # v0.47.9: 5D 后验协方差矩阵(MIRT 估算的不确定度)
+        #   之前不存 → 重启后 theta_se 全是 1.0(np.eye(5) 默认)
+        #   存上后,DB 恢复时反序列化,get_student_state 返回的 theta_se 才是真实估算值
+        theta_cov_json = json.dumps(state.theta_cov.tolist()) if state.theta_cov is not None else None
         # Bloom profile
         bp = state.bloom_profile
         bloom_profile_dict = {
@@ -419,6 +427,7 @@ class Database:
                     probe_due_in = :probe_due_in,
                     probe_count = :probe_count,
                     response_history = :rh,
+                    theta_cov = :theta_cov,
                     last_active_at = :now
                 WHERE student_id = :id
                 """,
@@ -435,6 +444,7 @@ class Database:
                     probe_due_in=probe_due_in,
                     probe_count=probe_count,
                     rh=response_history_json,
+                    theta_cov=theta_cov_json,
                     now=now,
                 ),
             )
