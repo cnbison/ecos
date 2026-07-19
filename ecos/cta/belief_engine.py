@@ -319,7 +319,11 @@ class BeliefEngine:
                 dim_state.se = float(np.sqrt(max(theta_cov[i, i], 1e-6)))
                 dim_state.mastery_prob = float(1.0 / (1.0 + np.exp(-theta_hat[i])))
                 dim_state.mastered = dim_state.mastery_prob >= 0.5
-                dim_state.confidence = min(1.0, len(history) / 30.0)
+                # v0.48.0: dim.confidence 反映该维度**自己**的 SE
+                #   之前用 len(history) / 30.0 → 5 维度共用 history 长度,5 维度 conf 全一样(Bisen 反馈)
+                #   新公式: 1 / (1 + SE) — SE 越大 conf 越小,5 维度 conf 会按各自估算质量分化
+                #   范围: SE=0.5 → conf=0.67; SE=0.8 → conf=0.56; SE=1.0 → conf=0.5
+                dim_state.confidence = float(1.0 / (1.0 + dim_state.se))
                 dim_state.evidence_ids.append(len(history))
                 dim_state.last_updated = observation.timestamp
 

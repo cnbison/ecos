@@ -266,8 +266,6 @@ def _get_or_create_student(student_id: str) -> dict:
             #   dim.mastered = mastery_prob >= 0.5
             try:
                 import numpy as _np
-                hist_len = len(engine._response_history.get(student_id, []))
-                new_dim_conf = min(1.0, hist_len / 30.0)
                 for i, dim_char in enumerate(["K", "P", "S", "C", "X"]):
                     dim_state = getattr(state, dim_char)
                     dim_state.theta = float(state.theta_mean[i])
@@ -281,7 +279,10 @@ def _get_or_create_student(student_id: str) -> dict:
                     dim_state.se = float(_np.sqrt(max(cov_i, 1e-6)))
                     dim_state.mastery_prob = float(1.0 / (1.0 + _np.exp(-dim_state.theta)))
                     dim_state.mastered = dim_state.mastery_prob >= 0.5
-                    dim_state.confidence = new_dim_conf
+                    # v0.48.0: dim.confidence 反映该维度**自己**的 SE
+                    #   公式: 1 / (1 + SE) — 5 维度会按各自估算质量分化
+                    #   注意: 不能再用 len(history) / 30.0（5 维度共用会导致 5 维度 conf 全一样）
+                    dim_state.confidence = float(1.0 / (1.0 + dim_state.se))
             except Exception:
                 _log.warning(
                     "_get_or_create_student 重算 dim.{theta,confidence,se} 失败(student=%s)",
