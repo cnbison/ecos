@@ -237,6 +237,40 @@ def _get_or_create_student(student_id: str) -> dict:
             state.overall_confidence = min(
                 1.0, len(engine._response_history.get(student_id, [])) / 30.0
             )
+
+            # v0.47.8: 同步重算每维度的 theta/confidence/se/mastery_prob
+            # Bisen 反馈: 重启后 5D 区域显示 theta 正确(0.89/0.34/0.36/0.25/0.25)
+            #   但每维度单独置信度都是 0% (与总置信度 0.400 不一致)
+            # 根因: DB 只存 state.theta_mean 和 bloom_profile,不存 dim.{K,P,S,C,X}.{theta,confidence,se}
+            #   get_student_state 读 dim_state.confidence,DB 恢复后是 dataclass 默认 0.0
+            # 修复: 复用 update() Step 3 同样的公式,按 theta_mean + theta_cov 重建每维度状态
+            #   dim.confidence = min(1.0, len(history) / 30.0)  ← 和 overall_confidence 公式一致
+            #   dim.theta = state.theta_mean[i]
+            #   dim.se = sqrt(max(theta_cov[i, i], 1e-6))
+            #   dim.mastery_prob = sigmoid(theta)
+            #   dim.mastered = mastery_prob >= 0.5
+            try:
+                import numpy as _np
+                hist_len = len(engine._response_history.get(student_id, []))
+                new_dim_conf = min(1.0, hist_len / 30.0)
+                for i, dim_char in enumerate(["K", "P", "S", "C", "X"]):
+                    dim_state = getattr(state, dim_char)
+                    dim_state.theta = float(state.theta_mean[i])
+                    # theta_cov 可能没从 DB 恢复(MVP schema 只存 mean),用 I 默认
+                    cov_i = (
+                        float(state.theta_cov[i, i])
+                        if state.theta_cov is not None and state.theta_cov.shape == (5, 5)
+                        else 1.0
+                    )
+                    dim_state.se = float(_np.sqrt(max(cov_i, 1e-6)))
+                    dim_state.mastery_prob = float(1.0 / (1.0 + _np.exp(-dim_state.theta)))
+                    dim_state.mastered = dim_state.mastery_prob >= 0.5
+                    dim_state.confidence = new_dim_conf
+            except Exception:
+                _log.warning(
+                    "_get_or_create_student 重算 dim.{theta,confidence,se} 失败(student=%s)",
+                    student_id, exc_info=True,
+                )
         else:
             # DB 中无记录--创建全新状态并写入 DB
             mirt_config = MIRTConfig(
