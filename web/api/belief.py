@@ -246,13 +246,6 @@ def _get_or_create_student(student_id: str) -> dict:
                         student_id, exc_info=True,
                     )
 
-            # W5+: 从 history 长度重新算 overall_confidence（覆盖 DB 存的老值）
-            # 解决老数据 dim.confidence 字段没存导致 c5d=0 的 bug
-            # 放在 try 块外,确保即使 try 块抛异常也能正确算 ov
-            state.overall_confidence = min(
-                1.0, len(engine._response_history.get(student_id, [])) / 30.0
-            )
-
             # v0.47.8: 同步重算每维度的 theta/confidence/se/mastery_prob
             # Bisen 反馈: 重启后 5D 区域显示 theta 正确(0.89/0.34/0.36/0.25/0.25)
             #   但每维度单独置信度都是 0% (与总置信度 0.400 不一致)
@@ -288,6 +281,24 @@ def _get_or_create_student(student_id: str) -> dict:
                     "_get_or_create_student 重算 dim.{theta,confidence,se} 失败(student=%s)",
                     student_id, exc_info=True,
                 )
+
+            # W5+: overall_confidence 重算（覆盖 DB 存的老值,避免老 0.4 与 5 维度 0.5+ 矛盾）
+            # v0.48.1: 改成 5 维度 confidence 均值(与 dim.confidence 同公式,数据一致)
+            #   Bisen 反馈: 5 维度 0.5+ 但 overall 0.4 不一致
+            #   旧公式 len(history)/30 → 0.4,新公式 mean(dim.confidence) → 0.5+
+            # 关键: 必须放在"重算每维度"**之后**,否则 mean 时 dim.confidence 还是 0
+            try:
+                import numpy as _np
+                state.overall_confidence = float(_np.mean([
+                    state.K.confidence, state.P.confidence, state.S.confidence,
+                    state.C.confidence, state.X.confidence,
+                ]))
+            except Exception:
+                _log.warning(
+                    "_get_or_create_student 重算 overall_confidence 失败(student=%s), 走 0.0 兜底",
+                    student_id, exc_info=True,
+                )
+                state.overall_confidence = 0.0
         else:
             # DB 中无记录--创建全新状态并写入 DB
             mirt_config = MIRTConfig(

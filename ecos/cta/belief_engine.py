@@ -359,12 +359,18 @@ class BeliefEngine:
         )
         state.C.tc_states[skill_id] = updated_tc
 
-        # Step 8: 整体置信度（W5+ 改进：直接用 history 长度算,不再依赖 dim.confidence 字段）
-        # 旧公式:0.6 * c5d + 0.4 * bp.confidence,其中 c5d 和 bp.confidence 都是
-        #   min(1.0, len(history) / 30.0) 的派生值
-        # 新公式:ov = min(1.0, len(history) / 30.0) — 等价但更可靠
-        # 优势:不需要存 dim.confidence 5 维,重启后从 response_history 长度直接算
-        state.overall_confidence = min(1.0, len(history) / 30.0)
+        # Step 8: 整体置信度
+        # v0.48.1: 改成 5 维度 confidence 的均值(与 dim.confidence 同公式体系,数据一致)
+        #   Bisen 反馈: 5 维度 conf 都 0.5+,但总置信度 0.4(用 len(history)/30 算)
+        #   两个数字逻辑上应该一致,改成均值后:5 维度 0.5+ → 整体 0.5+
+        # 历史: 0.46.5 用 min(1.0, len(history)/30) 是"数据累积度"语义
+        #   0.48.0 把 dim.confidence 改成按 SE 算("估算质量"语义)
+        #   0.48.1 统一: overall = mean(dim.confidence),整体=5 维度估算质量的均值
+        # 数据累积度的语义在 history.length 已经表达,不需要重复
+        state.overall_confidence = float(np.mean([
+            state.K.confidence, state.P.confidence, state.S.confidence,
+            state.C.confidence, state.X.confidence,
+        ]))
 
         # Step 9: 追加轨迹快照
         state.trajectory.append(state.snapshot())
