@@ -94,6 +94,11 @@ button:hover { background: #1d4ed8; }
 .f-val { width: 34px; text-align: right; font-size: 11px; color: #6b7280; font-family: monospace; }
 .c-note { padding: 3px 10px 5px; font-size: 11px; color: #7c3aed; }
 
+/* v0.48.2: .f-name / .b-name / .dim-head 是 student 用的样式
+   注:本文件 (styles.css) 是 teacher 页面用的,student 样式实际在
+   web/student/index.html 的 <style> 块内联(v0.47.3 修复过 styles.css 误写)。
+   本节已废弃,新样式请写到 index.html 的 <style> 块。 */
+
 /* ─── 题目 ─────────────────────────────────── */
 
 .prob-text {
