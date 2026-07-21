@@ -700,6 +700,10 @@ async function submit() {
     }
     document.getElementById('btnSub').style.display = 'none';
     document.getElementById('btnNext').style.display = '';
+    // v0.48.3: 答完题重置报告 loaded 标记,让 refresh 末尾的 renderReportCard 强制重画
+    //   之前只加载一次,Bisen 反馈\"第 10 题后报告内容没变化\"
+    const rb = document.getElementById('reportBody');
+    if (rb) delete rb.dataset.loaded;
     await refresh();
   } catch(e) { alert(e.message); } finally {
     document.getElementById('btnSub').disabled = false;
@@ -918,7 +922,8 @@ async function refresh() {
 }
 
 // W5+ (2026-07-19): 个人学习画像面板——纯前端渲染后端 interpretation 字段
-async function renderReportCard(stateData) {
+// v0.48.3: 加 force 参数,submit 答完题后强制重画（之前只加载一次,Bisen 反馈"第 10 题后内容没变"）
+async function renderReportCard(stateData, force = false) {
   // 只在有答题数据后才显示（answered_count > 0）
   const answered = stateData?.summary?.answered_count
     || (stateData?.trajectory ? stateData.trajectory.length : 0)
@@ -931,9 +936,9 @@ async function renderReportCard(stateData) {
   card.style.display = '';
   document.getElementById('reportStamp').innerText = `${answered} 题后生成`;
 
-  // 第一次展开时才拉报告（不阻塞主 refresh）
+  // 懒加载守卫:平时不重拉(避免 refresh 频繁触发),submit 后 force=true 重画
   const body = document.getElementById('reportBody');
-  if (body.dataset.loaded === '1') return;  // 已加载过不重拉
+  if (!force && body.dataset.loaded === '1') return;
 
   try {
     const r = await fetch(API + '/report/' + sid);
