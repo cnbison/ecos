@@ -477,15 +477,10 @@ button:disabled { opacity: 0.5; cursor: default; }
       </div>
     </div>
 
-    <!-- 题目 -->
+    <!-- 题目 + 答题(v0.48.9 合并:答题是主路径,埋在 dashboard 下面违反用户动线) -->
     <div class="card">
       <div class="ch">当前题目 <span class="t" id="qid"></span> <span class="t blue" id="qtopic"></span> <span class="t green" id="qbloom"></span></div>
       <div class="prob" id="qtext">—</div>
-    </div>
-
-    <!-- 答题 -->
-    <div class="card">
-      <div class="ch">你的答案</div>
       <textarea class="ta" id="ans" placeholder="输入代码或答案..."></textarea>
       <div class="btns">
         <button id="btnSub" onclick="submit()">提交答案</button>
