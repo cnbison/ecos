@@ -14,10 +14,13 @@ M2 W3 集成点：
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from ...llm_client import ECOSLLMClient
 from ..belief_state import BeliefState
+
+logger = logging.getLogger(__name__)
 
 
 # ─── Prompt 模板 ─────────────────────────────────────────────────
@@ -98,6 +101,9 @@ class ExplanationCritic:
     def explain(self, state: BeliefState, audience: str = "student") -> str:
         """生成诊断报告。
 
+        v0.49.3: 若 LLM client 未配置, 返回一个静态本地报告(规则生成),
+          不调 LLM。避免 self.llm is None 时 AttributeError 打 stderr。
+
         Args:
             state: 当前 BeliefState（来自 BeliefEngine）
             audience: 'student' / 'teacher' / 'parent'
@@ -105,6 +111,11 @@ class ExplanationCritic:
         Returns:
             自然语言诊断报告字符串
         """
+        if self.llm is None:
+            logger.warning(
+                "ExplanationCritic.explain: LLM client 未配置, 跳过(返回本地规则版)"
+            )
+            return self._fallback_explain(state, audience)
         template = _EXPLANATION_PROMPTS.get(audience, _EXPLANATION_PROMPTS["student"])
 
         # 构建 bloom_profile 文本
@@ -167,3 +178,17 @@ class ExplanationCritic:
 
         messages = [{"role": "user", "content": content}]
         return self.llm.chat(messages, temperature=0.3, strip_think=True)
+
+    def _fallback_explain(self, state: BeliefState, audience: str) -> str:
+        """v0.49.3: LLM 不可用时的本地规则版报告(避免 self.llm is None 崩)."""
+        bp = state.bloom_profile
+        dominant = bp.dominant_layer.name if bp.dominant_layer else "—"
+        k, p, s, c, x = (
+            state.K.theta, state.P.theta, state.S.theta, state.C.theta, state.X.theta,
+        )
+        return (
+            f"（本地规则版 — 未配置 LLM, 无 AI 解读）\n\n"
+            f"📊 5D 能力: K={k:.2f}  P={p:.2f}  S={s:.2f}  C={c:.2f}  X={x:.2f}\n"
+            f"🌸 Bloom 主层: {dominant}  整体置信度: {state.overall_confidence:.2f}\n\n"
+            f"如需 AI 诊断, 请配置 LLM API key 后重启 Flask。"
+        )

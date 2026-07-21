@@ -62,7 +62,10 @@ def _get_or_create_student(student_id: str) -> dict:
                 evolution_config=EvolutionConfig(),
                 mirt_config=mirt_config,
             )
-            engine = BeliefEngine(config=config)
+            # v0.49.3: 传 llm_client 给 BeliefEngine, 避免 misc_detector / perception_critic
+            #   在 self.llm is None 时崩 (NoneType has no attribute chat_json)
+            from web.api.app import get_llm
+            engine = BeliefEngine(config=config, llm_client=get_llm())
             state = engine.create_initial_state(student_id)
 
             # 部分恢复:theta_mean / bloom_profile / learning_dna
@@ -333,7 +336,10 @@ def _get_or_create_student(student_id: str) -> dict:
                 evolution_config=EvolutionConfig(),
                 mirt_config=mirt_config,
             )
-            engine = BeliefEngine(config=config)
+            # v0.49.3: 传 llm_client 给 BeliefEngine, 避免 misc_detector / perception_critic
+            #   在 self.llm is None 时崩 (NoneType has no attribute chat_json)
+            from web.api.app import get_llm
+            engine = BeliefEngine(config=config, llm_client=get_llm())
             state = engine.create_initial_state(student_id)
             _STUDENT_STATES[student_id] = {"engine": engine, "state": state}
             db.upsert_student(student_id, subject="python")

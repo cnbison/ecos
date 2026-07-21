@@ -14,11 +14,14 @@ M2 W3 集成点：
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from ...llm_client import ECOSLLMClient
 from ..belief_state import BloomLevel
 from .schemas import PerceptionOutput
+
+logger = logging.getLogger(__name__)
 
 
 # ─── Prompt 模板 ─────────────────────────────────────────────────
@@ -74,6 +77,9 @@ class PerceptionCritic:
     ) -> PerceptionOutput:
         """将学生自然语言解释转为结构化感知结果。
 
+        v0.49.3: 若 LLM client 未配置, 返回空感知(默认值), 由 belief.py
+          错误隔离兜底。避免 self.llm is None 时 AttributeError 打 stderr。
+
         Args:
             problem: 题目描述
             correct_answer: 正确答案
@@ -83,6 +89,11 @@ class PerceptionCritic:
         Returns:
             PerceptionOutput 结构化感知结果
         """
+        if self.llm is None:
+            logger.warning(
+                "PerceptionCritic.perceive: LLM client 未配置, 跳过(返回空感知)"
+            )
+            return PerceptionOutput()
         messages = [
             {
                 "role": "user",

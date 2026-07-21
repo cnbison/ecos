@@ -13,11 +13,14 @@ M2 W3 集成点：
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from ...llm_client import ECOSLLMClient
 from ..belief_state import MisconceptionHit
 from .schemas import MisconceptionDetectionOutput
+
+logger = logging.getLogger(__name__)
 
 # 注入的 misconception 条目（避免循环导入）
 _MISCONCEPTION_LIBRARY_STR: str = """
@@ -110,6 +113,9 @@ class MisconceptionDetector:
     ) -> MisconceptionDetectionOutput:
         """检测学生解释文本中的 misconception 命中。
 
+        v0.49.3: 若 LLM client 未配置, 返回空检测(misc_id=""), 由 belief.py
+          错误隔离兜底。避免 self.llm is None 时 AttributeError 打 stderr。
+
         Args:
             student_explanation: 学生的解释文本
             problem: 题目描述（可选，提供上下文）
@@ -119,6 +125,12 @@ class MisconceptionDetector:
         Returns:
             MisconceptionDetectionOutput
         """
+        if self.llm is None:
+            logger.warning(
+                "misconception_detector.detect: LLM client 未配置, 跳过(返回空检测)"
+            )
+            return MisconceptionDetectionOutput()
+
         if not student_explanation or not student_explanation.strip():
             return MisconceptionDetectionOutput()
 
