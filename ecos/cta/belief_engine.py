@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 import numpy as np
 
@@ -63,6 +63,7 @@ class Observation:
     explanation_text: str = ""
     problem_text: str = ""
     correct_answer: str = ""
+    user_answer: str = ""  # v0.49.2: 学生提交的原始答案(给答题历史详情页用)
     timestamp: datetime = field(default_factory=datetime.now)
     response_time_sec: float = 0.0
 
@@ -126,7 +127,7 @@ class BeliefEngine:
         self.l1 = BKTEvolutionLayer(self.config.evolution_config)
         self.l2 = BiFactorMIRT5D(self.config.mirt_config)
         self.tc_detector = TCStateDetector()
-        self._response_history: Dict[str, List[Tuple[str, int, BloomLevel]]] = {}
+        self._response_history: Dict[str, List[Dict[str, Any]]] = {}  # v0.49.2: 3-tuple -> dict（user_answer/timestamp）
 
         # ── W1 warm-up 状态（W1 2026-07-17 落地）──
         # _warmup_count[student_id] = 已答题数（前 warmup_questions 题为 warm-up 期）
@@ -299,17 +300,26 @@ class BeliefEngine:
         # Step 1: L1 BKT 更新
         self.l1.update(skill_id, correct)
 
-        # Step 2: 累积响应历史（用于 MIRT 估计）
+        # Step 2: 累积响应历史（用于 MIRT 估计 + 答题历史详情页 v0.49.2）
+        #   v0.49.2: 改 append dict（之前是 3-tuple,缺 user_answer/timestamp）
+        #   向后兼容老数据: load 时 _get_or_create_student 会把 3-tuple 迁移成 dict
         history = self._response_history.setdefault(student_id, [])
-        history.append((problem_id, int(correct), bloom_level))
+        history.append({
+            "problem_id": problem_id,
+            "correct": int(correct),
+            "bloom_level": str(bloom_level.name if hasattr(bloom_level, "name") else bloom_level),
+            "user_answer": observation.user_answer,
+            "correct_answer": observation.correct_answer,
+            "timestamp": observation.timestamp.isoformat() if observation.timestamp else None,
+        })
         if len(history) > 100:
             self._response_history[student_id] = history[-100:]
             history = self._response_history[student_id]
 
         # Step 3: L2 MIRT MAP 估计
         if len(history) >= 2:
-            problem_ids = [h[0] for h in history]
-            responses = np.array([h[1] for h in history], dtype=float)
+            problem_ids = [h["problem_id"] for h in history]
+            responses = np.array([h["correct"] for h in history], dtype=float)
             theta_hat, theta_cov = self.l2.estimate_theta(responses, problem_ids)
             state.theta_mean = theta_hat
             state.theta_cov = theta_cov

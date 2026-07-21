@@ -338,13 +338,26 @@ class Database:
             warmup_count = engine._warmup_count.get(student_id, 0)
             probe_due_in = engine._probe_due_in.get(student_id, engine.config.probe_interval)
             probe_count = engine._probe_count.get(student_id, 0)
-            # response_history: List[Tuple[problem_id, int(correct), bloom_level]]
+            # response_history: v0.49.2 起改 dict 格式（含 user_answer/timestamp）
+            #   兼容老 3-tuple 数据
             history = engine._response_history.get(student_id, [])
-            # 序列化为 [problem_id, correct_int, bloom_name]
-            history_serializable = [
-                [pid, int(correct), bl.name if hasattr(bl, "name") else str(bl)]
-                for (pid, correct, bl) in history
-            ]
+            history_serializable = []
+            for h in history:
+                if isinstance(h, dict):
+                    # 新格式: 去掉内部字段 _bloom_level_enum（不存 DB）
+                    serializable = {k: v for k, v in h.items() if not k.startswith("_")}
+                    history_serializable.append(serializable)
+                else:
+                    # 老 3-tuple 格式
+                    pid, correct, bl = h
+                    history_serializable.append({
+                        "problem_id": pid,
+                        "correct": int(correct),
+                        "bloom_level": bl.name if hasattr(bl, "name") else str(bl),
+                        "user_answer": None,
+                        "correct_answer": None,
+                        "timestamp": None,
+                    })
             response_history_json = json.dumps(history_serializable)
 
         # W5+ (2026-07-18): 持久化 TC states（之前漏了——Bisen 反馈"TC 状态重启后没了"）

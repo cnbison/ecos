@@ -5,6 +5,7 @@
   GET  /api/question/<student_id>        — 获取下一道题目
   POST /api/answer                      — 提交答案，获取反馈 + 干预
   GET  /api/intervention/<student_id>    — 生成靶向干预（如果需要）
+  GET  /api/history/<student_id>         — v0.49.2 答题历史详情
 """
 
 from __future__ import annotations
@@ -101,7 +102,11 @@ def api_get_question(student_id: str):
         if student_id in _STUDENT_STATES:
             engine = _STUDENT_STATES[student_id]["engine"]
             if hasattr(engine, "_response_history") and student_id in engine._response_history:
-                answered_ids = {h[0] for h in engine._response_history[student_id]}
+                # v0.49.2: response_history 改 dict 格式, 兼容老 3-tuple
+                answered_ids = {
+                    h["problem_id"] if isinstance(h, dict) else h[0]
+                    for h in engine._response_history[student_id]
+                }
 
         # W1: 透传 warm-up 状态 + 5D 状态给选题器
         engine = None
@@ -236,6 +241,8 @@ def api_submit_answer():
             correct=correct,
             bloom_layer=bloom_layer,
             explanation_text=explanation_text,
+            user_answer=data.get("user_answer", ""),  # v0.49.2
+            correct_answer=data.get("correct_answer", ""),  # v0.49.2
         )
         result["reasoning"] = reasoning
         return jsonify(result)
@@ -348,6 +355,57 @@ Misconception ID: {entry.misc_id}
             "misc_id": misc_id,
             "misc_name": entry.name,
             "correction_strategy": entry.correction_strategy,
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ─── v0.49.2: 答题历史详情 ───────────────────────────────────────────────────
+@app.route("/api/history/<student_id>")
+def api_get_history(student_id: str):
+    """返回学生完整答题历史（按时间倒序）。
+
+    每条 item:
+      problem_id, correct(bool), bloom_level, user_answer, correct_answer, timestamp
+    顶层: total, correct_rate
+    """
+    try:
+        from web.api.belief import _get_or_create_student
+        student = _get_or_create_student(student_id)
+        engine = student["engine"]
+        history = engine._response_history.get(student_id, [])
+
+        # 按时间倒序（老数据 timestamp=None 排最后）
+        def _ts_key(h):
+            ts = h.get("timestamp") if isinstance(h, dict) else None
+            return ts or ""
+        items = sorted(history, key=_ts_key, reverse=True)
+
+        # 去掉内部字段 _bloom_level_enum
+        clean_items = []
+        for h in items:
+            if isinstance(h, dict):
+                clean = {k: v for k, v in h.items() if not k.startswith("_")}
+            else:
+                # 老 3-tuple 数据兜底
+                pid, correct, bl = h
+                clean = {
+                    "problem_id": pid,
+                    "correct": int(correct),
+                    "bloom_level": str(bl.name if hasattr(bl, "name") else bl),
+                    "user_answer": None,
+                    "correct_answer": None,
+                    "timestamp": None,
+                }
+            clean_items.append(clean)
+
+        total = len(clean_items)
+        correct_count = sum(1 for x in clean_items if x.get("correct"))
+        correct_rate = round(correct_count / total, 4) if total else 0.0
+        return jsonify({
+            "items": clean_items,
+            "total": total,
+            "correct_rate": correct_rate,
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500

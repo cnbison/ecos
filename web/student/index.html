@@ -428,6 +428,58 @@ button:disabled { opacity: 0.5; cursor: default; }
   color: #374151;
 }
 .settings-row strong { color: #1e40af; }
+
+/* v0.49.2: 答题历史详情 */
+.hist-card .ch { display: flex; align-items: center; gap: 6px; }
+.hist-toggle {
+  margin-left: auto;
+  background: #f3f4f6;
+  color: #4b5563;
+  border: 1px solid #e5e7eb;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+.hist-toggle:hover { background: #e5e7eb; }
+.hist-body { padding: 4px 12px; font-size: 12px; }
+.hist-loading { color: #9ca3af; text-align: center; padding: 12px; }
+.hist-list { display: flex; flex-direction: column; gap: 4px; }
+.hist-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: #f9fafb;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.15s;
+}
+.hist-row:hover { background: #f3f4f6; }
+.hist-row.correct { border-left: 3px solid #10b981; }
+.hist-row.wrong { border-left: 3px solid #ef4444; }
+.hist-pid { font-weight: 600; color: #1e40af; min-width: 64px; }
+.hist-mark { font-size: 14px; min-width: 18px; }
+.hist-bloom { color: #6b7280; font-size: 11px; min-width: 60px; }
+.hist-ts { color: #9ca3af; font-size: 11px; margin-left: auto; }
+.hist-detail {
+  padding: 6px 8px 8px 28px;
+  background: #f3f4f6;
+  font-size: 11px;
+  color: #374151;
+  border-radius: 0 0 4px 4px;
+  margin-top: -4px;
+  margin-bottom: 4px;
+  display: none;
+  line-height: 1.5;
+}
+.hist-detail.show { display: block; }
+.hist-detail .label { color: #6b7280; }
+.hist-detail .val { color: #1f2937; font-family: ui-monospace, monospace; }
+.hist-empty { color: #9ca3af; text-align: center; padding: 12px; }
 </style>
 </head>
 <body>
@@ -559,6 +611,18 @@ button:disabled { opacity: 0.5; cursor: default; }
         <div class="report-body" id="reportBody" style="display:none;">
           <!-- JS 动态渲染 6 段：overall / five_d / bloom / tc / trajectory / next_steps -->
           <div class="report-loading" id="reportLoading">加载中…</div>
+        </div>
+      </div>
+
+      <!-- v0.49.2: 答题历史详情（按时间倒序, 点击行展开 user_answer / correct_answer） -->
+      <div class="card hist-card" id="histCard" style="display:none;">
+        <div class="ch">
+          📜 答题历史 <span class="t" id="histN">0</span> 题
+          <span class="t" id="histRate" style="margin-left:6px;color:#1e40af;">—</span>
+          <button class="hist-toggle" id="histToggle" onclick="toggleHistory()">展开 ↓</button>
+        </div>
+        <div class="hist-body" id="histBody" style="display:none;">
+          <div class="hist-loading" id="histLoading">加载中…</div>
         </div>
       </div>
     </div>
@@ -716,6 +780,13 @@ function switchTab(name) {
         const currentSid = document.getElementById('current-sid');
         if (settingsSid && currentSid) settingsSid.innerText = currentSid.innerText;
       }
+      // v0.49.2: 切到 traj 时,如果答题历史未加载,自动加载一次
+      if (p === 'traj') {
+        const hb = document.getElementById('histList');
+        if (!hb || !hb.dataset.loaded) {
+          loadHistory();
+        }
+      }
     } else {
       if (panel) panel.style.display = 'none';
       if (btn) btn.classList.remove('active');
@@ -845,7 +916,9 @@ async function submit() {
     const r = await fetch(API + '/answer', {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ student_id: sid, problem_id: q.problem_id, skill_id: q.topic,
-        correct: ok, bloom_layer: q.bloom_layer, explanation_text: a, reasoning: reasoning })
+        correct: ok, bloom_layer: q.bloom_layer, explanation_text: a, reasoning: reasoning,
+        // v0.49.2: 给答题历史详情页用(后端也会从 Q 矩阵读 correct_answer 兜底)
+        user_answer: a, correct_answer: q.correct_answer || '' })
     });
     const d = await r.json();
 
@@ -878,6 +951,12 @@ async function submit() {
     //   之前只加载一次,Bisen 反馈\"第 10 题后报告内容没变化\"
     const rb = document.getElementById('reportBody');
     if (rb) delete rb.dataset.loaded;
+    // v0.49.2: 重置答题历史 loaded 标记 + 自动刷新（如果已展开）
+    const hb = document.getElementById('histList');
+    if (hb) delete hb.dataset.loaded;
+    if (document.getElementById('histBody').style.display !== 'none') {
+      loadHistory();
+    }
     await refresh();
   } catch(e) { alert(e.message); } finally {
     document.getElementById('btnSub').disabled = false;
@@ -1260,6 +1339,91 @@ function toggleTraj() {
     list.style.display = 'none';
     btn.innerText = '展开 ↓';
   }
+}
+
+// v0.49.2: 答题历史折叠切换
+function toggleHistory() {
+  const body = document.getElementById('histBody');
+  const btn = document.getElementById('histToggle');
+  if (body.style.display === 'none') {
+    body.style.display = '';
+    btn.innerText = '收起 ↑';
+    // 展开时如果还没渲染,触发加载
+    const list = document.getElementById('histList');
+    if (list && !list.dataset.loaded) {
+      loadHistory();
+    }
+  } else {
+    body.style.display = 'none';
+    btn.innerText = '展开 ↓';
+  }
+}
+
+// v0.49.2: 加载答题历史
+async function loadHistory() {
+  const body = document.getElementById('histBody');
+  const card = document.getElementById('histCard');
+  const loading = document.getElementById('histLoading');
+  if (!body || !card) return;
+  if (loading) loading.innerText = '加载中…';
+  try {
+    const r = await fetch(API + '/history/' + sid);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    if (data.error) throw new Error(data.error);
+    // 顶部统计
+    document.getElementById('histN').innerText = data.total || 0;
+    document.getElementById('histRate').innerText =
+      data.total > 0 ? `正确率 ${(data.correct_rate * 100).toFixed(0)}%` : '—';
+    card.style.display = '';
+    // 渲染列表
+    renderHistory(data.items || []);
+  } catch (e) {
+    if (loading) loading.innerText = '❌ 加载失败: ' + e.message;
+  }
+}
+
+function renderHistory(items) {
+  const body = document.getElementById('histBody');
+  if (!items.length) {
+    body.innerHTML = '<div class="hist-empty">还没有答题记录</div>';
+    body.dataset.loaded = '1';
+    return;
+  }
+  const rows = items.map((h, idx) => {
+    const correct = !!h.correct;
+    const mark = correct ? '✅' : '❌';
+    const cls = correct ? 'correct' : 'wrong';
+    const ts = h.timestamp ? formatTs(h.timestamp) : '—';
+    const detail = `
+      <div class="label">你的答案：</div><div class="val">${esc(h.user_answer) || '(空)'}</div>
+      <div class="label" style="margin-top:4px;">正确答案：</div><div class="val">${esc(h.correct_answer) || '(未存)'}</div>
+    `;
+    return `
+      <div class="hist-row ${cls}" onclick="toggleHistDetail(${idx})">
+        <span class="hist-pid">${esc(h.problem_id)}</span>
+        <span class="hist-mark">${mark}</span>
+        <span class="hist-bloom">${esc(h.bloom_level || '—')}</span>
+        <span class="hist-ts">${ts}</span>
+      </div>
+      <div class="hist-detail" id="histDetail${idx}">${detail}</div>
+    `;
+  }).join('');
+  body.innerHTML = `<div class="hist-list" id="histList" data-loaded="1">${rows}</div>`;
+}
+
+function toggleHistDetail(idx) {
+  const el = document.getElementById('histDetail' + idx);
+  if (el) el.classList.toggle('show');
+}
+
+function formatTs(iso) {
+  // iso 形如 2026-07-21T12:30:18.xxx
+  if (!iso) return '—';
+  // 截到分钟
+  const m = iso.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
+  if (m) return `${m[1]} ${m[2]}`;
+  return iso;
 }
 
 // 简单 HTML escape 工具（避免 interpretation 中的引号/尖括号被解释成 HTML）

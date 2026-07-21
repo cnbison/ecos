@@ -202,16 +202,35 @@ def _get_or_create_student(student_id: str) -> dict:
             if response_history_json:
                 try:
                     history_serializable = json.loads(response_history_json)
-                    # 反序列化为 [(problem_id, int(correct), BloomLevel), ...]
+                    # v0.49.2: response_history 改 dict 格式, 兼容老 3-list 格式
+                    #   老: [pid, correct, bloom_name]
+                    #   新: {"problem_id": ..., "correct": ..., "bloom_level": ..., "user_answer": ..., "correct_answer": ..., "timestamp": ...}
                     from ecos.cta.belief_state import BloomLevel as _BloomLevel
                     history = []
                     for item in history_serializable:
-                        pid, correct, bl_name = item[0], item[1], item[2]
-                        try:
-                            bl = _BloomLevel[bl_name]
-                        except KeyError:
-                            bl = _BloomLevel.APPLY
-                        history.append((pid, correct, bl))
+                        if isinstance(item, dict):
+                            # 新格式: 直接存, 把 bloom_level str 转 BloomLevel enum 供 belief_engine 内部用
+                            try:
+                                item["_bloom_level_enum"] = _BloomLevel[item["bloom_level"]]
+                            except KeyError:
+                                item["_bloom_level_enum"] = _BloomLevel.APPLY
+                            history.append(item)
+                        else:
+                            # 老 3-list 格式: 迁移到 dict
+                            pid, correct, bl_name = item[0], item[1], item[2]
+                            try:
+                                bl = _BloomLevel[bl_name]
+                            except KeyError:
+                                bl = _BloomLevel.APPLY
+                            history.append({
+                                "problem_id": pid,
+                                "correct": int(correct),
+                                "bloom_level": str(bl.name),
+                                "_bloom_level_enum": bl,  # 内部用, 不存 DB
+                                "user_answer": None,
+                                "correct_answer": None,
+                                "timestamp": None,
+                            })
                     engine._response_history[student_id] = history
                 except Exception:
                     _log.warning(
@@ -226,7 +245,9 @@ def _get_or_create_student(student_id: str) -> dict:
                 try:
                     from web.api.qmatrix import get_question_detail
                     seen_pids: set[str] = set()
-                    for (pid, _c, _bl) in engine._response_history.get(student_id, []):
+                    # v0.49.2: response_history 改 dict 格式, 同时兼容老 3-tuple
+                    for h in engine._response_history.get(student_id, []):
+                        pid = h["problem_id"] if isinstance(h, dict) else h[0]
                         if pid in seen_pids:
                             continue
                         seen_pids.add(pid)
@@ -435,6 +456,8 @@ def submit_answer(
     correct: bool,
     bloom_layer: str,
     explanation_text: str = "",
+    user_answer: str = "",  # v0.49.2: 给答题历史详情页用
+    correct_answer: str = "",  # v0.49.2: 正确答案(从 Q 矩阵读)
 ) -> dict[str, Any]:
     """提交答案 → BeliefEngine.update() → 返回干预建议(如果需要)。"""
     student = _get_or_create_student(student_id)
@@ -452,6 +475,9 @@ def submit_answer(
             difficulty=prob.get("mirt_params", {}).get("difficulty", 0.0),
         )
         engine.l2.register_item(item_params)
+    # v0.49.2: 如果调用方没传 correct_answer，从 Q 矩阵读
+    if not correct_answer and prob and "correct_answer" in prob:
+        correct_answer = str(prob["correct_answer"])
 
     # 转换 bloom 层
     bloom_map = {
@@ -470,6 +496,8 @@ def submit_answer(
         correct=correct,
         bloom_level=bloom,
         explanation_text=explanation_text,
+        user_answer=user_answer,
+        correct_answer=correct_answer,
     )
 
     updated_state = engine.update(current_state, obs)
