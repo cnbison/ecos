@@ -212,9 +212,16 @@ class Database:
                 self.config.db_path,
                 timeout=self.config.timeout_sec,
                 detect_types=sqlite3.PARSE_DECLTYPES,
+                # v0.51.1: Flask dev server threaded=True, SQLite 对象跨线程报错
+                #   "SQLite objects created in a thread can only be used in that same thread"
+                #   Bisen 反馈 v0.51.0 刷新后第一次 /api/state 报 HTTP 500
+                #   根因: connection 在主线程创建,后续新线程请求复用同一 connection
+                #   修复: check_same_thread=False + WAL 模式 (WAL 允许 reader/writer 并发)
+                check_same_thread=False,
             )
             self._conn.row_factory = sqlite3.Row
             self._conn.execute("PRAGMA foreign_keys = ON")
+            self._conn.execute("PRAGMA journal_mode = WAL")
         return self._conn
 
     @contextmanager

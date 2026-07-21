@@ -252,6 +252,14 @@ function selectRecent(sid, btn) {
 async function loadQ() {
   try {
     const d = await api.getQuestion(sid);
+    // v0.51.1: 防御 d===null / d.error / 缺字段 (Bisen 截图报 'null is not an object'
+    //   触发条件: 后端 HTTP 200 但 body 是 null literal, 或字段缺失
+    if (!d || typeof d !== 'object') {
+      throw new Error('/api/question 返回无效响应: ' + JSON.stringify(d));
+    }
+    if (d.error) {
+      throw new Error(d.error);
+    }
     if (d.done) {
       document.getElementById('qtext').innerHTML = '<b style="color:#16a34a">🎉 全部完成！</b>';
       return;
