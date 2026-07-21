@@ -397,6 +397,37 @@ button:disabled { opacity: 0.5; cursor: default; }
   font-size: 12px;
   padding: 4px 0;
 }
+
+/* v0.49.1: Tab 导航（学习 / 轨迹 / 设置） */
+.tabs { display: flex; gap: 0; margin-bottom: 8px; border-bottom: 2px solid #e5e7eb; }
+.tab-btn {
+  flex: 1;
+  background: transparent;
+  color: #6b7280;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  padding: 10px 0;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+.tab-btn:hover { color: #1e40af; }
+.tab-btn.active {
+  color: #1e40af;
+  border-bottom-color: #1e40af;
+  font-weight: 600;
+}
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  font-size: 12px;
+  color: #374151;
+}
+.settings-row strong { color: #1e40af; }
 </style>
 </head>
 <body>
@@ -413,7 +444,6 @@ button:disabled { opacity: 0.5; cursor: default; }
       <span id="kov">总置信度: —</span>
       <span id="warmup-pill" class="warmup-pill" style="display:none;" title="我们还在熟悉你的节奏，状态估计置信度较低">🌱 正在熟悉你的节奏</span>
       <span class="topbar-sid" title="当前学生 ID">👤 <span id="current-sid">—</span></span>
-      <button id="export-btn" class="export-btn" onclick="exportReport()" title="导出当前学习状态为 JSON 文件（C 端接口,可发给家长/教师）">📊 导出报告</button>
     </div>
   </div>
 </div>
@@ -435,89 +465,146 @@ button:disabled { opacity: 0.5; cursor: default; }
   <!-- 学习区 -->
   <div id="study" style="display:none;">
 
-    <!-- 5D 状态 + overall_confidence -->
-    <div class="dim-grid" id="dimGrid">
-      <!-- JS 动态渲染 -->
+    <!-- v0.49.1: Tab 导航 — 3 个主面板(学习/轨迹/设置) -->
+    <div class="tabs" id="tabs">
+      <button class="tab-btn active" data-tab="study" onclick="switchTab('study')">📖 学习</button>
+      <button class="tab-btn" data-tab="traj" onclick="switchTab('traj')">📊 轨迹</button>
+      <button class="tab-btn" data-tab="settings" onclick="switchTab('settings')">⚙️ 设置</button>
     </div>
 
-    <!-- 右侧面板（Bloom + TC + LearningDNA + Trajectory + Misc）-->
-    <div class="state-row">
-      <!-- 左：Blooom -->
-      <div class="card">
-        <div class="ch">Bloom Profile <span class="t" id="bdom">—</span></div>
-        <div class="bloom-rows" id="bloomRows">
-          <!-- JS 动态渲染 L1-L6 -->
-        </div>
-      </div>
-      <!-- 右：TC + LearningDNA -->
-      <div class="card">
-        <div class="ch">TC 状态 <span class="t blue">阈值概念</span></div>
-        <div class="tc-rows" id="tcRows">
-          <!-- JS 动态渲染 -->
-        </div>
-        <div class="ch" style="border-top:1px solid #eee; background:#f9fafb;">LearningDNA</div>
-        <div class="ldn-row" id="ldnRow">
-          <!-- JS 动态渲染 -->
-        </div>
-      </div>
-    </div>
+    <!-- Tab 1: 学习(5D + Bloom + TC + 题目+答题 + 反馈) -->
+    <div class="tab-panel" id="panel-study">
 
-    <!-- Trajectory 历史 (v0.49.0: 默认折叠,12 条 timeline 占空间大,按需展开) -->
-    <div class="card" id="trajCard" style="display:none;">
-      <div class="ch">
-        成长轨迹 <span class="t" id="trajN">0</span> 条
-        <button class="traj-toggle" id="trajToggle" onclick="toggleTraj()">展开 ↓</button>
-      </div>
-      <div class="traj-list" id="trajList" style="display:none;">
+      <!-- 5D 状态 + overall_confidence -->
+      <div class="dim-grid" id="dimGrid">
         <!-- JS 动态渲染 -->
       </div>
-    </div>
 
-    <!-- Misconceptions 历史 -->
-    <div class="card" id="miscCard" style="display:none;">
-      <div class="ch">误概念历史 <span class="t" id="miscN">0</span></div>
-      <div class="misc-list" id="miscList">
-        <!-- JS 动态渲染 -->
+      <!-- 右侧面板（Bloom + TC + LearningDNA）-->
+      <div class="state-row">
+        <!-- 左：Blooom -->
+        <div class="card">
+          <div class="ch">Bloom Profile <span class="t" id="bdom">—</span></div>
+          <div class="bloom-rows" id="bloomRows">
+            <!-- JS 动态渲染 L1-L6 -->
+          </div>
+        </div>
+        <!-- 右：TC + LearningDNA -->
+        <div class="card">
+          <div class="ch">TC 状态 <span class="t blue">阈值概念</span></div>
+          <div class="tc-rows" id="tcRows">
+            <!-- JS 动态渲染 -->
+          </div>
+          <div class="ch" style="border-top:1px solid #eee; background:#f9fafb;">LearningDNA</div>
+          <div class="ldn-row" id="ldnRow">
+            <!-- JS 动态渲染 -->
+          </div>
+        </div>
+      </div>
+
+      <!-- 题目 + 答题(v0.48.9 合并) -->
+      <div class="card">
+        <div class="ch">当前题目 <span class="t" id="qid"></span> <span class="t blue" id="qtopic"></span> <span class="t green" id="qbloom"></span></div>
+        <div class="prob" id="qtext">—</div>
+        <textarea class="ta" id="ans" placeholder="输入代码或答案..."></textarea>
+        <div class="btns">
+          <button id="btnSub" onclick="submit()">提交答案</button>
+          <button id="btnNext" class="g" onclick="nextQ()" style="display:none;">下一题 →</button>
+        </div>
+      </div>
+
+      <!-- 反馈 -->
+      <div class="card" id="fbox" style="display:none;">
+        <div class="ch">反馈</div>
+        <div class="fb" id="fbres"></div>
+      </div>
+
+      <!-- 干预 -->
+      <div class="iv" id="ivbox" style="display:none;">
+        <div class="ch" id="ivtype"></div>
+        <div class="iv-body" id="ivbd"></div>
       </div>
     </div>
+    <!-- /Tab 1 -->
 
-    <!-- W5+ (2026-07-19): 个人学习画像（C 端 A 端,纯前端渲染后端 interpretation 字段） -->
-    <div class="card report-card" id="reportCard" style="display:none;">
-      <div class="ch">
-        📋 个人学习画像
-        <span class="t" id="reportStamp">—</span>
-        <button class="report-toggle" id="reportToggle" onclick="toggleReport()">展开 ↓</button>
+    <!-- Tab 2: 轨迹(成长轨迹 + 误概念 + 个人学习画像) -->
+    <div class="tab-panel" id="panel-traj" style="display:none;">
+
+      <!-- 成长轨迹(v0.49.0 默认折叠) -->
+      <div class="card" id="trajCard" style="display:none;">
+        <div class="ch">
+          成长轨迹 <span class="t" id="trajN">0</span> 条
+          <button class="traj-toggle" id="trajToggle" onclick="toggleTraj()">展开 ↓</button>
+        </div>
+        <div class="traj-list" id="trajList" style="display:none;">
+          <!-- JS 动态渲染 -->
+        </div>
       </div>
-      <div class="report-body" id="reportBody" style="display:none;">
-        <!-- JS 动态渲染 6 段：overall / five_d / bloom / tc / trajectory / next_steps -->
-        <div class="report-loading" id="reportLoading">加载中…</div>
+
+      <!-- 误概念历史 -->
+      <div class="card" id="miscCard" style="display:none;">
+        <div class="ch">误概念历史 <span class="t" id="miscN">0</span></div>
+        <div class="misc-list" id="miscList">
+          <!-- JS 动态渲染 -->
+        </div>
+      </div>
+
+      <!-- W5+ (2026-07-19): 个人学习画像 -->
+      <div class="card report-card" id="reportCard" style="display:none;">
+        <div class="ch">
+          📋 个人学习画像
+          <span class="t" id="reportStamp">—</span>
+          <button class="report-toggle" id="reportToggle" onclick="toggleReport()">展开 ↓</button>
+        </div>
+        <div class="report-body" id="reportBody" style="display:none;">
+          <!-- JS 动态渲染 6 段：overall / five_d / bloom / tc / trajectory / next_steps -->
+          <div class="report-loading" id="reportLoading">加载中…</div>
+        </div>
       </div>
     </div>
+    <!-- /Tab 2 -->
 
-    <!-- 题目 + 答题(v0.48.9 合并:答题是主路径,埋在 dashboard 下面违反用户动线) -->
-    <div class="card">
-      <div class="ch">当前题目 <span class="t" id="qid"></span> <span class="t blue" id="qtopic"></span> <span class="t green" id="qbloom"></span></div>
-      <div class="prob" id="qtext">—</div>
-      <textarea class="ta" id="ans" placeholder="输入代码或答案..."></textarea>
-      <div class="btns">
-        <button id="btnSub" onclick="submit()">提交答案</button>
-        <button id="btnNext" class="g" onclick="nextQ()" style="display:none;">下一题 →</button>
+    <!-- Tab 3: 设置(学生ID + 导出报告 + 版本 + 退出) -->
+    <div class="tab-panel" id="panel-settings" style="display:none;">
+      <div class="card">
+        <div class="ch">⚙️ 学生信息</div>
+        <div class="settings-row">
+          <span>当前学生 ID:</span>
+          <strong id="settings-sid">—</strong>
+        </div>
+      </div>
+      <div class="card">
+        <div class="ch">📊 导出报告</div>
+        <div class="settings-row">
+          <span>下载当前学习状态为 JSON 文件（C 端接口,可发给家长/教师）</span>
+        </div>
+        <div class="btns">
+          <button onclick="exportReport()">📊 导出报告</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="ch">ℹ️ 关于</div>
+        <div class="settings-row">
+          <span>ECOS Python 基础 v0.49.1</span>
+        </div>
+        <div class="settings-row" style="font-size:11px; color:#6b7280;">
+          <span>Phase 4 Product Demo · 单用户 · CTA + LCA 双 Agent 架构</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="ch">🚪 退出</div>
+        <div class="settings-row">
+          <span>退出当前学生,回到登录页</span>
+        </div>
+        <div class="btns">
+          <button onclick="logout()">退出登录</button>
+        </div>
       </div>
     </div>
-
-    <!-- 反馈 -->
-    <div class="card" id="fbox" style="display:none;">
-      <div class="ch">反馈</div>
-      <div class="fb" id="fbres"></div>
-    </div>
-
-    <!-- 干预 -->
-    <div class="iv" id="ivbox" style="display:none;">
-      <div class="ch" id="ivtype"></div>
-      <div class="bd" id="ivbd"></div>
-    </div>
+    <!-- /Tab 3 -->
 
   </div>
+  <!-- /study -->
 </div>
 
 <script>
@@ -527,6 +614,23 @@ let sid = '', q = null;
 // 页面加载时,自动填 localStorage 里的 sid + 加载最近学生列表
 initLogin();
 // v0.48.8: 删 loadEcosVersion() 调用(函数本体已删)
+// v0.49.1: 恢复上次 Tab 选择
+try {
+  const lastTab = localStorage.getItem('ecos_last_tab');
+  if (lastTab && ['study', 'traj', 'settings'].includes(lastTab)) {
+    // 延迟到 study 显示后再切(否则 panel 还没创建)
+    document.addEventListener('DOMContentLoaded', () => {
+      const observer = new MutationObserver(() => {
+        const study = document.getElementById('study');
+        if (study && study.style.display === 'block') {
+          switchTab(lastTab);
+          observer.disconnect();
+        }
+      });
+      observer.observe(document.getElementById('study'), { attributes: true, attributeFilter: ['style'] });
+    });
+  }
+} catch(e) {}
 
 const DIMS = [
   {k:'K', label:'概念理解', color:'#1e40af'},
@@ -596,9 +700,46 @@ function clearLastSid() {
 //   函数本身被 0.46.4 commit 加进来用,现在不需要单独拉版本号了
 //   保留 API /api/version(其他调试用),仅删这个 JS helper
 
-function clearLastSid() {
+// v0.49.1: Tab 切换(学习 / 轨迹 / 设置)
+//   默认 Tab 1 active,localStorage 记忆选择(刷新保留)
+function switchTab(name) {
+  const panels = ['study', 'traj', 'settings'];
+  for (const p of panels) {
+    const panel = document.getElementById('panel-' + p);
+    const btn = document.querySelector(`.tab-btn[data-tab="${p}"]`);
+    if (p === name) {
+      if (panel) panel.style.display = '';
+      if (btn) btn.classList.add('active');
+      // 切到 settings 时同步学生 ID
+      if (p === 'settings') {
+        const settingsSid = document.getElementById('settings-sid');
+        const currentSid = document.getElementById('current-sid');
+        if (settingsSid && currentSid) settingsSid.innerText = currentSid.innerText;
+      }
+    } else {
+      if (panel) panel.style.display = 'none';
+      if (btn) btn.classList.remove('active');
+    }
+  }
+  try { localStorage.setItem('ecos_last_tab', name); } catch(e) {}
+}
+
+// v0.49.1: 退出登录(回到 login 页面)
+function logout() {
+  if (!confirm('确定退出当前学生?')) return;
   try { localStorage.removeItem('ecos_last_sid'); } catch(e) {}
-  alert('已清除浏览器记住的 ID');
+  // 清空 in-memory 状态(下次 start() 会重新从 DB 加载)
+  document.getElementById('study').style.display = 'none';
+  document.getElementById('topbar').style.display = 'none';
+  document.getElementById('login').style.display = '';
+  document.getElementById('sid').value = '';
+  if (typeof _STUDENT_STATES !== 'undefined' && _STUDENT_STATES) {
+    delete _STUDENT_STATES[sid];
+  }
+  sid = '';
+  q = null;
+  // 重新加载最近学生
+  if (typeof loadRecentStudents === 'function') loadRecentStudents();
 }
 
 // 页面加载时,自动填 localStorage 里的 sid + 加载最近学生列表
