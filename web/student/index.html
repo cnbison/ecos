@@ -103,7 +103,21 @@ a { color: #2563eb; }
 .ldn-row strong { color: #374151; }
 
 /* Trajectory */
-.traj-list { padding: 6px 10px; max-height: 120px; overflow-y: auto; font-size: 11px; }
+.traj-list { padding: 6px 10px; max-height: 240px; overflow-y: auto; font-size: 11px; }
+/* v0.49.0: 成长轨迹折叠按钮（复用 .report-toggle 风格,放行内右对齐） */
+.traj-toggle {
+  margin-left: auto;
+  background: #f3f4f6;
+  color: #4b5563;
+  border: 1px solid #e5e7eb;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+.traj-toggle:hover { background: #e5e7eb; }
 .traj-item { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; padding: 3px 6px; background: #f9fafb; border-radius: 4px; }
 .traj-item .t-num { color: #9ca3af; font-size: 10px; min-width: 20px; }
 .traj-item .t-k, .traj-item .t-p, .traj-item .t-s { font-family: monospace; font-size: 10px; }
@@ -448,10 +462,13 @@ button:disabled { opacity: 0.5; cursor: default; }
       </div>
     </div>
 
-    <!-- Trajectory 历史 -->
+    <!-- Trajectory 历史 (v0.49.0: 默认折叠,12 条 timeline 占空间大,按需展开) -->
     <div class="card" id="trajCard" style="display:none;">
-      <div class="ch">成长轨迹 <span class="t" id="trajN">0</span> 条</div>
-      <div class="traj-list" id="trajList">
+      <div class="ch">
+        成长轨迹 <span class="t" id="trajN">0</span> 条
+        <button class="traj-toggle" id="trajToggle" onclick="toggleTraj()">展开 ↓</button>
+      </div>
+      <div class="traj-list" id="trajList" style="display:none;">
         <!-- JS 动态渲染 -->
       </div>
     </div>
@@ -1087,6 +1104,19 @@ function toggleReport() {
     btn.innerText = '收起 ↑';
   } else {
     body.style.display = 'none';
+    btn.innerText = '展开 ↓';
+  }
+}
+
+// v0.49.0: 成长轨迹折叠切换(同 toggleReport 模式)
+function toggleTraj() {
+  const list = document.getElementById('trajList');
+  const btn = document.getElementById('trajToggle');
+  if (list.style.display === 'none') {
+    list.style.display = '';
+    btn.innerText = '收起 ↑';
+  } else {
+    list.style.display = 'none';
     btn.innerText = '展开 ↓';
   }
 }
