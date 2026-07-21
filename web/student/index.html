@@ -681,11 +681,17 @@ async function submit() {
   if (!a) { alert('请输入答案'); return; }
   document.getElementById('btnSub').disabled = true;
   document.getElementById('btnSub').innerText = 'AI 评判中…';
+  // v0.48.6: 给 /api/judge 加 30s timeout(LLM 调外部 API 偶尔慢,Bisen 反馈"卡死")
+  //   AbortController 比 fetch 直接 timeout 更可靠 — 超时后取消请求,按钮立即恢复
+  const judgeController = new AbortController();
+  const judgeTimeout = setTimeout(() => judgeController.abort(), 30000);
   try {
     const jr = await fetch(API + '/judge', {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ student_id: sid, problem_id: q.problem_id, student_answer: a })
+      body: JSON.stringify({ student_id: sid, problem_id: q.problem_id, student_answer: a }),
+      signal: judgeController.signal,
     });
+    clearTimeout(judgeTimeout);
     const jd = await jr.json();
     if (jd.error) { alert(jd.error); return; }
     const ok = jd.correct;
