@@ -477,12 +477,25 @@ function renderTC(d) {
   document.getElementById('tcRows').innerHTML = html;
 }
 
-// 渲染 LearningDNA
+// 渲染 LearningDNA (v0.52.0: 数据量不足, 标"待启用")
+//   lbc001 22 道题, 9 道带 timestamp, 错误也少, 推断不出 LearningDNA 字段
+//   当前 LearningDNA 是 v0.1.0 占位实现, confidence=0.0, 真实估计逻辑待 Phase 4+
+//   隐藏置信度数字, 标"待启用"避免用户疑惑
 function renderLDN(d) {
   const ldn = d.learning_dna || {};
   document.getElementById('ldnRow').innerHTML = `
-    <div><strong>输入偏好:</strong> ${ldn.input_preference || '—'}</div>
-    <div><strong>反馈偏好:</strong> ${ldn.feedback_preference || '—'}</div>
+    <div style="color:#9ca3af; font-size:11px; padding:4px 0;">
+      需更多答题历史 (≥50 题) + 交互行为数据 才能推断
+    </div>
+    <div style="color:#6b7280; font-size:11px; padding:2px 0;">
+      <span style="display:inline-block; width:60px; color:#9ca3af;">输入偏好</span> ${ldn.input_preference || '—'}
+    </div>
+    <div style="color:#6b7280; font-size:11px; padding:2px 0;">
+      <span style="display:inline-block; width:60px; color:#9ca3af;">反馈偏好</span> ${ldn.feedback_preference || '—'}
+    </div>
+    <div style="color:#6b7280; font-size:11px; padding:2px 0;">
+      <span style="display:inline-block; width:60px; color:#9ca3af;">错误模式</span> ${(ldn.error_pattern || []).length || 0} 条
+    </div>
   `;
 }
 

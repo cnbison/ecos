@@ -14,9 +14,12 @@ M2 W1 范围：
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+
+logger = logging.getLogger(__name__)
 
 import numpy as np
 
@@ -121,9 +124,18 @@ class BeliefEngine:
         self,
         config: BeliefEngineConfig | None = None,
         llm_client: Optional["ECOSLLMClient"] = None,
+        # v0.52.0: 注入 misconception 库(BUG 2.1 修复)
+        #   之前 _llm_critic_misconception 调 detect_with_hits() 没传 library_str,
+        #   fallback 到 detector 默认的 K12 通用数学库 M1-M30
+        #   但 belief.py 实际想用 Python misconception 库 M1-M8
+        #   库 ID 错配导致 LLM 永远找不到 Python 相关的 M3 (off-by-one)
+        #   修复: BeliefEngine 接受 library_str, 内部 detector 调时传它
+        #         belief.py 构造 engine 时传 PYTHON_BASICS_MISCONCEPTION_LIBRARY_STR
+        misconception_library_str: Optional[str] = None,
     ) -> None:
         self.config = config or BeliefEngineConfig()
         self.llm_client = llm_client
+        self.misconception_library_str = misconception_library_str
         self.l1 = BKTEvolutionLayer(self.config.evolution_config)
         self.l2 = BiFactorMIRT5D(self.config.mirt_config)
         self.tc_detector = TCStateDetector()
@@ -437,9 +449,19 @@ class BeliefEngine:
                 student_explanation=observation.explanation_text,
                 problem=observation.problem_text or observation.skill_id,
                 trigger_problem_id=observation.problem_id,
+                # v0.52.0: 传对库 (BUG 2.1 修复)
+                #   之前不传 → detector fallback 到 K12 默认库 → 库 ID 错配
+                #   修复: 用 self.misconception_library_str (由 belief.py 注入)
+                library_str=self.misconception_library_str,
             )
         except Exception:
-            # LLM 调用失败时跳过，不阻塞主流程
+            # v0.52.0: silent pass → logger.warning (CLAUDE.md §防御性自检)
+            #   之前 except: return 静默吞掉 LLM 调用失败, 不知道是 network/LLM/rate limit
+            #   Bisen 之前已经反馈过同款 silent pass (v0.47.5)
+            logger.warning(
+                "_llm_critic_misconception: LLM 调用失败(student=%s, problem=%s)",
+                state.student_id, observation.problem_id, exc_info=True,
+            )
             return
 
         if misc_hit is None:

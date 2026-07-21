@@ -64,8 +64,13 @@ def _get_or_create_student(student_id: str) -> dict:
             )
             # v0.49.3: 传 llm_client 给 BeliefEngine, 避免 misc_detector / perception_critic
             #   在 self.llm is None 时崩 (NoneType has no attribute chat_json)
+            # v0.52.0: 传 misconception_library_str (BUG 2.1 修复)
             from web.api.app import get_llm
-            engine = BeliefEngine(config=config, llm_client=get_llm())
+            engine = BeliefEngine(
+                config=config,
+                llm_client=get_llm(),
+                misconception_library_str=PYTHON_BASICS_MISCONCEPTION_LIBRARY_STR,
+            )
             state = engine.create_initial_state(student_id)
 
             # 部分恢复:theta_mean / bloom_profile / learning_dna
@@ -338,8 +343,13 @@ def _get_or_create_student(student_id: str) -> dict:
             )
             # v0.49.3: 传 llm_client 给 BeliefEngine, 避免 misc_detector / perception_critic
             #   在 self.llm is None 时崩 (NoneType has no attribute chat_json)
+            # v0.52.0: 传 misconception_library_str (BUG 2.1 修复)
             from web.api.app import get_llm
-            engine = BeliefEngine(config=config, llm_client=get_llm())
+            engine = BeliefEngine(
+                config=config,
+                llm_client=get_llm(),
+                misconception_library_str=PYTHON_BASICS_MISCONCEPTION_LIBRARY_STR,
+            )
             state = engine.create_initial_state(student_id)
             _STUDENT_STATES[student_id] = {"engine": engine, "state": state}
             db.upsert_student(student_id, subject="python")
@@ -526,22 +536,18 @@ def submit_answer(
             student_id, problem_id, exc_info=True,
         )
 
-    # 检测 misconception
-    misc_triggered = False
-    detection = None
-    if explanation_text:
-        try:
-            detection = engine.misc_detector.detect(
-                student_explanation=explanation_text,
-                problem="",
-                library_str=PYTHON_BASICS_MISCONCEPTION_LIBRARY_STR,
-            )
-            misc_triggered = detection.misc_id != ""
-        except Exception:
-            _log.warning(
-                "submit_answer: misconception 检测失败(student=%s, problem=%s)",
-                student_id, problem_id, exc_info=True,
-            )
+    # v0.52.0: 从 updated_state 读 misconception (BUG 2.2 修复)
+    #   之前 belief.py 末尾独立调 engine.misc_detector.detect(),
+    #   只把结果返回前端 response, 没 append 到 state.C.misconception_hits
+    #   → save_student_state 持久化的 misc_hits 始终空
+    #   → DB misconception_history 永远没数据
+    #   修复: 删末尾独立检测, 改从 updated_state.C.misconception_hits 读最新一条
+    #         (engine.update 内部 _llm_critic_misconception 已 append, 见 BUG 2.1 修复)
+    latest_misc = None
+    for h in reversed(getattr(updated_state.C, "misconception_hits", [])):
+        if h.trigger_problem_id == problem_id:
+            latest_misc = h
+            break
 
     # 构建响应
     theta = updated_state.theta_mean
@@ -549,9 +555,9 @@ def submit_answer(
     response = {
         "correct": correct,
         "theta": {dims[i]: round(float(theta[i]), 4) for i in range(5)},
-        "misc_triggered": misc_triggered,
-        "misc_id": detection.misc_id if detection else "",
-        "misc_confidence": detection.confidence if detection else 0.0,
+        "misc_triggered": latest_misc is not None,
+        "misc_id": latest_misc.misc_id if latest_misc else "",
+        "misc_confidence": round(float(latest_misc.confidence), 4) if latest_misc else 0.0,
         "c_discount_factor": round(
             updated_state.C.discount_factor if hasattr(updated_state.C, "discount_factor") else 1.0, 3
         ),

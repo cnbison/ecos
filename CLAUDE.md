@@ -298,6 +298,28 @@ grep -n "_get_or_create_student\|save_student_state\|load_student_state" web/api
 
 ### 计划中的防御机制（v0.47.6+ TODO）
 
+- [x] **CI gate v0.52.0**：写 commit message 列"已做"功能时, 必须 devtools 验证功能**真在跑**（BUG 防止）
+  - 触发背景: Bisen 4 次反馈"虚标"bug:
+    - v0.50.0 5D badge CSS class 名错配 (HTML `f-lbl` vs CSS `.lbl`)
+    - v0.50.0 把 LearningDNA 列为"7 组件完整产品形态"但 confidence=0.0 永远不涨
+    - v0.51.0 Phase 4 拆文件后 URL hash 路由忘了 auto-start
+    - v0.51.4 设置页 hardcoded 版本号没动态化
+    - v0.52.0 写 commit message "P0 必修"但 engine.update 内部 misconception
+      检测库 ID 错配 + belief.py 末尾独立检测结果不写回 state (lbc001 22 道
+      题 0 个 misconception 命中)
+  - 实施: 写功能前 `grep -E 'state\.\w+\.confidence\s*='` 确认组件真有 update
+    逻辑; dashboard 展示的"7 组件"必须 devtools 看 1 轮答题后至少 1 个组件
+    confidence 变化
+  - 防 3 次同类: 未来 commit 列组件/字段前, 必须先看代码确认实现, 不能再
+    "写 message 时想当然"
+- [x] **CI gate v0.52.0**：库 ID 错配 (BUG 2.1 教训)
+  - 触发背景: `_llm_critic_misconception` 调 `detect_with_hits()` 没传
+    `library_str`, detector fallback 到 K12 通用数学库 M1-M30, 但实际
+    需要 Python misconception 库 M1-M8 → LLM 永远找不到 Python 相关的 M3
+  - 实施: 任何 `detect_with_hits(...)` / `detect(...)` 调用必须显式传
+    `library_str=...`, 不能依赖默认; 配合 git grep 自检:
+    `git grep -nE 'detect_with_hits|self\.misc_detector\.detect' -- ecos/ web/`
+  - 防 3 次同类: 任何 detector 调用, library_str 都是必需参数, 必须传
 - [ ] CI gate：`grep -nE "except Exception: *$" --include="*.py" -r ecos/ web/` 命中非空则 fail
 - [ ] `save_student_state` 加 `fail_count` 字段，统计丢了几条 snapshot
 - [ ] `db.py` 持久化后做 integrity check（存完再 load，对比 length）
