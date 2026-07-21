@@ -66,4 +66,6 @@ Thumbs.db
 /output/
 /checkpoints/
 *.db
+*.db-shm
+*.db-wal
 *.sqlite3
