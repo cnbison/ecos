@@ -20,6 +20,7 @@ const api = {
     return r.json();
   },
   getRecentStudents()                 { return this._fetch('/students/recent'); },
+  getVersion()                        { return this._fetch('/version'); },
   getQuestion(sid)                    { return this._fetch('/question/' + sid); },
   judgeAnswer(body, signal)           { return this._fetch('/judge', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body), signal }); },
   submitAnswer(body)                  { return this._fetch('/answer', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) }); },
@@ -37,7 +38,17 @@ initLogin();
 //   导致刷新后总停在登录界面, URL hash 切 tab 那段空转
 //   修复: DOMContentLoaded 时检测 last_sid, 有就 auto-start
 //         start() 内部已调 restoreTabFromHash (Phase 4 URL hash 路由), 不再需要单独切 tab
+// v0.51.4: 同时拉 /api/version 填设置页 "关于" 区的版本号
+//   之前 v0.49.1 hardcoded v0.49.1, 后续 v0.50/v0.51 都没改, Bisen 反馈设置页版本号过时
 document.addEventListener('DOMContentLoaded', () => {
+  // 拉版本号填设置页（独立 await, 失败不影响 auto-start）
+  api.getVersion().then(d => {
+    if (d && d.version) {
+      const el = document.getElementById('about-version');
+      if (el) el.textContent = d.version;
+    }
+  }).catch(e => console.warn('getVersion:', e));
+
   try {
     const lastSid = localStorage.getItem('ecos_last_sid');
     if (lastSid) {
