@@ -769,7 +769,7 @@ function renderDims(d) {
         <span class="f-lbl">${dim.k}</span>
         <span class="f-name">${dim.label}</span>
       </div>
-      <div class="theta">${Number(v).toFixed(4)}</div>
+      <div class="theta">${Number(v).toFixed(2)}</div>
       <div class="bar"><div style="width:${pct}%;background:${dim.color}"></div></div>
       <div class="conf-label ${confClass}" title="${confReason}">置信度 ${Math.round(confPct)}%</div>
       <div class="conf-bar"><div style="width:${confPct}%"></div></div>
