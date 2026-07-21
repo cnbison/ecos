@@ -546,14 +546,32 @@ async function start() {
     loginBtn.innerText = '加载中…';
   }
   try {
-    await Promise.all([refresh(), loadQ()]);
+    // v0.48.4: 加 5s timeout 保护 + fetch 失败不 display study
+    //   Bisen 反馈 0.47.7 修过同款 race condition,但偶尔还出现"5D 空白 + 总置信度 0.000"
+    //   根因 1: Flask 冷启动时 /api/state 慢,Promise.all 一直 await
+    //   根因 2: refresh() 之前 try/catch 包裹整个函数,fetch 失败被静默吞掉
+    //           → start() 以为成功了 → display:block → 但 d=undefined → 5D 显示初始 innerText
+    //   修复: 5s 超时 + refresh() 重构(fetch 阶段让 promise reject)
+    //         start() 收到 reject/timeout → 不 display study,提示用户刷新
+    const timeout = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('加载超时(5s) — 后端 /api/state 可能冷启动')), 5000)
+    );
+    await Promise.race([Promise.all([refresh(), loadQ()]), timeout]);
   } catch (e) {
-    console.warn('start() fetch 失败,仍显示 study:', e);
-  } finally {
+    console.warn('start() fetch 失败/超时:', e);
+    // v0.48.4: fetch 失败**不** display study,显示错误占位让用户刷新
+    alert('数据加载失败:\n' + e.message + '\n\n请刷新浏览器重试。');
+    const study = document.getElementById('study');
+    study.innerHTML = '<div class="card" style="text-align:center;color:#ef4444;padding:24px;">❌ 数据加载失败<br><small style="color:#9ca3af;">' + e.message + '</small><br><br><button onclick="location.reload()" style="padding:6px 16px;background:#2563eb;color:#fff;border:none;border-radius:4px;cursor:pointer;">刷新页面</button></div>';
     if (loginBtn) {
       loginBtn.disabled = false;
       if (origBtnText !== null) loginBtn.innerText = origBtnText;
     }
+    return;  // 不 display:block,让 study 保持 display:none(用户看到 login + alert)
+  }
+  if (loginBtn) {
+    loginBtn.disabled = false;
+    if (origBtnText !== null) loginBtn.innerText = origBtnText;
   }
   document.getElementById('study').style.display = 'block';
 }
@@ -856,10 +874,27 @@ function renderMisc(d) {
 }
 
 async function refresh() {
+  // v0.48.4: 重构 — fetch 阶段不 try/catch(让 promise 在 fetch 失败时 reject)
+  //   之前 try/catch 包裹整个函数,fetch 失败被静默吞掉 → start() 以为成功了 → display:block
+  //   但 d 是 undefined,5D/Bloom/TC 显示初始 innerText (k总置信度 0.000, Bloom: —)
+  //   修法:fetch 阶段异常让它冒到外层,start() 看到 reject → 不 display study,提示用户
+  let d;
   try {
     const r = await fetch(API + '/state/' + sid);
-    const d = await r.json();
+    if (!r.ok) {
+      throw new Error(`/api/state HTTP ${r.status}`);
+    }
+    d = await r.json();
+    if (d.error) {
+      throw new Error('/api/state 返回 error: ' + d.error);
+    }
+  } catch (e) {
+    // fetch 失败:让 promise reject,start() 收到后能正确处理
+    throw new Error('state 加载失败: ' + e.message);
+  }
 
+  // 渲染阶段: 每个 render 用独立 try/catch,某个失败不影响其他
+  try {
     // W1 (2026-07-17): Bloom 距下一层 Δ
     document.getElementById('kb').innerText = d.bloom_profile?.dominant || '—';
     const dist = d.bloom_layer_distance;
@@ -881,14 +916,13 @@ async function refresh() {
       kdelta.style.display = 'none';
     }
 
-    // W1 (2026-07-17): C折扣 + 总置信度（W4 改进:overall_confidence 数字保持清晰,仅 tooltip 提示）
+    // W1 (2026-07-17): C折扣 + 总置信度
     const isWarmup = !!d.is_warmup;
     const kcEl = document.getElementById('kc');
     const kovEl = document.getElementById('kov');
     kcEl.innerText = 'C折扣: ' + (d.c_discount_factor || 1.0).toFixed(2);
     kovEl.innerText = '总置信度: ' + (d.overall_confidence || 0).toFixed(3);
     kcEl.className = isWarmup ? 'is-warmup' : '';
-    // W4: overall_confidence 数字本身保持清晰,只在 < 0.5 时 tooltip 提示
     kovEl.className = '';
     kovEl.title = (d.overall_confidence || 0) < 0.5
       ? `整体置信度仅 ${((d.overall_confidence || 0) * 100).toFixed(0)}%,需要更多题目收敛`
@@ -902,7 +936,6 @@ async function refresh() {
       wpill.style.display = '';
       wpill.classList.remove('fadeout');
     } else {
-      // 从 warm-up → 非 warm-up，触发淡出
       if (prevWarmup === true) {
         wpill.classList.add('fadeout');
         setTimeout(() => { wpill.style.display = 'none'; wpill.classList.remove('fadeout'); }, 350);
@@ -918,7 +951,10 @@ async function refresh() {
     renderTraj(d);
     renderMisc(d);
     renderReportCard(d);  // W5+ (2026-07-19): 个人学习画像面板
-  } catch(e) { console.warn(e.message); }
+  } catch(e) {
+    // 渲染阶段失败:warn 但不 throw(部分渲染仍可工作)
+    console.warn('refresh 渲染部分失败(d 已成功拿到):', e);
+  }
 }
 
 // W5+ (2026-07-19): 个人学习画像面板——纯前端渲染后端 interpretation 字段
