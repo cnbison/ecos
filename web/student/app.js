@@ -32,23 +32,25 @@ const api = {
 // 页面加载时,自动填 localStorage 里的 sid + 加载最近学生列表
 initLogin();
 // v0.48.8: 删 loadEcosVersion() 调用(函数本体已删)
-// v0.49.1: 恢复上次 Tab 选择
-try {
-  const lastTab = localStorage.getItem('ecos_last_tab');
-  if (lastTab && ['study', 'traj', 'settings'].includes(lastTab)) {
-    // 延迟到 study 显示后再切(否则 panel 还没创建)
-    document.addEventListener('DOMContentLoaded', () => {
-      const observer = new MutationObserver(() => {
-        const study = document.getElementById('study');
-        if (study && study.style.display === 'block') {
-          switchTab(lastTab);
-          observer.disconnect();
-        }
-      });
-      observer.observe(document.getElementById('study'), { attributes: true, attributeFilter: ['style'] });
-    });
+// v0.51.2: 页面加载时, 如果 localStorage 有 ecos_last_sid, 自动 start
+//   之前 v0.49.1 用 MutationObserver 监听 study display 再切 tab, 但 start 没自动调用
+//   导致刷新后总停在登录界面, URL hash 切 tab 那段空转
+//   修复: DOMContentLoaded 时检测 last_sid, 有就 auto-start
+//         start() 内部已调 restoreTabFromHash (Phase 4 URL hash 路由), 不再需要单独切 tab
+document.addEventListener('DOMContentLoaded', () => {
+  try {
+    const lastSid = localStorage.getItem('ecos_last_sid');
+    if (lastSid) {
+      // 把 lastSid 填到 input, 避免 start() fallback 到 'python_student_001' 默认值
+      const sidInput = document.getElementById('sid');
+      if (sidInput) sidInput.value = lastSid;
+      // auto-start (start 内部会 hide login + show topbar + show study + restoreTabFromHash)
+      start();
+    }
+  } catch(e) {
+    console.warn('auto-start:', e);
   }
-} catch(e) {}
+});
 
 const DIMS = [
   {k:'K', label:'概念理解', color:'#1e40af'},
@@ -58,10 +60,25 @@ const DIMS = [
   {k:'X', label:'跨域迁移', color:'#dc2626'},
 ];
 
-async function start() {
-  sid = document.getElementById('sid').value.trim() || 'python_student_001';
+async function start(sidOverride) {
+  // v0.51.2: 支持 auto-start（页面刷新时跳过登录入口）
+  //   优先级: sidOverride > input.value > localStorage ecos_last_sid > 'python_student_001'
+  if (sidOverride) {
+    sid = sidOverride;
+  } else {
+    sid = document.getElementById('sid').value.trim();
+  }
+  if (!sid) {
+    try { sid = localStorage.getItem('ecos_last_sid') || ''; } catch(e) { sid = ''; }
+  }
+  if (!sid) sid = 'python_student_001';
   // 记住 sid 到 localStorage（W4 改进：避免重启后忘记 ID）
   try { localStorage.setItem('ecos_last_sid', sid); } catch(e) {}
+  // v0.51.2: 同步到 input.value, 退出后再回来能看见当前 sid
+  try {
+    const sidInput = document.getElementById('sid');
+    if (sidInput && !sidInput.value) sidInput.value = sid;
+  } catch(e) {}
   // W5+: topbar 显示当前学生 ID
   document.getElementById('current-sid').innerText = sid;
   document.getElementById('login').style.display = 'none';
@@ -92,10 +109,19 @@ async function start() {
     await Promise.race([Promise.all([refresh(), loadQ()]), timeout]);
   } catch (e) {
     console.warn('start() fetch 失败/超时:', e);
-    // v0.48.4: fetch 失败**不** display study,显示错误占位让用户刷新
-    alert('数据加载失败:\n' + e.message + '\n\n请刷新浏览器重试。');
     const study = document.getElementById('study');
-    study.innerHTML = '<div class="card" style="text-align:center;color:#ef4444;padding:24px;">❌ 数据加载失败<br><small style="color:#9ca3af;">' + e.message + '</small><br><br><button onclick="location.reload()" style="padding:6px 16px;background:#2563eb;color:#fff;border:none;border-radius:4px;cursor:pointer;">刷新页面</button></div>';
+    // v0.51.2: auto-start 失败时不弹 alert, 让用户手动重新登录
+    //   静默恢复 login 区, 按钮恢复可点
+    if (sidOverride) {
+      // auto-start 失败: 静默, 恢复 login 区让用户手动
+      document.getElementById('topbar').style.display = 'none';
+      document.getElementById('login').style.display = '';
+      if (study) study.style.display = 'none';
+    } else {
+      // 手动点登录失败: 弹 alert 提示刷新
+      alert('数据加载失败:\n' + e.message + '\n\n请刷新浏览器重试。');
+      if (study) study.innerHTML = '<div class="card" style="text-align:center;color:#ef4444;padding:24px;">❌ 数据加载失败<br><small style="color:#9ca3af;">' + e.message + '</small><br><br><button onclick="location.reload()" style="padding:6px 16px;background:#2563eb;color:#fff;border:none;border-radius:4px;cursor:pointer;">刷新页面</button></div>';
+    }
     if (loginBtn) {
       loginBtn.disabled = false;
       if (origBtnText !== null) loginBtn.innerText = origBtnText;
