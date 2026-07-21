@@ -397,7 +397,7 @@ function renderDims(d) {
     const confPct = Math.min(100, conf*100);
     html += `<div class="dim">
       <div class="f-row dim-head">
-        <span class="f-lbl" style="background:${dim.color}">${dim.k}</span>
+        <span class="lbl" style="background:${dim.color}">${dim.k}</span>
         <span class="f-name">${dim.label}</span>
       </div>
       <div class="theta">${Number(v).toFixed(2)}</div>

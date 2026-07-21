@@ -468,12 +468,18 @@ button:disabled { opacity: 0.5; cursor: default; }
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: color 0.2s, border-color 0.2s;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
 }
-.tab-btn:hover { color: #1e40af; }
+.tab-btn:hover {
+  color: var(--c-primary);
+  background: var(--c-bg-subtle);       /* v0.51.3: hover 浅灰底色, 强化反馈 */
+  border-bottom-color: #93c5fd;         /* 浅蓝下边线, 跟 active 区分 */
+}
 .tab-btn.active {
-  color: #1e40af;
-  border-bottom-color: #1e40af;
+  color: var(--c-primary);
+  background: var(--c-primary-bg);      /* v0.51.3: 浅蓝底色, 选中态更明显 */
+  border-bottom: 3px solid var(--c-primary);
+  margin-bottom: -3px;                  /* 抵消加粗的下边线避免布局抖动 */
   font-weight: 600;
 }
 .settings-row {
