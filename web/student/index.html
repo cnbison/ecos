@@ -390,13 +390,12 @@ button:disabled { opacity: 0.5; cursor: default; }
 <!-- 顶栏 -->
 <div class="topbar" id="topbar" style="display:none;">
   <div class="wrap">
-    <h1>ECOS Python 基础 <span class="version" id="ecos-version" title="当前 ECOS 版本号（防止浏览器缓存混淆）">v?.?.?</span></h1>
+    <h1>ECOS Python 基础</h1>
     <div class="kpi">
       <span id="kb-wrap">
         Bloom: <span id="kb">—</span>
         <span class="bloom-delta" id="kdelta" style="display:none;"></span>
       </span>
-      <span id="kc">C折扣: 1.00</span>
       <span id="kov">总置信度: —</span>
       <span id="warmup-pill" class="warmup-pill" style="display:none;" title="我们还在熟悉你的节奏，状态估计置信度较低">🌱 正在熟悉你的节奏</span>
       <span class="topbar-sid" title="当前学生 ID">👤 <span id="current-sid">—</span></span>
@@ -515,7 +514,7 @@ let sid = '', q = null;
 
 // 页面加载时,自动填 localStorage 里的 sid + 加载最近学生列表
 initLogin();
-loadEcosVersion();
+// v0.48.8: 删 loadEcosVersion() 调用(函数本体已删)
 
 const DIMS = [
   {k:'K', label:'概念理解', color:'#1e40af'},
@@ -581,16 +580,9 @@ function clearLastSid() {
   alert('已清除浏览器记住的 ID');
 }
 
-// W5+: 加载 ECOS 版本号到 topbar
-async function loadEcosVersion() {
-  try {
-    const r = await fetch(API + '/version');
-    if (!r.ok) return;
-    const data = await r.json();
-    document.getElementById('ecos-version').innerText = 'v' + data.version;
-    document.getElementById('ecos-version').title = `当前 ECOS 版本: ${data.version}`;
-  } catch(e) { console.warn('version:', e.message); }
-}
+// v0.48.8: 删 loadEcosVersion (v0.48.7 commit 把顶栏的版本号显示移除了)
+//   函数本身被 0.46.4 commit 加进来用,现在不需要单独拉版本号了
+//   保留 API /api/version(其他调试用),仅删这个 JS helper
 
 function clearLastSid() {
   try { localStorage.removeItem('ecos_last_sid'); } catch(e) {}
@@ -927,13 +919,10 @@ async function refresh() {
       kdelta.style.display = 'none';
     }
 
-    // W1 (2026-07-17): C折扣 + 总置信度
+    // W1 (2026-07-17): 总置信度(v0.48.8 移除了 C 折扣顶栏显示 — 移到 C 维度卡里单独看,本 commit 仅删顶栏)
     const isWarmup = !!d.is_warmup;
-    const kcEl = document.getElementById('kc');
     const kovEl = document.getElementById('kov');
-    kcEl.innerText = 'C折扣: ' + (d.c_discount_factor || 1.0).toFixed(2);
     kovEl.innerText = '总置信度: ' + (d.overall_confidence || 0).toFixed(3);
-    kcEl.className = isWarmup ? 'is-warmup' : '';
     kovEl.className = '';
     kovEl.title = (d.overall_confidence || 0) < 0.5
       ? `整体置信度仅 ${((d.overall_confidence || 0) * 100).toFixed(0)}%,需要更多题目收敛`
