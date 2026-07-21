@@ -477,9 +477,15 @@ def submit_answer(
 
     # 持久化:每次答题后保存到 SQLite（W5 传 engine 持久化状态机）
     # v0.47.5: silent pass → logger.warning
-    # Bisen 反馈 7-19 17:14 答的题没存 → 这条 except 吞了异常,response_history + trajectory 全丢
+    # v0.48.5: 加 persisted 标志返回给前端
+    #   Bisen 反馈 7-19 ~ 7-21 期间答的 4 道题没存
+    #   根因: 之前 Flask 进程跑的是老代码 (0.47.5 之前),silent pass 吞 save 失败
+    #   0.47.5 commit 之后,silent pass → _log.warning,但 Bisen 没重启 Flask 进程
+    #   修复: 返回 persisted 字段给前端,save 失败时 alert,不让用户以为成功
+    persisted = False
     try:
         _get_db().save_student_state(student_id, updated_state, engine=engine)
+        persisted = True
     except Exception:
         _log.warning(
             "submit_answer: save_student_state 失败(student=%s, problem=%s), 答题数据全丢!",
@@ -515,5 +521,8 @@ def submit_answer(
         "c_discount_factor": round(
             updated_state.C.discount_factor if hasattr(updated_state.C, "discount_factor") else 1.0, 3
         ),
+        # v0.48.5: 持久化标志,前端据此判断是否需要重试/报警
+        #   false = save 失败,答题数据全丢(可能 next refresh 看不到更新)
+        "persisted": persisted,
     }
     return response

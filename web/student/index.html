@@ -698,6 +698,11 @@ async function submit() {
     });
     const d = await r.json();
 
+    // v0.48.5: 检查持久化标志,save 失败时弹 alert (Bisen 反馈 7-19~7-21 期间 4 道题数据丢了)
+    if (d.persisted === false) {
+      alert('⚠️ 持久化失败!\n\n答题结果已更新 in-memory 状态,但保存到数据库失败(可能 Flask 进程需要重启)。\n刷新页面会丢失这题结果。\n\n建议: 重启 Flask 进程后再答题。');
+    }
+
     document.getElementById('fbox').style.display = 'block';
     document.getElementById('fbres').className = 'fb ' + (ok ? 'ok' : 'err');
     document.getElementById('fbres').innerHTML = (ok ? '✅ 正确' : '❌ 错误') + `<div style="margin-top:4px;font-size:12px;color:#6b7280;">AI 评判：${reasoning}</div>`;
