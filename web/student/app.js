@@ -63,12 +63,16 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
+// v0.52.1: 5D 维度标注
+//   K/P/S 真评估 (有主导题)
+//   C/X "待启用" (当前 Q 矩阵 0 主导题, Phase 5 重新设计)
+//   详见 discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md
 const DIMS = [
-  {k:'K', label:'概念理解', color:'#1e40af'},
-  {k:'P', label:'程序知识', color:'#7c3aed'},
-  {k:'S', label:'策略知识', color:'#059669'},
-  {k:'C', label:'元认知',   color:'#d97706'},
-  {k:'X', label:'跨域迁移', color:'#dc2626'},
+  {k:'K', label:'概念理解', color:'#1e40af', pending: false},
+  {k:'P', label:'程序知识', color:'#7c3aed', pending: false},
+  {k:'S', label:'策略知识', color:'#059669', pending: false},
+  {k:'C', label:'元认知',   color:'#9ca3af', pending: true,  pendingNote: 'Phase 5 启用'},
+  {k:'X', label:'跨域迁移', color:'#9ca3af', pending: true,  pendingNote: 'Phase 5 启用'},
 ];
 
 async function start(sidOverride) {
@@ -406,13 +410,21 @@ function renderDims(d) {
       : '';
     const pct = Math.min(100, Math.abs(v)/mx*100);
     const confPct = Math.min(100, conf*100);
-    html += `<div class="dim">
+    // v0.52.1: pending 维度 (C/X) 视觉降权: 灰底 badge + 灰进度条 + "Phase 5 启用" 标
+    //   不引入伪信号, 用户一眼看出哪些是真评估 / 哪些是待启用
+    const pendingClass = dim.pending ? ' dim-pending' : '';
+    const badgeStyle = dim.pending ? 'background:#9ca3af;' : `background:${dim.color};`;
+    const barColor = dim.pending ? '#d1d5db' : dim.color;
+    const labelHtml = dim.pending
+      ? `<span class="f-name" style="color:#9ca3af;">${dim.label}</span><span class="dim-pending-tag" title="${dim.pendingNote}">${dim.pendingNote}</span>`
+      : `<span class="f-name">${dim.label}</span>`;
+    html += `<div class="dim${pendingClass}">
       <div class="f-row dim-head">
-        <span class="lbl" style="background:${dim.color}">${dim.k}</span>
-        <span class="f-name">${dim.label}</span>
+        <span class="lbl" style="${badgeStyle}">${dim.k}</span>
+        ${labelHtml}
       </div>
-      <div class="theta">${Number(v).toFixed(2)}</div>
-      <div class="bar"><div style="width:${pct}%;background:${dim.color}"></div></div>
+      <div class="theta" style="${dim.pending ? 'color:#9ca3af;' : ''}">${Number(v).toFixed(2)}</div>
+      <div class="bar"><div style="width:${pct}%;background:${barColor}"></div></div>
       <div class="conf-label ${confClass}" title="${confReason}">置信度 ${Math.round(confPct)}%</div>
       <div class="conf-bar"><div style="width:${confPct}%"></div></div>
     </div>`;

@@ -265,14 +265,15 @@ Q 矩阵本身只定义“有什么题”，真正决定“下一道出什么题
 | functions / recursion / scope 缺少 L4 | Bloom 6 层可视化在这些 topic 上出现断层 | Phase 4 后续补充每 topic 至少 1 道 L4 Analyze 题 |
 | L5/L6 题目偏少 | 高阶能力估计方差较大 | 每 topic 至少补充 1 道 L5 + 1 道 L6 |
 | `a_specialized` topic 级共享 | 无法区分同一 topic 内不同题目的认知侧重点 | 题库扩大后过渡到题目级精细标注 |
-| C/X 维度载荷低 | 置信度和支架依赖的测量不够敏感 | 随着 misconception 检测和 intervention 日志积累，逐步校准 |
+| **C/X 维度载荷极低 (a=0.10 全部题目)** | **5D 评估实际是 3D 评估**: C/X 维度无主导题, 0 信息量, lbc001 22 道题后 C/X theta 几乎不动; dashboard "5D 评估" 实际只评估 K/P/S, 是"虚标" | **v0.52.1 短期方案 C 已实施**: dashboard C/X 标"待启用" 灰底 + 灰进度条; **Phase 5 重新设计**: 扩 20+ C 主导题 (v0.53.0) + 20+ X 主导题 (v0.54.0) + X 维度 misconception 库 (v0.55.0), 详见 [discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md](../../discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md) |
 
 ### 9.3 下一步
 
 1. 补充 functions-L4、recursion-L4、scope-L4 题目，补全 Bloom 覆盖矩阵。
 2. 将 `a_specialized` 从 topic 级共享迁移到题目级标注。
 3. 基于真实学生交互数据，校准 difficulty / discrimination / guessing。
-4. 引入“阈值概念（Threshold Concepts）”标签，与 TC_python 跨越检测联动。
+4. 引入"阈值概念（Threshold Concepts）"标签，与 TC_python 跨越检测联动。
+5. **Phase 5 路线图（v0.53.0 - v0.55.0）**: 扩 C/X 主导题 + X 维度 misconception 库, 让 5D 评估真正落地 (lbc001 答 30+ 题后启动)
 
 ---
 
