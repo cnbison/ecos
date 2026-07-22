@@ -355,7 +355,7 @@ class Database:
                     serializable = {k: v for k, v in h.items() if not k.startswith("_")}
                     history_serializable.append(serializable)
                 else:
-                    # 老 3-tuple 格式
+                    # 老 3-tuple 格式 (v0.49.2 之前)
                     pid, correct, bl = h
                     history_serializable.append({
                         "problem_id": pid,
@@ -363,6 +363,7 @@ class Database:
                         "bloom_level": bl.name if hasattr(bl, "name") else str(bl),
                         "user_answer": None,
                         "correct_answer": None,
+                        "ai_reasoning": None,  # v0.52.2: 老数据无 reasoning
                         "timestamp": None,
                     })
             response_history_json = json.dumps(history_serializable)

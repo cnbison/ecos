@@ -474,6 +474,9 @@ def submit_answer(
     explanation_text: str = "",
     user_answer: str = "",  # v0.49.2: 给答题历史详情页用
     correct_answer: str = "",  # v0.49.2: 正确答案(从 Q 矩阵读)
+    # v0.52.2: AI 评判的具体 reasoning (Bisen 反馈 partial credit 缺失,
+    #   短期先存 response_history, Phase 5 partial credit 训练用历史数据)
+    ai_reasoning: str = "",
 ) -> dict[str, Any]:
     """提交答案 → BeliefEngine.update() → 返回干预建议(如果需要)。"""
     student = _get_or_create_student(student_id)
@@ -514,6 +517,7 @@ def submit_answer(
         explanation_text=explanation_text,
         user_answer=user_answer,
         correct_answer=correct_answer,
+        ai_reasoning=ai_reasoning,  # v0.52.2: 存 AI reasoning
     )
 
     updated_state = engine.update(current_state, obs)

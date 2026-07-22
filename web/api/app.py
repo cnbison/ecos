@@ -243,6 +243,8 @@ def api_submit_answer():
             explanation_text=explanation_text,
             user_answer=data.get("user_answer", ""),  # v0.49.2
             correct_answer=data.get("correct_answer", ""),  # v0.49.2
+            # v0.52.2: AI reasoning 传给 submit_answer, 存进 response_history
+            ai_reasoning=reasoning,
         )
         result["reasoning"] = reasoning
         return jsonify(result)

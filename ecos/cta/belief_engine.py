@@ -67,6 +67,9 @@ class Observation:
     problem_text: str = ""
     correct_answer: str = ""
     user_answer: str = ""  # v0.49.2: 学生提交的原始答案(给答题历史详情页用)
+    # v0.52.2: AI 评判的具体 reasoning (Bisen 反馈 2026-07-22 partial credit 缺失,
+    #   短期先存 reasoning, Phase 5 partial credit 训练用历史数据)
+    ai_reasoning: str = ""
     timestamp: datetime = field(default_factory=datetime.now)
     response_time_sec: float = 0.0
 
@@ -314,6 +317,8 @@ class BeliefEngine:
 
         # Step 2: 累积响应历史（用于 MIRT 估计 + 答题历史详情页 v0.49.2）
         #   v0.49.2: 改 append dict（之前是 3-tuple,缺 user_answer/timestamp）
+        #   v0.52.2: 加 ai_reasoning (Bisen 反馈 partial credit 缺失, 短期先存 AI reasoning
+        #     留 Phase 5 partial credit 训练用历史数据)
         #   向后兼容老数据: load 时 _get_or_create_student 会把 3-tuple 迁移成 dict
         history = self._response_history.setdefault(student_id, [])
         history.append({
@@ -322,6 +327,7 @@ class BeliefEngine:
             "bloom_level": str(bloom_level.name if hasattr(bloom_level, "name") else bloom_level),
             "user_answer": observation.user_answer,
             "correct_answer": observation.correct_answer,
+            "ai_reasoning": observation.ai_reasoning,
             "timestamp": observation.timestamp.isoformat() if observation.timestamp else None,
         })
         if len(history) > 100:
