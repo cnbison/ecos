@@ -3,8 +3,8 @@
 > **教育认知操作系统**：面向 K12 学生的下一代 AI 辅助学习系统
 > 基于"**学生认知数字孪生 + AI 学习教练**"双 Agent 共进化架构
 
-[![Status](https://img.shields.io/badge/status-demo-brightgreen)]()
-[![Version](https://img.shields.io/badge/version-0.4.0-blue)]()
+[![Status](https://img.shields.io/badge/status-demo--v0.52.3-brightgreen)]()
+[![Version](https://img.shields.io/badge/version-0.52.3-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)]()
 
 ---
@@ -119,38 +119,35 @@ ecos/
 └── prototypes/                        # 架构原型
 ```
 
-## 当前状态（2026-07-10）— **🎉 Phase 4 Product Demo 完整化**
+## 当前状态（2026-07-22，v0.52.3）— **🎉 Bisen 自定义 Phase 1-4 全部完成, 标"待 Phase 5"**
 
-> **战略方向调整（2026-07-10）**：不再以"学校场景 + MVP 能用就行"为目标，转向 **Python 基础自学产品 Demo**——完整展示 ECOS 7 组件（5D+cov/Bloom 6级/TC/LearningDNA/Trajectory/Misconceptions/overall_confidence），面向真实用户可分发。
+> **Bisen 路线**: Phase 1-4 是 UI 改进路线, 跟 ROADMAP Phase 0/4/5/6 不同。
+> 2026-07-22 v0.52.3 已完成: 顶栏精简 / 题目合并 / 轨迹折叠 / 2 位小数 / Tab 导航 /
+> CSS 变量 / 5D badge / SVG icon / 拆文件 / API 封装 / URL hash 路由。
+> 详细见 [research/90-mvp/06-ecos-end-to-end-flow-analysis.md §0](research/90-mvp/06-ecos-end-to-end-flow-analysis.md)。
 
-| 层级 | 状态 | 行数 |
+**ECOS 7 组件当前状态** (v0.52.3):
+| 组件 | 状态 | 详情 |
 |------|------|------|
-| 战略层（research/00-overview/）| ✅ **100% 完成**（4/4：应用/架构/路线图/风险）| ~2400 行 |
-| 工程层（research/10-engineering/）| ✅ **100% 完成**（5/5：CTA/LCA/Bloom/互校/持久化）| ~6100 行 |
-| 教学法层（research/20-pedagogy/）| ✅ **100% 完成**（4/4：K12 认知/Bloom 应用/学习策略/ZPD）| ~2435 行 |
-| Product Demo 设计（research/90-demo/）| 🔄 **进行中**（原 90-mvp/，已重命名）| ~600 行 |
-| P0 借鉴（theoretical-foundations/）| ✅ 已建立（从 SelfLab 迁移 + P0 借鉴）| ~1700 行 |
-| Python 包（ecos/cta/）| ✅ **已完成**（CTA 全部组件：BeliefEngine/Bloom/MIRT/Misconception/TCDetector）| — |
-| Python 基础 Demo（web/api/ + web/student/）| ✅ **端到端闭环**（Flask API + HTML UI + LLM Judge）| — |
-| 深度研究文档 | ✅ v2.0（从 SelfLab 迁移，1778 行）| — |
-| 5 轮 GPT 对话 | ✅ 已迁移（4 份文件）| — |
+| 5D + θ_cov | ✅ 真评估 | K/P/S 三维真评估, C/X 标"待启用" (Phase 5 重新设计) |
+| Bloom 6 级 | ✅ 真评估 | L1-L6 累积, dominant_layer |
+| TC 状态 | ✅ 真评估 | 5 topic × 3 阶段, post_liminal 不可逆 |
+| Trajectory | ✅ 真评估 | 时间序列, 折叠面板 |
+| Misconceptions | ✅ 真评估 | M1-M8 Python 库, v0.52.0 修过库 ID 错配 |
+| overall_confidence | ✅ 真评估 | `mean(5D conf)`, v0.48.1 改的 |
+| LearningDNA | ⚠️ **标"待启用"** | v0.1.0 占位, lbc001 数据不足, 等 ≥50 题 + 交互行为数据 |
 
-**累计产出**：19 个版本 / ~57+ 份文档 / ~19000+ 行研究产出 + 完整 Python 实现
+**Bisen 测试发现 (lbc001 27 道题) 重大弊端 (2026-07-22)**:
+- 🔴 **Partial Credit 缺失**: 70% 答对按 0% 处理, K 多跌 0.27, L6 多跌 0.2。**Phase 5 必修**
+  详见 [discussions/2026-07-22-partial-credit重大学术弊端发现.md](discussions/2026-07-22-partial-credit重大学术弊端发现.md)
+- 🟡 **C/X 0 主导题**: 5D 评估实际 3D, Phase 5 重新设计 C/X 主导题
+  详见 [discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md](discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md)
 
-| 层级 | 状态 | 行数 |
-|------|------|------|
-| 战略层（research/00-overview/）| ✅ **100% 完成**（4/4：应用/架构/路线图/风险）| ~2400 行 |
-| 工程层（research/10-engineering/）| ✅ **100% 完成**（5/5：CTA/LCA/Bloom/互校/持久化）| ~6100 行 |
-| 教学法层（research/20-pedagogy/）| ✅ **100% 完成**（4/4：K12 认知/Bloom 应用/学习策略/ZPD）| ~2435 行 |
-| MVP 设计（research/90-mvp/）| ✅ **100% 完成**（1/1：M2-M3 详细设计 + H1-H4 假设验证）| ~600 行 |
-| P0 借鉴（theoretical-foundations/）| ✅ **100% 完成**（4 份 + 1 README：CTA 数学/LCA 教学法/C 维度内容库）| ~1700 行 |
-| 共享工具箱（research/30-shared-cognitive-tools/）| ✅ 已建立（从 SelfLab 迁移 + P0 借鉴）| — |
-| AiBeing 借鉴（research/40-aibeing-borrowing/）| ✅ 已建立（从 SelfLab 迁移）| — |
-| Python 包（ecos/）| 📋 骨架（__init__.py 占位，Phase 4+ 实现）| — |
-| 深度研究文档 | ✅ v2.0（从 SelfLab 迁移，1778 行）| — |
-| 5 轮 GPT 对话 | ✅ 已迁移（4 份文件）| — |
-
-**累计产出**：19 个版本 / ~57+ 份文档 / ~19000+ 行研究产出（**1 天完成**，2026-06-24 ~ 2026-06-25）
+**累计产出** (v0.1.0 → v0.52.3, 2026-06-24 ~ 2026-07-22):
+- 78 Python 文件 / 113 MD 文件 / 16 JSON 文件
+- 124 commits, 近 1 周密集开发
+- 端到端流程: Q 矩阵设计 → 出题 → 答题 → AI 评判 → 状态更新 → 持久化 → 干预 → 个人画像
+  详见 [research/90-mvp/06-ecos-end-to-end-flow-analysis.md](research/90-mvp/06-ecos-end-to-end-flow-analysis.md) (26.7 KB)
 
 ## 开发环境设置
 
@@ -196,18 +193,19 @@ python experiments/scripts/m2_w1_llm_client_smoke.py         # LLM 客户端
 
 > `.env` 文件会在 `from_env()` 调用时自动加载，无需手动 `source`。
 
-## 下一步（Phase 4 Product Demo 完整化）
+## 下一步（Phase 5 启动条件: lbc001 答 30+ 题）
 
-| 优先级 | 任务 | 详见 |
-|--------|------|------|
-| **P0** | 文档转型（90-mvp → 90-demo，重命名 + 内容重定位）| `research/90-demo/` |
-| **P0** | Q-matrix 扩展（L5 Evaluate + L6 Create，每 topic 至少 1 道）| `data/python_basics_q_matrix.json` |
-| **P0** | 前端 7 组件完整 UI（5D+cov/6级Bloom/TC/LearningDNA/Trajectory/overall_conf）| `web/student/index.html` |
-| P0 | TC 检测器实现（liminal/post-liminal 启发式）| `ecos/cta/tc_detector.py` |
-| P0 | 持久化层接入（ecos/persistence/db.py → web/api/belief.py）| `web/api/belief.py` |
-| P1 | 教师/家长端最小版 | `web/teacher/` |
-| P1 | 一键启动脚本 + 部署文档 | `docs/DEPLOYMENT.md` |
-| P2 | Product Demo Showcase 报告 v2 | `research/90-demo/` |
+**当前状态**: v0.52.3 实际完成 Bisen 自定义 Phase 1-4 全部 + Phase 4 (ROADMAP) 7 组件完整 UI。
+**Phase 5 启动条件**: lbc001 答 30+ 题（当前 27 题）+ Bisen 启动决策。
+
+| 优先级 | 任务 | 触发条件 | 详见 |
+|--------|------|---------|------|
+| **P0** | **Partial Credit 必修** (Bisen 2026-07-22 重大弊端) | lbc001 答 30+ 题 | [discussions/2026-07-22-partial-credit重大学术弊端发现.md](discussions/2026-07-22-partial-credit重大学术弊端发现.md) |
+| **P0** | **C 主导题扩 20+ 题** (调试题/错误分析/code reading/debug strategy) | 同上 | [discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md](discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md) |
+| P1 | **X 主导题扩 20+ 题** (Python↔JS/Java/C++/Ruby 跨语言类比) | v0.53.0 C 主导题答 20+ 题 | 同上 |
+| P1 | **X 维度 misconception 库** (M9-M16, 8 条候选) | v0.54.0 X 主导题答 20+ 题 | 同上 |
+| P1 | **状态管理** (App 对象, v0.51.0 Phase 4.3 留 v0.52.0+) | 不依赖 lbc001 | Phase 4 路线图 |
+| P2 | 老师端骨架接 lbc001 真实数据 | A 端跑稳后做 | 路线图 |
 
 ## 关联项目
 

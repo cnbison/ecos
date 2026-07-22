@@ -1811,3 +1811,101 @@ Phase 0 100% 完成 🎉
 **ECOS 项目从 2026-06-24 启动（v0.1.0 项目建立）到 2026-06-25 收官（v0.19.0 MVP 设计完成）**——历经 1 天 / 19 个版本 / 57+ 份文档 / 19000+ 行研究产出。
 
 **理论完整 + 工程可实施 + 教学法可落地 + MVP 设计详尽**——为 Phase 4 启动做好了充分准备。
+
+---
+
+## [0.40.0] 2026-07-10 ~ [0.52.3] 2026-07-22 — Phase 4 Product Demo 完整化 (Bisen 路线 1-4 全部完成)
+
+> **v0.53.0 docs sync 补录** (2026-07-22): 这段覆盖 50+ commits, 跨度 12 天.
+> CHANGELOG 之前没及时同步, README 显示 0.4.0, 实际 0.52.3.
+> 详细 commit list 见 `git log --oneline 0.39.0..HEAD` (124 commits).
+
+### 累计变更 (按 P0/P1/P2 分类)
+
+#### P0 必修 (功能/数据正确性)
+
+- **v0.47.0** A 端报告升级: 规则引擎生成个人学习画像 + 修硬编码版本号 (`9d99a87`)
+- **v0.47.1** 修 `/api/question` 重启后乱选题 (漏触发 `_get_or_create_student`) (`e685cb2`)
+- **v0.47.2** dashboard 加个人学习画像面板 (`e25ebd3`)
+- **v0.47.3** 修个人学习画像 CSS 误写到 teacher 的 styles.css (`4721b6a`)
+- **v0.47.4** 修重启后错一题 K 暴跌 0.91 (MIRT 参数未从 Q 矩阵恢复) (`39722ed`)
+- **v0.47.5** 修成长轨迹按实际数量显示 + 治理 silent failure (`2d9dd28`)
+- **v0.47.6** CLAUDE.md 新增防御性自检规范 (Bisen 2026-07-19 反馈) (`2e350b9`)
+- **v0.47.7** 修重新登录后 dashboard 5D/Bloom/TC 空白 (race condition) (`fad321b`)
+- **v0.47.8** 修重启后 5D 维度单独置信度为 0% (`345a5f1`)
+- **v0.47.9** 修重启后 theta_se 全是 1.0 (theta_cov 未持久化) (`58b15fb`)
+- **v0.48.0** 修 5D 维度置信度都是一样 (共用 history 长度导致) (`5d007ee`)
+- **v0.48.1** 修 overall_confidence (0.4) 与 5 维度 (0.5+) 不一致 (`7da88db`)
+- **v0.48.2** 修 5D 头部和 Bloom 6 层排版错位 (`61afec0`)
+- **v0.48.3** 修个人学习画像报告答新题后不更新 (`6d1bf99`)
+- **v0.48.4** 修 start() race condition 复发 + refresh() 静默吞 fetch 异常 (`97941f5`)
+- **v0.48.5** submit 失败时前端 alert (避免再次发生 4 道题丢失) (`ce1b0b7`)
+- **v0.48.6** 修 /api/judge LLM 慢导致 submit 卡死 (前端 30s timeout) (`55ff9c9`)
+- **v0.48.7** 5D 数字 `toFixed(4)` → `toFixed(2)` (`acd68ef`)
+- **v0.48.8** 顶栏精简 (删版本号 + C折扣) (`3f6d803`)
+- **v0.48.9** 题目+答题合并为一张卡 (`ff14df8`)
+- **v0.49.0** 成长轨迹默认折叠 (`990323e`)
+- **v0.49.1** Tab 导航 (学习/轨迹/设置) (`c65ebad`)
+- **v0.49.2** 答题历史详情页 (response_history 改 dict 格式) (`294b0d9`)
+- **v0.49.3** 修 misconception_detector LLM NoneType 错 + 错误隔离 (`994cd33`)
+- **v0.51.0** Phase 4 拆文件 (CSS/JS 拆出 + API 封装 + URL hash 路由) (`84a1e31` 含 Bisen Q 矩阵设计文档)
+- **v0.51.1** 修 Flask SQLite 跨线程错 + loadQ 防御 d===null (`103a7e7`)
+- **v0.51.1.1** gitignore 加 SQLite WAL/SHM 排除 (`08eb3e9`)
+- **v0.51.2** 修 URL hash 路由——刷新后自动恢复 sid + tab (`ce7e5c9`)
+- **v0.51.3** 修 5D 字母颜色 + tab 选中态/hover 强化 (`bf08fa6`)
+- **v0.51.4** 设置页版本号改动态拉 /api/version (`a9d7145`)
+- **v0.52.0** P0 修 misconception 检测 (BUG 2.1 库 ID 错配 + BUG 2.2 不写回 state) + LearningDNA 标待启用 (`953c01c`)
+- **v0.52.1** 方案 C 标 C/X "待启用" + Phase 5 路线图 (`6003991`)
+- **v0.52.2** response_history 存 AI reasoning + partial credit 重大学术弊端记录 (`d4ad4ff`)
+- **v0.52.3** ECOS 端到端流程深度分析文档 (Bisen 触发) (`3baf2bf`)
+
+#### P1 改进 (UI/UX/可读性)
+
+- **v0.46.0** input 默认值 = 最近学生 (`978c4f6`)
+- **v0.46.1** input 框加载完启用 (`2fb5254`)
+- **v0.46.2** Flask static 加 no-cache 头 (`2598a52`)
+- **v0.46.3** TC states + trajectory 也持久化 (`4cf7bde`)
+- **v0.46.4** 加版本号 + 当前学生 ID 显示 (`6983c81`)
+- **v0.46.5** belief.py 漏 import json + ov 公式简化 (`b2f62f1`)
+- **v0.50.0** Phase 3 视觉系统化 (CSS 变量 + 进度条 8px + SVG icon) (`04fb119`)
+
+#### P2 (基础架构)
+
+- **v0.40.0** 方向选择决策: 先 A 后 C + 方向 B 混合架构 (`5c51e02`)
+- **v0.41.0** W1 第一刀: warm-up 窗口 + 自适应选题 + Bloom Δ (`0e2f1da`)
+- **v0.42.0** W2 + W3 合并: 自适应选题加权深化 + 探针题机制 (`aa63bc8`)
+- **v0.43.0** Phase 4 W1-W4 收尾: 置信度 UI 透明化 + 学习报告导出 (`f29191b`)
+- **v0.44.0** W4 UI 体验修正: 4 个改进点一起改 (`083ff1e`)
+- **v0.45.0** W5 学生会话持久化 + 最近学生快捷选择 (`86348cc`)
+
+### 已知重大弊端 (Bisen 2026-07-22 截图分析)
+
+- 🔴 **Partial Credit 缺失**: 70% 答对按 0% 处理, K 多跌 0.27, L6 多跌 0.2
+  详见 [discussions/2026-07-22-partial-credit重大学术弊端发现.md](discussions/2026-07-22-partial-credit重大学术弊端发现.md)
+  **Phase 5 必修**, v0.52.2 已存 AI reasoning 留历史数据训练
+- 🟡 **C/X 0 主导题**: 5D 评估实际 3D, 标"待启用"
+  详见 [discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md](discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md)
+
+### 新增关键文档 (2026-07-21 ~ 2026-07-22)
+
+- [discussions/2026-07-21-lbc001测试发现4个BUG分析与修复计划.md](discussions/2026-07-21-lbc001测试发现4个BUG分析与修复计划.md) (9.4 KB, 4 BUG 根因)
+- [discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md](discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md) (12.2 KB, Phase 5 路线)
+- [discussions/2026-07-22-partial-credit重大学术弊端发现.md](discussions/2026-07-22-partial-credit重大学术弊端发现.md) (8.2 KB, partial credit)
+- [research/90-mvp/06-ecos-end-to-end-flow-analysis.md](research/90-mvp/06-ecos-end-to-end-flow-analysis.md) (26.7 KB, Bisen 触发, 8 阶段闭环)
+- [research/90-mvp/python-basics-q-matrix-design.md](research/90-mvp/python-basics-q-matrix-design.md) (Bisen 84a1e31, Q 矩阵设计)
+
+### CLAUDE.md 防御性自检 CI gate (v0.52.0+)
+
+- [x] 写 commit message 列"已做"功能时, 必须 devtools 验证功能**真在跑** (防 4 次虚标)
+- [x] detect_with_hits / misc_detector.detect 必须显式传 `library_str` (防库 ID 错配)
+- [x] MIRT 简化 (partial credit 缺失) Phase 5 必修, v0.52.2 已存 AI reasoning
+- [ ] `grep -nE "except Exception: *$" 命中非空则 fail` (未实施)
+- [ ] `save_student_state` 加 `fail_count` 字段 (未实施)
+- [ ] `db.py` 持久化后做 integrity check (未实施)
+
+### Phase 5 启动条件
+
+- lbc001 答 30+ 题 (当前 27 题) → Bisen 启动决策
+- v0.53.0: Partial Credit 必修 + C 主导题扩 20+ 题
+- v0.54.0: X 主导题扩 20+ 题
+- v0.55.0: X 维度 misconception 库 (M9-M16, 8 条候选)

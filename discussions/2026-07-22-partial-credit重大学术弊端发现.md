@@ -5,8 +5,9 @@
 > **作者**: Bisen & Claude
 > **状态**: 🔴 已记录, ⏳ 短期 v0.52.2 存 AI reasoning, **Phase 5 必解** partial credit
 > **关联**:
-> - [2026-07-22-Phase5-Q矩阵CX重新设计路线图.md](2026-07-22-Phase5-Q矩阵CX重新设计路线图.md) (已加 partial credit 任务)
-> - [2026-07-21-lbc001测试发现4个BUG分析与修复计划.md](2026-07-21-lbc001测试发现4个BUG分析与修复计划.md) (lbc001 测试发现的 4 个 BUG)
+> - [2026-07-21-lbc001测试发现4个BUG分析与修复计划.md](2026-07-21-lbc001测试发现4个BUG分析与修复计划.md) — 4 BUG 根因 (这条是 Bisen 后续发现的第 5 个问题, 比 4 BUG 更根本)
+> - [2026-07-22-Phase5-Q矩阵CX重新设计路线图.md](2026-07-22-Phase5-Q矩阵CX重新设计路线图.md) — v0.53.0 双目标 (Partial Credit 必修 + C 主导题扩 20+ 题)
+> - [research/90-mvp/06-ecos-end-to-end-flow-analysis.md](../research/90-mvp/06-ecos-end-to-end-flow-analysis.md) — 完整 8 阶段闭环流程 + 5D/Bloom 通俗化解读 (Bisen 触发)
 
 ---
 

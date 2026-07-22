@@ -22,13 +22,36 @@
 | **Phase 5（产品化，✅ 准备启动）** | 实验报告 + 修订文档 | ✅ 完整 Python 包 + Web UI | 完整产品 |
 | **Phase 6（系统完善，待启动）** | 研究文档 + 应用原型设计 | ✅ ecos/ Python 包 + 实验代码 | 应用探索 |
 
-> **当前阶段（2026-07-10）**：**Phase 4（Product Demo 完整化）** — 战略调整：聚焦 **Python 基础自学产品 Demo**（完整产品形态）。ECOS 7 组件全部实现并通过 UI 可视化展示：5D+cov/Bloom 6级/TC/LearningDNA/Trajectory/Misconceptions/overall_confidence。详见 [03-roadmap.md v1.2](./research/00-overview/03-roadmap.md)。
+> **当前阶段（2026-07-22）**：**Phase 4（Product Demo 完整化）** — ✅ 实际完成 v0.52.3 (Bisen 自定义 Phase 1-4 全部落地, 含 5D 视觉化 / 答题历史 / Tab 导航 / Phase 4 架构现代化)。
+> ECOS 7 组件: 5D+cov / Bloom 6级 / TC 状态 / LearningDNA (标"待启用") / Trajectory / Misconceptions / overall_confidence。
+> 详见 [03-roadmap.md](./research/00-overview/03-roadmap.md) (v1.3 → v1.4 待更新)。
+>
+> **当前已知重大弊端 (Bisen 2026-07-22 测试发现)**:
+> - **Partial Credit 缺失** — 学生答对 70% 但缺 I/O 时, ECOS 按 0% 处理, K 维度多跌 0.27, L6 多跌 0.2。Phase 5 必修。
+>   详见 [discussions/2026-07-22-partial-credit重大学术弊端发现.md](./discussions/2026-07-22-partial-credit重大学术弊端发现.md)
+> - **C/X 维度 0 主导题** — 5D 评估实际是 3D 评估 (K/P/S 真评估, C/X 标"待启用")。Phase 5 重新设计 C/X 主导题。
+>   详见 [discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md](./discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md)
+> - **ECOS 端到端流程** — 8 阶段闭环 + 5D/Bloom 数值变化的通俗化解读 (Bisen 触发 2026-07-22)
+>   详见 [research/90-mvp/06-ecos-end-to-end-flow-analysis.md](./research/90-mvp/06-ecos-end-to-end-flow-analysis.md)
+>
+> **lbc001 27 道题测试发现 4 个 BUG** (2026-07-21):
+> 详见 [discussions/2026-07-21-lbc001测试发现4个BUG分析与修复计划.md](./discussions/2026-07-21-lbc001测试发现4个BUG分析与修复计划.md)
+>
 > 权威状态源：[README.md §当前状态](./README.md)。任何"当前阶段是 Phase 0"或类似过时标注都以此为准。
 
 **关键区分**：
 - **Product Demo 代码 = 可分发应用**：Phase 4 的代码不再是"一次性实验"，而是**完整可展示的产品 Demo**——需要错误处理、边界状态、用户可感知价值
 - **ecos/ Python 包**（Phase 4）—— pip install ecos 即可使用，是 ECOS 应用探索的**基础设施**，当前已实现 BeliefEngine/Bloom/MIRT/Misconception/TC 全部核心组件
 - **ecos/ Python 包**（Phase 5+）—— 扩展为完整产品化包，含教师端、家长端、跨领域注入
+
+**Bisen 自定义 Phase 1-4 路线 (UI 改进, 跟 ROADMAP Phase 0/4/5/6 不同)**:
+| Phase | 内容 | 状态 | 版本 |
+|---|---|---|---|
+| 1 | 顶栏精简 / 题目合并 / 轨迹折叠 / 2 位小数 | ✅ | v0.48.7-0.49.0 |
+| 2 | Tab 导航 (学习/轨迹/设置) | ✅ | v0.49.1 |
+| 3 | CSS 变量 / 进度条 8px / SVG 图标 | ✅ | v0.50.0 |
+| 4 | 拆文件 / API 封装 / URL hash 路由 | ✅ (C 状态管理留 v0.52.0) | v0.51.0 |
+| 5 | 状态管理 (App 对象) | 📋 后续 | v0.52.0+ |
 
 详细约定见 [§实验代码约定](#实验代码约定) 章节。
 
@@ -263,8 +286,10 @@ git diff --stat HEAD
 
 # 4) CSS 引用关系检查（动样式时）
 grep "<link rel=stylesheet\|<style" web/student/index.html
-#   student 项目 CSS 全部 inline;styles.css 是 teacher 用的孤儿文件
-#   改 .report-* 等 student 样式必须写进 <style> 块,不能写到 styles.css
+#   v0.51.0 Phase 4 拆文件后: student CSS 在独立 styles.css, HTML <link> 引用 + ?v= cache-busting
+#   Flask 静态路由 /student/<path:filename> + no-cache header 防缓存
+#   v0.47.3 教训: 改样式没 link 引用 → 浏览器只看到 inline 旧版样式 (修复前是 inline)
+#   ⚠️ 改 CSS 选择器时, 同步 grep HTML class 名确认匹配 (v0.50.0 5D badge class 错配教训)
 
 # 5) DB 恢复路径检查（动 belief.py / db.py 时）
 grep -n "_get_or_create_student\|save_student_state\|load_student_state" web/api/belief.py ecos/persistence/db.py
@@ -320,6 +345,17 @@ grep -n "_get_or_create_student\|save_student_state\|load_student_state" web/api
     `library_str=...`, 不能依赖默认; 配合 git grep 自检:
     `git grep -nE 'detect_with_hits|self\.misc_detector\.detect' -- ecos/ web/`
   - 防 3 次同类: 任何 detector 调用, library_str 都是必需参数, 必须传
+- [x] **CI gate v0.52.2**：MIRT 简化 (partial credit 缺失) (Bisen 2026-07-22 反馈)
+  - 触发背景: lbc001 答 PB-Q18 (L6 variables) 截图分析
+    - 学生答: 核心算法对 (提取个/十/百位 + 倒序组合), 缺 input()/print()
+    - AI 评判: ❌ 完全错 (`correct: false`)
+    - 5D 影响: K 1.18 → 0.9638 (跌 0.22)
+    - 70% 答对被当 0% 答对处理, K 多跌 0.27, L6 多跌 0.2
+    - 详见 [discussions/2026-07-22-partial-credit重大学术弊端发现.md](./discussions/2026-07-22-partial-credit重大学术弊端发现.md)
+  - 实施: Phase 5 partial credit 必修, 短期 v0.52.2 已存 AI reasoning
+    留历史数据训练
+  - 防 3 次同类: 任何"MIRT 二元对错"假设的延伸改动, 必须确认是否引入
+    partial credit 缺失风险
 - [ ] CI gate：`grep -nE "except Exception: *$" --include="*.py" -r ecos/ web/` 命中非空则 fail
 - [ ] `save_student_state` 加 `fail_count` 字段，统计丢了几条 snapshot
 - [ ] `db.py` 持久化后做 integrity check（存完再 load，对比 length）
