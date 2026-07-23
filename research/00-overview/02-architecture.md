@@ -1,9 +1,10 @@
 # ECOS 整体架构（Architecture）
 
-> **版本**：v1.1（2026-07-17，加入方向 B 混合架构 + warm-up 窗口 + 探针题机制）
+> **版本**：v1.4（2026-07-22，加入 v0.40.0 → v0.53.1 实际进度 + 7 组件实施完整度 + C/X 标"待启用" + LearningDNA 标"待启用" + MIRT 二元对错根本 trade-off）
 > **性质**：ECOS 战略层第 2 份文档，**整合 P0 三件套到架构总图**——填补 v2.0 §3 的工程细化 + 教学法基础
 > **基于**：[v2.0 深度研究 §3 ECOS 完整架构](../deep-research/Cognitive-Digital-Twin-Deep-Research.md)、[v0.3.0 CTA 数学基础](../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md)、[v0.4.0 LCA 教学法基础](../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md)、[v0.5.0 C 维度内容库](../30-shared-cognitive-tools/theoretical-foundations/03-c-dimension-content-libraries.md)、[01-applications.md](01-applications.md)
 > **后续**：[03-roadmap.md](03-roadmap.md)（阶段划分）、[04-risks.md](04-risks.md)（风险矩阵）
+> **v1.4 更新**：基于 [2026-07-22 项目全面审查报告](07-project-comprehensive-audit-2026-07-22.md) + [2026-07-22 partial credit 文档](../../discussions/2026-07-22-partial-credit重大学术弊端发现.md) + [2026-07-22 Phase 5 Q 矩阵文档](../../discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md)。新增 §1.3 7 组件实施完整度 + C/X / LearningDNA 标"待启用" + MIRT 二元对错根本 trade-off。
 > **v1.1 更新**：基于 [2026-07-17 方向选择探讨](../../discussions/2026-07-17-方向选择-A先C后.md)，明确采用**方向 B（诊断-教学相位混合架构）**，新增 §3.4 决策说明、§8.4 warm-up 窗口机制、§8.5 探针题机制
 > **维护者**：Bisen & Claude
 
@@ -112,6 +113,56 @@ Bloom Goal Space → LCA → CTA → Student
 2. **LLM Critic 边界**：LLM 仅用于感知层（自然语言→结构化）+ 解释层（统计值→自然语言）+ Misconception 检测
 3. **双 Agent 解耦**：CTA 通过 POMDP 接口 `(S, A, O, T, R, Ω)` 与 LCA 协作，两者独立可替换
 4. **内容库与算法解耦**：TC + Misconceptions 是内容，CTA/LCA 是算法——内容更新不影响算法
+
+### 1.3 v1.4 增：5D 状态评估实际状态（v0.53.1）
+
+> **触发**：Bisen 2026-07-22 lbc001 27-29 题测试
+> **依据**：[07-project-comprehensive-audit-2026-07-22.md §1.4.2](07-project-comprehensive-audit-2026-07-22.md) + [03-roadmap.md §1.4.2](03-roadmap.md)
+
+**7 组件当前实施完整度**（v0.53.1 实际状态）：
+
+| 组件 | 实施完整度 | 状态 | 备注 |
+|------|-----------|------|------|
+| **5D + θ_cov** | ~85% | ⚠️ 部分真评估 | K/P/S 三维真评估, C/X 标"待启用"（Phase 5 重新设计）|
+| **Bloom 6 级** | ~90% | ✅ 真评估 | L1-L6 累积 + dominant_layer + 8 题答后稳定 |
+| **TC 状态** | ~95% | ✅ 真评估 | 5 topic × 3 阶段, post_liminal 不可逆（Meyer-Land 理论）|
+| **Trajectory** | ~95% | ✅ 真评估 | 时间序列, 折叠面板, cap 500（v0.47.5 cap 100→500）|
+| **Misconceptions** | ~80% | ✅ 真评估 | M1-M8 Python 库, v0.52.0 修过库 ID 错配 |
+| **overall_confidence** | ~90% | ✅ 真评估 | `mean(5D conf)`, v0.48.1 改的 |
+| **LearningDNA** | ~10% | ⚠️ **标"待启用"** | lbc001 数据不足, 等 ≥50 题 + 交互行为数据 |
+
+**双 Agent 互校实施完整度**：
+
+| 维度 | 实施完整度 | 状态 |
+|------|-----------|------|
+| **CTA（理解学生）** | ~85% | ✅ 实施完整 |
+| **LCA（改变学生）** | ~10% | ⚠️ 仅有 Contextual Bandits 脚手架 |
+| **双 Agent 互校** | ~5% | ⚠️ 仅有占位，未实施 |
+| **干预策略 active** | ~10% | ⚠️ 仅有 record，无 active |
+
+**C/X 标"待启用"根因**（v0.52.1）：
+- lbc001 27-29 题均为 K/P/S 主导题（写代码题）
+- C（Common mistakes / 调试题 / 错误分析）和 X（跨语言迁移）维度从未触发
+- lbc001 实际数据：C=X=0.216 θ，SE=0.983，confidence=0.504
+- 方案选择：方案 C（标"待启用"灰底）已落地，优于方案 A（0.10→0.20 伪信号污染）/方案 B（扩 40 题）
+- 详见 [discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md](../../discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md)
+
+**LearningDNA 标"待启用"根因**（v0.52.0）：
+- lbc001 答 27-29 题（< 50 题阈值）
+- LearningDNA 需要 ≥ 50 题 + 交互行为数据才能稳定
+- 当前 confidence=0.0 永远不涨，标"待启用"不硬猜
+
+**MIRT 二元对错根本 trade-off**（v0.52.2 反思）：
+- MIRT MAP 估计基于二元对错（response = 0/1）
+- 70% 答对按 0% 处理（lbc001 PB-Q18 触发）
+- 不是 bug 而是设计选择——partial credit 改进需要重写 MAP 估计 + Q 矩阵结构
+- 详见 [discussions/2026-07-22-partial-credit重大学术弊端发现.md](../../discussions/2026-07-22-partial-credit重大学术弊端发现.md)
+
+**Phase 5 必修**（v0.53.0 / v0.54.0）：
+- 🔴 Partial Credit 必修（v0.52.2 ai_reasoning 留训练用历史数据）
+- 🟡 C 主导题 20+ 题（v0.53.0）
+- 🟡 X 主导题 20+ 题（v0.54.0）
+- 🟡 X 维度 misconception 库（M9-M16, 8 条候选, v0.55.0）
 
 ---
 

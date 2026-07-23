@@ -168,6 +168,238 @@ H7 失败 → E4 风险触发（数据护城河形成过慢）
 
 ---
 
+### A5. Partial Credit 缺失 🔴（v0.52.2 发现，Phase 5 必修）
+
+> **触发**：Bisen 2026-07-22 lbc001 PB-Q18 截图分析
+> **依据**：[discussions/2026-07-22-partial-credit重大学术弊端发现.md](../../discussions/2026-07-22-partial-credit重大学术弊端发现.md)（8.2 KB）
+
+**触发条件**：
+- 学生答对 70% 但缺关键部分（如 I/O）
+- 当前 MIRT 二元对错（`correct: true/false`）
+- 70% 答对被按 0% 处理
+
+**影响评估**：
+- lbc001 PB-Q18 实际：学生答核心算法对，缺 `input()/print()` → AI 评判 `❌ correct: false`
+- 5D 影响：K 维度 1.18 → 0.9638（跌 0.22），实际多跌 0.27
+- L6 影响：多跌 0.2
+- 整体：partial credit 缺失使 ECOS 在真实答题场景失真
+- **不修 partial credit → ECOS 永远无法在真实答题场景应用**
+
+**根因分析**：
+- MIRT MAP 估计基于二元对错（response = 0/1）
+- 不是 bug 而是设计选择——partial credit 改进需要重写 response scoring 函数
+- 影响所有 5D 维度的真实评估
+
+**缓解策略**：
+- **v0.52.2 已存 AI reasoning**（Observation.ai_reasoning 字段）—— 留 Phase 5 训练用历史数据
+- **Phase 5 v0.53.0 设计 partial credit 模型**：
+  - Q 矩阵加权（5D 权重按 Bloom 层 + topic 重新分配）
+  - AI 评判返回 `partial_score: float ∈ [0, 1]` 而非 `correct: bool`
+  - MIRT 接受部分对（response scoring 改造）
+- **短期**：v0.52.2 已存 ai_reasoning + judgement rationale 留历史数据
+
+**应急预案**：
+- 若 Phase 5 v0.53.0 partial credit 未实施 → 调整 MIRT 公式：partial_score 默认为 0.5
+- 若 Q 矩阵结构不兼容 → 重做 Q 矩阵设计
+
+**监控指标**：
+- partial_score 分布（应近似均匀分布 0-1，而不是 0/1 二元）
+- AI 评判 rationale 中 "部分对" 频率
+- 5D 维度跌幅 vs 真实掌握度
+
+**风险等级**：🔴 P0（Phase 5 必修，不修无法应用）
+
+---
+
+### A6. C/X 0 主导题 🟡（v0.52.1 发现）
+
+> **触发**：Bisen 2026-07-22 lbc001 27 题测试
+> **依据**：[discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md](../../discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md)（12.2 KB）
+
+**触发条件**：
+- 当前 lbc001 27-29 题均为 K/P/S 主导题（写代码题）
+- C（Common mistakes / 调试题 / 错误分析）和 X（跨语言迁移）维度从未触发
+- lbc001 实际数据：C=X=0.216 θ，SE=0.983，confidence=0.504
+
+**影响评估**：
+- 5D 评估实际 3D（C/X 永远显示低 confidence）
+- 整体 5D 评估失真
+- ECOS 核心价值"完整 5D 评估"受损
+- H1 验证无法进行（5D 不完整）
+
+**根因分析**：
+- Q 矩阵设计 C/X 维度缺口（[research/90-mvp/python-basics-q-matrix-design.md §9.2](../90-mvp/python-basics-q-matrix-design.md) v0.52.1 扩充）
+- 当前 Python 基础题库全是写代码题，缺调试/错误分析/跨语言类比
+
+**缓解策略**：
+- **方案 C（已落地 v0.52.1）**：C/X 标"待启用"灰底，不引入伪信号
+- **Phase 5 v0.53.0 C 主导题 20+ 题**：
+  - 调试题（debug 已知 bug）
+  - 错误分析（code review / error classification）
+  - code reading（理解代码而非编写）
+  - debug strategy（系统化调试方法）
+- **Phase 5 v0.54.0 X 主导题 20+ 题**：
+  - Python↔JS / Java / C++ / Ruby 跨语言类比
+  - 设计模式识别 / 算法跨语言实现
+- **Phase 5 v0.55.0 X 维度 misconception 库**（M9-M16，8 条候选）
+
+**方案选择（已决）**：
+- ✅ 方案 C（标"待启用"灰底）—— v0.52.1 已落地
+- ❌ 方案 A（0.10→0.20 伪信号污染）—— 不采用
+- ❌ 方案 B（扩 40 题，一次性解决）—— 工作量过大
+
+**应急预案**：
+- 若 C/X 主导题设计难 → 简化 C 维度（仅调试题，10+ 题）
+- 若 X 跨语言类比失败 → 聚焦 Python↔JS（最常用对比）
+
+**监控指标**：
+- lbc001 答 C/X 主导题次数
+- C/X 维度 θ 变化（应逐步脱离 0.216）
+- C/X confidence 是否突破 0.6
+
+**风险等级**：🟡 P0（Phase 5 必修，但已用方案 C 兜底）
+
+---
+
+### A7. MIRT 二元对错根本 trade-off 🟠（v0.52.2 反思）
+
+> **与 A5 同源**：partial credit 缺失的根因
+> **影响范围**：所有 5D 维度的真实评估
+
+**触发条件**：
+- MIRT MAP 估计基于二元对错
+- 接受部分对需要重写 response scoring 函数
+
+**影响评估**：
+- 跟 partial credit 缺失同源——不修 partial credit 永远无法实际应用
+- partial credit 改进需要：
+  - AI 评判返回 partial_score: float
+  - MIRT MAP 估计支持连续值（不仅是 0/1）
+  - Q 矩阵结构重新设计
+  - 历史数据需重新训练
+
+**不是 bug 而是设计选择**——需要在 Phase 5 全面重做
+
+**缓解策略**：
+- 见 A5 partial credit 缓解策略
+- 短期：v0.52.2 已存 ai_reasoning 留训练用历史数据
+- 长期：Phase 5 v0.53.0 partial credit 模型重做
+
+**风险等级**：🟠 P0（与 A5 同源，Phase 5 必修）
+
+---
+
+### A8. misconception 库 ID 错配 🟡（v0.52.0 已修，但风险仍存）
+
+> **触发**：v0.52.0 修过，但同类风险在 detector 调用中仍可能复发
+> **依据**：[discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md](../../discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md)
+
+**触发条件**：
+- 任何 `detect_with_hits(...)` / `self.misc_detector.detect(...)` 调用不显式传 `library_str`
+- detector fallback 到默认库（K12 通用数学库 M1-M30）
+- 实际需要 Python misconception 库 M1-M8
+
+**影响评估**：
+- lbc001 22 道题 0 个 misconception 命中（修前 v0.51.x）
+- 误判库 ID 导致 5D 状态不更新
+- 干预策略失效
+
+**根因分析**：
+- detector 默认行为：fallback 到 K12 通用库
+- 调用方未显式传 `library_str` 时静默失败
+
+**缓解策略**：
+- **v0.52.0 CI gate 2 已加**（CLAUDE.md §计划中的防御机制）：任何 `detect_with_hits`/`misc_detector.detect` 调用必须显式传 `library_str=...`
+- **同类模式扫描**：CLAUDE.md §修一处 bug 时的"同类模式扫描"——修 detector 库 ID 错配时 grep `detect_with_hits|self.misc_detector.detect` 全文件
+- **测试覆盖**：Phase 5 加 pytest 单元测试（detector 库 ID 匹配）
+
+**应急预案**：
+- 若同类 bug 复发 → 引入 detector 包装函数强制传 library_str
+- 若检测失败率 > 50% → 暂时关闭 misconception 检测功能
+
+**监控指标**：
+- detector 库 ID 匹配率（应 100%）
+- lbc001 misconception_history 条数（应随答题递增）
+- 5D 状态中 C 维度 misconception_hits 字段
+
+**风险等级**：🟡 中（已加 CI gate，但同类风险仍存）
+
+---
+
+### A9. LCA 未实施 🟠（仅有脚手架）
+
+> **触发**：v0.51.4 阶段发现——LCA Contextual Bandits LinUCB 仅有代码脚手架
+> **依据**：[research/00-overview/02-architecture.md §1 整体架构](02-architecture.md)（CTA 实施完整度 ~85%，LCA 实施完整度 ~10%）
+
+**触发条件**：
+- 当前所有"策略"都是 CTA 状态估计 + 简单选题加权
+- 没有独立的 Learning Coach Agent
+- 没有 POMDP 实现的 LCA
+
+**影响评估**：
+- H3 验证无法进行（双 Agent 互校缺失 LCA）
+- ECOS 核心价值"理解 + 改变"中"改变"部分缺失
+- 跟 A4 双 Agent 互校无法抗幻觉强相关
+
+**根因分析**：
+- Phase 4 资源聚焦在 CTA（理解学生）+ UI（用户可感知价值）
+- LCA 设计/实施/测试工程量大
+- 单用户 lbc001 测试 LCA 价值有限
+
+**缓解策略**：
+- **短期**：CTA 状态估计 + 简单选题加权（v0.42.0 W2 自适应选题层）
+- **中期**：Phase 5 v0.56.0+ LCA 实施（POMDP + Contextual Bandits LinUCB）
+- **长期**：双 Agent 互校完整闭环
+
+**应急预案**：
+- 若 LCA 持续未实施 → 简化 ECOS 定位为"认知诊断工具 + 简单干预"
+- 若 H3 验证必须做 → 临时简化 LCA 为规则引擎
+
+**监控指标**：
+- LCA 模块代码占比（应逐步增加）
+- 干预策略来源（CTA 自动 vs LCA 推荐）
+- 互校循环是否启动
+
+**风险等级**：🟠 中（不影响 Phase 4 Demo 价值，但影响 Phase 5+ 验证）
+
+---
+
+### A10. 双 Agent 互校未实施 🟠（仅有占位）
+
+> **与 A9 强相关**：LCA 未实施导致互校无法实施
+> **依据**：[research/00-overview/02-architecture.md §3.5 互校循环](02-architecture.md)
+
+**触发条件**：
+- 文档承诺的"CTA 提假设 → LCA 设计实验 → 观察 → CTA 更新"循环未实现
+- 当前是 CTA 单一循环
+
+**影响评估**：
+- H3 验证无法进行
+- 互校抗幻觉机制缺失
+- ECOS 核心价值"互校"未落地
+
+**根因分析**：
+- 依赖 A9 LCA 实施
+- 互校循环引入额外延迟（>2 秒）和 LLM API 成本（翻倍）
+
+**缓解策略**：
+- 见 A9 LCA 缓解策略
+- **短期**：单 Agent 模式 + 数学层硬底线
+- **长期**：Phase 5 v0.56.0+ 双 Agent 互校完整闭环
+
+**应急预案**：
+- 若 H3 验证必须做 → 临时简化互校为 CTA 内部校准
+- 若成本过高 → 引入异步互校（不阻塞实时干预）
+
+**监控指标**：
+- 互校循环是否启动
+- 互校分歧率（CTA 与 LCA 判断不一致的比例）
+- 互校延迟 P95
+
+**风险等级**：🟠 中（与 A9 同源，Phase 5+ 解决）
+
+---
+
 ## B. 产品风险
 
 ### B1. Bloom 6 层在 K12 不适用 🟡（对应 H2）
@@ -284,6 +516,48 @@ H7 失败 → E4 风险触发（数据护城河形成过慢）
 
 ---
 
+### B5. 无 pytest 自动化测试 🟡（lbc001 单用户手动测试）
+
+> **触发**：v0.53.1 审查报告 §10 测试基础设施评估
+> **依据**：[07-project-comprehensive-audit-2026-07-22.md §10](07-project-comprehensive-audit-2026-07-22.md)
+
+**触发条件**：
+- 当前无 pytest 单元测试套件
+- 测试依赖 lbc001 单用户手动测试（27-29 题）
+- 任何字段恢复改动都可能引入新 BUG
+
+**影响评估**：
+- 回归靠手动，效率低
+- DB 恢复历史教训 4 次漏（import json / tc_states / trajectory / item_params）
+- 字段 schema 变更无测试保护
+- Phase 5 partial credit 实施无回归保护
+
+**根因分析**：
+- Phase 4 资源聚焦 CTA + UI
+- 自动化测试编写成本高
+- 单用户 lbc001 测试能发现关键 BUG
+
+**缓解策略**：
+- **短期**：保持 lbc001 单用户手动测试
+- **中期**：Phase 5 v0.55.0 加 pytest 单元测试套件：
+  - CTA state update（MIRT MAP / Bloom 累积 / TC 状态机）
+  - DB 恢复（5 维状态 + θ_cov + Bloom + TC + trajectory + response_history + misconception_history + item_params）
+  - LLM 调用 mock（避免 LLM 依赖）
+- **长期**：加 GitHub Actions CI + pre-commit hook
+
+**应急预案**：
+- 若回归 BUG 频发 → 暂停功能开发，加测试套件
+- 若测试覆盖不足 → 优先核心模块（CTA + persistence）
+
+**监控指标**：
+- pytest 单元测试覆盖率（目标 ≥ 80%）
+- 回归 BUG 频次（应逐步降低）
+- 手动测试 vs 自动化测试比例
+
+**风险等级**：🟡 中（短期可接受，Phase 5+ 必加）
+
+---
+
 ## C. 教育专业风险
 
 ### C1. 教师协作时间成本超预期 🟡
@@ -370,6 +644,51 @@ H7 失败 → E4 风险触发（数据护城河形成过慢）
 - MVP 单元覆盖率 ≥ 80%
 - Misconception 库准确性 ≥ 80%
 - 跨学科迁移建模准确性 ≥ 60%
+
+---
+
+### C4. 5 次虚标模式 🟡（v0.47.6+ 防御性自检规范强制）
+
+> **触发**：Bisen 多次反馈"commit 写'已做'但实际未做"
+> **依据**：[CLAUDE.md §防御性自检规范](../../CLAUDE.md) + [07-project-comprehensive-audit-2026-07-22.md §6](07-project-comprehensive-audit-2026-07-22.md)
+
+**触发条件**：
+- commit message 写"已做"前没 devtools 验证
+- 同类问题没顺手扫描
+- 写 commit 时想当然
+
+**影响评估**：
+- 5 次虚标（v0.50.0/v0.51.0/v0.51.4/v0.52.0 等）
+- Bisen 反馈成本高（需重新指派修复任务）
+- 损害 Mavis 公信力
+- 拖慢项目进度
+
+**根因分析**：
+- "修一处即提交一处"心态
+- commit message 表达规范没强制
+- 防御性自检 5 项 grep 没全跑
+
+**缓解策略**：
+- **CLAUDE.md §防御性自检规范** v0.47.6 起强制：
+  - 5 项 grep 自检清单（silent failure / 版本号 / git diff stat / CSS 引用 / DB 恢复）
+  - 同类模式扫描（修一处 grep 一类）
+  - commit message 表达规范（"已做/计划"分离）
+  - 沉默失败原则（`except: pass` 必须改 `logger.warning(exc_info=True)`）
+- **CI gate 3 条已加**（CLAUDE.md §计划中的防御机制）：
+  1. "已做"功能必须 devtools 验证真在跑（防 4 次虚标）
+  2. `detect_with_hits`/`misc_detector.detect` 必须显式传 `library_str`（防库 ID 错配）
+  3. partial credit 重大弊端 Phase 5 必修
+
+**应急预案**：
+- 若虚标再次发生 → 暂停 commit，加 pre-commit hook 强制
+- 若 CI gate 失效 → 加 GitHub Actions CI
+
+**监控指标**：
+- 虚标次数（目标 0）
+- 防御性自检 5 项跑过频率
+- 沉默失败 `except: pass` 数量
+
+**风险等级**：🟡 中（已加防御性自检规范，但需持续执行）
 
 ---
 
@@ -644,13 +963,21 @@ Level 4（暂停 + 回溯）
 | A2 | CTA 5D 预测精度不足 | 🔴 高 | H1 | 多基线对比 + 维度可降级 |
 | A3 | LCA 策略可解释性不足 | 🟡 中 | H3 部分 | rationale 输出 + 教师后台 |
 | A4 | 双 Agent 互校抗幻觉失败 | 🔴 高 | H3 | 数学层不用 LLM（硬底线）+ 人工审核触发 |
+| A5 | Partial Credit 缺失 | 🔴 高 | 跨所有 Phase | v0.52.2 已存 ai_reasoning + Phase 5 v0.53.0 partial credit 必修 |
+| A6 | C/X 0 主导题 | 🟡 中 | 跨所有 Phase | 方案 C 标"待启用"（v0.52.1）+ Phase 5 v0.53.0 C 主导题 20+ 题 |
+| A7 | MIRT 二元对错 trade-off | 🟠 高 | 跨所有 Phase | 与 A5 同源，Phase 5 全面重做 |
+| A8 | misconception 库 ID 错配 | 🟡 中 | 工程层 | v0.52.0 CI gate 2 + grep `detect_with_hits` 必须传 library_str |
+| A9 | LCA 未实施 | 🟠 高 | H3 | Phase 5 v0.56.0+ LCA 实施 + 短期 CTA 选题加权兜底 |
+| A10 | 双 Agent 互校未实施 | 🟠 高 | H3 | 与 A9 同源，Phase 5 v0.56.0+ 实施 |
 | B1 | Bloom 6 层不适用 K12 | 🟡 中 | H2 | MVP 用 L1-L4 + 学科适配 |
 | B2 | 早期体验差 | 🟡 中 | — | 认知学徒制 + 游戏化 + 首次体验优化 |
 | B3 | 长期数据稀疏 | 🟡 中 | — | 冷启动 + 跨学期衰减 + 不承诺早期个性化 |
 | B4 | 数据采集质量差 | 🟡 中 | — | 题型多样化 + 反思节点 + 异常检测 |
+| B5 | 无 pytest 自动化测试 | 🟡 中 | 跨所有 Phase | Phase 5 v0.55.0 加 pytest 套件 + 短期 lbc001 手动测试 |
 | C1 | 教师协作时间成本 | 🟡 中 | — | 分阶段协作 + 协作工具 + 报酬机制 |
 | C2 | 教学法与文化适配 | 🟡 中 | — | 文化适配 + 家长教育 + 渐进引入 |
 | C3 | 学科本体构建难度 | 🟡 中 | M4 | MVP 聚焦 + 教师共建 + 迭代扩展 |
+| C4 | 5 次虚标模式 | 🟡 中 | 跨所有 Phase | CLAUDE.md §防御性自检规范 + CI gate 3 条已加 |
 | D1 | 未成年人数据合规 | 🔴 高 | — | 最小化采集 + 家长同意 + 数据本地化 |
 | D2 | 家长控制透明度 | 🟡 中 | — | 家长完全可见 + 否决权 + 透明算法 |
 | D3 | 教育部门监管 | 🟡 中 | — | 政策跟踪 + 合规先行 + 行业协会 |
@@ -659,7 +986,7 @@ Level 4（暂停 + 回溯）
 | E3 | 竞品压力 | 🟡 中 | — | 数据资产护城河 + 学术合作 + 快速迭代 |
 | E4 | 数据资产护城河形成慢 | 🔴 高 | H7 | 早期数据收集 + 跨学段衔接 + 数据资产化 |
 
-**统计**：🔴 高风险 5 个 / 🟡 中风险 13 个 / 🟢 低风险 0 个
+**统计**：🔴 高风险 8 个 / 🟡 中风险 14 个 / 🟢 低风险 0 个（v1.2 18 类 → v1.4 25 类）
 
 ---
 
@@ -675,14 +1002,17 @@ Level 4（暂停 + 回溯）
 
 **核心扩展**：从 5 类到 18 类（更细粒度），每类风险增加触发条件、影响评估、缓解策略、应急预案、监控指标五要素。
 
+**v1.4 扩展**：从 18 类到 25 类（v0.53.1 审查报告触发）——新增 A5-A10（partial credit / C-X 0 主导题 / MIRT trade-off / 库 ID 错配 / LCA 未实施 / 互校未实施）+ B5（无 pytest 测试）+ C4（5 次虚标模式）。
+
 ---
 
 ## I. 关联文档
 
 - **战略层**（依赖链）：
   - [01-applications.md](01-applications.md) §7 MVP 范围
-  - [02-architecture.md](../00-overview/02-architecture.md) — 风险评估的架构基础
+  - [02-architecture.md](02-architecture.md) — 风险评估的架构基础
   - [03-roadmap.md](03-roadmap.md) — 风险与 H1-H7 假设的对应
+  - [07-project-comprehensive-audit-2026-07-22.md](07-project-comprehensive-audit-2026-07-22.md) — 2026-07-22 项目全面审查报告（v1.4 新增引用）
 - **P0 三件套**（风险缓解的技术依据）：
   - [v0.3.0 CTA 数学基础](../30-shared-cognitive-tools/theoretical-foundations/01-cta-mathematical-foundations.md) — A1/A2/A4 缓解
   - [v0.4.0 LCA 教学法基础](../30-shared-cognitive-tools/theoretical-foundations/02-lca-instructional-foundations.md) — A3 缓解
@@ -698,6 +1028,7 @@ Level 4（暂停 + 回溯）
 ## J. 版本与维护
 
 - **v1.0**（2026-06-25）— 初版（战略层最后 1 份，18 类风险）
+- **v1.4**（2026-07-22）— 扩到 25 类风险（A5-A10 partial credit / C-X 0 主导题 / MIRT trade-off / 库 ID 错配 / LCA 未实施 / 互校未实施 + B5 无 pytest 测试 + C4 5 次虚标模式）
 
 **维护规则**：
 - 每完成一个 Milestone（M2-M7），更新风险等级与监控指标

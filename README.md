@@ -3,8 +3,8 @@
 > **教育认知操作系统**：面向 K12 学生的下一代 AI 辅助学习系统
 > 基于"**学生认知数字孪生 + AI 学习教练**"双 Agent 共进化架构
 
-[![Status](https://img.shields.io/badge/status-demo--v0.52.3-brightgreen)]()
-[![Version](https://img.shields.io/badge/version-0.52.3-blue)]()
+[![Status](https://img.shields.io/badge/status-demo--v0.53.1-brightgreen)]()
+[![Version](https://img.shields.io/badge/version-0.53.1-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)]()
 
 ---
@@ -119,14 +119,14 @@ ecos/
 └── prototypes/                        # 架构原型
 ```
 
-## 当前状态（2026-07-22，v0.52.3）— **🎉 Bisen 自定义 Phase 1-4 全部完成, 标"待 Phase 5"**
+## 当前状态（2026-07-22，v0.53.1）— **🎉 Bisen 自定义 Phase 1-4 全部完成, 标"待 Phase 5"**
 
 > **Bisen 路线**: Phase 1-4 是 UI 改进路线, 跟 ROADMAP Phase 0/4/5/6 不同。
-> 2026-07-22 v0.52.3 已完成: 顶栏精简 / 题目合并 / 轨迹折叠 / 2 位小数 / Tab 导航 /
+> 2026-07-22 v0.52.3 已完成 (v0.53.0 docs sync + v0.53.1 审查报告): 顶栏精简 / 题目合并 / 轨迹折叠 / 2 位小数 / Tab 导航 /
 > CSS 变量 / 5D badge / SVG icon / 拆文件 / API 封装 / URL hash 路由。
 > 详细见 [research/90-mvp/06-ecos-end-to-end-flow-analysis.md §0](research/90-mvp/06-ecos-end-to-end-flow-analysis.md)。
 
-**ECOS 7 组件当前状态** (v0.52.3):
+**ECOS 7 组件当前状态** (v0.53.1):
 | 组件 | 状态 | 详情 |
 |------|------|------|
 | 5D + θ_cov | ✅ 真评估 | K/P/S 三维真评估, C/X 标"待启用" (Phase 5 重新设计) |
@@ -143,7 +143,7 @@ ecos/
 - 🟡 **C/X 0 主导题**: 5D 评估实际 3D, Phase 5 重新设计 C/X 主导题
   详见 [discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md](discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md)
 
-**累计产出** (v0.1.0 → v0.52.3, 2026-06-24 ~ 2026-07-22):
+**累计产出** (v0.1.0 → v0.53.1, 2026-06-24 ~ 2026-07-22):
 - 78 Python 文件 / 113 MD 文件 / 16 JSON 文件
 - 124 commits, 近 1 周密集开发
 - 端到端流程: Q 矩阵设计 → 出题 → 答题 → AI 评判 → 状态更新 → 持久化 → 干预 → 个人画像
@@ -195,8 +195,8 @@ python experiments/scripts/m2_w1_llm_client_smoke.py         # LLM 客户端
 
 ## 下一步（Phase 5 启动条件: lbc001 答 30+ 题）
 
-**当前状态**: v0.52.3 实际完成 Bisen 自定义 Phase 1-4 全部 + Phase 4 (ROADMAP) 7 组件完整 UI。
-**Phase 5 启动条件**: lbc001 答 30+ 题（当前 27 题）+ Bisen 启动决策。
+**当前状态**: v0.53.1 实际完成 Bisen 自定义 Phase 1-4 全部 + Phase 4 (ROADMAP) 7 组件完整 UI + docs sync + 审查报告。
+**Phase 5 启动条件**: lbc001 答 30+ 题（当前 27-29 题）+ Bisen 启动决策。
 
 | 优先级 | 任务 | 触发条件 | 详见 |
 |--------|------|---------|------|
@@ -225,4 +225,4 @@ python experiments/scripts/m2_w1_llm_client_smoke.py         # LLM 客户端
 ---
 
 **创建日期**：2026-06-24
-**当前版本**：0.1.0（项目建立）
+**当前版本**：v0.53.1（2026-07-22 docs sync + 审查报告）
