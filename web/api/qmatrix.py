@@ -12,7 +12,10 @@ from __future__ import annotations
 import json
 import sys
 import random
+import logging
 from pathlib import Path
+
+_log = logging.getLogger(__name__)  # v0.55.0: silent pass → logger.warning
 from typing import Any
 
 # 添加项目根目录
@@ -166,7 +169,12 @@ def _select_adaptive_question(
         try:
             target_bloom_num = int(target_bloom[1:])
         except ValueError:
-            pass
+            # v0.55.0: silent pass → logger.warning (CLAUDE.md §防御性自检规范)
+            #   target_bloom 格式异常时 (如 "LXX" 多位) 静默改为 None, 不阻塞
+            _log.warning(
+                "_select_adaptive_question: target_bloom 格式异常 (%r), 跳过 Bloom 匹配",
+                target_bloom,
+            )
 
     def _score(p: dict) -> float:
         score = 0.0
@@ -201,7 +209,12 @@ def _select_adaptive_question(
                     bloom_match = max(0.0, 1.0 - distance * 0.2)
                     score += 0.2 * bloom_match
                 except ValueError:
-                    pass
+                    # v0.55.0: silent pass → logger.warning (CLAUDE.md §防御性自检规范)
+                    #   bloom_goal_id 格式异常时 (如 "LXX" 多位) 静默跳过, 不阻塞
+                    _log.warning(
+                        "_score: p_bloom 格式异常 (%r), 跳过 Bloom 匹配",
+                        p_bloom,
+                    )
 
         # 4. 随机性（权重 0.1）: 避免每次都选同一道
         score += 0.1 * random.random()
