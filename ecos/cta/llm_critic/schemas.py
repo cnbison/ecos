@@ -4,6 +4,11 @@
 这些 dataclass 定义了 LLM 每次 JSON 输出的结构和类型约束。
 
 M2 W3 温度：0.2（结构化输出稳定性优先）。
+
+v0.54.0-c: 增加 score 字段 (partial credit)
+- 原因: lbc001 PB-Q18 (70% 答对被按 0% 处理, K 维度多跌 0.27) 暴露 MIRT 二元对错 trade-off
+- 详见 research/90-mvp/07-phase5-partial-credit-implementation.md
+- 兼容性: 老 PerceptionOutput(correctness=True) 调用, score 默认为 1.0
 """
 
 from __future__ import annotations
@@ -25,6 +30,7 @@ class PerceptionOutput:
 
     Attributes:
         correctness: LLM 判断学生作答是否正确（可能与题目对错标注不一致，用于 C 维度）
+        score: v0.54.0 新增, partial credit 评分 0.0-1.0 (1.0 完全对, 0.0 完全错, 0.7 = 70% 对)
         explanation_quality: 学生解释文本的质量评分 0-1
         confusion_signals: 学生表达困惑的关键词列表（如"我不确定""可能是"）
         self_evaluation: 学生对自己作答的自信程度 0-1
@@ -33,13 +39,21 @@ class PerceptionOutput:
         key_concepts: 解释中涉及的关键概念（list）
     """
 
-    correctness: bool
-    explanation_quality: float  # 0.0-1.0
+    correctness: bool = False
+    score: float = 0.0  # 0.0-1.0, v0.54.0 partial credit (兼容老调用: correctness=True → score=1.0)
+    explanation_quality: float = 0.5  # 0.0-1.0
     confusion_signals: tuple[str, ...] = field(default_factory=tuple)
     self_evaluation: float = 0.5  # 0.0-1.0
     skill_ids: tuple[str, ...] = field(default_factory=tuple)
     bloom_level: Optional[BloomLevel] = None
     key_concepts: tuple[str, ...] = field(default_factory=tuple)
+
+    def is_correct(self, threshold: float = 0.6) -> bool:
+        """v0.54.0 新增: 基于 score 派生 correctness (避免重复定义).
+
+        threshold=0.6: partial credit 文档推荐 (score >= 0.6 算对)
+        """
+        return self.score >= threshold
 
 
 # ─── 解释层 Schema（§9.2）────────────────────────────────────────
