@@ -50,7 +50,8 @@ class Observation:
     Attributes:
         skill_id: 涉及的知识点 ID（用于 BKT）
         problem_id: 题目 ID（用于 MIRT）
-        correct: 作答是否正确
+        correct: 作答是否正确（v0.54.0 派生自 score >= 0.6, 兼容老调用方传 bool）
+        score: v0.54.0 partial credit 评分 0.0-1.0 (1.0=完全对, 0.0=完全错, 0.7=70%对)
         bloom_level: 题目对应的 Bloom 层级（用于 BloomProfile 更新）
         explanation_text: 学生解释文本（LLM Critic 输入；M2 W3 解析）
         problem_text: 题目原文（供 LLM Critic 感知层使用）
@@ -61,7 +62,8 @@ class Observation:
 
     skill_id: str
     problem_id: str
-    correct: bool
+    correct: bool = False  # 兼容老调用: 不传 score 时按 bool
+    score: float = 0.0  # v0.54.0 partial credit, 0.0-1.0, 不传时 0.0
     bloom_level: BloomLevel = BloomLevel.APPLY
     explanation_text: str = ""
     problem_text: str = ""
@@ -283,7 +285,12 @@ class BeliefEngine:
         student_id = state.student_id
         skill_id = observation.skill_id
         problem_id = observation.problem_id
-        correct = observation.correct
+        # v0.54.0-d: partial credit score 派生 correct
+        #   优先级: observation.score >= 0.6 > observation.correct (老调用兼容)
+        #   老调用方只传 correct=True → score=0.0 → 派生 correct=False (强制用新 score)
+        #   老代码改造: 应同时传 correct=True + score=1.0, 或只传 score=0.7
+        score = observation.score if observation.score > 0 else (1.0 if observation.correct else 0.0)
+        correct = score >= 0.6
         bloom_level = observation.bloom_level
 
         # ── W1 warm-up 计数累加（W1 2026-07-17 新增，在 Step 1 之前）──
@@ -319,11 +326,14 @@ class BeliefEngine:
         #   v0.49.2: 改 append dict（之前是 3-tuple,缺 user_answer/timestamp）
         #   v0.52.2: 加 ai_reasoning (Bisen 反馈 partial credit 缺失, 短期先存 AI reasoning
         #     留 Phase 5 partial credit 训练用历史数据)
+        #   v0.54.0: 加 score 字段 (partial credit)
         #   向后兼容老数据: load 时 _get_or_create_student 会把 3-tuple 迁移成 dict
+        #                  老 dict 没 score 字段, Step 3 MIRT 用 h.get("score", h.get("correct", 0)) 兜底
         history = self._response_history.setdefault(student_id, [])
         history.append({
             "problem_id": problem_id,
-            "correct": int(correct),
+            "correct": int(correct),  # 派生自 score >= 0.6, 保留兼容
+            "score": float(score),  # v0.54.0 partial credit
             "bloom_level": str(bloom_level.name if hasattr(bloom_level, "name") else bloom_level),
             "user_answer": observation.user_answer,
             "correct_answer": observation.correct_answer,
@@ -335,9 +345,16 @@ class BeliefEngine:
             history = self._response_history[student_id]
 
         # Step 3: L2 MIRT MAP 估计
+        #   v0.54.0: 用 score 字段 (partial credit) 替换 correct (二元)
+        #   l2_mirt.py:135 公式 responses * log(probs) + (1-responses) * log(1-probs)
+        #   已支持连续 [0,1] 响应, MIRT 公式层不用改
+        #   兼容老数据: 老 dict 没 score 字段, fallback 到 correct (0/1)
         if len(history) >= 2:
             problem_ids = [h["problem_id"] for h in history]
-            responses = np.array([h["correct"] for h in history], dtype=float)
+            responses = np.array(
+                [h.get("score", h.get("correct", 0)) for h in history],
+                dtype=float,
+            )
             theta_hat, theta_cov = self.l2.estimate_theta(responses, problem_ids)
             state.theta_mean = theta_hat
             state.theta_cov = theta_cov
@@ -356,12 +373,15 @@ class BeliefEngine:
                 dim_state.last_updated = observation.timestamp
 
         # Step 4: BloomProfile 更新（基于题目预设 bloom_level）
+        #   v0.54.0: partial credit 公式 (score - 0.5) * 2 * step
+        #   score=0.0 → delta = -step (max 跌)
+        #   score=0.5 → delta = 0 (中性, partial credit 文档设计)
+        #   score=1.0 → delta = +step (max 涨)
+        #   score=0.7 → delta = +0.4 * step (70% 答对应涨 step 的 40%)
         bloom_name = bloom_level.name.lower()
         current_prob = getattr(state.bloom_profile, bloom_name)
-        if correct:
-            new_prob = min(1.0, current_prob + step)
-        else:
-            new_prob = max(0.0, current_prob - step * 0.5)
+        bloom_delta = (score - 0.5) * 2.0 * step
+        new_prob = max(0.0, min(1.0, current_prob + bloom_delta))
         setattr(state.bloom_profile, bloom_name, new_prob)
         state.bloom_profile.update_dominant()
         state.bloom_profile.confidence = min(1.0, len(history) / 30.0)
