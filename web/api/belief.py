@@ -477,8 +477,19 @@ def submit_answer(
     # v0.52.2: AI 评判的具体 reasoning (Bisen 反馈 partial credit 缺失,
     #   短期先存 response_history, Phase 5 partial credit 训练用历史数据)
     ai_reasoning: str = "",
+    # v0.54.0-e: partial credit 评分 0.0-1.0 (1.0=完全对, 0.0=完全错, 0.7=70%对)
+    #   优先级高于 correct: score >= 0.6 派生 correct=True
+    #   老调用方不传 score 时, fallback: correct=True → score=1.0, else 0.0
+    score: float = 0.0,
 ) -> dict[str, Any]:
-    """提交答案 → BeliefEngine.update() → 返回干预建议(如果需要)。"""
+    """提交答案 → BeliefEngine.update() → 返回干预建议(如果需要)。
+
+    v0.54.0-e: partial credit 改造
+    - 接收 score: float 参数 (0.0-1.0)
+    - 派生 correct = score >= 0.6
+    - 老调用方只传 correct=True: 派生 score=1.0, correct=True (兼容)
+    - 新调用方传 score=0.7: 派生 correct=True (70% 算对)
+    """
     student = _get_or_create_student(student_id)
     engine = student["engine"]
     current_state = student["state"]
@@ -513,6 +524,12 @@ def submit_answer(
         skill_id=skill_id,
         problem_id=problem_id,
         correct=correct,
+        # v0.54.0-e: partial credit score 字段
+        #   老调用方不传 score 时 (score=0.0), engine.update() 内部派生:
+        #     score=0.0 + correct=True → fallback score=1.0 (兼容)
+        #     score=0.0 + correct=False → fallback score=0.0
+        #   新调用方传 score=0.7 → engine.update() 派生 correct=True (>=0.6)
+        score=score,
         bloom_level=bloom,
         explanation_text=explanation_text,
         user_answer=user_answer,
@@ -556,8 +573,11 @@ def submit_answer(
     # 构建响应
     theta = updated_state.theta_mean
     dims = ["K", "P", "S", "C", "X"]
+    # v0.54.0-e: 派生 correct (跟 observation.score 一致, score >= 0.6)
+    derived_correct = score >= 0.6 if score > 0 else correct
     response = {
-        "correct": correct,
+        "correct": derived_correct,  # v0.54.0: 派生自 score
+        "score": score,  # v0.54.0: partial credit 评分
         "theta": {dims[i]: round(float(theta[i]), 4) for i in range(5)},
         "misc_triggered": latest_misc is not None,
         "misc_id": latest_misc.misc_id if latest_misc else "",

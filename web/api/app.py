@@ -223,13 +223,30 @@ def api_judge_answer():
 
 @app.route("/api/answer", methods=["POST"])
 def api_submit_answer():
-    """提交答案，返回 BeliefEngine 更新结果。"""
+    """提交答案，返回 BeliefEngine 更新结果。
+
+    v0.54.0-e: partial credit 改造
+    - 接收 score: float (0.0-1.0) 字段, 跟 correct: bool 配合
+    - 老调用方不传 score: 用 correct 派生 (correct=True → score=1.0)
+    - 新调用方传 score=0.7: 派生 correct=True (>=0.6)
+    """
     try:
         data = request.get_json()
         student_id = data["student_id"]
         problem_id = data["problem_id"]
         skill_id = data["skill_id"]
         correct = bool(data["correct"])
+        # v0.54.0-e: 接收 partial credit score 字段 (optional, 老调用方不传)
+        #   优先级: score > correct (score >= 0.6 派生 correct)
+        #   score 缺省时, 用 correct 派生 score (兼容老代码)
+        raw_score = data.get("score", None)
+        if raw_score is None:
+            score = 1.0 if correct else 0.0  # 老代码兼容
+        else:
+            try:
+                score = max(0.0, min(1.0, float(raw_score)))
+            except (TypeError, ValueError):
+                score = 1.0 if correct else 0.0  # 非数字 fallback
         bloom_layer = data.get("bloom_layer", "L2")
         explanation_text = data.get("explanation_text", "")
         reasoning = data.get("reasoning", "")
@@ -245,6 +262,8 @@ def api_submit_answer():
             correct_answer=data.get("correct_answer", ""),  # v0.49.2
             # v0.52.2: AI reasoning 传给 submit_answer, 存进 response_history
             ai_reasoning=reasoning,
+            # v0.54.0-e: partial credit score
+            score=score,
         )
         result["reasoning"] = reasoning
         return jsonify(result)
