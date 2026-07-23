@@ -3,6 +3,30 @@
     "subject": "python_basics",
     "description": "Q矩阵——Python 基础题目属性标注（LLM 充当领域专家）",
     "instructions": "每个 problem_id 对应一道具体题目。请标注：1) 考察的知识点（skill_id）；2) Bloom 层；3) 是否触发 misconception；4) MIRT 参数（a_specialized[5D]）；5) 推荐干预类型。",
+    "subject_extensions": {
+      "_comment": "5 学科扩展 slot — ECOS 领域无关原则下, 5D 核心必须跨学科通用. v0.54.2-3 已落地 cross_subject 抽象题 (10 道 PC-C/PC-X), v0.56.0+ 计划扩展为 5 学科具象题 (数学/语文/英语/物理/化学 各 10 道 = 50 道).",
+      "schema": {
+        "math": "topic='math.*', 各 topic 对应数学知识点 (代数/几何/函数/概率/统计 等)",
+        "chinese": "topic='chinese.*', 各 topic 对应语文知识点 (字词/古诗/阅读/作文 等)",
+        "english": "topic='english.*', 各 topic 对应英语知识点 (语法/词汇/阅读/写作 等)",
+        "physics": "topic='physics.*', 各 topic 对应物理知识点 (力学/电磁/光学/热学 等)",
+        "chemistry": "topic='chemistry.*', 各 topic 对应化学知识点 (元素/反应/有机/实验 等)"
+      },
+      "question_count_target": {
+        "math": 10,
+        "chinese": 10,
+        "english": 10,
+        "physics": 10,
+        "chemistry": 10
+      },
+      "current_count": {
+        "math": 0,
+        "chinese": 0,
+        "english": 0,
+        "physics": 0,
+        "chemistry": 0
+      }
+    },
     "references": [
       "ecos/bloom/subject_libraries/python_basics.py",
       "ecos/cta/content/python_basics_misconceptions.py",
