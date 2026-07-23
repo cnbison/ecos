@@ -137,10 +137,10 @@
       "M7",
       "M8"
     ],
-    "version": "v0.54.1-f",
+    "version": "v0.54.3",
     "phase": 5,
     "c_dominant_questions_count": 20,
-    "total_questions": 51,
+    "total_questions": 56,
     "last_updated": "2026-07-23",
     "c_confidence_questions_count": 5,
     "c_programming_questions_count": 20,
@@ -148,7 +148,9 @@
       "core_5d": "K/P/S/C/X (领域无关)",
       "programming_extension": "PB-C 20 道 (编程领域)",
       "c_confidence_core": "PC-C 5 道 (领域无关)"
-    }
+    },
+    "x_external_support_questions_count": 5,
+    "dual_layer_architecture_5d_complete": true
   },
   "problems": [
     {
@@ -1668,6 +1670,183 @@
         "0.3": "中低分 (4-5)",
         "0.6": "中分 (6-7)",
         "1.0": "高分 (8-10) — 元认知优"
+      }
+    },
+    {
+      "problem_id": "PC-X01",
+      "topic": "cross_subject",
+      "skill_name": "工具选择",
+      "bloom_goal_id": "cross_subject-L3",
+      "problem_text": "遇到难题你用什么工具？\nA. 不查工具\nB. 查字典/计算器/实验仪器\nC. 查笔记\nD. 查 AI 助手\nE. 综合（B + C + D）",
+      "correct_answer": "E (综合). 多工具组合是 X 维度最佳策略.",
+      "bloom_layer_observed": "L3",
+      "a_specialized": [
+        0.2,
+        0.2,
+        0.2,
+        0.2,
+        1.0
+      ],
+      "mirt_params": {
+        "difficulty": 0.0,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
+      "misconceptions": [
+        "M-illinois-tool-avoidance"
+      ],
+      "intervention_types": [
+        "EXPLANATION",
+        "SCAFFOLDING"
+      ],
+      "x_dimension_type": "tool_selection",
+      "domain_agnostic": true,
+      "partial_credit_rubric": {
+        "0.0": "选 A (不查工具) — 工具逃避",
+        "0.3": "选 D (单 AI 助手) — 过度依赖单一工具",
+        "0.6": "选 B 或 C (单类工具) — 单一策略",
+        "1.0": "选 E (综合工具) — X 维度最佳"
+      }
+    },
+    {
+      "problem_id": "PC-X02",
+      "topic": "cross_subject",
+      "skill_name": "笔记质量",
+      "bloom_goal_id": "cross_subject-L4",
+      "problem_text": "好的笔记应包含什么？\nA. 答案\nB. 答案 + 思路\nC. 答案 + 思路 + 易错点\nD. 全部（答案 + 思路 + 易错点 + 反思 + 跨学科联系）",
+      "correct_answer": "D (全部). 完整笔记是 X 维度高质量标志.",
+      "bloom_layer_observed": "L4",
+      "a_specialized": [
+        0.2,
+        0.2,
+        0.4,
+        0.2,
+        1.0
+      ],
+      "mirt_params": {
+        "difficulty": 0.0,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
+      "misconceptions": [],
+      "intervention_types": [
+        "EXPLANATION",
+        "SCAFFOLDING"
+      ],
+      "x_dimension_type": "note_quality",
+      "domain_agnostic": true,
+      "partial_credit_rubric": {
+        "0.0": "选 A (仅答案)",
+        "0.3": "选 B (答案+思路)",
+        "0.6": "选 C (答案+思路+易错点)",
+        "1.0": "选 D (全部) — X 维度高质量笔记"
+      }
+    },
+    {
+      "problem_id": "PC-X03",
+      "topic": "cross_subject",
+      "skill_name": "记忆使用策略",
+      "bloom_goal_id": "cross_subject-L5",
+      "problem_text": "你如何决定\"是否查之前类似题\"？\nA. 每次都查 (过度依赖)\nB. 偶尔查\nC. 不查 (过度自信)\nD. 综合（偶尔查 + 记在脑里 + 标注重点）",
+      "correct_answer": "D (综合). 平衡记忆使用是 X 维度元认知.",
+      "bloom_layer_observed": "L5",
+      "a_specialized": [
+        0.2,
+        0.2,
+        0.2,
+        0.2,
+        1.1
+      ],
+      "mirt_params": {
+        "difficulty": 0.2,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
+      "misconceptions": [
+        "M-illinois-overconfidence",
+        "M-illinois-overdependence"
+      ],
+      "intervention_types": [
+        "EXPLANATION",
+        "SCAFFOLDING"
+      ],
+      "x_dimension_type": "memory_use_strategy",
+      "domain_agnostic": true,
+      "partial_credit_rubric": {
+        "0.0": "选 C (不查) — 过度自信",
+        "0.3": "选 A (每次都查) — 过度依赖",
+        "0.6": "选 B (偶尔查) — 单策略",
+        "1.0": "选 D (综合策略) — X 维度平衡"
+      }
+    },
+    {
+      "problem_id": "PC-X04",
+      "topic": "cross_subject",
+      "skill_name": "支架依赖度",
+      "bloom_goal_id": "cross_subject-L5",
+      "problem_text": "遇到新概念你如何应对？\nA. 等老师讲 (被动)\nB. 看 worked example (高依赖)\nC. 直接尝试 (低依赖)\nD. 综合 (worked example + 直接尝试 + 讨论)",
+      "correct_answer": "D (综合). 平衡支架依赖是 X 维度元认知.",
+      "bloom_layer_observed": "L5",
+      "a_specialized": [
+        0.2,
+        0.2,
+        0.3,
+        0.3,
+        1.0
+      ],
+      "mirt_params": {
+        "difficulty": 0.2,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
+      "misconceptions": [
+        "M-illinois-scaffolding-overdependence"
+      ],
+      "intervention_types": [
+        "EXPLANATION",
+        "SCAFFOLDING"
+      ],
+      "x_dimension_type": "scaffolding_dependency",
+      "domain_agnostic": true,
+      "partial_credit_rubric": {
+        "0.0": "选 A (等老师讲) — 完全依赖",
+        "0.3": "选 C (直接尝试) — 不借力",
+        "0.6": "选 B (worked example) — 单一支架",
+        "1.0": "选 D (综合) — X 维度平衡"
+      }
+    },
+    {
+      "problem_id": "PC-X05",
+      "topic": "cross_subject",
+      "skill_name": "综合 External Support",
+      "bloom_goal_id": "cross_subject-L6",
+      "problem_text": "综合 External Support 评估：\n1. 工具使用频率（每天用几次字典/计算器/AI？）\n2. 笔记习惯（每次学习是否做笔记？质量如何？）\n3. 记忆使用（如何决定查/记脑里？）\n4. 求助策略（独立思考 + 查资料 + 问老师？）\n请综合评估你的 External Support 使用水平 (0-10 分).",
+      "correct_answer": "综合 External Support 评估. 高分 (8-10): 工具 + 笔记 + 记忆 + 求助 4 维度都平衡. 中分 (5-7): 部分维度平衡. 低分 (0-4): 4 维度都不平衡.",
+      "bloom_layer_observed": "L6",
+      "a_specialized": [
+        0.2,
+        0.2,
+        0.3,
+        0.3,
+        1.1
+      ],
+      "mirt_params": {
+        "difficulty": 0.3,
+        "discrimination": 1.0,
+        "guessing": 0.0
+      },
+      "misconceptions": [],
+      "intervention_types": [
+        "EXPLANATION",
+        "SCAFFOLDING"
+      ],
+      "x_dimension_type": "external_support_synthesis",
+      "domain_agnostic": true,
+      "partial_credit_rubric": {
+        "0.0": "低分 (0-4) — 4 维度都不平衡",
+        "0.3": "中低分 (4-5)",
+        "0.6": "中分 (6-7)",
+        "1.0": "高分 (8-10) — X 维度平衡"
       }
     }
   ]
