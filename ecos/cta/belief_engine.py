@@ -424,7 +424,13 @@ class BeliefEngine:
                 student_explanation=observation.explanation_text,
             )
         except Exception:
-            # LLM 调用失败时跳过，不阻塞主流程
+            # LLM 调用失败时跳过 Bloom 推断，不阻塞主流程（5D MIRT / Bloom 累积已先执行）
+            # v0.53.3: silent pass → logger.warning (CLAUDE.md §防御性自检)
+            #   不知道是 network / LLM / rate limit / JSON 错, 调试时找不到根因
+            logger.warning(
+                "_update_bloom_perception: LLM Critic.perceive 失败(student=%s, problem=%s), 跳过 Bloom 推断",
+                state.student_id, observation.problem_id, exc_info=True,
+            )
             return
 
         # Bloom 推断：仅当推断层高于当前 dominant_layer 时才采纳（避免过度更新）
