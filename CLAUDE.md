@@ -261,13 +261,15 @@ discussions/YYYY-MM-DD-主题关键词.md
 
 鼓励批判性思考与深度追问。不回避哲学层面的硬问题（教育本质、认知发展、主体性与学习的关系）。欢迎挑战既有框架，而非仅在框架内做修补。
 
-## 防御性自检规范（2026-07-19 Bisen 反馈后新增）
+## 防御性自检规范（2026-07-19 Bisen 反馈后新增，v0.55.0 自动化）
 
 > 起源：本日（2026-07-19）项目连发 6 个 commit，期间 Bisen 多次反馈"重启后状态丢失"、"重启后题目从头开始"、"重启后错一题 K 暴跌 0.91"、"成长轨迹只显示 10 条"、"CSS 没生效纯文本显示"等连续 bug。
 >
 > 反思：根因是"修一处即提交一处"心态——每次只修 Bisen 报的那一个点，没顺手做同类问题扫描，**导致同一类问题（silent pass、版本号、文件引用、字段恢复）在 1-2 周内反复出现 3 次以上**。
 >
 > 本节规范从此强制生效。
+>
+> **v0.55.0 自动化** (2026-07-23)：5 项防御性自检 + pytest 22 测试已统一到 `bash scripts/check_defensive.sh`，本地 `make check` / GitHub Actions `.github/workflows/test.yml` 都跑，避免手动漏检。详见 [§v0.55.0 pytest 自动化套件](#v0550-pytest-自动化套件-2207-23-新增)。
 
 ### 每次 commit 前的自检清单（必跑）
 
@@ -321,6 +323,29 @@ grep -n "_get_or_create_student\|save_student_state\|load_student_state" web/api
 >
 > 例外：仅在 `__init__.py` 的 `Optional` import 兜底，或 `feature flag` 关闭分支允许 silent pass——但**必须加注释说明**。
 
+### v0.55.0 pytest 自动化套件 (2026-07-23 新增)
+
+**入口**：
+- 本地：`bash scripts/check_defensive.sh` 或 `make check`
+- GitHub Actions：`.github/workflows/test.yml` (push main / PR main / 手动触发)
+- pytest：`make test` 或 `python -m pytest tests/ -v`
+
+**5 项防御性自检**（自动化）：
+
+| # | 项 | 拦截历史 | 工具 |
+|---|----|---------|-----|
+| 1 | silent pass 扫描 | v0.47.5 / v0.53.3 / v0.55.0-a (qmatrix.py 2 处) | `grep` 排除注释行 + 测试代码 |
+| 2 | `__version__` 同步 | 多次漏 bump 致 API report hardcoded | 提取 `ecos/__init__.py` 单一权威源 |
+| 3 | `detect_with_hits` 传 `library_str` | v0.52.0 BUG 2.1 库 ID 错配 | multi-line grep + 排除函数定义 + 注释行 |
+| 4 | HTML class 与 CSS 对齐 | v0.47.3 inline / v0.50.0 5D badge class 错配 | `grep` HTML class vs CSS 选择器 (warning) |
+| 5 | DB 恢复 6 关键字段 | 4 次漏字段 (json/tc_states/trajectory/item_params) | 检查 6 字段全在 belief.py + db.py |
+
+**22 pytest 测试**（4 个文件）：
+- `test_defensive.py` (5)：5 项防御性自检的 pytest 版本（CI gate）
+- `test_partial_credit.py` (5)：partial credit + MIRT 回归保护
+- `test_dual_layer.py` (2)：5D 双层架构（领域无关核心 + 编程应用层）
+- `test_cross_subject.py` (10)：跨学科迁移（5 学科 × 2 维度 = 10 测试）
+
 ### 计划中的防御机制（v0.47.6+ TODO）
 
 - [x] **CI gate v0.52.0**：写 commit message 列"已做"功能时, 必须 devtools 验证功能**真在跑**（BUG 防止）
@@ -337,6 +362,8 @@ grep -n "_get_or_create_student\|save_student_state\|load_student_state" web/api
     confidence 变化
   - 防 3 次同类: 未来 commit 列组件/字段前, 必须先看代码确认实现, 不能再
     "写 message 时想当然"
+  - **v0.55.0 自动化**：5 项自检 + pytest 22 测试全跑,任何"虚标"功能若代码
+    没真实现,CI 必 fail
 - [x] **CI gate v0.52.0**：库 ID 错配 (BUG 2.1 教训)
   - 触发背景: `_llm_critic_misconception` 调 `detect_with_hits()` 没传
     `library_str`, detector fallback 到 K12 通用数学库 M1-M30, 但实际
@@ -345,6 +372,8 @@ grep -n "_get_or_create_student\|save_student_state\|load_student_state" web/api
     `library_str=...`, 不能依赖默认; 配合 git grep 自检:
     `git grep -nE 'detect_with_hits|self\.misc_detector\.detect' -- ecos/ web/`
   - 防 3 次同类: 任何 detector 调用, library_str 都是必需参数, 必须传
+  - **v0.55.0 自动化**：[3/5] 防御性自检 `scripts/check_defensive.sh` 已拦截
+    任何 detect 调用未传 library_str
 - [x] **CI gate v0.52.2**：MIRT 简化 (partial credit 缺失) (Bisen 2026-07-22 反馈)
   - 触发背景: lbc001 答 PB-Q18 (L6 variables) 截图分析
     - 学生答: 核心算法对 (提取个/十/百位 + 倒序组合), 缺 input()/print()
@@ -356,7 +385,29 @@ grep -n "_get_or_create_student\|save_student_state\|load_student_state" web/api
     留历史数据训练
   - 防 3 次同类: 任何"MIRT 二元对错"假设的延伸改动, 必须确认是否引入
     partial credit 缺失风险
-- [ ] CI gate：`grep -nE "except Exception: *$" --include="*.py" -r ecos/ web/` 命中非空则 fail
+  - **v0.55.0 自动化**：`tests/test_partial_credit.py` 5 测试保护
+    - test_mirt_partial_score_continuous (l2_mirt.py:135 公式接受 [0,1] 连续)
+    - test_partial_credit_reduces_k_decline (lbc001 PB-Q18 跌幅 < 0.10)
+    - test_response_history_score_compat (老数据 fallback)
+    - test_mirt_estimate_theta_continuous_inputs (estimate_theta 接受连续值)
+    - test_mirt_estimate_theta_discrete_backward_compat (老用法 [0,1] 仍工作)
+- [x] **CI gate v0.55.0-a**：silent pass 扫描 (防御性自检 [1/5])
+  - 实施: `scripts/check_defensive.sh` 第 1 项,排除注释行 + 测试代码
+  - 防 5 次同类: silent pass 必改成 `logger.warning(..., exc_info=True)`
+- [x] **CI gate v0.55.0-c**：5D 双层架构 (领域无关核心 + 领域特定扩展)
+  - 实施: `tests/test_dual_layer.py` 2 测试
+    - test_5d_core_C_is_confidence_dimension (C 必须是 ConfidenceDimensionState)
+    - test_q_matrix_dual_layer_isolation (PC-C/PC-X 跨学科 vs PB-C 编程隔离)
+  - 防 v0.54.1-d 教训: C 维度定义漂移 (Confidence vs Common mistakes)
+- [x] **CI gate v0.55.0-d**：跨学科迁移 5 学科 slot
+  - 实施: `tests/test_cross_subject.py` 10 测试
+    - 5 学科 (math/chinese/english/physics/chemistry) 各 10 道设计目标
+    - 当前 5 学科扩展 0 题,防 v0.56.0+ 之前虚标
+  - 防 v0.54.1-e 教训: 5D 核心必须领域无关,跨学科题库设计是 Phase 6 必修
+- [x] **CI gate v0.55.0-e**：CI 集成 (`.github/workflows/test.yml` + `Makefile`)
+  - 触发: push main / PR main / 手动
+  - 步骤: install deps → check_defensive (5 项) → pytest (22)
+  - macOS runner + Python 3.12 (Bisen 主开发机)
 - [ ] `save_student_state` 加 `fail_count` 字段，统计丢了几条 snapshot
 - [ ] `db.py` 持久化后做 integrity check（存完再 load，对比 length）
 - [ ] Bisen 反馈过任何 2 次以上的同类 bug，必须写 CI gate 堵住第 3 次
