@@ -24,6 +24,7 @@ from ecos.llm_client import ECOSLLMClient
 
 from web.api.belief import get_student_state, submit_answer, _STUDENT_STATES
 from web.api.interpretation import build_interpretation
+from web.api.lca import get_lca_debug_info, select_intervention as lca_select
 from web.api.qmatrix import get_question_detail, normalize_problem, select_question_for_student
 
 # Flask app
@@ -141,6 +142,24 @@ def api_get_question(student_id: str):
         if prob is None:
             return jsonify({"done": True, "message": "所有题目已完成"})
 
+        # v0.56.0: LCA 接入 (passthrough——不改变选题行为, 仅记录干预决策)
+        #   即使 LCA_ENABLED=False 也调, 用于:
+        #   - 验证 LCA 在调用栈 (test_lca_wired.py)
+        #   - 收集 LinUCB 训练数据
+        #   - 失败时 fallback 到 CTA 选题 (现有逻辑不变)
+        lca_info = None
+        if state is not None:
+            lca_result = lca_select(student_id, state)
+            if lca_result is not None:
+                lca_info = {
+                    "intervention_type": lca_result.intervention.intervention_type.name,
+                    "bloom_target": lca_result.bloom_target.name,
+                    "clt_level": lca_result.clt_level.name,
+                    "ca_stage": lca_result.ca_stage.name,
+                    "expected_gain": round(lca_result.expected_gain, 3),
+                    "expected_risk": round(lca_result.expected_risk, 3),
+                }
+
         normalized = normalize_problem(prob)
         # W1: 在响应里加 is_warmup + strategy
         normalized["is_warmup"] = is_warmup
@@ -153,6 +172,9 @@ def api_get_question(student_id: str):
         normalized["is_probe"] = force_probe
         if "_probe_dim_star" in prob:
             normalized["probe_dim_star"] = prob["_probe_dim_star"]
+        # v0.56.0: LCA 决策信息 (passthrough——前端可见, 不影响题目选择)
+        if lca_info is not None:
+            normalized["lca_decision"] = lca_info
         return jsonify(normalized)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -266,6 +288,31 @@ def api_submit_answer():
             score=score,
         )
         result["reasoning"] = reasoning
+
+        # v0.56.0: LCA update (基于 updated_state + score 计算 reward)
+        #   必须在 submit_answer 拿到 updated_state 之后调, LCA 需要 new_state
+        #   v0.56.0 简化版: reward = score + 0.5 * bloom_progress, 归一化到 [0, 1]
+        #   防御性: LCA 失败不影响主响应
+        try:
+            from web.api.lca import update_with_reward as lca_update
+            from ecos.cta.belief_state import BeliefState as _BS
+            # 拿 updated_state (从 _STUDENT_STATES 读, 避免 submit_answer 返回值不带 state)
+            student = _STUDENT_STATES.get(student_id, {})
+            updated_state_obj = student.get("state")
+            if isinstance(updated_state_obj, _BS):
+                lca_update(
+                    student_id=student_id,
+                    belief_state=updated_state_obj,
+                    score=score,
+                    bloom_layer=bloom_layer,
+                )
+        except Exception:
+            import logging as _lca_log
+            _lca_log.getLogger(__name__).warning(
+                "/api/answer LCA update 失败 (student=%s, problem=%s), 不影响主响应",
+                student_id, problem_id, exc_info=True,
+            )
+
         return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -377,6 +424,22 @@ Misconception ID: {entry.misc_id}
             "misc_name": entry.name,
             "correction_strategy": entry.correction_strategy,
         })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/lca_debug/<student_id>")
+def api_lca_debug(student_id: str):
+    """v0.56.0: LCA 调试接口 (教师后台 / 开发自检用).
+
+    返回 LCA 内部状态 (last intervention / bandit arm 拉取次数等),
+    不暴露学生个人隐私字段.
+
+    注意: 这是调试接口, 跟 v0.51.4 settings 页版本号是同一类思路.
+    """
+    try:
+        info = get_lca_debug_info(student_id)
+        return jsonify(info)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

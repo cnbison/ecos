@@ -1909,3 +1909,56 @@ Phase 0 100% 完成 🎉
 - v0.53.0: Partial Credit 必修 + C 主导题扩 20+ 题
 - v0.54.0: X 主导题扩 20+ 题
 - v0.55.0: X 维度 misconception 库 (M9-M16, 8 条候选)
+
+---
+
+## [0.56.0] 2026-07-24 — LCA 接入主循环 (Phase 5 远期任务启动)
+
+> **背景**: 2026-07-22 全面审查报告 [§4-risks A9](research/00-overview/04-risks.md) — LCA 框架代码 (`ecos/lca/`, 2026-07-03 完成) 写好了但**没接电源**：`web/api/belief.py` grep "LCA" 0 匹配,所有"下一步该做什么"实际是 CTA 状态估计 + 简单选题加权. v0.56.0 把 LCA 接进主循环 (passthrough 模式,不改变现有行为),为 v0.57.0+ 持久化 + 双 Agent 互校铺路.
+
+### ✅ 已做
+
+#### 1. LCA 接入层 (`web/api/lca.py`, 7.4 KB)
+- **LCAEngine 全局单例** (lazy init) + `LCA_ENABLED` feature flag (默认 False, 走模板 fallback 不发 LLM)
+- **`select_intervention(student_id, belief_state)`** — passthrough 包装, 失败时返回 None (走 CTA 兜底)
+- **`update_with_reward(student_id, belief_state, score, bloom_layer)`** — reward 公式 `raw = score + 0.5 * bloom_progress; reward = raw/1.5` (归一化到 [0,1])
+- **`get_lca_debug_info(student_id)`** — 调试接口, 返回 last intervention / bandit arm 拉取次数等
+- **所有 except 块 `_log.warning(..., exc_info=True)`** (防御性自检 [1], CLAUDE.md 规范)
+
+#### 2. Flask 路由接入 (`web/api/app.py`)
+- **`/api/question`**: 选题后调 `lca_select()` 记录 LCA 决策,**不改选题行为** (CTA 选题作为降级兜底)
+  - 响应增加 `lca_decision` 字段 (intervention_type / bloom_target / clt_level / ca_stage / expected_gain / expected_risk)
+- **`/api/answer`**: `submit_answer` 拿到 `updated_state` 后调 `lca_update()` 计算 reward + LinUCB update
+  - LCA 失败时 `log.warning` 不影响主响应
+- **`/api/lca_debug/<student_id>`**: 新增调试端点 (供教师后台 + devtools 自检)
+
+#### 3. 测试套件 (`tests/test_lca_wired.py`, 16 测试)
+- **TestLCASelectWired** (3): select 调通 / LCA_ENABLED=False 也能跑 / LCA 失败返回 None
+- **TestLCAUpdateReward** (4): 全对 (reward=1.0) / partial credit (reward≈0.8) / 全错 (reward=0.0) / score clamp 到 [0,1]
+- **TestLCAUpdateEdgeCases** (2): 没 select 过时 update 跳过 / update 失败有 warning
+- **TestLCADebugInfo** (2): 字段齐全 / 新学生安全返回
+- **TestLCARouteIntegration** (3): lca 可 import / 路由注册 / app 导入 lca 模块
+- **TestDefensiveChecks** (2): lca.py 无 silent pass / `__version__` 同步到 0.56.0
+
+#### 4. 防御性自检覆盖
+- [x] [1] silent pass 全部改 `_log.warning(..., exc_info=True)` (lca.py 4 处 except 全验证)
+- [x] [2] `__version__` 0.55.0 → 0.56.0 同步
+- [x] [3] detect_with_hits 传 library_str (本次不涉及 misconception)
+- [x] [4] HTML class 对齐 (本次不动 HTML)
+- [x] [5] DB 恢复 6 字段 (本次不动 db.py / belief.py 恢复路径)
+- [x] 测试套件: **38/38 全部通过** (16 新增 + 22 原有, 含 partial_credit / dual_layer / cross_subject / defensive)
+
+#### 5. 关键技术决策
+- **passthrough 模式**: LCA 调一次但不改选题行为 (CTA 兜底),验证 1 周 lbc001 数据后再开 `LCA_ENABLED=True`
+- **Reward 简化版**: 只用 K 维度变化 (score) + bloom 层是否答对, 不用 5D 全量 state_delta
+- **In-memory 状态**: `_last_intervention` / `_update_count` 是模块级 dict, **进程重启即丢** (v0.57.0 持久化)
+- **re.findall ReDoS 修复**: 测试里 `except` 块解析用 line-by-line + 缩进判断,避免 `(?=\n\S|\Z)` 灾难性回溯 (Bisen CLAUDE.md 防御性自检又一次救了我——修 silent pass 顺手扫到 regex 性能问题)
+
+### 📋 后续 (不在 v0.56.0 commit)
+
+按 v0.56.0 计划 [discussions 暂无, 见 Bisen 触发 2026-07-24 的 v0.56.0+ 计划讨论]:
+- **v0.57.0** LCA 持久化 (`ecos/persistence/lca_store.py`, 6 字段对齐 CLAUDE.md [5] 防御性自检)
+- **v0.58.0** 双 Agent 互校 (CTA 假设 vs LCA 实验验证, 4 模式实现 2 个: 常态 + 冲突)
+- **v0.59.0** H3 验证 (互校抗幻觉实证, 跑通降 A10 风险等级)
+- **风险**: A9 (LCA 未实施) 当前 10% → v0.59.0 完成后目标 60%; A10 (双 Agent 互校未实施) 同源
+
