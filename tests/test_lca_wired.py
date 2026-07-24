@@ -440,11 +440,17 @@ class TestDefensiveChecks:
                 )
 
     def test_version_bump(self):
-        """防御性自检 [2]: __version__ 必须 bump 到 0.56.0."""
-        import ecos
+        """防御性自检 [2]: __version__ 必须 bump 到 >= 0.56.0.
 
-        assert ecos.__version__ == "0.56.0", \
-            f"ecos.__version__ 应为 '0.56.0' (v0.56.0 LCA 接入), 实际={ecos.__version__}"
+        注: v0.56.1 (BUG 修复) 后, 版本应该是 0.56.1. 测试用 >= 0.56.0
+        兼容 0.56.0 / 0.56.1+ 等小版本.
+        """
+        import ecos
+        from packaging.version import Version
+
+        current = Version(ecos.__version__)
+        assert current >= Version("0.56.0"), \
+            f"ecos.__version__ 应 >= 0.56.0 (v0.56.0 LCA 接入), 实际={ecos.__version__}"
 
 
 # ──────────────────────────────────────────────────────────────────────

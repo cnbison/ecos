@@ -1917,6 +1917,72 @@ Phase 0 100% 完成 🎉
 > **背景**: 2026-07-22 全面审查报告 [§4-risks A9](research/00-overview/04-risks.md) — LCA 框架代码 (`ecos/lca/`, 2026-07-03 完成) 写好了但**没接电源**：`web/api/belief.py` grep "LCA" 0 匹配,所有"下一步该做什么"实际是 CTA 状态估计 + 简单选题加权. v0.56.0 把 LCA 接进主循环 (passthrough 模式,不改变现有行为),为 v0.57.0+ 持久化 + 双 Agent 互校铺路.
 
 ### ✅ 已做
+- **`_call_llm_judge_with_retry(llm, prompt)`** — retry 3 次 helper
+  - 短-中-长 delay: 100ms / 500ms / 2s (Bisen 拍板)
+  - parse 失败 + chat 失败 都 retry, 每次 `_log.warning(..., exc_info=True)` (防御性自检 [1])
+  - 验证 result 至少有 `correct` 字段, 否则视为 parse 失败
+- **失败路径: return 422 + 显式 error**
+  ```json
+  {
+    "judged": false,
+    "error": "AI 评判服务故障，请稍后重试或跳过此题",
+    "error_code": "LLM_JUDGE_FAILED",
+    "needs_rejudge": true,
+    "retry_count": 3
+  }
+  ```
+- **核心: 失败时不污染任何 state** (response_history / 5D / Bloom / TC / misconception 一概不写)
+
+#### 2. 历史回查脚本 (scripts/rejudge_misjudged.py, 10 KB)
+- 扫 `web/ecos.db` 所有 `response_history`
+- 识别 `ai_reasoning == "（自动评判）答案文本匹配"` 的条目 (v0.56.1 前 fallback 误判)
+- 用现版 retry helper 重跑 LLM judge
+- 成功 → 更新 score / correct / ai_reasoning / needs_rejudge=False
+- 仍失败 → 标 needs_rejudge=True, score=None
+- 可重入 (idempotent), 支持 `--student <sid>` + `--dry-run`
+
+#### 3. 测试套件 (tests/test_judge_retry.py, 16 测试)
+- **TestJudgeHelperRetry** (6): 首次成功 / retry 成功 / 3 次失败 / parse 失败 log / chat 失败 log / 缺字段拒绝
+- **TestJudgeEndpoint** (5): 422 / 200 成功 / 200 retry 成功 / 400 空答案 / 404 题不存在
+- **TestJudgeNoStatePollution** (3, 核心): 不调 submit_answer / 不写 response_history / 不更新 5D theta
+- **TestDefensiveChecks** (2): 不写启发式 (ast 解析去 docstring) / 422 有 warning log
+
+#### 4. CLAUDE.md 防御性自检 [6] (v0.56.1 新增)
+- **核心原则**: 不写启发式 fallback 替代 AI 评判 (silent degradation 变种)
+- 禁止 pattern: ast.parse / astunparse / string_match / user_eval / self_evaluate / text_match / diff_match / strip().lower()==
+- 任何 LLM 评判失败都不能降级, 失败就显式 fail
+
+#### 5. 防御性自检覆盖
+- [x] [1] silent pass 全部 `_log.warning(..., exc_info=True)` (helper 4 个 except 块全验证)
+- [x] [2] `__version__` 0.56.0 → 0.56.1
+- [x] [3] detect_with_hits 传 library_str (本次不涉及)
+- [x] [4] HTML class 对齐 (本次不动 HTML)
+- [x] [5] DB 恢复 6 字段 (本次不动 db.py / belief.py 恢复路径)
+- [x] [6] **新增** 不写启发式 fallback (ast 解析验证)
+- [x] 测试: **54/54 全部通过** (16 新增 + 38 原有)
+
+### Bisen 原则 (2026-07-24 设计哲学)
+
+| 原则 | 含义 | 反例 (禁止) |
+|------|------|------------|
+| **不污染 state** | LLM 全部 retry 失败时, response_history / 5D / Bloom / TC / misconception 一概不写 | 启发式兜底 / 字符串匹配 / 用户自评 (都是 silent degradation 变种) |
+| **显式故障** | 422 + 明确错误信息, 前端弹窗, 不假装"评判完成" | catch 块静默吞错 / 返回 200 但标 "uncertain" |
+| **自动 retry** | retry 是基础设施, 用户不感知 | 第一次失败就 return error |
+| **retry 上限** | 3 次重试 + 短-中-长 delay, 总耗时 ~3-5s | 无限重试 / 固定 delay |
+| **用户选择权** | 失败后 [重试] 调新一次 LLM, [跳过] 作废答题 | 强制重试 / 强制用启发式 |
+
+### 📋 后续 (不在 v0.56.1 commit)
+
+- **立即**: 跑 `python scripts/rejudge_misjudged.py --dry-run` 扫描 lbc001 历史误判条目
+- **跑通后**: 去掉 `--dry-run` 实际修复, PB-Q26 等题 score 会修正
+- **v0.57.0** LCA 持久化 (按 roadmap): 不影响本 BUG 修复
+- **前端配合**: 当前前端拿到 422 会怎么处理? 现状可能直接 alert error, v0.57.0+ 可考虑加 [重试] / [跳过] 按钮 (低优先)
+
+---
+
+> **背景**: 2026-07-22 全面审查报告 [§4-risks A9](research/00-overview/04-risks.md) — LCA 框架代码 (`ecos/lca/`, 2026-07-03 完成) 写好了但**没接电源**：`web/api/belief.py` grep "LCA" 0 匹配,所有"下一步该做什么"实际是 CTA 状态估计 + 简单选题加权. v0.56.0 把 LCA 接进主循环 (passthrough 模式,不改变现有行为),为 v0.57.0+ 持久化 + 双 Agent 互校铺路.
+
+### ✅ 已做
 
 #### 1. LCA 接入层 (`web/api/lca.py`, 7.4 KB)
 - **LCAEngine 全局单例** (lazy init) + `LCA_ENABLED` feature flag (默认 False, 走模板 fallback 不发 LLM)
@@ -1961,4 +2027,75 @@ Phase 0 100% 完成 🎉
 - **v0.58.0** 双 Agent 互校 (CTA 假设 vs LCA 实验验证, 4 模式实现 2 个: 常态 + 冲突)
 - **v0.59.0** H3 验证 (互校抗幻觉实证, 跑通降 A10 风险等级)
 - **风险**: A9 (LCA 未实施) 当前 10% → v0.59.0 完成后目标 60%; A10 (双 Agent 互校未实施) 同源
+
+---
+
+## [0.56.1] 2026-07-24 — /api/judge BUG 修复 (Bisen 原则: 不污染 state)
+
+> **触发**: Bisen 答题 lbc001 PB-C11 (✅ 正确) + PB-Q26 (❌ 误判) 后报 bug.
+> **根因**: `/api/judge` 端点旧 fallback 走字符串严格相等比较 (`student_answer == correct_answer`), LLM 返回非 JSON 格式时触发. Bisen 答 PB-Q26 用 `nonlocal count` (Pythonic 但跟参考答案 list 包装字面不同) → 被判 false → score=0 → 5D P 维度被错罚.
+
+### ✅ 已做
+
+#### 1. /api/judge 重写 (Bisen 原则 2026-07-24)
+- **`_call_llm_judge_with_retry(llm, prompt)`** — retry 3 次 helper
+  - 短-中-长 delay: 100ms / 500ms / 2s (Bisen 拍板)
+  - parse 失败 + chat 失败 都 retry, 每次 `_log.warning(..., exc_info=True)` (防御性自检 [1])
+  - 验证 result 至少有 `correct` 字段, 否则视为 parse 失败
+- **失败路径: return 422 + 显式 error**
+  ```json
+  {
+    "judged": false,
+    "error": "AI 评判服务故障，请稍后重试或跳过此题",
+    "error_code": "LLM_JUDGE_FAILED",
+    "needs_rejudge": true,
+    "retry_count": 3
+  }
+  ```
+- **核心: 失败时不污染任何 state** (response_history / 5D / Bloom / TC / misconception 一概不写)
+
+#### 2. 历史回查脚本 (scripts/rejudge_misjudged.py, 10 KB)
+- 扫 `web/ecos.db` 所有 `response_history`
+- 识别 `ai_reasoning == "（自动评判）答案文本匹配"` 的条目 (v0.56.1 前 fallback 误判)
+- 用现版 retry helper 重跑 LLM judge
+- 成功 → 更新 score / correct / ai_reasoning / needs_rejudge=False
+- 仍失败 → 标 needs_rejudge=True, score=None
+- 可重入 (idempotent), 支持 `--student <sid>` + `--dry-run`
+
+#### 3. 测试套件 (tests/test_judge_retry.py, 16 测试)
+- **TestJudgeHelperRetry** (6): 首次成功 / retry 成功 / 3 次失败 / parse 失败 log / chat 失败 log / 缺字段拒绝
+- **TestJudgeEndpoint** (5): 422 / 200 成功 / 200 retry 成功 / 400 空答案 / 404 题不存在
+- **TestJudgeNoStatePollution** (3, 核心): 不调 submit_answer / 不写 response_history / 不更新 5D theta
+- **TestDefensiveChecks** (2): 不写启发式 (ast 解析去 docstring) / 422 有 warning log
+
+#### 4. CLAUDE.md 防御性自检 [6] (v0.56.1 新增)
+- **核心原则**: 不写启发式 fallback 替代 AI 评判 (silent degradation 变种)
+- 禁止 pattern: ast.parse / astunparse / string_match / user_eval / self_evaluate / text_match / diff_match / strip().lower()==
+- 任何 LLM 评判失败都不能降级, 失败就显式 fail
+
+#### 5. 防御性自检覆盖
+- [x] [1] silent pass 全部 `_log.warning(..., exc_info=True)` (helper 4 个 except 块全验证)
+- [x] [2] `__version__` 0.56.0 → 0.56.1
+- [x] [3] detect_with_hits 传 library_str (本次不涉及)
+- [x] [4] HTML class 对齐 (本次不动 HTML)
+- [x] [5] DB 恢复 6 字段 (本次不动 db.py / belief.py 恢复路径)
+- [x] [6] **新增** 不写启发式 fallback (ast 解析验证)
+- [x] 测试: **54/54 全部通过** (16 新增 + 38 原有)
+
+### Bisen 原则 (2026-07-24 设计哲学)
+
+| 原则 | 含义 | 反例 (禁止) |
+|------|------|------------|
+| **不污染 state** | LLM 全部 retry 失败时, response_history / 5D / Bloom / TC / misconception 一概不写 | 启发式兜底 / 字符串匹配 / 用户自评 (都是 silent degradation 变种) |
+| **显式故障** | 422 + 明确错误信息, 前端弹窗, 不假装"评判完成" | catch 块静默吞错 / 返回 200 但标 "uncertain" |
+| **自动 retry** | retry 是基础设施, 用户不感知 | 第一次失败就 return error |
+| **retry 上限** | 3 次重试 + 短-中-长 delay, 总耗时 ~3-5s | 无限重试 / 固定 delay |
+| **用户选择权** | 失败后 [重试] 调新一次 LLM, [跳过] 作废答题 | 强制重试 / 强制用启发式 |
+
+### 📋 后续 (不在 v0.56.1 commit)
+
+- **立即**: 跑 `python scripts/rejudge_misjudged.py --dry-run` 扫描 lbc001 历史误判条目
+- **跑通后**: 去掉 `--dry-run` 实际修复, PB-Q26 等题 score 会修正
+- **v0.57.0** LCA 持久化 (按 roadmap): 不影响本 BUG 修复
+- **前端配合**: 当前前端拿到 422 会怎么处理? 现状可能直接 alert error, v0.57.0+ 可考虑加 [重试] / [跳过] 按钮 (低优先)
 

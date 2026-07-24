@@ -408,6 +408,14 @@ grep -n "_get_or_create_student\|save_student_state\|load_student_state" web/api
   - 触发: push main / PR main / 手动
   - 步骤: install deps → check_defensive (5 项) → pytest (22)
   - macOS runner + Python 3.12 (Bisen 主开发机)
+- [x] **CI gate v0.56.1**：不写启发式 fallback 替代 AI 评判 (silent degradation 变种) (Bisen 2026-07-24 原则)
+  - 触发: lbc001 答 PB-Q26 完全正确, 但 LLM judge 返回非 JSON → /api/judge 旧版 fallback 走字符串严格相等, 把 nonlocal 答案 vs list 包装答案 判 false → score=0
+  - 实施:
+    - `web/api/app.py` /api/judge: retry 3 次 (100ms / 500ms / 2s 短-中-长), 全部失败 → 422 + needs_rejudge=True, **不写启发式兜底** (无 ast 函数名匹配, 无字符串宽松化, 无用户自评)
+    - **核心原则**: LLM judge 失败 = 系统故障, 显式 fail, **不污染任何 state** (response_history / 5D / Bloom / TC / misconception 一概不写)
+    - 一次性脚本 `scripts/rejudge_misjudged.py`: 扫 DB 历史误判条目, 重跑 LLM judge
+    - 测试 `tests/test_judge_retry.py`: 11 测试覆盖 (retry 行为 / 422 / 不污染 state / 不写启发式 / 有 warning log)
+  - 防 1 次同类: 任何 LLM 评判失败都不能降级 (启发式/字符串匹配/用户自评都是 silent degradation 变种)
 - [ ] `save_student_state` 加 `fail_count` 字段，统计丢了几条 snapshot
 - [ ] `db.py` 持久化后做 integrity check（存完再 load，对比 length）
 - [ ] Bisen 反馈过任何 2 次以上的同类 bug，必须写 CI gate 堵住第 3 次

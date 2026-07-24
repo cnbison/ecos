@@ -11,7 +11,9 @@
 from __future__ import annotations
 
 import json
+import logging
 import sys
+import time
 from pathlib import Path
 
 # 添加项目根目录到 Python 路径
@@ -26,6 +28,8 @@ from web.api.belief import get_student_state, submit_answer, _STUDENT_STATES
 from web.api.interpretation import build_interpretation
 from web.api.lca import get_lca_debug_info, select_intervention as lca_select
 from web.api.qmatrix import get_question_detail, normalize_problem, select_question_for_student
+
+_log = logging.getLogger(__name__)
 
 # Flask app
 app = Flask(__name__, static_folder=None)
@@ -180,9 +184,72 @@ def api_get_question(student_id: str):
         return jsonify({"error": str(e)}), 500
 
 
+# ─── v0.56.1: LLM Judge retry helper (Bisen 原则) ─────────────────────────
+def _call_llm_judge_with_retry(llm: ECOSLLMClient, prompt: str):
+    """LLM judge retry loop (v0.56.1 修 BUG).
+
+    Bisen 原则 (2026-07-24): LLM judge 失败时**不**启发式兜底, **不**字符串匹配兜底.
+    任何 fallback 都是 silent degradation 变种, 失败就显式 fail.
+
+    Args:
+        llm: ECOSLLMClient 实例
+        prompt: 评判 prompt
+
+    Returns:
+        (result_dict, attempt_count) 成功
+        (None, attempt_count) 全部失败
+
+    防御性自检 [1]: 每次重试失败必须 _log.warning(..., exc_info=True), 不能 silent pass.
+    防御性自检 [6] (v0.56.1 新增): 不写启发式 fallback 替代 AI 评判.
+    """
+    delays = [0.1, 0.5, 2.0]  # 短-中-长 (s), Bisen 拍板 2026-07-24
+    max_attempts = 3
+
+    for attempt in range(1, max_attempts + 1):
+        try:
+            raw = llm.chat(
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.1,
+                strip_think=True,
+            )
+
+            # 解析 JSON
+            try:
+                result = json.loads(raw)
+                # 验证 result 至少有 correct 字段
+                if "correct" not in result:
+                    raise ValueError(f"LLM response missing 'correct' field: {(raw or '')[:100]}")
+                return result, attempt
+            except (json.JSONDecodeError, ValueError) as parse_err:
+                _log.warning(
+                    "/api/judge: LLM JSON parse 失败 (attempt %d/%d): %s, raw_truncated=%s",
+                    attempt, max_attempts, parse_err, (raw or "")[:200],
+                )
+                if attempt < max_attempts:
+                    time.sleep(delays[attempt - 1])
+                continue
+        except Exception as llm_err:
+            _log.warning(
+                "/api/judge: LLM chat 调用失败 (attempt %d/%d): %s",
+                attempt, max_attempts, llm_err, exc_info=True,
+            )
+            if attempt < max_attempts:
+                time.sleep(delays[attempt - 1])
+            continue
+
+    return None, max_attempts
+
+
 @app.route("/api/judge", methods=["POST"])
 def api_judge_answer():
-    """LLM 充当老师，评判学生答案对错。"""
+    """LLM 充当老师，评判学生答案对错。
+
+    v0.56.1 BUG 修复 (Bisen 原则 2026-07-24):
+    - LLM judge 失败时**不**启发式兜底, **不**字符串匹配兜底 (silent degradation 变种)
+    - retry 3 次 (100ms / 500ms / 2s delay, 短-中-长)
+    - 全部失败 → return 422 + 显式 error + needs_rejudge=True
+    - 关键: 任何失败路径**不污染 state** (response_history / 5D / Bloom / TC / misconception 一概不写)
+    """
     try:
         data = request.get_json()
         student_id = data["student_id"]
@@ -216,21 +283,25 @@ def api_judge_answer():
 """
 
         llm = get_llm()
-        raw = llm.chat(
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.1,
-            strip_think=True,
-        )
+        result, attempts = _call_llm_judge_with_retry(llm, prompt)
 
-        import json as _json
-        try:
-            result = _json.loads(raw)
-        except Exception:
-            # LLM 输出格式不对，降级为字符串匹配
-            result = {
-                "correct": student_answer.strip().lower() == correct_answer.strip().lower(),
-                "reasoning": "（自动评判）答案文本匹配"
-            }
+        if result is None:
+            # 3 次 retry 全部失败: 显式 fail, **不污染任何 state**
+            # 防御性自检 [1]: 显式日志
+            _log.warning(
+                "/api/judge: LLM judge 全部 %d 次 retry 失败 (student=%s, problem=%s), "
+                "返回 422 显式 fail, state 不污染",
+                attempts, student_id, problem_id,
+            )
+            return jsonify({
+                "judged": False,
+                "error": "AI 评判服务故障，请稍后重试或跳过此题",
+                "error_code": "LLM_JUDGE_FAILED",
+                "problem_id": problem_id,
+                "student_id": student_id,
+                "retry_count": attempts,
+                "needs_rejudge": True,
+            }), 422
 
         return jsonify({
             "judged": True,
@@ -238,6 +309,7 @@ def api_judge_answer():
             "student_id": student_id,
             "correct": bool(result.get("correct", False)),
             "reasoning": str(result.get("reasoning", "")),
+            "attempts": attempts,
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
