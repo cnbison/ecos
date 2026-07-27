@@ -1971,13 +1971,6 @@ Phase 0 100% 完成 🎉
 | **retry 上限** | 3 次重试 + 短-中-长 delay, 总耗时 ~3-5s | 无限重试 / 固定 delay |
 | **用户选择权** | 失败后 [重试] 调新一次 LLM, [跳过] 作废答题 | 强制重试 / 强制用启发式 |
 
-### 📋 后续 (不在 v0.56.1 commit)
-
-- **立即**: 跑 `python scripts/rejudge_misjudged.py --dry-run` 扫描 lbc001 历史误判条目
-- **跑通后**: 去掉 `--dry-run` 实际修复, PB-Q26 等题 score 会修正
-- **v0.57.0** LCA 持久化 (按 roadmap): 不影响本 BUG 修复
-- **前端配合**: 当前前端拿到 422 会怎么处理? 现状可能直接 alert error, v0.57.0+ 可考虑加 [重试] / [跳过] 按钮 (低优先)
-
 ---
 
 > **背景**: 2026-07-22 全面审查报告 [§4-risks A9](research/00-overview/04-risks.md) — LCA 框架代码 (`ecos/lca/`, 2026-07-03 完成) 写好了但**没接电源**：`web/api/belief.py` grep "LCA" 0 匹配,所有"下一步该做什么"实际是 CTA 状态估计 + 简单选题加权. v0.56.0 把 LCA 接进主循环 (passthrough 模式,不改变现有行为),为 v0.57.0+ 持久化 + 双 Agent 互校铺路.
@@ -2099,3 +2092,93 @@ Phase 0 100% 完成 🎉
 - **v0.57.0** LCA 持久化 (按 roadmap): 不影响本 BUG 修复
 - **前端配合**: 当前前端拿到 422 会怎么处理? 现状可能直接 alert error, v0.57.0+ 可考虑加 [重试] / [跳过] 按钮 (低优先)
 
+
+## [0.57.0] 2026-07-27 — LCA 持久化 (Phase 5 远期任务 v0.57.0 启动)
+
+> **触发**: Bisen 2026-07-27 14:00 报 PC-C01 题目设计 BUG 后, 拍板 "v0.57.0 现在启动".
+> **背景**: lbc002 答题 32 道, LCA bandit 数据健康 (10 arm 全部拉到过, 分布均匀). v0.57.0 启动: LCA 状态从 in-memory dict 升级到 SQLite 持久化, 跨进程恢复.
+
+### ✅ 已做
+
+#### 1. LCAStore (ecos/persistence/lca_store.py, 13 KB)
+- 新增 `student_lca_state` 表 (per-student 1 row, 1:1 with students)
+- **CLAUDE.md 防御性自检 [5] 7 字段对齐** (一次性列全, 避免历史 4 次漏字段):
+  1. intervention_history  (List[Intervention.to_dict()])
+  2. bandit_a              (List[List[List[float]]]: n_arms × d × d)
+  3. bandit_b              (List[List[float]]: n_arms × d)
+  4. arm_pull_counts       (List[int])
+  5. last_intervention     (Intervention.to_dict() | None)
+  6. update_count          (int)
+  7. select_count          (int)
+- `LCAStateSnapshot` dataclass 全打包
+- `save_state` / `load_state` / `has_state` / `delete_state` / `get_all_students_with_lca_state` 接口
+- UPSERT (ON CONFLICT DO UPDATE) 覆盖式
+- 所有 except 块 `_log.warning(..., exc_info=True)` (CLAUDE.md 防御性自检 [1])
+
+#### 2. LCAEngine per-student bandit 改造 (ecos/lca/orchestrator.py)
+- **修复 v0.56.0 单 bandit 多学生数据冲突 BUG**:
+  - 之前: `self.bandit = LCAPolicyLearner(...)` 单 bandit 全局共享
+  - lbc001 + lbc002 双学生时, LinUCB 状态会互相污染
+  - 现在: `self.bandits: Dict[str, LCAPolicyLearner]` per-student 隔离
+- 新增 `_get_bandit(student_id)` lazy init
+- 新增 `dump_state(student_id)` / `load_state(student_id, snapshot)` 接口
+  - dump_state 返回 7 字段 dict + 内部辅助 (arm_fingerprints / last_arm)
+  - load_state 维度校验 (防 schema 漂移错位, 拒绝加载而非污染 LinUCB)
+- `select_intervention` / `update` 都改用 per-student bandit
+
+#### 3. Intervention.from_dict() (ecos/lca/intervention.py)
+- classmethod 反序列化, 配合 dump_state/load_state round-trip
+- 跟 to_dict 完全对称 (enum 用 .name / .value 对应)
+- round-trip 测试通过
+
+#### 4. web/api/lca.py 接入持久化
+- 移除模块级 in-memory dict (intervention_history / update_count / select_count)
+- 改用 LCAEngine 内部 per-student 状态 + LCAStore 持久化
+- 新增 `_get_or_create_lca_state(student_id)` (CLAUDE.md [5] 命名): lazy load 首次访问
+- 新增 `_save_lca_state(student_id)`: 每次 select/update 后立即落盘
+- `select_intervention` / `update_with_reward` / `get_lca_debug_info` 全改为从 LCAEngine 内部拿数据
+
+#### 5. 测试套件 (tests/test_lca_persistence.py, 11 测试)
+- **TestLCAStorePersistence** (3): save/load roundtrip / unknown student 返回 None / UPSERT 覆盖
+- **TestLCAEnginePersistence** (2): dump_state 含 7 字段 / per-student bandit 隔离
+- **TestLCARestartRecovery** (4, **核心 DoD**):
+  - arm_pull_counts 跨重启不归零
+  - update_count 跨重启累计
+  - importlib.reload 模拟进程重启, LCA 状态从 DB 恢复
+  - 两学生数据独立 (lbc001 5 次 vs lbc002 2 次, 跨重启后独立累计)
+- **TestDefensiveChecks** (2): save 失败 _log.warning / load 失败 _log.warning
+
+#### 6. v0.57.0 升级 v0.56.x 测试
+- `tests/test_lca_wired.py` 4 处更新: 旧 `engine.bandit` 改 `engine._get_bandit(sid).bandit` (per-student)
+- `tests/test_lca_wired.py::fresh_lca_state` fixture 改为清理 DB (避免跨测试累积, 之前 select_count=18 现象)
+
+### 关键技术决策
+
+1. **per-student bandit 必做** — v0.57.0 持久化时同时修, 不留 v0.57.0+ 后续
+2. **context_dim 不从 snapshot 推断** — LinUCB context_dim 永远是 16 (常量), schema 漂移时 raise 而非污染
+3. **每次 select/update 后立即落盘** — 不做"每 N 步"批写, 因为单步 IO < 100ms, 跟 LLM 调用 9-17s 比可忽略
+4. **新表 vs 加列** — 选择独立表 `student_lca_state`, 不污染 students 表 schema
+5. **LCA_ENABLED 默认 False 保持** — passthrough 模式不变, 持久化只让"重启后 bandit 不丢"
+
+### 数据迁移 / 已知影响
+
+- **v0.56.0 in-memory 数据丢失**: lbc001 + lbc002 在 v0.56.0 答题时 in-memory dict 里的 LinUCB 状态 (32+ 道), **不会** 自动迁移到 DB. 从 v0.57.0 上线这一刻开始, 新数据持续保存.
+- Bisen 接受 "错了就错了" 态度: 不写历史数据迁移脚本, 新数据从 0 arm_pull_counts 开始
+
+### 防御性自检覆盖
+
+- [x] [1] silent pass 全部 `_log.warning(..., exc_info=True)` (LCAStore 5 个 except 块全验证)
+- [x] [2] `__version__` 0.56.1 → 0.57.0
+- [x] [3] detect_with_hits 传 library_str (本次不涉及 misconception)
+- [x] [4] HTML class 对齐 (本次不动 HTML)
+- [x] [5] **核心**: 7 字段对齐 (LCAStore + LCAEngine.dump_state/load_state 一次性列全)
+- [x] [6] 不写启发式 fallback (本次不涉及 /api/judge)
+- [x] 测试: **65/65 全部通过** (11 新增 + 54 原有)
+
+### 📋 后续 (不在 v0.57.0 commit)
+
+- **v0.57.0-b**: PC-C01 + PB-C02 Q 矩阵改 + lbc002 entry 修正 + PB-C01-15/PC-C01-05/PC-X01-05 调试题审计
+- **v0.58.0**: 双 Agent 互校 (CTA 假设 vs LCA 实验验证, 4 模式实现 2 个)
+- **v0.59.0**: H3 验证 (互校抗幻觉实证) — 依赖 v0.57.0 持久化数据基础
+- **多 Flask worker 同步**: 当前假设单进程, 多 worker 启动后需加 lock (v0.59.0+ 考虑)
+- **LCA state 清理 cascade**: 学生删除时 LCA state 孤儿, v0.59.0+ 加

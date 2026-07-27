@@ -140,6 +140,37 @@ class Intervention:
             "metadata": dict(self.metadata),
         }
 
+    @classmethod
+    def from_dict(cls, d: dict) -> "Intervention":
+        """从 dict 反序列化 (v0.57.0 持久化用).
+
+        防御性自检 [5]: 7+ 关键字段 (intervention_type/bloom_target/clt_level/ca_stage 等) 必须全恢复.
+        """
+        if not isinstance(d, dict):
+            raise ValueError(f"Intervention.from_dict: expected dict, got {type(d).__name__}")
+        return cls(
+            intervention_id=d.get("intervention_id", ""),
+            # 注意: to_dict 用 .value 存, 反序列化直接传 value 给 enum
+            intervention_type=InterventionType(d["intervention_type"]),
+            # 注意: to_dict 用 .name 存, 反序列化用 [name] 查 enum
+            bloom_target=BloomLevel[d["bloom_target"]],
+            target_skills=list(d.get("target_skills", [])),
+            target_misconceptions=list(d.get("target_misconceptions", [])),
+            target_tcs=list(d.get("target_tcs", [])),
+            difficulty=float(d.get("difficulty", 0.5)),
+            quantity=int(d.get("quantity", 5)),
+            feedback_density=float(d.get("feedback_density", 0.5)),
+            scaffolding_level=float(d.get("scaffolding_level", 0.5)),
+            clt_level=CLTLevel[d["clt_level"]],
+            ca_stage=CAStage[d["ca_stage"]],
+            bjork_triggers=list(d.get("bjork_triggers", [])),
+            expected_gain=float(d.get("expected_gain", 0.0)),
+            expected_risk=float(d.get("expected_risk", 0.0)),
+            estimated_duration_sec=int(d.get("estimated_duration_sec", 600)),
+            rationale=d.get("rationale"),
+            metadata=dict(d.get("metadata", {})),
+        )
+
 
 # ---------------------------------------------------------------------------
 # Bloom 目标选择算法（02-lca-policy-engine.md §2.3）

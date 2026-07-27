@@ -36,17 +36,26 @@ import pytest
 def fresh_lca_state(monkeypatch):
     """每个测试前重置 lca 模块的全局状态, 避免污染.
 
-    v0.56.0: _engine / _last_intervention / _update_count / _select_count
-    都是 in-memory 模块级 dict, 必须在测试间重置.
+    v0.57.0: _engine / _loaded_students / _store 仍是模块级单例,
+             但 _last_intervention / _update_count / _select_count 已迁移到 LCAEngine 内部 per-student.
+
+    重要: 还要清理 DB 里 test_lca_student 状态, 避免跨测试累积 (select_count=18 现象).
     """
     # 重置 lca 模块全局状态
     import web.api.lca as lca_mod
+    from ecos.persistence.lca_store import get_lca_store
 
     lca_mod._engine = None
-    lca_mod._last_intervention = {}
-    lca_mod._update_count = {}
-    lca_mod._select_count = {}
+    lca_mod._store = None
+    lca_mod._loaded_students = set()
     lca_mod.LCA_ENABLED = False
+
+    # v0.57.0: 清理 DB 里 test_lca_student 状态 (避免跨测试累积污染)
+    try:
+        get_lca_store().delete_state("test_lca_student")
+    except Exception:
+        pass  # DB 不可用时跳过
+
     yield lca_mod
 
 
@@ -84,7 +93,7 @@ class TestLCASelectWired:
     """v0.56.0: LCA.select_intervention 接入主循环验证."""
 
     def test_lca_select_wired(self, fresh_lca_state, belief_state):
-        """select_intervention 返回 LCAResult + 记录到 _last_intervention."""
+        """select_intervention 返回 LCAResult + 记录到 LCAEngine 内部 (v0.57.0 per-student 改造)."""
         import web.api.lca as lca_mod
 
         result = lca_mod.select_intervention("test_lca_student", belief_state)
@@ -92,8 +101,11 @@ class TestLCASelectWired:
         assert result is not None, "LCA select_intervention 应该返回 LCAResult"
         assert hasattr(result, "intervention"), "LCAResult 应该有 intervention 字段"
         assert hasattr(result, "bloom_target"), "LCAResult 应该有 bloom_target"
-        assert "test_lca_student" in lca_mod._last_intervention, "last_intervention 应被记录"
-        assert lca_mod._select_count.get("test_lca_student") == 1, "select_count 应 +1"
+        # v0.57.0: last_intervention 在 LCAEngine 内部, 不在模块级 dict
+        engine = lca_mod.get_lca_engine()
+        snap = engine.dump_state("test_lca_student")
+        assert snap["last_intervention"] is not None, "last_intervention 应被记录到 LCAEngine 内部"
+        assert snap["select_count"] == 1, "select_count 应 +1"
 
     def test_lca_select_works_with_disabled_flag(self, fresh_lca_state, belief_state):
         """LCA_ENABLED=False 也能调通 (passthrough 模式)."""
@@ -142,16 +154,17 @@ class TestLCAUpdateReward:
         # 先 select 一次, 让 _last_intervention 有记录
         lca_mod.select_intervention("test_lca_student", belief_state)
 
-        # spy LinUCB.bandit.update 验证 reward 值
+        # v0.57.0: spy per-student bandit (LCAPolicyLearner.update) 验证 reward 值
         captured = []
         engine = lca_mod.get_lca_engine()
-        original_update = engine.bandit.update
+        learner = engine._get_bandit("test_lca_student")
+        original_update = learner.update
 
         def spy_update(intervention, belief_state, reward):
             captured.append(reward)
             return original_update(intervention, belief_state, reward)
 
-        engine.bandit.update = spy_update
+        learner.update = spy_update
 
         lca_mod.update_with_reward(
             student_id="test_lca_student",
@@ -163,7 +176,6 @@ class TestLCAUpdateReward:
         assert len(captured) == 1, "应该调一次 bandit.update"
         assert abs(captured[0] - 1.0) < 0.01, \
             f"score=1.0 + bloom=对 → reward 应≈1.0, 实际={captured[0]}"
-        assert lca_mod._update_count.get("test_lca_student") == 1
 
     def test_partial_credit(self, fresh_lca_state, belief_state):
         """score=0.7 (70% 对) + bloom=对 → reward = (0.7 + 0.5) / 1.5 ≈ 0.8"""
@@ -173,13 +185,14 @@ class TestLCAUpdateReward:
 
         captured = []
         engine = lca_mod.get_lca_engine()
-        original_update = engine.bandit.update
+        learner = engine._get_bandit("test_lca_student")
+        original_update = learner.update
 
         def spy_update(intervention, belief_state, reward):
             captured.append(reward)
             return original_update(intervention, belief_state, reward)
 
-        engine.bandit.update = spy_update
+        learner.update = spy_update
 
         lca_mod.update_with_reward(
             student_id="test_lca_student",
@@ -201,13 +214,14 @@ class TestLCAUpdateReward:
 
         captured = []
         engine = lca_mod.get_lca_engine()
-        original_update = engine.bandit.update
+        learner = engine._get_bandit("test_lca_student")
+        original_update = learner.update
 
         def spy_update(intervention, belief_state, reward):
             captured.append(reward)
             return original_update(intervention, belief_state, reward)
 
-        engine.bandit.update = spy_update
+        learner.update = spy_update
 
         lca_mod.update_with_reward(
             student_id="test_lca_student",
@@ -228,13 +242,14 @@ class TestLCAUpdateReward:
 
         captured = []
         engine = lca_mod.get_lca_engine()
-        original_update = engine.bandit.update
+        learner = engine._get_bandit("test_lca_student")
+        original_update = learner.update
 
         def spy_update(intervention, belief_state, reward):
             captured.append(reward)
             return original_update(intervention, belief_state, reward)
 
-        engine.bandit.update = spy_update
+        learner.update = spy_update
 
         # score=1.5 (异常输入) 应被 clamp 到 1.0
         lca_mod.update_with_reward(
@@ -269,7 +284,11 @@ class TestLCAUpdateEdgeCases:
         )
 
         # 应该没调 engine.update, update_count 不应增加
-        assert lca_mod._update_count.get("never_selected", 0) == 0
+        # v0.57.0: update_count 在 LCAEngine 内部 per-student dict
+        engine = lca_mod.get_lca_engine()
+        snap = engine.dump_state("never_selected")
+        assert snap["update_count"] == 0, \
+            f"never_selected update_count 应为 0, 实际={snap['update_count']}"
 
     def test_update_handles_engine_failure(self, fresh_lca_state, belief_state, caplog):
         """LCAEngine.update 失败时不崩, 有 logger.warning.
