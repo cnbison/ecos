@@ -186,10 +186,14 @@ def api_get_question(student_id: str):
 
 # ─── v0.56.1: LLM Judge retry helper (Bisen 原则) ─────────────────────────
 def _call_llm_judge_with_retry(llm: ECOSLLMClient, prompt: str):
-    """LLM judge retry loop (v0.56.1 修 BUG).
+    """LLM judge retry loop (v0.56.1 修 BUG, v0.58.0 扩展支持 partial credit).
 
     Bisen 原则 (2026-07-24): LLM judge 失败时**不**启发式兜底, **不**字符串匹配兜底.
     任何 fallback 都是 silent degradation 变种, 失败就显式 fail.
+
+    v0.58.0 扩展: 支持 LLM 输出 {correct, score} 二者之一.
+      - 老 prompt 只要求 correct, 兼容
+      - 新 prompt (有 rubric 时) 要求 score, 验证字段时改
 
     Args:
         llm: ECOSLLMClient 实例
@@ -201,6 +205,7 @@ def _call_llm_judge_with_retry(llm: ECOSLLMClient, prompt: str):
 
     防御性自检 [1]: 每次重试失败必须 _log.warning(..., exc_info=True), 不能 silent pass.
     防御性自检 [6] (v0.56.1 新增): 不写启发式 fallback 替代 AI 评判.
+    防御性自检 [8] (v0.58.0 新增): result 必须有 correct 或 score 之一, 不能两者都缺.
     """
     delays = [0.1, 0.5, 2.0]  # 短-中-长 (s), Bisen 拍板 2026-07-24
     max_attempts = 3
@@ -216,9 +221,11 @@ def _call_llm_judge_with_retry(llm: ECOSLLMClient, prompt: str):
             # 解析 JSON
             try:
                 result = json.loads(raw)
-                # 验证 result 至少有 correct 字段
-                if "correct" not in result:
-                    raise ValueError(f"LLM response missing 'correct' field: {(raw or '')[:100]}")
+                # v0.58.0: 验证 result 至少有 correct 或 score 之一 (防御性自检 [8])
+                if "correct" not in result and "score" not in result:
+                    raise ValueError(
+                        f"LLM response missing both 'correct' and 'score' fields: {(raw or '')[:100]}"
+                    )
                 return result, attempt
             except (json.JSONDecodeError, ValueError) as parse_err:
                 _log.warning(
@@ -240,6 +247,99 @@ def _call_llm_judge_with_retry(llm: ECOSLLMClient, prompt: str):
     return None, max_attempts
 
 
+def _build_judge_prompt(
+    problem_text: str,
+    correct_answer: str,
+    student_answer: str,
+    partial_credit_rubric: dict | None = None,
+) -> str:
+    """v0.58.0: 构造 LLM judge prompt (支持 partial_credit_rubric 注入).
+
+    Args:
+        problem_text: 题目
+        correct_answer: 标准答案
+        student_answer: 学生答案
+        partial_credit_rubric: Q 矩阵里的 4 档分 rubric (可选, None 时走老 prompt)
+
+    Returns:
+        完整 prompt string
+    """
+    if partial_credit_rubric:
+        # v0.58.0: 有 rubric 时, 要求 LLM 按 4 档分输出 score (不再用 correct 二元)
+        rubric_lines = "\n".join(
+            f"  {k} 分: {v}" for k, v in sorted(partial_credit_rubric.items())
+        )
+        return f"""你是一位严格的 Python 老师。请评判学生答案, **必须按 partial credit rubric 4 档分**。
+
+题目：
+{problem_text}
+
+正确答案：
+{correct_answer}
+
+学生答案：
+{student_answer}
+
+**评分标准 (按 4 档分, 必须严格按此给分)**：
+{rubric_lines}
+
+请以 JSON 格式返回评判结果（只返回 JSON，不要其他内容）：
+{{"score": 0.0/0.3/0.6/1.0, "correct": true/false, "reasoning": "按 rubric 哪一档, 简短说明（1-2句话）"}}
+
+注: correct 派生自 score (score >= 0.6 → correct=true, 否则 false), 但 score 是核心字段, 优先按 score 评分.
+"""
+    else:
+        # 老 prompt (无 rubric): 二元 correct
+        return f"""你是一位严格的 Python 老师。请评判学生答案是否正确。
+
+题目：
+{problem_text}
+
+正确答案：
+{correct_answer}
+
+学生答案：
+{student_answer}
+
+请以 JSON 格式返回评判结果（只返回 JSON，不要其他内容）：
+{{"correct": true/false, "reasoning": "简短说明为什么对或错（1-2句话）"}}
+"""
+
+
+def _parse_judge_result(result: dict) -> tuple[bool, float, str]:
+    """v0.58.0: 解析 LLM judge 输出, 提取 (correct, score, reasoning).
+
+    优先级: score > correct (v0.58.0 偏好).
+    老 prompt 只有 correct 时: score 从 correct 派生 (1.0 或 0.0).
+
+    Args:
+        result: LLM 返回的 dict
+
+    Returns:
+        (correct: bool, score: float in [0, 1], reasoning: str)
+    """
+    # 优先 score (v0.58.0 partial credit 评分)
+    if "score" in result:
+        try:
+            score = float(result["score"])
+        except (TypeError, ValueError):
+            # score 字段存在但解析失败, 视为 0.0 + log warning
+            _log.warning(
+                "/api/judge: LLM 返回 score 字段但解析失败: %r, fallback 到 correct",
+                result.get("score"),
+            )
+            score = 0.0
+        score = max(0.0, min(1.0, score))  # clamp [0, 1]
+        correct = score >= 0.6
+    else:
+        # 老数据: 只有 correct, 派生 score
+        correct = bool(result.get("correct", False))
+        score = 1.0 if correct else 0.0
+
+    reasoning = str(result.get("reasoning", ""))
+    return correct, score, reasoning
+
+
 @app.route("/api/judge", methods=["POST"])
 def api_judge_answer():
     """LLM 充当老师，评判学生答案对错。
@@ -249,6 +349,11 @@ def api_judge_answer():
     - retry 3 次 (100ms / 500ms / 2s delay, 短-中-长)
     - 全部失败 → return 422 + 显式 error + needs_rejudge=True
     - 关键: 任何失败路径**不污染 state** (response_history / 5D / Bloom / TC / misconception 一概不写)
+
+    v0.58.0 扩展 (Bisen 拍板 2026-07-27 半天 mini 修复):
+    - partial credit root cause 修复: prompt 注入 partial_credit_rubric, 强制 LLM 按 4 档分输出 score
+    - score 优先 correct (v0.58.0 偏好), 老 prompt 兼容
+    - 防御性自检 [8]: result 必须有 correct 或 score 之一
     """
     try:
         data = request.get_json()
@@ -266,21 +371,16 @@ def api_judge_answer():
 
         correct_answer = prob.get("correct_answer", "")
         problem_text = prob.get("problem_text", "")
+        # v0.58.0: 读 partial_credit_rubric (Q 矩阵字段, v0.54.0 加但 LLM judge 未消费)
+        partial_credit_rubric = prob.get("partial_credit_rubric")
 
-        prompt = f"""你是一位严格的 Python 老师。请评判学生答案是否正确。
-
-题目：
-{problem_text}
-
-正确答案：
-{correct_answer}
-
-学生答案：
-{student_answer}
-
-请以 JSON 格式返回评判结果（只返回 JSON，不要其他内容）：
-{{"correct": true/false, "reasoning": "简短说明为什么对或错（1-2句话）"}}
-"""
+        # v0.58.0: 用 _build_judge_prompt 构造 (有 rubric 时注入 4 档分)
+        prompt = _build_judge_prompt(
+            problem_text=problem_text,
+            correct_answer=correct_answer,
+            student_answer=student_answer,
+            partial_credit_rubric=partial_credit_rubric,
+        )
 
         llm = get_llm()
         result, attempts = _call_llm_judge_with_retry(llm, prompt)
@@ -303,12 +403,23 @@ def api_judge_answer():
                 "needs_rejudge": True,
             }), 422
 
+        # v0.58.0: 用 _parse_judge_result 解析 (score 优先 correct)
+        correct, score, reasoning = _parse_judge_result(result)
+        # v0.58.0: log info (partial credit 评分启用)
+        _log.info(
+            "/api/judge: LLM 评判成功 (student=%s, problem=%s, rubric=%s, "
+            "score=%.2f, correct=%s)",
+            student_id, problem_id, "yes" if partial_credit_rubric else "no",
+            score, correct,
+        )
+
         return jsonify({
             "judged": True,
             "problem_id": problem_id,
             "student_id": student_id,
-            "correct": bool(result.get("correct", False)),
-            "reasoning": str(result.get("reasoning", "")),
+            "correct": correct,
+            "score": score,  # v0.58.0: 加 score 字段
+            "reasoning": reasoning,
             "attempts": attempts,
         })
     except Exception as e:

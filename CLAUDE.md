@@ -424,6 +424,15 @@ grep -n "_get_or_create_student\|save_student_state\|load_student_state" web/api
     - 不允许 "实施后 CHANGELOG 写'接受错了就错了'" 自我合理化
     - **CHANGELOG 写"错了就错了"是 Bisen 对单题判罚的容忍, 不能扩展为"架构升级清空历史"**
   - 防 1 次同类: 任何架构升级 (v0.5x → v0.5y) commit 前, 主动列出 "历史状态丢失清单 + 迁移方案"
+- [x] **CI gate v0.58.0**：改 /api/judge prompt 必加测试覆盖输出格式变化 (Bisen 2026-07-27 拍板)
+  - 触发: v0.54.0 partial credit 改造不彻底 — Q 矩阵 partial_credit_rubric 字段挂着但 LLM judge 不消费. Bisen 继续答题会被错判 (5D 状态不可逆污染). Bisen 拍板 v0.58.0-mini 半天修 root cause.
+  - 实施:
+    - `web/api/app.py` 新增 `_build_judge_prompt(problem_text, correct_answer, student_answer, partial_credit_rubric=None)`: 有 rubric 时注入 4 档分 + 要求 LLM 输出 score; 无 rubric 时走老 prompt (向后兼容)
+    - `web/api/app.py` 新增 `_parse_judge_result(result)` 解析 (score 优先 correct, 老数据 correct 派生 score)
+    - `_call_llm_judge_with_retry` 验证字段: result 必须有 correct 或 score 之一 (防御性自检 [8])
+    - `/api/judge` 端点响应新增 `score` 字段 (前端可见)
+  - 测试 `tests/test_judge_rubric.py` 16 测试覆盖 (rubric 注入 / score 优先 / 向后兼容 / retry 防御)
+  - 防 1 次同类: 改任何 LLM judge prompt (新增/删除/重命名字段), **必须** 同步加测试验证新输出格式. 不允许 "改 prompt 不加测试" — 这是 silent 行为改变.
 - [ ] `save_student_state` 加 `fail_count` 字段，统计丢了几条 snapshot
 - [ ] `db.py` 持久化后做 integrity check（存完再 load，对比 length）
 - [ ] Bisen 反馈过任何 2 次以上的同类 bug，必须写 CI gate 堵住第 3 次

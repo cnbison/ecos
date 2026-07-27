@@ -2249,3 +2249,71 @@ Phase 0 100% 完成 🎉
 - **v0.58.0**: 改 /api/judge prompt 注入 partial_credit_rubric 字段, 修复 LLM judge 粒度太粗 BUG
 - **v0.58.0+ 后续**: 双 Agent 互校 (CTA 假设 vs LCA 实验验证)
 - **v0.59.0**: H3 验证 (互校抗幻觉实证)
+
+---
+
+## [0.58.0] 2026-07-27 — /api/judge partial credit root cause 修复 (Bisen 拍板 mini 修复)
+
+> **触发**: Bisen 2026-07-27 15:35 问 "v0.58.0 不执行修复的话, 继续答题会不会又有些无效的重复?" — 拍板 v0.58.0-mini 半天修 partial credit root cause.
+> **Root cause**: v0.54.0 partial credit 改造不彻底 — Q 矩阵 `partial_credit_rubric` 字段挂着但 LLM judge prompt 不消费. lbc002 PC-C03 (选 B 按 rubric 0.3 档) 被 LLM 判 0.0, 5D 状态不可逆污染.
+
+### ✅ 已做
+
+#### 1. `_build_judge_prompt` 新函数 (web/api/app.py)
+- v0.58.0 新增: `def _build_judge_prompt(problem_text, correct_answer, student_answer, partial_credit_rubric=None)`
+- **有 rubric 时**: 注入 4 档分 (0.0/0.3/0.6/1.0) + 要求 LLM 输出 `score` 字段
+- **无 rubric 时**: 走老 prompt (只要求 `correct: bool`), 向后兼容
+- 防 1 次同类: 改 prompt 必同步加测试 (CLAUDE.md 防御性自检 [8])
+
+#### 2. `_parse_judge_result` 新函数 (web/api/app.py)
+- 优先级: `score` > `correct` (v0.58.0 偏好 partial credit)
+- **新数据** (有 score): score clamp [0, 1] + correct = (score >= 0.6)
+- **老数据** (只有 correct): score 派生 (correct=True → 1.0, else 0.0)
+- **score 越界** (例如 1.5 或 -0.3): clamp 到 [0, 1]
+- **score 类型无效** (例如字符串): fallback 0.0 + `_log.warning`
+
+#### 3. `_call_llm_judge_with_retry` 防御性自检 [8]
+- result 验证: 必须有 `correct` 或 `score` 之一 (两者都缺视为 parse 失败, retry 触发)
+- 老协议 (只有 correct) 仍通过 (向后兼容)
+- 新协议 (只有 score) 通过
+
+#### 4. `/api/judge` 端点响应
+- 新增 `score` 字段 (前端可见)
+- `_log.info` 记录: 评判成功时输出 `rubric=yes/no, score, correct` (调试用)
+- 422 fail 行为不变 (v0.56.1 Bisen 原则)
+
+#### 5. 测试套件 (tests/test_judge_rubric.py, 16 测试)
+- **TestBuildJudgePrompt** (2): 无 rubric 走老格式 / 有 rubric 注入 4 档分
+- **TestParseJudgeResult** (7): 老数据派生 / 新数据 score 优先 / 两者矛盾 score 赢 / 越界 clamp / 类型无效 fallback / 两者都缺不 raise (由 retry 验证)
+- **TestCallLLMJudgeRetryDefensive8** (3): 两者都缺 retry 触发 / 只 score 通过 / 只 correct 通过
+- **TestJudgeEndpointRubric** (4): 端到端 rubric 注入 / score 返回 / 老题行为不变
+- **TestDefensiveCheck8** (1): 老 correct-only 响应仍工作
+
+### 修复效果预期
+
+- 继续答题时, 20 道带 `partial_credit_rubric` 的题 (PB-C01-15 + PC-C01-05) 会被 LLM 按 4 档分正确评分
+- 之前 Bisen 答对被判 0 的 (PC-C03 B 选 → 0.3 档) 不会再发生
+- 5D 状态不被不可逆污染
+
+### 后续 v0.58.0+ 计划 (按 v0.58.0 完整版范围)
+
+- **v0.58.0 完整版** (4-5 天): 双 Agent 互校 (CTA 假设 vs LCA 实验验证, 4 模式实现 2 个: 常态 + 冲突)
+- **v0.58.1+**: 写一次性脚本 `scripts/rejudge_partial_credit.py` 重判 lbc001 + lbc002 历史错判 entry (跟 v0.56.1 rejudge_misjudged.py 同模式, 但 prompt 走新协议)
+
+### 防御性自检 (CLAUDE.md 规范)
+- [x] [1] silent pass 全部 _log.warning(..., exc_info=True) (3 个 _parse_judge_result except 块全验证)
+- [x] [2] `__version__` 0.57.1 → 0.58.0
+- [x] [3] detect_with_hits 传 library_str (本次不涉及 misconception)
+- [x] [4] HTML class 对齐 (本次不动 HTML)
+- [x] [5] DB 恢复 7 字段 (本次不动 DB schema)
+- [x] [6] 不写启发式 fallback (本次不涉及 /api/judge 失败兜底, 但 score 越界 clamp 是合规 clamp, 不是启发式兜底)
+- [x] [7] 架构升级前警告历史状态 (本次只改 prompt + 加测试, 不动状态)
+- [x] [8] **新增** 改 /api/judge prompt 必加测试覆盖输出格式变化 (16 测试覆盖)
+- [x] 测试: 81/81 全部通过 (16 新增 + 65 原有)
+
+### 📋 后续 (不在 v0.58.0 commit)
+
+- **v0.58.1**: 写 `scripts/rejudge_partial_credit.py` 重新评判 lbc001 + lbc002 历史 80+ 道题的 C/X entry, 用新 prompt + rubric 注入 (跟 v0.56.1 rejudge_misjudged.py 同模式)
+- **v0.58.0 完整版** (4-5 天): 双 Agent 互校 (CTA 假设 vs LCA 实验验证, 4 模式实现 2 个)
+- **v0.59.0**: H3 验证 (互校抗幻觉实证)
+- **LCA_ENABLED=True 启动评估**: lbc001 + lbc002 各 30+ 道后考虑开启
