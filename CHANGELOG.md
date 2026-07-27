@@ -2317,3 +2317,57 @@ Phase 0 100% 完成 🎉
 - **v0.58.0 完整版** (4-5 天): 双 Agent 互校 (CTA 假设 vs LCA 实验验证, 4 模式实现 2 个)
 - **v0.59.0**: H3 验证 (互校抗幻觉实证)
 - **LCA_ENABLED=True 启动评估**: lbc001 + lbc002 各 30+ 道后考虑开启
+
+---
+
+## [0.58.1] 2026-07-27 — rejudge lbc001 历史 C/X entries (v0.58.0 修复落地)
+
+> **触发**: v0.58.0 修了 /api/judge prompt 注入 partial_credit_rubric, 但 lbc001 + lbc002 历史 80+ 道题的 C/X entry 仍是旧 LLM judge 评判结果. 写 `scripts/rejudge_partial_credit.py` 用新 prompt 重新评判, 把 score/correct/ai_reasoning 字段修正.
+> **本版本只修 lbc001** (17 条 entry), lbc002 (12 条) 留到 v0.58.1-lbc002 跑.
+
+### ✅ 已做
+
+#### 1. `scripts/rejudge_partial_credit.py` (11 KB)
+- 扫描 Q 矩阵 30 道带 `partial_credit_rubric` 的题 (PB-C01-20 + PC-C01-05 + PC-X01-05)
+- 扫 students.response_history, 找出需要重判的 entry (有 rubric 但 ai_reasoning 没体现 rubric 解读)
+- 调用 v0.58.0 `_build_judge_prompt` + `_parse_judge_result` (v0.58.0 新函数)
+- LLM judge 调用 17 次 (lbc001 全跑 0 失败, retry 兜底工作正常)
+- 支持 `--student X` / `--dry-run` / `--force` 三个参数
+
+#### 2. `tests/test_rejudge_partial_credit.py` (11 测试)
+- 验证: 脚本入口 / Q 矩阵加载 / DB 扫描 / dry-run 不写入 / force 写入 / 学生过滤
+- 测试结果: **92/92 全部通过** (11 新增 + 81 原有)
+
+#### 3. lbc001 rejudge 结果
+- 17 条 entry 全部重判成功, 0 失败
+- **4 条改了 score/correct** (历史 LLM judge 错判):
+
+| 题 | 原 | 新 | 解读 |
+|---|---|---|---|
+| **PB-C02** | 0.6/正确 | **0.0/错** | 学生没选 A/B/C/D 选项只描述实际输出, 按 rubric 归 0.0 |
+| **PC-C01** | 0.6/正确 | **1.0/正确** | v0.57.1 加 F 选项后被正确识别 (元认知, 学生选 B 70% 确定) |
+| **PB-C10** | 1.0/正确 | **0.3/错** | 学生识别越界但只给一种修法, rubric 0.3 档 |
+| **PB-C11** | 1.0/正确 | **0.6/正确** | 学生识别陷阱但没给真正死循环例子, rubric 0.6 档 |
+
+- 13 条保持原 score (新 prompt 也认同历史判断)
+- 3 降 1 升, **5D theta 状态不动** (CLAUDE.md [7] 精神, 不可逆)
+
+#### 4. 防御性自检
+- [x] [1] silent pass 扫描 (`rejudge_partial_credit.py` 0 处, retry 失败走 v0.56.1 既有 422 + needs_rejudge)
+- [x] [2] `__version__` 0.58.0 → 0.58.1 ✓
+- [x] [3] detect_with_hits 传 library_str (本次不涉及 misconception)
+- [x] [4] HTML class 对齐 (本次不动 HTML)
+- [x] [5] DB 恢复 7 字段 (本次只改 students.response_history JSON 字段, 不动 schema)
+- [x] [6] 不写启发式 fallback (用 v0.58.0 `_parse_judge_result`, LLM judge 失败 → skip 该 entry 不写)
+- [x] [7] 架构升级前警告 (本次不涉及架构升级, response_history 字段级修复)
+- [x] [8] prompt 变化有测试 (用 v0.58.0 既有 16 测试, 不动 prompt)
+- [x] **DB 备份**: `web/ecos.db.bak.rejudge_lbc001_20260727_172948` (282624 字节, 修复前快照)
+- [x] 测试: 92/92 全部通过
+
+### 📋 后续 (不在 v0.58.1 commit)
+
+- **v0.58.1-lbc002**: Bisen 确认后跑 lbc002 12 条 rejudge (2-5 分钟)
+- **v0.58.0 完整版** (4-5 天): 双 Agent 互校 (CTA 假设 vs LCA 实验验证, 4 模式实现 2 个)
+- **v0.59.0**: H3 验证 (互校抗幻觉实证)
+- **LCA_ENABLED=True 启动评估**: lbc001 + lbc002 各 30+ 道后考虑开启 (当前 lbc001 17 + lbc002 ~20, 已接近阈值)
+- **DB 备份清理**: 评估通过后 `mavis-trash web/ecos.db.bak.*` 删备份

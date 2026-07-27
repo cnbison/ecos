@@ -68,4 +68,5 @@ Thumbs.db
 *.db
 *.db-shm
 *.db-wal
+*.db.bak.*
 *.sqlite3
