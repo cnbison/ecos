@@ -416,6 +416,14 @@ grep -n "_get_or_create_student\|save_student_state\|load_student_state" web/api
     - 一次性脚本 `scripts/rejudge_misjudged.py`: 扫 DB 历史误判条目, 重跑 LLM judge
     - 测试 `tests/test_judge_retry.py`: 11 测试覆盖 (retry 行为 / 422 / 不污染 state / 不写启发式 / 有 warning log)
   - 防 1 次同类: 任何 LLM 评判失败都不能降级 (启发式/字符串匹配/用户自评都是 silent degradation 变种)
+- [x] **CI gate v0.57.0**：架构升级前必须明确警告历史状态丢失 (Bisen 2026-07-27 反馈)
+  - 触发: v0.57.0 LCA 持久化实施时, 我 (Mavis) **没**在 commit 26a4498 之前警告 Bisen "v0.57.0 启动会清空 lbc001 + lbc002 历史 LinUCB 状态 (80+ 道题)".
+  - Bisen 反馈原话: "lbc001 + lbc002 答 32+ 道题累积的 LinUCB 数据丢了是你疏忽造成的不可挽回的错误，还是本来就是这样设计的?"
+  - 核心教训:
+    - **架构升级涉及历史状态**时, 必须 commit 前明确警告 "会丢失什么 / 不丢失什么 / 写不写迁移脚本"
+    - 不允许 "实施后 CHANGELOG 写'接受错了就错了'" 自我合理化
+    - **CHANGELOG 写"错了就错了"是 Bisen 对单题判罚的容忍, 不能扩展为"架构升级清空历史"**
+  - 防 1 次同类: 任何架构升级 (v0.5x → v0.5y) commit 前, 主动列出 "历史状态丢失清单 + 迁移方案"
 - [ ] `save_student_state` 加 `fail_count` 字段，统计丢了几条 snapshot
 - [ ] `db.py` 持久化后做 integrity check（存完再 load，对比 length）
 - [ ] Bisen 反馈过任何 2 次以上的同类 bug，必须写 CI gate 堵住第 3 次
