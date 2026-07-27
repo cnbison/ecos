@@ -2371,3 +2371,48 @@ Phase 0 100% 完成 🎉
 - **v0.59.0**: H3 验证 (互校抗幻觉实证)
 - **LCA_ENABLED=True 启动评估**: lbc001 + lbc002 各 30+ 道后考虑开启 (当前 lbc001 17 + lbc002 ~20, 已接近阈值)
 - **DB 备份清理**: 评估通过后 `mavis-trash web/ecos.db.bak.*` 删备份
+
+---
+
+## [0.58.2] 2026-07-27 — rejudge lbc002 历史 C/X entries (v0.58.1 续)
+
+> **触发**: v0.58.1 跑了 lbc001 17 条, 本版本跑 lbc002 12 条. 同模式同脚本.
+> **本版本只修 lbc002**, response_history 只动 score/correct/ai_reasoning, 5D/LCA/trajectory 不动.
+
+### ✅ 已做
+
+#### 1. lbc002 rejudge 结果 (脚本 v0.58.1 同款, 不变)
+- 12 条 entry 全部重判成功, 0 失败
+- **4 条改了 score/correct** (历史 LLM judge 错判, 全降分):
+
+| 题 | 原 | 新 | 解读 |
+|---|---|---|---|
+| **PB-C02** | 1.0/对 | **0.6/对** | 学生选 B 正确, 但缺'实际输出 ≠ 期望'的完整推理 |
+| **PC-X05** | 1.0/对 | **0.6/对** | 综合 External Support 4 维度不全平衡 (笔记/求助) |
+| **PB-C13** | 1.0/对 | **0.6/对** | 识别 lambda 不报错但缺三元语法解释/陷阱说明 |
+| **PB-C06** | 1.0/对 | **0.6/对** | 识别 x/y 同值, 但缺'引用 vs 复制'区分 |
+
+- 8 条保持原 score (新 prompt 也认同历史判断)
+- 4 降 0 升, **0 条变 correct=0** (比 lbc001 温和)
+- LCA lbc002 状态未动 (intervention_count=2, update_count=1)
+- 5D theta 未动 (CLAUDE.md [7] 精神, 不可逆)
+
+#### 2. 防御性自检
+- [x] [1] silent pass 扫描: 0 处
+- [x] [2] `__version__` 0.58.1 → 0.58.2 ✓
+- [x] [3] detect_with_hits library_str: 本次不涉及 misconception
+- [x] [4] HTML class 对齐: 本次不动 HTML
+- [x] [5] DB 7 字段: 本次只改 students.response_history JSON 字段
+- [x] [6] 不写启发式 fallback: 用 v0.58.0 _parse_judge_result
+- [x] [7] 架构升级前警告: 本次不涉及架构升级, 字段级修复
+- [x] [8] prompt 变化有测试: 用 v0.58.0 既有 16 测试覆盖
+- [x] **DB 备份**: `web/ecos.db.bak.rejudge_lbc002_20260727_180711` (282624 字节, 修复前快照)
+- [x] 测试: 92/92 全部通过 (本次复用 v0.58.1 脚本, 无新测试)
+
+### 📋 后续 (不在 v0.58.2 commit)
+
+- **lbc001 + lbc002 rejudge 状态**: 共 29 条 entry 已修正 (lbc001 17 + lbc002 12), 历史 C/X 评分与 v0.58.0 新 prompt 一致
+- **v0.58.0 完整版** (4-5 天): 双 Agent 互校 (CTA 假设 vs LCA 实验验证, 4 模式实现 2 个)
+- **v0.59.0**: H3 验证 (互校抗幻觉实证)
+- **LCA_ENABLED=True 启动评估**: lbc001 (~17 C/X) + lbc002 (~12 C/X) 已重判, 继续答题到 30+ 道再启动
+- **DB 备份清理**: Bisen 确认后 `mavis-trash web/ecos.db.bak.rejudge_*` 删两个备份
