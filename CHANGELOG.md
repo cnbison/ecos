@@ -2182,3 +2182,70 @@ Phase 0 100% 完成 🎉
 - **v0.59.0**: H3 验证 (互校抗幻觉实证) — 依赖 v0.57.0 持久化数据基础
 - **多 Flask worker 同步**: 当前假设单进程, 多 worker 启动后需加 lock (v0.59.0+ 考虑)
 - **LCA state 清理 cascade**: 学生删除时 LCA state 孤儿, v0.59.0+ 加
+
+---
+
+## [0.57.1] 2026-07-27 — C/X 维度题审计 + lbc002 错判修正 (Bisen 触发)
+
+> **触发**: Bisen 2026-07-27 答题 32 道后, 报 PB-C02 (调试题诱饵题目设计 BUG) + PC-C01 (self_evaluation 题型缺失前提) 两个 C 维度题设计 BUG. 拍板 v0.57.0-b 启动内容审计.
+> **范围**: 仅内容修复 (Q 矩阵 + lbc002 entry), 不动 v0.57.0 LCA 持久化工程层.
+
+### ✅ 已做
+
+#### 1. PC-C01 Q 矩阵改题 (self_evaluation 题型设计漏洞修复)
+- **原题 BUG**: "这道题你能答对的可能性有多大？" 5 个选项 A-E 都是百分比, **没有"无法判断"选项** — 但 self_evaluation 题型需要前置具体题, 题目没给具体题让学生评估
+- **改法**: 加 F 选项 "F. 无法判断 (题目信息不足)"
+- **correct_answer 升级**: "B (70% 比较确定) 或 F (无法判断). 选 F 也是健康的元认知——识别题目信息不足比瞎猜更诚实"
+- **partial_credit_rubric 升级**: 1.0 档 = "选 B (70%) 或 F (无法判断) — 准确自我评估 / 健康的元认知"
+- **lbc002 PC-C01 entry 修正**: Bisen 答"你并没有给我题, 我无法判断" (新规则下 = 1.0 档), score 0.0 → 1.0, correct 0 → 1
+
+#### 2. PB-C02 Q 矩阵改题 (调试题诱饵题目+答案逻辑矛盾修复)
+- **原题 BUG**: 题目说"以下代码期望输出 1, 2, 3" (需求规约) + "实际什么都没有输出" (错误描述, 实际是 1, 3 skip 2). 参考答案"代码实际是对的"忽略了需求规约, 跟题目第一句自相矛盾
+- **改法 A (双层题)**: 新题明确"需求规约 vs 实际行为" + 问"代码需要修改以满足需求吗？" + 4 个选项
+  - A. 不需要, 代码是对的
+  - B. 需要, 去掉 if i == 2: continue (改后输出 1, 2, 3 满足需求) — **新答案**
+  - C. 需要, 改成 pass
+  - D. 题目描述有误
+- **partial_credit_rubric**: 4 档分 0.0/0.3/0.6/1.0
+- **lbc002 PB-C02 entry 修正**: Bisen 答"不是什么都没有输出, 实际输出 1 和 3, 修改的话去掉判断 (if i == 2:) 和 continue 即可" — 完美答对 (识别需求 + 正确修改), score 0.0 → 1.0, correct 0 → 1
+
+#### 3. PC-C03 lbc002 entry 修正 (partial credit 缺失 BUG 副作用)
+- **不修题**: PC-C03 题目设计合理 (4 档分 A/B/C/D + 具体场景"答完代码后"), 跟 PC-C01 不一样
+- **修 entry**: Bisen 答 B (简单看一遍) → 按 rubric 应该是 0.3 档 (B = "选 B 简单看, 中等检查行为"), 不是 0.0
+- score 0.0 → 0.3, correct 0 (B 不是 C/D, 但 0.3 < 0.6 阈值)
+- **Root cause**: v0.54.0 partial credit 改造不彻底 — LLM judge prompt 没要求按 partial_credit_rubric 评分, Q 矩阵 rubric 字段没被消费
+- **Root cause 修复留待 v0.58.0+**: 改 `/api/judge` prompt 注入 rubric 字段, 强制 LLM 按 rubric 评分
+
+#### 4. 全面审计 (不修, 仅记录)
+- **PB-C01-15 调试题** (16 道): PB-C11 / PB-C13 也是"调试题(诱饵)"题型, 设计有同样"题目+答案逻辑"风险. 但 lbc001 当时答 0.6/1.0 (按当时 rubric) 合理, **不需要修**
+- **PC-C02-05 self_evaluation 题** (4 道): PC-C02/03/04/05 设计合理 (有具体场景 + 4 档分), **不需要修**. 仅 PC-C01 是设计漏洞
+- **PC-X01-05 跨语言题** (5 道): 设计合理 (4 档分 + 具体场景), **不需要修**
+- **lbc001 历史的 C/X 题** (18 条): v0.54.0 partial credit 改造后判分 (lbc001 当时用 partial_credit_rubric 评分), score 0.6/1.0 都合理, **不需要修**
+
+### 关键发现
+
+1. **PC-C01 是真正的题目设计 BUG** (题目缺失前提, 答案强加"应该选 B")
+2. **PB-C02 是题目+答案双 BUG** (题目第一句需求规约 + 答案"代码是对的"自相矛盾)
+3. **PC-C03 等其他 C 维度题设计 OK**, 只是 v0.54.0 partial credit 改造**不彻底**导致 LLM judge 判分粒度太粗
+4. **lbc001 历史数据 v0.54.0 改造时判分合理** (有部分用 partial_credit_rubric), **不需要修**
+
+### v0.57.0-b 范围说明
+
+- **修**: PC-C01 题目, PB-C02 题目, lbc002 PC-C01/PB-C02/PC-C03 三条 entry
+- **不修**: PC-C02-05 题目 (设计合理), PC-X01-05 题目 (设计合理), PB-C01-15 其他题 (lbc001 当时判分合理), lbc001 历史 entry (v0.54.0 改造后合理)
+- **Root cause 修复留 v0.58.0+**: 改 /api/judge prompt 注入 rubric, 强制 LLM 按 partial_credit_rubric 评分, 解决 PC-C03 这类 partial credit 缺失 BUG
+
+### 防御性自检 (CLAUDE.md 规范)
+- [x] [1] silent pass 全部 _log.warning(..., exc_info=True) (本次不涉及新代码)
+- [x] [2] `__version__` 0.57.0 → 0.57.1
+- [x] [3] detect_with_hits 传 library_str (本次不涉及 misconception)
+- [x] [4] HTML class 对齐 (本次不动 HTML)
+- [x] [5] DB 恢复 7 字段 (本次不动 DB schema, 只改 content JSON)
+- [x] [6] 不写启发式 fallback (本次不涉及 /api/judge)
+- [x] 测试: 65/65 全部通过 (本次修复不破坏现有测试, test_cross_subject + test_dual_layer 12 测试都过)
+
+### 📋 后续 (不在 v0.57.1 commit)
+
+- **v0.58.0**: 改 /api/judge prompt 注入 partial_credit_rubric 字段, 修复 LLM judge 粒度太粗 BUG
+- **v0.58.0+ 后续**: 双 Agent 互校 (CTA 假设 vs LCA 实验验证)
+- **v0.59.0**: H3 验证 (互校抗幻觉实证)
