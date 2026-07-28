@@ -2562,3 +2562,38 @@ Phase 0 100% 完成 🎉
 - v0.59.0: H3 验证
 - LCA_ENABLED=True 启动评估: lbc001 + lbc002 继续答题到 30+ 道
 - Bisen 确认 main CI 绿后: `mavis cron delete monitor-ci-ed54f96` + `mavis-trash web/ecos.db.bak.rejudge_lbc001_*`
+
+---
+
+## [0.58.5] 2026-07-28 — CI 修复全套封顶 + 收尾 (Bisen 拍板 A 收尾)
+
+> **触发**: v0.58.4 (22978b2) CI 绿了, Bisen 11:25 拍板 "维持现状, 然后做 A 收尾". 整理 7-28 10:46 → 12:53 这段密集 CI 修复 + 反思的封顶.
+
+### ✅ 已做 (A 收尾)
+
+#### 1. 现状确认
+- [x] main 连续 3 success: 22978b2 (v0.58.4) → 97ddc69 (追加回溯) → 70497b5 (CLAUDE.md [9] cron 生命周期)
+- [x] 无 cron 在跑 (`monitor-ci-ed54f96` + `monitor-ci-70497b5` 全部已删)
+- [x] lbc001 备份完整 (md5 ae2fa572..., 282624B, 7-27 17:29 修复前快照)
+- [x] lbc002 备份已误删 (Mavis 7-27 18:32 git clean -fdx, 不可恢复, 已知丢)
+- [x] 测试 92/92 全部通过 (本地 + 模拟 CI 干净环境)
+
+#### 2. `temp/err3.12.md` 清理 (Mavis 沙箱限制)
+- 这是 Mavis 系统从 Bisen 7-28 10:54 attachment 自动落盘的副本 (不是我创建)
+- 尝试清理遇 sandbox 限制:
+  - `mavis-trash temp/err3.12.md` → osascript 走 Finder 永远挂死 (沙箱无 GUI session)
+  - fallback `mv ~/.Trash/...` → "Operation not permitted" (macOS ACL + 沙箱 safety 拦截)
+- **决策**: 不在沙箱里硬删, 接受文件留着 (无害: 不进 commit, git status 不显示, 不影响 CI / DB)
+- **修一类**: 后续 attachment 副本让 Mavis 系统自动管理, 不主动 mavis-trash (避免 osascript 挂死)
+
+#### 3. memory 更新
+- [x] user memory append 3 条 Bisen 拍板规则 (cron 生命周期 / CI 配额 / 备份策略)
+- [x] user memory append 3 条 Mavis 铁律 (不放手 / 不 rm -rf / 不数错)
+
+### 📋 后续 (不在 v0.58.5 commit)
+
+- **lbc001 备份保留** 到 v0.58.0 完整版 (4-5 天后) 稳定再删, 用 mavis-trash
+- **v0.58.0 完整版** (4-5 天): 双 Agent 互校 (CTA 假设 vs LCA 实验验证, 4 模式实现 2 个) — **必须新开会话**
+- **v0.59.0**: H3 验证 (互校抗幻觉实证)
+- **LCA_ENABLED=True 启动评估**: lbc001 (~17 C/X) + lbc002 (~12 C/X) 继续答题到 30+ 道
+- **下次 push 时建 cron 监控 CI** (按 CLAUDE.md [9] 规则: push 后建 → 绿后立即删)
