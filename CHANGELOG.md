@@ -2597,3 +2597,75 @@ Phase 0 100% 完成 🎉
 - **v0.59.0**: H3 验证 (互校抗幻觉实证)
 - **LCA_ENABLED=True 启动评估**: lbc001 (~17 C/X) + lbc002 (~12 C/X) 继续答题到 30+ 道
 - **下次 push 时建 cron 监控 CI** (按 CLAUDE.md [9] 规则: push 后建 → 绿后立即删)
+
+---
+
+## [0.59.0] 2026-07-28 — v0.58.0 完整版 Phase 1+2: dual_agent 全套测试 + 2 个真 bug 修复 (Bisen 23:04 拍板)
+
+> **触发**: Bisen 7-28 23:04 拍板开 v0.58.0 完整任务. 4-5 天工作分 5 phase, 本次 commit 完成 Phase 1 (dual_agent 4 模式单元测试) + Phase 2 (集成测试). Phase 3 (主循环接入) 涉及 state, 等下一次拍板.
+>
+> **CLAUDE.md [7] 防御性警告** (commit 前已抛 Bisen): 本次 **不触碰任何历史 state** (5D / Bloom / TC / LCA 持久化 / response_history 全保留). dual_agent 仍只跑测试, 没接入 web/api/app.py 主循环.
+
+### ✅ 已做
+
+#### 1. `tests/test_dual_agent.py` (90 测试, 18 KB)
+- 覆盖 spec §7.1 全模块 (state_machine / messages / belief_challenge / normal_cycle / strategy_challenge / belief_check / experiment_design / timeout / fallback / human_review / DualAgentOrchestrator)
+- **覆盖率 98%** (spec 要求 ≥ 85%)
+  - `orchestrator.py` 96% (剩余 4% 是 llm_client=False 默认 + trajectory cap 边界)
+  - 其他模块 100%
+- 4 模式覆盖:
+  - 常态 (NormalCycle): 6 步循环 + state_machine 转移 + LCA 失败不污染 state
+  - 信念质疑 (BeliefChallenge): 3 触发条件 (K 高 + 错 / Bloom 突变 / P 高 + 慢) + trigger + resolve
+  - 策略质疑 (StrategyChallenge): 5-window 检测 + challenge_lca + lca_revise_policy
+  - 元反思 (MetaReflection): Phase 5+ 占位 (本次不测)
+- 3 抗幻觉机制: belief_check (5 维度 schema) + experiment_design (5 规则) + human_review (3 条件)
+- 2 死锁保护: timeout_guard (快/慢/default) + fallback (3 错误阈值 + 60s 时间阈值)
+- 端到端 + 协议兼容性 (CLAUDE.md [8] 改协议必加测试)
+
+#### 2. 2 个 dual_agent 真实 BUG 修复 (Bisen 没报, 我自己抓的)
+
+**Bug A**: `ecos/dual_agent/modes/strategy_challenge.py:102`
+- **症状**: `self.lca.bandit._last_arm` AttributeError, 因为 v0.57.0 LCA 持久化时改了 `self.bandit` (单 bandit 全局) → `self.bandits[student_id]` (per-student 隔离), strategy_challenge 没跟着改
+- **症状路径**: 任何连续 5 次 K mastery_prob 改善 < 0.05 → 触发策略质疑 → 立即崩溃
+- **修复**: 改用 `self.lca.bandits[cta_input.student_id]._last_arm` 拿 per-student bandit
+- **测试覆盖**: `TestStrategyChallengeMode.test_challenge_lca_constructs_message` + `test_detect_*`
+
+**Bug B**: `ecos/dual_agent/orchestrator.py` Step 7 `_consecutive_ineffective` 检查错位
+- **症状**: 计数器永远不递增. 原代码 `if calibrated.actual_outcome is not None` (但 `calibrated` 刚创建, outcome 还是 None) → 永远不进 if 分支
+- **症状路径**: 连续答错 5+ 次后, 应该触发人工审核 (consecutive_ineffective_threshold=3), 但实际触发不了
+- **修复**: 改检查 `prev_calibrated.actual_outcome` (Step 0 已填), 跟 Step 0 填的 outcome 对齐
+- **测试覆盖**: `TestDualAgentOrchestrator.test_consecutive_ineffective_increments` (5 次全错 → counter ≥ 1)
+
+#### 3. `ecos/dual_agent/orchestrator.py` trajectory 100 cap 不一致
+- **症状**: strategy_challenge 路径 append trajectory 但不应用 100 上限
+- **修复**: strategy_challenge 路径也加 maxlen=100 (跟正常路径对齐)
+- **测试覆盖**: `TestDualAgentOrchestrator.test_trajectory_capped_at_100` (105 次 → 100)
+
+#### 4. `ecos/dual_agent/__init__.py` status 更新
+- `__status__ = "m2-w4-skeleton"` → `"v0.59.0-tested-not-wired"`
+- 明确: dual_agent 已完整测试, 但**尚未接入主循环**
+
+#### 5. `ecos/__init__.py` version bump
+- `__version__ = "0.58.5"` → `"0.59.0"` (符合 [2] 防御性自检)
+
+### 防御性自检 (CLAUDE.md 规范)
+
+- [x] [1] silent pass 扫描: 0 处 (双 agent 全部用 _log.warning, 无 except: pass)
+- [x] [2] `__version__` 0.58.5 → 0.59.0 (本次功能 commit 必 bump)
+- [x] [3] detect_with_hits 传 library_str (本次不涉及 misconception)
+- [x] [4] HTML class 对齐 (本次不动 HTML)
+- [x] [5] DB 恢复 7 字段 (本次不动 DB schema)
+- [x] [6] 不写启发式 fallback (TimeoutError 走 SingleAgentFallback 降级, 但 calibrated.degraded_mode=True 标记, 不静默)
+- [x] [7] **架构升级警告历史状态**: 本次不触碰 state, 警告已抛 Bisen 拍板 (Phase 3 接入主循环前会再抛)
+- [x] [8] 改协议加测试: CalibrationMessage / CalibratedLCAResult 字段冻结测试 + to_dict 必含字段测试
+- [x] pytest: **182/182 全部通过** (90 新增 + 92 原有)
+
+### 📋 后续 (不在 v0.59.0 commit)
+
+- **Phase 3** (1.5 天, **再 [7] 警告后**): 接入 `web/api/app.py` submit_answer 后调 `dual_agent.process_observation` + feature flag `ECOS_DUAL_AGENT_ENABLED` (默认 False, 不影响现有 lbc001/lbc002 答题)
+- **Phase 4** (0.5 天): 防御性自检 [1-8] + pytest 全套 + version bump (v0.59.0 → v0.60.0)
+- **Phase 5** (0.5 天): lbc001 答题 5 道验证 dual_agent 行为 + 备份清理 (`mavis-trash web/ecos.db.bak.rejudge_lbc001`)
+- **lbc001 备份保留** 到 Phase 3 稳定后 (再 +5 天) 删
+- **H3 验证** (v0.60.0+): 互校抗幻觉实证 (CTA vs LCA 信念一致率指标)
+- **下次 push 时建 cron 监控 CI** (按 CLAUDE.md [9] 规则: push 后建 → 绿后立即删)
+

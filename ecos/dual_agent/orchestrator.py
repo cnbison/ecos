@@ -266,9 +266,10 @@ class DualAgentOrchestrator:
         self.calibration_round[sid] += 1
         calibrated.calibration_round = self.calibration_round[sid]
 
-        # Step 7: 累计连续无效次数
-        if calibrated.actual_outcome is not None:
-            if calibrated.actual_outcome < 0.3:
+        # Step 7: 累计连续无效次数 (基于上一轮的 actual_outcome, 不是当前 calibrated)
+        # v0.59.0 修: 原代码检查 calibrated.actual_outcome (刚创建, 还是 None), 应该检查 prev
+        if prev_calibrated is not None and prev_calibrated.actual_outcome is not None:
+            if prev_calibrated.actual_outcome < 0.3:
                 self._consecutive_ineffective[sid] += 1
             else:
                 self._consecutive_ineffective[sid] = 0
@@ -325,6 +326,10 @@ class DualAgentOrchestrator:
             calibrated.metadata["strategy_challenge_triggered"] = True
             self.intervention_history[sid].append(calibrated)
             self.state_trajectory[sid].append(updated_state)
+            # v0.59.0 修: 跟正常路径对齐, trajectory 也限 100 (CLAUDE.md [7])
+            maxlen = 100
+            if len(self.state_trajectory[sid]) > maxlen:
+                self.state_trajectory[sid] = self.state_trajectory[sid][-maxlen:]
             return calibrated
 
         # 元反思（Phase 5+ 占位：暂不实现）

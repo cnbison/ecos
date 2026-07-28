@@ -96,12 +96,15 @@ class StrategyChallengeMode:
         实际策略空间索引需要在 Phase 5+ 重构。这里用更简单的方式：在 lca_engine.bandit 的
         _arm_fingerprints 中找到最近一次干预对应的 arm，扩大其 A 矩阵。
         """
-        # 简化方案：通过 lca_engine.bandit.bandit 直接放大切换代价
+        # 简化方案：通过 lca_engine.bandits[student_id] 拿到该学生的 bandit,
+        # 放大最近一次干预对应 arm 的 A 矩阵（降低 UCB, 让 LinUCB 倾向其他 arm）
         # （spec §3.3 原意是按 intervention_type，但当前实现按 arm 索引）
-        # 取最近一次干预对应的 arm 索引
-        last_arm = self.lca.bandit._last_arm
-        if last_arm >= 0 and last_arm < len(self.lca.bandit.bandit.A):
-            self.lca.bandit.bandit.A[last_arm] *= LINUCB_PENALTY_FACTOR
+        # v0.59.0 修复: v0.57.0 后 lca.bandit → lca.bandits[student_id] (per-student 隔离)
+        bandit = self.lca.bandits.get(cta_input.student_id)
+        if bandit is not None:
+            last_arm = bandit._last_arm
+            if last_arm >= 0 and last_arm < len(bandit.bandit.A):
+                bandit.bandit.A[last_arm] *= LINUCB_PENALTY_FACTOR
 
         # 重新选择
         new_lca_result = self.lca.select_intervention(cta_input)
