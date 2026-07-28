@@ -329,6 +329,11 @@ grep -n "_get_or_create_student\|save_student_state\|load_student_state" web/api
 > **根因**: Mavis 每次 `git push` 退出码 0 就报"成功"收工, **从不回头查 CI 状态**. 累计 5 个 commit (f383e00 / 7397381 / cd89519 / 6909442 / ed54f96) 全部 fail 但没察觉. 实际原因: `pyproject.toml` 漏 `flask` 依赖, v0.55.0 加 CI 时漏写, v0.56.1 加 `flask_client` fixture 后才暴露.
 > **规范**: **任何 push 之后, 必须建 `cron self` 监控 CI 状态** (每 5 分钟查最新 run, 失败立即报告 + 修复), 不能"看 push 退出码 0 就报成功".
 >
+> **生命周期 (Bisen 2026-07-28 11:15 修正)**: cron 长期挂着是浪费 (CI 平时不跑新 commit 没事可查). 用 **"push 后建 → CI 绿后立即删"** 模式:
+> - push 之后: `mavis cron self --cron_name "monitor-ci-<short_sha>" --every "5m" --prompt "查 CI, 失败立刻报告 Bisen + 修; 绿后 Bisen 拍板删"`
+> - CI 绿 + Bisen 拍板: 立刻 `mavis cron delete monitor-ci-<short_sha>`, **不要挂着**
+> - Mavis 自身承诺: 自己记得 (在 CLAUDE.md [9] 这条规则里写明) + 主动提醒 Bisen
+>
 > **修一类的扫描**:
 > - 加新依赖 → grep `from <pkg> import` / `import <pkg>` 全项目, **列全** → 同步更新 `pyproject.toml` dependencies
 > - 加新 test fixture (尤其 import 第三方包) → 必须先 `pip install -e ".[dev]"` 干净环境跑通再 push
