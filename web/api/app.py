@@ -496,6 +496,30 @@ def api_submit_answer():
                 student_id, problem_id, exc_info=True,
             )
 
+        # v0.60.0: 双 Agent 互校 (CTA 假设 vs LCA 实验验证)
+        #   feature flag ECOS_DUAL_AGENT_ENABLED 控制, 默认 False → 现有行为完全不变
+        #   开启时: 走 dual_agent.process_observation, 写 calibration_log
+        #   CLAUDE.md [6]: dual_agent 失败不污染任何 state
+        try:
+            from web.api.dual_agent import process_observation_for_student
+            dual_result = process_observation_for_student(
+                student_id=student_id,
+                problem_id=problem_id,
+                skill_id=skill_id,
+                correct=correct,
+                score=score,
+                bloom_layer=bloom_layer,
+            )
+            if dual_result is not None:
+                # 把 dual_agent 维度信息塞进 result, 方便前端 / 教师后台看
+                result["dual_agent"] = dual_result
+        except Exception:
+            import logging as _dual_log
+            _dual_log.getLogger(__name__).warning(
+                "/api/answer dual_agent 失败 (student=%s, problem=%s), 不影响主响应",
+                student_id, problem_id, exc_info=True,
+            )
+
         return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)}), 500

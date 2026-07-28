@@ -2669,3 +2669,71 @@ Phase 0 100% 完成 🎉
 - **H3 验证** (v0.60.0+): 互校抗幻觉实证 (CTA vs LCA 信念一致率指标)
 - **下次 push 时建 cron 监控 CI** (按 CLAUDE.md [9] 规则: push 后建 → 绿后立即删)
 
+---
+
+## [0.60.0] 2026-07-28 — v0.58.0 完整版 Phase 3+4: dual_agent 接入主循环 (Bisen 23:30 拍板)
+
+> **触发**: Bisen 23:30 拍板 Phase 3 继续, 启动 dual_agent 主循环接入.
+>
+> **CLAUDE.md [7] 防御性警告 (Phase 3 专用, 已抛 Bisen 拍板)**:
+> - **触碰运行时 state, 但 feature flag 隔离** (`ECOS_DUAL_AGENT_ENABLED`, 默认 **False**)
+> - 默认 False → 现有 lbc001/lbc002 答题**完全不变**, 走老路径
+> - 只有显式 `ECOS_DUAL_AGENT_ENABLED=1 python -m web.api.app` 才走 dual_agent
+> - 共享 LCAEngine 实例 (避免 LinUCB 双份), 但 LCA arm_pull 会多 +1 (已知 trade-off)
+> - dual_agent state 进程内, 重启丢 (v0.60.0+ 考虑持久化)
+> - 不写迁移脚本, lbc001/lbc002 现状完全不动
+
+### ✅ 已做
+
+#### 1. `web/api/dual_agent.py` (10 KB, 新增)
+- **Feature flag**: `DUAL_AGENT_ENABLED` (env `ECOS_DUAL_AGENT_ENABLED`, 默认 `0`=False)
+- **3 个 public API**:
+  - `get_dual_orchestrator()`: lazy init 单例, 跟 `web/api/lca.py` 共享 LCAEngine
+  - `process_observation_for_student()`: 主入口, flag=True 时跑, 否则返回 None
+  - `get_dual_agent_debug_info()`: 教师后台 / 调试接口
+- **3 个 internal helper**:
+  - `_write_calibration_log()`: 写 calibration_log 表 (db.save_calibration)
+  - 失败不污染 belief_engine / LCA state (CLAUDE.md [6])
+  - lazy init 失败有 _log.warning (CLAUDE.md [1])
+
+#### 2. `web/api/app.py` submit_answer 接入 (Bisen 7-28 23:30 拍板)
+- 在 LCA update 之后, 加 `process_observation_for_student()` 调用
+- 失败 try/except + _log.warning, 不影响主响应 (跟 LCA update 同样的隔离模式)
+- 成功时把 `dual_agent` 字段塞进 result (前端可见 round / intervention_type / warnings / duration_ms)
+- flag=False 时**完全不调**, 现有 lbc001/lbc002 答题路径 0 改动
+
+#### 3. `tests/test_dual_agent_integration.py` (12 测试, 11 KB, 新增)
+- **TestFeatureFlag** (2): 默认 off / 显式 on
+- **TestProcessObservation** (4): flag off 返回 None / flag on 跑通 / 写 calibration_log / 失败不污染 state
+- **TestDebugInfo** (3): flag off / 新学生无 state / 跑过后有 state
+- **TestProtocolFields** (1): 返回 dict 必填字段冻结 (CLAUDE.md [8])
+- **TestNoHeuristicFallback** (2): 失败返回 None / DB 失败不抛错 (CLAUDE.md [6])
+
+#### 4. `ecos/__init__.py` version bump
+- `__version__` 0.59.0 → 0.60.0 (符合 [2] 防御性自检)
+
+### 防御性自检 (CLAUDE.md 规范)
+
+- [x] [1] silent pass 扫描: 0 处 (dual_agent.py + app.py 接入全用 try/except + _log.warning)
+- [x] [2] `__version__` 0.59.0 → 0.60.0 (本次功能 commit 必 bump)
+- [x] [3] detect_with_hits 传 library_str (本次不涉及 misconception)
+- [x] [4] HTML class 对齐 (本次不动 HTML)
+- [x] [5] DB 7 字段恢复 (本次不动 student_lca_state schema, calibration_log schema 已有)
+- [x] [6] 不写启发式 fallback: dual_agent 失败返回 None, 跟 LCA update 同样的隔离模式
+- [x] [7] **架构升级警告 state**: 已抛 Bisen 拍板 (默认 flag=False, 不影响现有 lbc001/lbc002)
+- [x] [8] 改 API 加测试: process_observation_for_student 返回 dict 字段冻结测试
+- [x] pytest: **194/194 全部通过** (12 新增 + 90 现有 + 92 原有)
+
+### 📋 后续 (不在 v0.60.0 commit)
+
+- **Phase 5** (0.5 天): lbc001 答题 5 道验证 dual_agent 行为 + 备份清理 (`mavis-trash web/ecos.db.bak.rejudge_lbc001`)
+  - 启动方式: `ECOS_DUAL_AGENT_ENABLED=1 python -m web.api.app`
+  - 验证项: dual_agent 状态在 /api/dual_agent/debug 可见 + calibration_log 表有 5 行
+  - **风险**: dual_agent 跟 belief.py 都用同一 LCAEngine, 每次答题会多调 1 次 lca.select_intervention
+- **dual_agent 持久化** (v0.61.0+): dual_agent.state / intervention_history 落盘 (跟 LCA 7 字段一样的模式)
+- **H3 验证** (v0.62.0+): 互校抗幻觉实证 (CTA vs LCA 信念一致率指标)
+- **元反思模式** (v0.63.0+): 4 周停滞检测 (MetaReflection, Phase 5+ 计划)
+- **lbc001 备份保留** 到 Phase 5 验证 dual_agent 行为正常后 (再 +2-3 天) 删
+- **下次 push 时建 cron 监控 CI** (按 CLAUDE.md [9] 规则: push 后建 → 绿后立即删)
+
+
