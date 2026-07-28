@@ -2815,6 +2815,44 @@ Phase 0 100% 完成 🎉
 - **push 后建 cron 监控 CI** (v0.60.1 cron `monitor-ci-ee58720` 抓到失败, 已删; 重新建 `monitor-ci-<v0.60.2 sha>`)
 - **Phase 5**: lbc001 答题 5 道验证 dual_agent + 备份清理
 
+---
+
+## [0.60.3] 2026-07-29 — CI 失败修复 #3 (Bisen 复制 logs 后 Mavis 抓真 root cause)
+
+> **触发**: Bisen 00:19 复制 GitHub Actions logs. v0.60.1 (ee58720) 失败根因: 5 个测试 ERROR (不是 FAIL) 在 `clean_calibration_log` fixture setup 阶段, 错误 `sqlite3.OperationalError: no such table: students`.
+>
+> 关键发现: **fixture 自己开 raw `sqlite3.connect()`, 不走 `get_db()` 路径**. 在 CI 干净环境 (无 `web/ecos.db`), fixture 假设 schema 存在, 但实际 `init_schema()` 只在 `get_db()` (v0.60.2 新加) 和 `web/api/belief.py:_get_db()` 里调过.
+>
+> 修复: fixture 改走 `get_db()` 路径, 跟 test body 走同一 schema 初始化逻辑.
+
+### ✅ 已做
+
+#### 1. `tests/test_dual_agent_integration.py` fixture 改走 `get_db()`
+- **症状**: CI 干净环境 (无 `web/ecos.db`) → 5 个 fixture setup ERROR
+- **根因**: `clean_calibration_log` fixture 用 raw `sqlite3.connect("web/ecos.db")`, **不调 `init_schema()`**. v0.60.2 在 `get_db()` 加了 `init_schema()`, 但 fixture 不走 `get_db()`, 所以 fixture 看不到 schema
+- **修复**: fixture 改 `from ecos.persistence.db import get_db; db = get_db(); conn = db.conn`. 跟 test body 走同一路径, init_schema() 幂等保证
+
+#### 2. `ecos/__init__.py` version bump
+- `__version__` 0.60.2 → 0.60.3 (CI 修复 #3)
+
+### 防御性自检 (CLAUDE.md 规范)
+
+- [x] [1] silent pass 扫描: 0 处
+- [x] [2] `__version__` 0.60.2 → 0.60.3
+- [x] [3] detect_with_hits 传 library_str (本次不涉及)
+- [x] [4] HTML class 对齐 (本次不动 HTML)
+- [x] [5] DB 7 字段恢复 (本次只改 fixture, 不动 schema)
+- [x] [6] 不写启发式 fallback: 失败查真 root cause (Bisen 复制 logs 后看 ERROR 不是 FAIL)
+- [x] [7] 架构升级警告 state: 本次不触碰 state (只改 fixture 走 get_db)
+- [x] [8] 改 API 加测试: 修一处扫一类 — **所有走 raw sqlite3 的 fixture 都该走 get_db()**, 检查 `tests/test_judge_retry.py` 等其他文件 (没有同类问题, 走的是 `app.conftest` 临时 DB)
+- [x] pytest: **194/194 全部通过** (含模拟 CI 干净环境 删 web/ecos.db 后 12/12 dual_agent 集成)
+
+### 📋 后续 (不在 v0.60.3 commit)
+
+- **push 后建 cron 监控 CI** (v0.60.2 cron `monitor-ci-f34ff8b` 已删, 重新建 `monitor-ci-<v0.60.3 sha>`)
+- **Phase 5**: lbc001 答题 5 道验证 dual_agent + 备份清理
+
+
 
 
 

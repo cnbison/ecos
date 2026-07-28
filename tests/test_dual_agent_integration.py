@@ -45,12 +45,21 @@ def clean_calibration_log():
 
     calibration_log 有 FOREIGN KEY 约束, student_id 必须在 students 表.
     所以每个测试用的 student_id (t_da_int_*) 必须先在 students 表创建.
+
+    v0.60.3 修 (CI 失败 root cause #3): fixture 自己开 raw sqlite3.connect
+    在 CI 干净环境 (无 web/ecos.db) 时 schema 不存在 → SELECT 失败.
+    修复: 走 get_db() (v0.60.2 已经在 get_db 内调 init_schema, 幂等).
+    这样 fixture 跟 test body 走同一 schema 初始化路径.
     """
-    db_path = "web/ecos.db"
-    if not os.path.exists(db_path):
+    # v0.60.3: 用 get_db() 触发 init_schema, 避免 fixture 跟 test body 走不同路径
+    try:
+        from ecos.persistence.db import get_db
+        db = get_db()  # 幂等 init_schema
+        conn = db.conn  # 复用 Database 的 connection
+    except Exception:
+        # 极端情况: get_db 失败 (如 DB path 不存在 + 权限) → 跳过 (跟之前一致)
         yield
         return
-    conn = sqlite3.connect(db_path)
     try:
         # 收集测试用的 student_id (从 tests/ 里 grep 出来, 但简单起见直接 hardcode 列表)
         test_sids = [
@@ -83,7 +92,8 @@ def clean_calibration_log():
                 conn.execute("DELETE FROM students WHERE student_id = ?", (sid,))
         conn.commit()
     finally:
-        conn.close()
+        # 不关 conn, 是 Database 单例的, 后续测试还要用
+        pass
 
 
 # ─── 1. Feature flag 行为 ───────────────────────────────────────────
