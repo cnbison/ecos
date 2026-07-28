@@ -2736,4 +2736,47 @@ Phase 0 100% 完成 🎉
 - **lbc001 备份保留** 到 Phase 5 验证 dual_agent 行为正常后 (再 +2-3 天) 删
 - **下次 push 时建 cron 监控 CI** (按 CLAUDE.md [9] 规则: push 后建 → 绿后立即删)
 
+---
+
+## [0.60.1] 2026-07-28 — CI 失败修复 (cron monitor-ci-0ce179e 23:50 抓到, Mavis 抓 root cause)
+
+> **触发**: cron `monitor-ci-0ce179e` 抓到 v0.60.0 CI failed (跑 `Run defensive checks (5 项)` 步骤).
+> 看不了 logs (no admin), 本地复现 → 抓出 root cause: `web/api/dual_agent.py` 调 `get_db()` 但 `ecos/persistence/db.py` **没定义这个函数**. pytest collection 阶段 ImportError, 防御性自检脚本在最后跑 pytest 时 `set -e` 退出 1.
+
+### ✅ 已做
+
+#### 1. `ecos/persistence/db.py` 加 `get_db()` 单例 (CI 失败 root cause)
+- 新增 `get_db(db_path="web/ecos.db") -> Database` 单例函数
+- 跟 `lca_store.py:get_lca_store()` 同样模式: lazy init + 失败有 _log.warning
+- 补 `import logging` + `_log = logging.getLogger(__name__)` (db.py 之前没有 logger)
+- `Database.__init__` 接受 `DatabaseConfig`, 修正 `get_db` 用 `Database(DatabaseConfig(db_path=...))`
+
+#### 2. `tests/test_dual_agent_integration.py` fixture 修复
+- **问题**: 原 `clean_calibration_log` fixture 只清 calibration_log, 但 calibration_log 有 FOREIGN KEY 约束到 students. 测试学生 (`t_da_int_*`) 不在 students 表 → save_calibration IntegrityError → calibration_id=0 → test 假装 pass 但实际没写
+- **修复**: fixture 改 `clean_calibration_log_with_students`, 测试前 INSERT 测试学生, 测试后 DELETE 两者
+- 修复后 `test_writes_to_calibration_log` 真的写到 calibration_log (verified calibration_id > 0 + row count +1)
+
+#### 3. `ecos/__init__.py` version bump
+- `__version__` 0.60.0 → 0.60.1 (CI 修复)
+
+### 防御性自检 (CLAUDE.md 规范)
+
+- [x] [1] silent pass 扫描: 0 处 (get_db 失败有 _log.warning + exc_info=True)
+- [x] [2] `__version__` 0.60.0 → 0.60.1 (CI 修复 bump)
+- [x] [3] detect_with_hits 传 library_str (本次不涉及 misconception)
+- [x] [4] HTML class 对齐 (本次不动 HTML)
+- [x] [5] DB 7 字段恢复 (本次只加 get_db 单例, 不动 schema)
+- [x] [6] 不写启发式 fallback (CI 失败查 root cause, 不重跑忽略)
+- [x] [7] 架构升级警告 state: 本次不触碰 state (只补缺失函数 + 修 fixture)
+- [x] [8] 改 API 加测试: get_db 修一个 scan 一类 (db.py 全 module 检查, 没其他未导出符号)
+- [x] pytest: **194/194 全部通过** (12 dual_agent 集成 + 90 dual_agent 单元 + 92 原有)
+
+### 📋 后续 (不在 v0.60.1 commit)
+
+- **push 后建 cron 监控 CI** (按 CLAUDE.md [9] 规则, v0.60.0 cron `monitor-ci-0ce179e` 抓到了失败, 已删; 重新建 `monitor-ci-<v0.60.1 sha>`)
+- **Phase 5**: lbc001 答题 5 道验证 dual_agent 行为 + 备份清理
+- **dual_agent 持久化** (v0.61.0+): dual_agent.state / intervention_history 落盘
+- **H3 验证** (v0.62.0+): 互校抗幻觉实证
+
+
 

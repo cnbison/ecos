@@ -10,14 +10,17 @@ calibration_log / bloom_goals / trajectory_snapshots）。
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass, asdict
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Generator, Iterable
+from typing import Any, Generator, Iterable, Optional
 
 from ..cta.belief_state import BeliefState, BloomProfileState, DimensionState
+
+_log = logging.getLogger(__name__)
 
 # ─── Schema SQL ───────────────────────────────────────────────────────────────
 
@@ -797,3 +800,30 @@ class Database:
                 (student_id, limit),
             ).fetchall()
         return [dict(r) for r in rows]
+
+
+# ─── Singleton accessor (v0.60.1: 给 web/api/dual_agent.py 用) ───
+
+_db_instance: Optional["Database"] = None
+
+
+def get_db(db_path: str = "web/ecos.db") -> "Database":
+    """获取 Database 全局单例 (lazy init).
+
+    防御性自检 [1]: init 失败必须 warning, 不能 silent pass.
+
+    v0.60.1 新增: web/api/dual_agent.py (双 Agent 互校接入) 需要
+    复用 Database 单例, 避免每次新建 connection + 重复 init_schema.
+    """
+    global _db_instance
+    if _db_instance is None:
+        try:
+            _db_instance = Database(DatabaseConfig(db_path=db_path))
+        except Exception:
+            _log.warning(
+                "Database 单例初始化失败 (db=%s), 持久化不可用",
+                db_path, exc_info=True,
+            )
+            raise
+    return _db_instance
+

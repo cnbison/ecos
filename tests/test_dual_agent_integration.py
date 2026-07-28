@@ -41,18 +41,46 @@ def fresh_db():
 
 @pytest.fixture
 def clean_calibration_log():
-    """测试前后清理 calibration_log 表."""
+    """测试前后清理 calibration_log 表 + 创建/删除 test students.
+
+    calibration_log 有 FOREIGN KEY 约束, student_id 必须在 students 表.
+    所以每个测试用的 student_id (t_da_int_*) 必须先在 students 表创建.
+    """
     db_path = "web/ecos.db"
     if not os.path.exists(db_path):
         yield
         return
     conn = sqlite3.connect(db_path)
     try:
-        # 记录测试前的行数
-        before = conn.execute("SELECT COUNT(*) FROM calibration_log").fetchone()[0]
+        # 收集测试用的 student_id (从 tests/ 里 grep 出来, 但简单起见直接 hardcode 列表)
+        test_sids = [
+            "t_da_int_off_001", "t_da_int_on_001", "t_da_int_log_001",
+            "t_da_int_fail_001", "t_da_int_new_001", "t_da_int_dbg_001",
+            "t_da_int_proto_001", "t_da_int_hf_001", "t_da_int_dbfail_001",
+        ]
+        # 记录测试前存在哪些
+        existing = set()
+        for sid in test_sids:
+            row = conn.execute(
+                "SELECT 1 FROM students WHERE student_id = ?", (sid,)
+            ).fetchone()
+            if row:
+                existing.add(sid)
+        # 创建缺失的 test students (minimal row, grade_level=0, 必填字段填充)
+        for sid in test_sids:
+            if sid not in existing:
+                conn.execute(
+                    "INSERT INTO students (student_id, grade_level, created_at) "
+                    "VALUES (?, 0, datetime('now'))",
+                    (sid,),
+                )
+        conn.commit()
         yield
-        # 清理本次测试新增的 (按 student_id LIKE 't_da_int_%')
-        conn.execute("DELETE FROM calibration_log WHERE student_id LIKE 't_da_int_%'")
+        # 清理: 删除 test students + 关联 calibration_log
+        for sid in test_sids:
+            conn.execute("DELETE FROM calibration_log WHERE student_id = ?", (sid,))
+            if sid not in existing:
+                conn.execute("DELETE FROM students WHERE student_id = ?", (sid,))
         conn.commit()
     finally:
         conn.close()
