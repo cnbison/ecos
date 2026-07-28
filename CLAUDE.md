@@ -323,6 +323,27 @@ grep -n "_get_or_create_student\|save_student_state\|load_student_state" web/api
 >
 > 例外：仅在 `__init__.py` 的 `Optional` import 兜底，或 `feature flag` 关闭分支允许 silent pass——但**必须加注释说明**。
 
+### [9] CI 状态监控 (2026-07-28 Bisen 反馈后新增, v0.58.3 落规则)
+
+> **起源**: 2026-07-28 Bisen 反馈 5 封 GitHub Actions 失败邮件 (14:57 → 18:31, 5 个 commit 全 fail).
+> **根因**: Mavis 每次 `git push` 退出码 0 就报"成功"收工, **从不回头查 CI 状态**. 累计 5 个 commit (f383e00 / 7397381 / cd89519 / 6909442 / ed54f96) 全部 fail 但没察觉. 实际原因: `pyproject.toml` 漏 `flask` 依赖, v0.55.0 加 CI 时漏写, v0.56.1 加 `flask_client` fixture 后才暴露.
+> **规范**: **任何 push 之后, 必须建 `cron self` 监控 CI 状态** (每 5 分钟查最新 run, 失败立即报告 + 修复), 不能"看 push 退出码 0 就报成功".
+>
+> **修一类的扫描**:
+> - 加新依赖 → grep `from <pkg> import` / `import <pkg>` 全项目, **列全** → 同步更新 `pyproject.toml` dependencies
+> - 加新 test fixture (尤其 import 第三方包) → 必须先 `pip install -e ".[dev]"` 干净环境跑通再 push
+> - push 后 5 分钟内未收到 CI pass → 主动查 GitHub Actions 状态, 不等 Bisen 报
+>
+> **自检命令** (push 后 5 分钟跑):
+> ```bash
+> curl -s "https://api.github.com/repos/cnbison/ecos/actions/runs?per_page=1" | python -c "import json,sys; r=json.load(sys.stdin)['workflow_runs'][0]; print(f\"{r['conclusion']} {r['name']} {r['html_url']}\")"
+> ```
+>
+> **cron 模板**:
+> ```
+> mavis cron self --cron_name "monitor-ci-<short_sha>" --every "5m" --prompt "查 CI 状态, 失败立刻报告 Bisen, 修好后删 cron"
+> ```
+
 ### v0.55.0 pytest 自动化套件 (2026-07-23 新增)
 
 **入口**：

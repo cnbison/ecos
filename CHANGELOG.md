@@ -2416,3 +2416,51 @@ Phase 0 100% 完成 🎉
 - **v0.59.0**: H3 验证 (互校抗幻觉实证)
 - **LCA_ENABLED=True 启动评估**: lbc001 (~17 C/X) + lbc002 (~12 C/X) 已重判, 继续答题到 30+ 道再启动
 - **DB 备份清理**: Bisen 确认后 `mavis-trash web/ecos.db.bak.rejudge_*` 删两个备份
+
+---
+
+## [0.58.3] 2026-07-28 — CI 修复: pyproject.toml 漏 flask 依赖 (Bisen 抓出 5 个 commit CI 失败)
+
+> **触发**: 2026-07-28 10:45 Bisen 反馈 5 封 GitHub Actions 失败邮件 (14:57 → 18:31, 5 个 commit 全 fail).
+> **根因**: v0.55.0 加 CI 时 `pyproject.toml` 的 `dependencies` 漏写 `flask`. v0.55.0 当时 pytest 没人 import flask 所以 CI pass;
+> **v0.56.1** (0336ad5) 加了 `flask_client` fixture (test_judge_retry.py) 触发 `from web.api.app import app` → `ModuleNotFoundError: No module named 'flask'`.
+> **结果**: 5 个 commit (f383e00 / 7397381 / cd89519 / 6909442 / ed54f96) CI 全部 fail, **Mavis 一次都没察觉**, 累计疏忽.
+> **本版本只修 deps, 不动代码逻辑**.
+
+### ✅ 已做
+
+#### 1. `pyproject.toml` 加 `flask>=2.0` 到 dependencies
+- v0.55.0 漏加 (写 dependencies 时只列了 numpy/scipy/openai, 漏了 web/api/app.py 主入口用的 flask)
+- 加注释引用: 哪个 commit 触发暴露 + 为什么需要
+- 立刻派 CLAUDE.md [9] 规则防止再发生
+
+#### 2. CLAUDE.md 防御性自检新增 [9]
+- **CI 状态监控 (Bisen 2026-07-28 反馈)**: 任何 push 后必须建 `cron self` 监控 CI 状态, 失败立即修复, 不能"看 `git push` 退出码 0 就报成功"
+- 历史 5 个 commit 失败 (f383e00 → ed54f96) 都是同根疏忽: 报完'push 成功'就放手, 从不查 CI
+
+#### 3. 防御性自检
+- [x] [1] silent pass 扫描: 本次不动代码, 不适用
+- [x] [2] `__version__` 0.58.2 → 0.58.3 ✓
+- [x] [3] detect_with_hits library_str: 本次不动 misconception
+- [x] [4] HTML class 对齐: 本次不动 HTML
+- [x] [5] DB 7 字段: 本次不动 DB
+- [x] [6] 不写启发式 fallback: 本次不动 /api/judge
+- [x] [7] 架构升级警告: 本次不涉及架构升级, 加一行 deps
+- [x] [8] prompt 变化有测试: 本次不动 prompt
+- [x] [9] **新增** CI 状态监控: 已在 CLAUDE.md 落规则, 这次 push 后建 cron `monitor-ci-ed54f96` 验证
+- [x] 测试: 92/92 全部通过 (本地, flask 已装)
+
+### ⚠️ 附加影响 (v0.58.3 修一类, 但已发生)
+
+- **lbc002 备份被误删**: 之前 `git clean -fdx` 误删 `web/ecos.db.bak.rejudge_lbc002_20260727_180711`. lbc002 rejudge 写入前快照已失, **回滚能力丢失**.
+- **lbc001 备份还在**: `web/ecos.db.bak.rejudge_lbc001_20260727_172948` (282624B, v0.58.1 修复前快照)
+- **CLAUDE.md 加 `.gitignore`-已-ignored-不-git-clean 规则**: 改用 `mavis-trash` 替代 `git clean -fdx`
+
+### 📋 后续 (不在 v0.58.3 commit)
+
+- **v0.58.3 push 后验证 CI**: cron `monitor-ci-ed54f96` 自动监控新 run, 期望 92/92 pytest + 5 项 defensive check 全过
+- **v0.58.0 完整版** (4-5 天): 双 Agent 互校 (CTA 假设 vs LCA 实验验证, 4 模式实现 2 个)
+- **v0.59.0**: H3 验证 (互校抗幻觉实证)
+- **LCA_ENABLED=True 启动评估**: lbc001 (~17 C/X) + lbc002 (~12 C/X) 继续答题到 30+ 道
+- **DB 备份清理**: Bisen 确认后 `mavis-trash web/ecos.db.bak.rejudge_lbc001_*` 删 lbc001 备份
+- **cron 监控**: Bisen 确认 main CI 绿后 `mavis cron delete monitor-ci-ed54f96`
