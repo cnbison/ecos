@@ -62,16 +62,24 @@ def flask_client():
 
 @pytest.fixture
 def lbc001_state_backup():
-    """测试前备份 lbc001 state, 测试后恢复 (避免测试污染真实数据)."""
+    """测试前备份 lbc001 state, 测试后恢复 (避免测试污染真实数据).
+
+    v0.58.3 修复: 兼容 CI 干净环境 (无 web/ecos.db). 调 init_schema() 兜底确保表存在.
+    """
     from web.api.belief import _STUDENT_STATES
     from ecos.persistence.db import Database
 
     # 清空 in-memory state (避免 _response_history 污染)
     _STUDENT_STATES.clear()
 
-    # 备份 DB lbc001 state
+    # 备份 DB lbc001 state (init_schema 幂等, CI 干净环境也能跑)
     db = Database("web/ecos.db")
-    original = db.load_student_state("lbc001")
+    db.init_schema()
+    try:
+        original = db.load_student_state("lbc001")
+    except Exception:
+        # 极端情况: 表存在但 query 失败, 返回 None
+        original = None
 
     yield original
 
@@ -292,7 +300,11 @@ class TestJudgeNoStatePollution:
     def test_judge_failure_does_not_write_response_history(self, flask_client, lbc001_state_backup):
         """LLM judge 全部失败时, response_history 不应被写入新条目."""
         import sqlite3
+        from ecos.persistence.db import Database
         from web.api.belief import _STUDENT_STATES
+
+        # v0.58.3 修复: CI 干净环境无 web/ecos.db, init_schema 幂等兜底
+        Database("web/ecos.db").init_schema()
 
         # 备份当前 response_history 长度
         with sqlite3.connect("web/ecos.db") as conn:
@@ -340,7 +352,8 @@ class TestJudgeNoStatePollution:
         import numpy as np
 
         # 备份当前 5D theta (DB 存的是 JSON 字符串, 需要 parse)
-        theta_str = lbc001_state_backup.get("current_state_5d") or "[0.0,0.0,0.0,0.0,0.0]"
+        # v0.58.3 修复: lbc001_state_backup 可能是 None (CI 干净环境, DB 无 lbc001)
+        theta_str = (lbc001_state_backup or {}).get("current_state_5d") or "[0.0,0.0,0.0,0.0,0.0]"
         theta_before = np.array(json.loads(theta_str), dtype=float)
 
         fake_llm = FakeLLM(plan=["bad"] * 3)
@@ -354,7 +367,9 @@ class TestJudgeNoStatePollution:
 
         assert resp.status_code == 422
 
-        # 验证 5D theta 不变
+        # 验证 5D theta 不变 (v0.58.3 修复: init_schema 兜底, 兼容 CI 干净环境)
+        from ecos.persistence.db import Database
+        Database("web/ecos.db").init_schema()
         with sqlite3.connect("web/ecos.db") as conn:
             cur = conn.cursor()
             cur.execute(

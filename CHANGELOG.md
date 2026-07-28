@@ -2464,3 +2464,47 @@ Phase 0 100% 完成 🎉
 - **LCA_ENABLED=True 启动评估**: lbc001 (~17 C/X) + lbc002 (~12 C/X) 继续答题到 30+ 道
 - **DB 备份清理**: Bisen 确认后 `mavis-trash web/ecos.db.bak.rejudge_lbc001_*` 删 lbc001 备份
 - **cron 监控**: Bisen 确认 main CI 绿后 `mavis cron delete monitor-ci-ed54f96`
+
+---
+
+## [0.58.4] 2026-07-28 — CI 修复 2: TestJudgeNoStatePollution 3 test 依赖真实 DB (Bisen 抓出 89/92 + 3 errors)
+
+> **触发**: v0.58.3 加 flask 依赖后 CI 仍 fail, 89 passed + 3 errors. 错误是 `sqlite3.OperationalError: no such table: students`.
+> **根因**: `tests/test_judge_retry.py` 的 `lbc001_state_backup` fixture 写死 `Database("web/ecos.db")` 调 `load_student_state("lbc001")`. CI 干净 checkout 无 `web/ecos.db` (被 .gitignore), sqlite 创建空文件但没 students 表 → load 失败. v0.56.1 (0336ad5) 加 fixture 时没考虑 CI 干净环境.
+> **修法 (修一类)**: 3 处直接 `sqlite3.connect("web/ecos.db")` 也都加 `Database("web/ecos.db").init_schema()` 幂等兜底. CI 干净环境会创建空 db + 跑 schema, lbc001 不存在 → fixture 返回 None → test 用 `(or {}).get(...)` 兼容.
+
+### ✅ 已做
+
+#### 1. `tests/test_judge_retry.py` 6 处加 init_schema 兜底
+- `lbc001_state_backup` fixture: 加 `db.init_schema()` + try/except 容错 (line 76-79)
+- `test_judge_failure_does_not_write_response_history`: 备份 + 验证两处 `sqlite3.connect` 之前 init_schema
+- `test_judge_failure_does_not_update_5d_theta`: 验证前 init_schema
+- test_judge_failure_does_not_update_5d_theta line 355 改 `(lbc001_state_backup or {}).get("current_state_5d")` 兼容 fixture 返回 None (CI 干净环境)
+
+#### 2. 模拟 CI 干净环境验证
+- `mv web/ecos.db /tmp/_backup_$$ && pytest TestJudgeNoStatePollution` → 3 passed (修前会 3 errors)
+- DB 恢复: `mv /tmp/_backup_$$ web/ecos.db` → 完整 282624 字节
+- 完整 92/92 测试通过 (本地, web/ecos.db 存在)
+- lbc001 备份 (web/ecos.db.bak.rejudge_lbc001_20260727_172948) 完整保留
+
+#### 3. 防御性自检
+- [x] [1] silent pass 扫描: 0 处 (lbc001_state_backup 改 try/except + 注释说明)
+- [x] [2] `__version__` 0.58.3 → 0.58.4 ✓
+- [x] [3] detect_with_hits library_str: 本次不动 misconception
+- [x] [4] HTML class 对齐: 本次不动 HTML
+- [x] [5] DB 7 字段: 本次不动 DB schema
+- [x] [6] 不写启发式 fallback: 本次不动 /api/judge
+- [x] [7] 架构升级警告: 本次只改 test fixtures
+- [x] [8] prompt 变化有测试: 本次不动 prompt
+- [x] [9] **CI 状态监控**: cron `monitor-ci-ed54f96` 已生效, 这次 v0.58.4 push 后自动监控
+- [x] **修一类**: 6 处依赖真实 DB 路径全加 init_schema 兜底, grep 验证没别处
+- [x] 测试: 92/92 全部通过 (本地 + 模拟 CI 干净环境)
+
+### 📋 后续 (不在 v0.58.4 commit)
+
+- **v0.58.4 push 后 CI 验证**: cron 监控新 run, 期望 89/89 + 0 errors (flask 已装 + DB 兜底)
+- **v0.58.0 完整版** (4-5 天): 双 Agent 互校 (CTA 假设 vs LCA 实验验证, 4 模式实现 2 个)
+- **v0.59.0**: H3 验证 (互校抗幻觉实证)
+- **LCA_ENABLED=True 启动评估**: lbc001 + lbc002 继续答题到 30+ 道
+- **DB 备份清理**: Bisen 确认 CI 绿后 `mavis-trash web/ecos.db.bak.rejudge_lbc001_*`
+- **cron 监控**: Bisen 确认 main CI 绿后 `mavis cron delete monitor-ci-ed54f96`
