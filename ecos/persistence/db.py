@@ -819,6 +819,11 @@ def get_db(db_path: str = "web/ecos.db") -> "Database":
     if _db_instance is None:
         try:
             _db_instance = Database(DatabaseConfig(db_path=db_path))
+            # v0.60.1 修 (CI 失败 root cause #2): 调 init_schema() 确保 schema 存在
+            # 幂等: CREATE TABLE IF NOT EXISTS + ALTER TABLE ... try/except
+            # CI 干净环境 (无 web/ecos.db) 必须 init_schema, 否则 save_calibration 失败
+            # 跟 web/api/belief.py:_get_db() 同样模式
+            _db_instance.init_schema()
         except Exception:
             _log.warning(
                 "Database 单例初始化失败 (db=%s), 持久化不可用",

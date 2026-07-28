@@ -2778,5 +2778,43 @@ Phase 0 100% 完成 🎉
 - **dual_agent 持久化** (v0.61.0+): dual_agent.state / intervention_history 落盘
 - **H3 验证** (v0.62.0+): 互校抗幻觉实证
 
+---
+
+## [0.60.2] 2026-07-29 — CI 失败修复 #2 (Bisen 00:12 报, Mavis 抓真 root cause)
+
+> **触发**: cron `monitor-ci-ee58720` 抓到 v0.60.1 CI failed. 同样步骤 "Run defensive checks (5 项)" 失败.
+> 这次 Mavis 抓得更深: 本地复现不出 (本地 web/ecos.db 有 schema) → 模拟 CI 干净环境 (删 web/ecos.db)
+> → pytest 5 errors → root cause: `get_db()` 没调 `init_schema()`, 跟 `web/api/belief.py:_get_db()` 漏了同样的事.
+
+### ✅ 已做
+
+#### 1. `ecos/persistence/db.py:get_db()` 补 `init_schema()` 调用
+- **症状**: CI 干净环境 (无 web/ecos.db) 跑测试 → `save_calibration` 报 `sqlite3.OperationalError: no such table: calibration_log`
+- **根因**: `Database.__init__` 只创建 connection + 设 PRAGMA, **不创建 schema**. 之前 v0.60.1 我加 `get_db()` 时照搬 `web/api/belief.py:_get_db()` 模式, 但漏了 `init_schema()` (因为本地 DB 已有 schema 看起来工作)
+- **修复**: `get_db()` 内加 `_db_instance.init_schema()` (幂等: CREATE TABLE IF NOT EXISTS + ALTER TABLE try/except)
+- 跟 `web/api/belief.py:_get_db()` 完整对齐
+
+#### 2. `ecos/__init__.py` version bump
+- `__version__` 0.60.1 → 0.60.2 (CI 修复 #2)
+
+### 防御性自检 (CLAUDE.md 规范)
+
+- [x] [1] silent pass 扫描: 0 处 (init_schema 失败有 _log.warning + exc_info=True)
+- [x] [2] `__version__` 0.60.1 → 0.60.2
+- [x] [3] detect_with_hits 传 library_str (本次不涉及)
+- [x] [4] HTML class 对齐 (本次不动 HTML)
+- [x] [5] DB 7 字段恢复 (本次只补 init_schema, 不动 schema)
+- [x] [6] 不写启发式 fallback: 失败查真 root cause (删 web/ecos.db 模拟 CI), 不重跑忽略
+- [x] [7] 架构升级警告 state: 本次不触碰 state (只补 init_schema)
+- [x] [8] 改 API 加测试: 模拟 CI 干净环境的 fixture 是修一类的, 后续 defensive check 加 "fresh DB 跑测试" 检查
+- [x] pytest: **194/194 全部通过** (含模拟 CI 干净环境删 web/ecos.db 后 194/194)
+
+### 📋 后续 (不在 v0.60.2 commit)
+
+- **下次防御性自检加项**: [新] 模拟 CI 干净环境跑 pytest (rm web/ecos.db 后跑), 避免本地有 schema 但 CI 干净环境漏 init_schema 的类似 bug
+- **push 后建 cron 监控 CI** (v0.60.1 cron `monitor-ci-ee58720` 抓到失败, 已删; 重新建 `monitor-ci-<v0.60.2 sha>`)
+- **Phase 5**: lbc001 答题 5 道验证 dual_agent + 备份清理
+
+
 
 
