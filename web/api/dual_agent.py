@@ -293,6 +293,28 @@ def process_observation_for_student(
                 student_id, exc_info=True,
             )
 
+        # v0.64.0: 回写 prev calibration_log.actual_outcome
+        #   之前 (v0.60.4 留下的 BUG): prev_calibrated.actual_outcome 在
+        #   orch.process_observation 内部被填上 (基于本次 observation.score),
+        #   但**没回写 DB**. 所以 calibration_log 表里所有 prev 行的
+        #   actual_outcome 都是 None, H3 验证算不出 ECE.
+        #   修复: 写新 calibration_log 前, 先 UPDATE 上一轮 (round-1) 的
+        #   actual_outcome 到 DB. 失败 _log.warning + 兜底 (主流程不受影响).
+        prev_round = result.calibration_round - 1
+        if prev_round >= 1:
+            try:
+                _write_prev_actual_outcome(
+                    student_id=student_id,
+                    prev_round=prev_round,
+                    orch=orch,
+                )
+            except Exception:
+                _log.warning(
+                    "_write_prev_actual_outcome 失败 (student=%s, round=%s), "
+                    "prev calibration_log actual_outcome 留 None, H3 验证会回填",
+                    student_id, prev_round, exc_info=True,
+                )
+
         # 写 calibration_log
         calibration_id = _write_calibration_log(
             student_id=student_id,
@@ -388,6 +410,52 @@ def get_dual_agent_debug_info(student_id: str) -> Dict[str, Any]:
 
 
 # ─── Internal helpers ───────────────────────────────────────────────────────
+
+
+def _write_prev_actual_outcome(
+    student_id: str,
+    prev_round: int,
+    orch,
+) -> int:
+    """v0.64.0: 回写 prev calibration_log.actual_outcome 到 DB.
+
+    背景 (v0.60.4 留下的 BUG):
+      prev_calibrated.actual_outcome 在 orch.process_observation 内部被填上
+      (基于本次 observation.score), 但**没回写 DB**. 所以 calibration_log 表里
+      所有 prev 行的 actual_outcome 都是 None, H3 验证算不出 ECE.
+
+    修复: 写新 calibration_log 前, 拿 orch.intervention_history[sid][-2] (prev)
+          的 actual_outcome, UPDATE 到 DB prev_round 行.
+          注: process_observation 末尾 append calibrated, 所以 history[-1] 是当前
+              calibrated, history[-2] 是 prev (被 Step 0 改了 actual_outcome).
+
+    Args:
+        student_id: 学生 ID
+        prev_round: 上一轮 calibration_round (>= 1)
+        orch: DualAgentOrchestrator 实例
+
+    Returns:
+        更新的行数 (0 表示 prev_round 不存在 / orch 内部 prev 是 None, 1 表示成功).
+        任何异常都 raise (让 caller _log.warning + 兜底).
+    """
+    history = orch.intervention_history.get(student_id, [])
+    # 至少 2 条 (prev + 当前) 才能拿 prev
+    if len(history) < 2:
+        # orch 内部 history 只有 1 条或 0 条, prev 是 None 或没出现
+        return 0
+
+    # history[-1] 是当前 calibrated, history[-2] 是 prev (被 Step 0 改 actual_outcome)
+    prev = history[-2]
+    if prev.actual_outcome is None:
+        return 0
+
+    from ecos.persistence.db import get_db
+    db = get_db()
+    return db.update_calibration_actual_outcome(
+        student_id=student_id,
+        calibration_round=prev_round,
+        actual_outcome=prev.actual_outcome,
+    )
 
 
 def _write_calibration_log(

@@ -676,6 +676,62 @@ class Database:
         ).fetchall()
         return [dict(r) for r in rows]
 
+    def update_calibration_actual_outcome(
+        self,
+        student_id: str,
+        calibration_round: int,
+        actual_outcome: float,
+    ) -> int:
+        """v0.64.0: 回写 calibration_log 某行的 actual_outcome 字段.
+
+        背景 (v0.60.4 留下的 BUG):
+          prev_calibrated.actual_outcome 在 orch.process_observation 内部被填上
+          (基于本次 observation.score), 但**没回写 DB**. 所以 calibration_log 表里
+          所有 prev 行的 actual_outcome 都是 None, H3 验证算不出 ECE.
+
+        修复: dual_agent._write_calibration_log 前先调这个方法, 把 prev (round-1)
+              的 actual_outcome 回写.
+
+        Args:
+            student_id: 学生 ID
+            calibration_round: 哪一轮 (通常是 prev 的 round)
+            actual_outcome: 实际 outcome (0.0-1.0, v0.61.0 改 score 派生)
+
+        Returns:
+            更新的行数 (0 表示 round 不存在, 1 表示更新成功).
+        """
+        # 防御性自检 [1]: 失败 _log.warning + raise (让 caller 决定怎么处理)
+        try:
+            # 先查现有 message_payload (避免覆盖其他字段)
+            row = self.conn.execute(
+                """SELECT message_payload FROM calibration_log
+                   WHERE student_id = ? AND calibration_round = ?""",
+                (student_id, calibration_round),
+            ).fetchone()
+            if row is None:
+                return 0
+            existing = json.loads(row["message_payload"]) if row["message_payload"] else {}
+            existing["actual_outcome"] = float(actual_outcome)
+            with self.tx():
+                self.conn.execute(
+                    """UPDATE calibration_log
+                       SET message_payload = ?
+                       WHERE student_id = ? AND calibration_round = ?""",
+                    (
+                        json.dumps(existing, ensure_ascii=False),
+                        student_id,
+                        calibration_round,
+                    ),
+                )
+            return 1
+        except Exception:
+            _log.warning(
+                "update_calibration_actual_outcome 失败 (student=%s, round=%s), "
+                "prev calibration_log 实际 outcome 留 None",
+                student_id, calibration_round, exc_info=True,
+            )
+            raise
+
     # ─── Bloom Goals ───────────────────────────────────────────────────────────
 
     def save_bloom_goal(self, goal_id: str, data: dict) -> None:

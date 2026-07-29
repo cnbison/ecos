@@ -3278,3 +3278,81 @@ Phase 0 100% 完成 🎉
 - **单 Agent confidence 历史快照** (v0.64.0+): response_history 加 confidence 字段, 真实校准度计算
 - **reliability diagram 画图** (v0.64.0+): matplotlib 依赖评估后落地
 - **下次 push 时建 cron 监控 CI** (按 CLAUDE.md [9] 规则: push 后建 → 绿后立即删)
+
+## [0.64.0] 2026-07-29 — 双修: mastery_prob_after 历史快照 + calibration_log prev.actual_outcome 回写 (H3 B 部分前置)
+
+> **触发**: Bisen 2026-07-29 15:33 拍板 "v0.64.0 双修先做. 做完我做题 解决H3 验证 (B 部分)".
+> 双修 = 修复 1 (mastery_prob_after) + 修复 2 (calibration_log prev.actual_outcome 回写). 修完后 H3 验证脚本能跑真实数据, 不用 v0.63.0 兜底.
+
+### ✅ 已做
+
+#### 1. ecos/cta/belief_engine.py: belief_engine.update 后 history[-1] 补 mastery_prob_after 字段 (修复 1)
+- 之前 v0.49.2 / v0.52.2 / v0.54.0 在 Step 2 append 时还没 update, history[i] 缺 mastery_prob_after
+- v0.64.0: Step 8 算完 5D confidence 后, 补 history[last] 字段
+- 字段内容 (5D mastery_prob + bloom):
+    - K/P/S/C/X: 各维度 mastery_prob (0-1)
+    - bloom_dominant: 当前 dominant_layer.name
+    - bloom_confidence: bloom_profile.confidence
+    - overall_confidence: 整体置信度
+- 用途: H3 验证 / 答题历史详情页 / Phase 5 学术分析
+- 向后兼容: 老 history[i] 没这字段, get("mastery_prob_after", {}) 兜底
+
+#### 2. ecos/persistence/db.py: add update_calibration_actual_outcome 方法 (修复 2 配套)
+- 新方法: `db.update_calibration_actual_outcome(student_id, calibration_round, actual_outcome) -> int`
+- 行为: 查 calibration_log (student_id, round) 行, 把 actual_outcome 字段 merge 到 message_payload JSON
+- 失败: _log.warning(..., exc_info=True) + raise (caller 决定怎么处理)
+- 返回: 0 (round 不存在) / 1 (更新成功)
+
+#### 3. web/api/dual_agent.py: process_observation 时自动回写 prev.actual_outcome (修复 2 主体)
+- 新函数: `_write_prev_actual_outcome(student_id, prev_round, orch) -> int`
+- 行为: 拿 orch.intervention_history[sid][-2] (prev, 已被 Step 0 改 actual_outcome) → UPDATE DB prev_round 行
+- 调用时机: 写新 calibration_log 前 (在 `_write_calibration_log` 之前)
+- 失败兜底: _log.warning + 不影响主流程
+- 注: history[-1] 是当前 calibrated, history[-2] 是 prev (process_observation 末尾 append calibrated)
+
+#### 4. scripts/compute_h3_ece.py: 移除 v0.63.0 回填 fallback
+- 单 Agent: 用 history[i].mastery_prob_after[dimension] 当 confidence, 不再用当前 mastery_prob 简化
+  - 老 history[i] 没 mastery_prob_after 字段 → fallback 当前 mastery_prob (会标注 used_fallback > 0)
+- 双 Agent: 直接读 calibration_log.actual_outcome, 移除 response_history.correct 兜底
+  - v0.60.4 历史数据 (actual_outcome 留 None) → skip 标注 skipped_no_outcome
+
+#### 5. tests/test_v064_mastery_prob_after.py (v0.64.0 新建, 8 测试)
+- TestMasteryProbAfterField (3): history 补 mastery_prob_after / 答对应涨 mastery_prob / 老 history 兼容
+- TestPrevActualOutcomeWriteback (2): process_observation 2 次后回写 prev / db.update_calibration_actual_outcome 单测 / 不存在 round 返回 0
+- TestComputeH3ECEV064 (2): 单 Agent 用 mastery_prob_after / 双 Agent 直接读 actual_outcome
+- 5 个修复点全覆盖 (mastery_prob_after 字段 / db.update 方法 / dual_agent 回写 / compute_h3_ece 不再 fallback)
+
+### CLAUDE.md [7] 防御性警告 (v0.64.0 双修, 抛 Bisen)
+- **不动**: students.* / student_lca_state.* / student_dual_agent_state.* / calibration_log 老 5 行 (lbc001 历史 v0.60.4 数据)
+- **不动**: belief.py 累加逻辑 / dual_agent 业务逻辑 / lca.py
+- **改动**: belief_engine.py Step 8 末尾补 mastery_prob_after (additive, 老 dict 兼容)
+- **改动**: db.py 加 update_calibration_actual_outcome 方法 (新方法, 不动 schema)
+- **改动**: dual_agent.py 加 _write_prev_actual_outcome (新流程, 调用 db.update_calibration_actual_outcome)
+- **改动**: compute_h3_ece.py 移除 fallback (行为更准, 但老数据会标注)
+
+### 关键技术决策
+1. **mastery_prob_after 是 update 后 5D 状态快照**: 跟 confidence 计算公式一致 (1/(1+SE), v0.48.0 设计)
+2. **prev 回写时机: 写新 calibration_log 前**: 跟 LCA "每次都落盘" 同样模式, 保持一致性
+3. **fallback 处理**: 老 data 没 mastery_prob_after / actual_outcome 留 None → 标注 used_fallback / skipped_no_outcome, 不静默 fallback
+4. **不重写历史数据**: v0.60.4 5 行 calibration_log actual_outcome 全 None, 修源码即可, 不写数据迁移脚本
+
+### 数据迁移 / 已知影响
+- **lbc001 calibration_log 老 5 行**: actual_outcome 仍是 None, v0.64.0 修复只影响**新跑**的 dual_agent 数据
+- **lbc001 response_history 60 行**: 老的没 mastery_prob_after 字段, compute_h3_ece 用 fallback 标注 used_fallback
+- **B 部分 (lbc001 答 30+ 道 dual_agent)**: v0.64.0 上线后跑的数据, actual_outcome 全有 + mastery_prob_after 全有
+
+### 防御性自检 (CLAUDE.md 规范)
+- [x] [1] silent pass: db.update_calibration_actual_outcome 失败 _log.warning + raise; _write_prev_actual_outcome 失败 caller _log.warning + 兜底
+- [x] [2] __version__ 0.63.0 → 0.64.0
+- [x] [3] detect_with_hits 传 library_str (本次不涉及 misconception)
+- [x] [4] HTML class 对齐 (本次不动 HTML)
+- [x] [5] **核心**: mastery_prob_after 字段 + calibration_log 回写 (双修), 5 个修复点全覆盖
+- [x] [6] 不写启发式 fallback (compute_h3_ece 老数据标注 + skip, 不静默)
+- [x] [7] 架构升级前警告历史状态丢失: CHANGELOG 头部已写
+- [x] [8] 改 API 加测试: 5 个修复点 + 8 测试覆盖
+- [x] [9] 防御性自检脚本: bash scripts/check_defensive.sh 全过, pytest **245/245 全部通过** (8 新增 + 237 原有)
+
+### 📋 后续 (不在 v0.64.0 commit)
+- **Bisen 答 30+ 道 dual_agent + H3 B 部分**: 1-2 天 (Bisen 答题 + 我跑 H3 + 写完整报告)
+- **v0.53.0 下半段 C 主导题扩 20+ 题**: 1-2 天 (LLM 生成 + Bisen 审题)
+- **下次 push 时建 cron 监控 CI** (按 CLAUDE.md [9] 规则: push 后建 → 绿后立即删)

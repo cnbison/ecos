@@ -82,11 +82,8 @@ def compute_single_agent_ece(
 ) -> Dict[str, Any]:
     """单 Agent baseline: 算 lbc001 答题历史的 5D 某维度校准度.
 
-    注意: 单 Agent (CTA only) 不存 "答题后 confidence" 序列.
-          用 response_history 推算: 第 i 题的 confidence 用第 i-1 题 update 后的 mastery_prob
-          (即"答这道题时 CTA 估计的 mastery" 跟 "实际答对" 配对).
-
-    v0.63.0 简化: 暂时用每个问题 "提交时 CTA 5D 各维度 mastery_prob 跟 actual correct 配对".
+    v0.64.0 改进: 用 response_history[i].mastery_prob_after[dimension] 当 confidence,
+                  不再是 v0.63.0 简化 (用当前 mastery_prob 当所有问题 confidence).
     """
     history = load_student_response_history(student_id)
     if not history:
@@ -98,28 +95,43 @@ def compute_single_agent_ece(
             "msg": "无 response_history, 无法算 baseline ECE",
         }
 
-    # v0.63.0 简化: 用 K 维度 default 0.5 (没存历史 mastery_prob 序列时兜底)
-    # 未来: 跟 belief_engine 配合, 存每次 update 后的 5D 状态快照
-    from web.api.belief import _get_or_create_student
-    student = _get_or_create_student(student_id)
-    state = student["state"]
-    current_dim = getattr(state, dimension, None)
-    current_confidence = getattr(current_dim, "mastery_prob", 0.5)
+    confidences = []
+    accuracies = []
+    used_fallback = 0
+    for h in history:
+        correct = bool(h.get("correct", 0))
+        accuracies.append(1.0 if correct else 0.0)
 
-    # confidence 序列: 每个问题都用当前 mastery_prob (简化, 未来要存历史快照)
-    confidences = [current_confidence] * len(history)
-    # accuracy 序列: response_history[i].correct (派生自 score >= 0.6)
-    accuracies = [float(h.get("correct", 0)) for h in history]
+        # v0.64.0: mastery_prob_after 字段 (update 后 5D 状态快照)
+        # 老数据 (v0.64.0 之前) 没这字段, fallback 到当前 mastery_prob 简化
+        mpa = h.get("mastery_prob_after")
+        if mpa and isinstance(mpa, dict):
+            conf = float(mpa.get(dimension, 0.5))
+        else:
+            # 兜底: v0.63.0 简化, 用当前 mastery_prob
+            from web.api.belief import _get_or_create_student
+            student = _get_or_create_student(student_id)
+            state = student["state"]
+            current_dim = getattr(state, dimension, None)
+            conf = getattr(current_dim, "mastery_prob", 0.5)
+            used_fallback += 1
+
+        # 截断到 [0, 1]
+        conf = max(0.0, min(1.0, conf))
+        confidences.append(conf)
 
     from ecos.metrics import expected_calibration_error, binary_calibration
     result = binary_calibration(confidences, [bool(a) for a in accuracies])
     result["dimension"] = dimension
     result["student_id"] = student_id
-    result["current_mastery_prob"] = current_confidence
-    result["msg"] = (
-        f"v0.63.0 简化: 用当前 mastery_prob 当所有问题的 confidence "
-        f"(实际应该是历史快照序列, 未来改进)"
-    )
+    result["used_fallback"] = used_fallback
+    if used_fallback > 0:
+        result["msg"] = (
+            f"v0.64.0 改进: {len(history) - used_fallback}/{len(history)} 用 "
+            f"mastery_prob_after 历史快照, {used_fallback}/{len(history)} 兜底到当前 mastery_prob"
+        )
+    else:
+        result["msg"] = "v0.64.0 改进: 全部用 mastery_prob_after 历史快照"
     return result
 
 
@@ -135,8 +147,10 @@ def compute_dual_agent_ece(
     confidence: message_payload.expected_gain (互校预测的 gain, 0-1)
     accuracy: actual_outcome (实际 outcome, v0.61.0 改 score 派生 0-1)
 
-    v0.63.0 改进: actual_outcome 是 None 时 (v0.60.4 写库 BUG, 没回写
-    prev.actual_outcome), 用 response_history[i-1].correct 兜底回填.
+    v0.64.0 改进: 移除 v0.63.0 的 response_history 回填 fallback.
+      v0.60.4 留下的 calibration_log actual_outcome 全 None BUG 已经被
+      dual_agent._write_prev_actual_outcome (v0.64.0 新增) 修复:
+      process_observation 时自动回写 prev 的 actual_outcome 到 DB.
     """
     log = load_student_calibration_log(student_id, limit=limit)
     if not log:
@@ -147,16 +161,10 @@ def compute_dual_agent_ece(
             "msg": "无 calibration_log, 无法算 experiment ECE (dual_agent 未启用过?)",
         }
 
-    # v0.63.0: 加载 response_history 作为 actual_outcome 兜底源
-    history = load_student_response_history(student_id)
-    # 简化: response_history[i-1].correct 兜底 calibration_log[i].actual_outcome
-    # 假设 calibration_log 跟 response_history 时序对应 (dual_agent 5 行是最后 5 道题)
-    history_corrects = [bool(h.get("correct", 0)) for h in history]
-
     confidences = []
     accuracies = []
-    used_fallback = 0
-    for i, row in enumerate(log):
+    skipped_no_outcome = 0
+    for row in log:
         try:
             payload = json.loads(row.get("message_payload", "{}") or "{}")
         except json.JSONDecodeError:
@@ -166,21 +174,10 @@ def compute_dual_agent_ece(
 
         if expected_gain is None:
             continue
-
-        # actual_outcome 回填 fallback: 用 response_history[i-1].correct
+        # v0.64.0: 不再 fallback, 没 actual_outcome 的行 skip (历史 v0.60.4 数据)
         if actual_outcome is None:
-            # 取 response_history 第 (n_history - n_log + i) 个 (假设 calibration_log 是最后几道)
-            if history_corrects:
-                # 简化: 按 i 索引, calibration_log 第 i 行 → response_history 第 i 个 correct
-                # (更准确是 calibration_log 是最后几道, 但 i=0 是首题, 用 history[i])
-                idx = i
-                if idx < len(history_corrects):
-                    actual_outcome = 1.0 if history_corrects[idx] else 0.0
-                    used_fallback += 1
-                else:
-                    continue
-            else:
-                continue
+            skipped_no_outcome += 1
+            continue
 
         # expected_gain 可能是负数或 > 1, 截断到 [0, 1]
         conf = max(0.0, min(1.0, float(expected_gain)))
@@ -193,24 +190,24 @@ def compute_dual_agent_ece(
             "student_id": student_id,
             "n_samples": 0,
             "ece": None,
-            "msg": "calibration_log 行无 expected_gain 或无法回填 actual_outcome",
+            "msg": (
+                f"calibration_log {len(log)} 行无 expected_gain/actual_outcome 配对, "
+                f"skip {skipped_no_outcome} 行 (v0.60.4 历史数据, v0.64.0 修复)"
+            ),
         }
 
     from ecos.metrics import expected_calibration_error
     ece = expected_calibration_error(confidences, accuracies)
-    msg = ""
-    if used_fallback > 0:
-        msg = (
-            f"v0.63.0 改进: {used_fallback}/{len(log)} 行 actual_outcome 用 "
-            f"response_history.correct 兜底回填 (DB 写库 BUG 待修)"
-        )
+    msg = "v0.64.0 改进: 直接读 calibration_log.actual_outcome (无 fallback)"
+    if skipped_no_outcome > 0:
+        msg += f", skip {skipped_no_outcome}/{len(log)} 行 (v0.60.4 历史数据)"
     return {
         "student_id": student_id,
         "n_samples": len(confidences),
         "ece": ece,
         "avg_confidence": sum(confidences) / len(confidences),
         "avg_accuracy": sum(accuracies) / len(accuracies),
-        "used_fallback": used_fallback,
+        "skipped_no_outcome": skipped_no_outcome,
         "msg": msg,
     }
 

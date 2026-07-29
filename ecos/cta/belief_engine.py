@@ -420,6 +420,24 @@ class BeliefEngine:
             state.C.confidence, state.X.confidence,
         ]))
 
+        # v0.64.0: 补 last history entry 的 mastery_prob_after 字段
+        #   之前 v0.49.2 / v0.52.2 / v0.54.0 在 Step 2 append 时还没 update,
+        #   所以 history[i] 缺 mastery_prob_after, H3 验证 confidence 用当前 mastery_prob 简化
+        #   现在 Step 8 算完 5D confidence 后,补 history[last] 字段
+        #   用途: H3 验证 / 答题历史详情页 / Phase 5 学术分析
+        #   向后兼容: 老 history[i] 没这字段, get("mastery_prob_after", {}) 兜底
+        if history:
+            history[-1]["mastery_prob_after"] = {
+                "K": float(state.K.mastery_prob),
+                "P": float(state.P.mastery_prob),
+                "S": float(state.S.mastery_prob),
+                "C": float(state.C.mastery_prob),
+                "X": float(state.X.mastery_prob),
+                "bloom_dominant": state.bloom_profile.dominant_layer.name,
+                "bloom_confidence": float(state.bloom_profile.confidence),
+                "overall_confidence": float(state.overall_confidence),
+            }
+
         # Step 9: 追加轨迹快照
         state.trajectory.append(state.snapshot())
         if len(state.trajectory.snapshots) > self.config.trajectory_maxlen:
