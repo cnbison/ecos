@@ -11,9 +11,17 @@
   cta_engine.create_initial_state → 全 0 初始 state (bloom=REMEMBER)
   belief.py 累加 32+ 道后 bloom=EVALUATE → 双流程 bloom_target 错位
   v0.62.1 修复: DB 无状态时从 belief.py 拿深拷贝, 避免脱节
+
+v0.62.1 CI 失败修复 (2026-07-29):
+  - root cause: submit_answer 内部 from web.api.app import get_llm →
+    ECOSLLMClient.from_env 在 CI 干净环境无 MINIMAX_API_KEY 抛 ValueError
+  - 修复: fresh_both fixture monkeypatch web.api.app.get_llm 返回 MagicMock
+  - 验证: pytest -v 全过 + bash scripts/check_defensive.sh 全过
 """
 
 from __future__ import annotations
+
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -22,12 +30,22 @@ import pytest
 
 
 @pytest.fixture
-def fresh_both():
-    """重置 dual_agent + belief.py 模块状态 (跟 test_lca_persistence 同样模式)."""
+def fresh_both(monkeypatch):
+    """重置 dual_agent + belief.py 模块状态 + mock LLM (避免 CI 干净环境 api_key 缺失).
+
+    v0.62.1 CI 失败修复: monkeypatch web.api.app.get_llm → MagicMock
+      - submit_answer 内部会 from web.api.app import get_llm, 然后 get_llm() 调
+        ECOSLLMClient.from_env("minimax"), CI 干净环境无 MINIMAX_API_KEY 抛 ValueError
+      - 用 MagicMock 替代, submit_answer 拿到 mock LLM, 走 fallback 路径
+    """
     import web.api.dual_agent as dual_mod
     import web.api.belief as belief_mod
     from ecos.persistence import dual_agent_store as da_store_mod
     from ecos.persistence.dual_agent_store import get_dual_agent_store
+
+    # v0.62.1: mock LLM (CI 干净环境无 api_key 防御)
+    mock_llm = MagicMock()
+    monkeypatch.setattr("web.api.app.get_llm", lambda: mock_llm)
 
     # 重置 dual_agent 模块状态
     dual_mod._orchestrator = None

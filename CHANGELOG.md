@@ -3149,3 +3149,47 @@ Phase 0 100% 完成 🎉
 - **H3 验证** (v0.62.0-C / v0.62.2+): 互校抗幻觉实证 (CTA vs LCA 信念一致率指标, lbc001 32+ 道已满足触发条件)
 - **元反思模式** (v0.63.0+): 4 周停滞检测 (MetaReflection, Phase 5+ 计划)
 - **下次 push 时建 cron 监控 CI** (按 CLAUDE.md [9] 规则: push 后建 → 绿后立即删)
+
+## [0.62.2] 2026-07-29 — v0.62.1 CI 失败修复 #1 (Bisen cron 14:55 抓红)
+
+> **触发**: Bisen cron check-v0.62.1-ci 抓到 commit cfdf267 CI 失败 (annotations: exit code 1). 本地 python -m pytest + bash scripts/check_defensive.sh 223/223 全过, **本地不能复现 CI 失败**.
+>
+> **CLAUDE.md [7] 防御性警告 (CI 失败修复, 抛 Bisen)**:
+> - **不动**: v0.62.1 业务逻辑 (web/api/dual_agent.py _load_dual_state_if_needed 改造, _init_dual_state_from_belief_py 新函数)
+> - **不动**: 实际 4 个测试逻辑 (TestBloomTargetAlignment / TestStateIsolation)
+> - **改测试 fixture**: fresh_both 加 monkeypatch.setattr("web.api.app.get_llm", lambda: mock_llm) (CI 干净环境 robustness 提升)
+
+### ✅ 已做
+
+#### 1. tests/test_dual_agent_belief_alignment.py fresh_both fixture 加 LLM mock
+- 加 `monkeypatch.setattr("web.api.app.get_llm", lambda: mock_llm)` (CI 干净环境 robustness 提升)
+- 根因怀疑: CI 干净环境无 .env, submit_answer 内部 `from web.api.app import get_llm` → get_llm() 调 ECOSLLMClient.from_env 抛 ValueError
+- 本地不能复现: 本地有 .env, _load_dotenv 模块级调用注入 MINIMAX_API_KEY 到 os.environ
+- **不 100% 确认是 root cause** (没 Python 3.12 环境 + 没 GitHub Actions admin log 权限), 但 monkeypatch 是合理 fix
+
+#### 2. CI 失败抓真 root cause 限制
+- 本地 Python 3.13.5 + 有 .env, **不能 1:1 复现 CI 干净环境 (macos-latest + Python 3.12 + 无 .env)**
+- GitHub Actions job log 需要 admin 权限, 当前 Mavis 没法访问 (跟 v0.60.3 当时一样)
+- Bisen 自己有 repo admin 权限, 如果 v0.62.2 仍红 → 建议 Bisen 直接看 GitHub Actions log
+
+### 关键技术决策
+1. **monkeypatch 修复 vs revert**: 选 monkeypatch (业务逻辑正确, 只是 CI 干净环境补强), 不 revert 业务改动
+2. **autouse fixture vs 局部 fixture**: 选 fresh_both 局部 fixture (影响范围小, 避免破坏其他 219 测试)
+3. **MagicMock 替代真实 LLM**: MagicMock() 任何属性都是 mock, submit_answer 内部 get_llm() 拿 mock 跑 fallback 路径
+
+### 防御性自检 (CLAUDE.md 规范)
+- [x] [1] silent pass: v0.62.2 测试 fixture 加 monkeypatch, 业务代码无 silent pass
+- [x] [2] __version__ 0.62.1 → 0.62.2
+- [x] [3] detect_with_hits 传 library_str (本次不涉及 misconception)
+- [x] [4] HTML class 对齐 (本次不动 HTML)
+- [x] [5] **核心**: monkeypatch 修复, 4 测试 fixture 改造
+- [x] [6] 不写启发式 fallback (本次不涉及 /api/judge)
+- [x] [7] 架构升级前警告历史状态丢失: 本 CHANGELOG 头部已写
+- [x] [8] 改 API 加测试: fresh_both fixture 加 LLM mock
+- [x] [9] 防御性自检脚本: bash scripts/check_defensive.sh 全过, pytest **223/223 全部通过**
+
+### 📋 后续 (不在 v0.62.2 commit)
+- **如 v0.62.2 仍红**: 建议 Bisen 直接看 GitHub Actions log, 抓真 root cause
+- **H3 验证** (v0.62.0-C / v0.62.3+): 互校抗幻觉实证
+- **元反思模式** (v0.63.0+): 4 周停滞检测
+- **下次 push 时建 cron 监控 CI** (按 CLAUDE.md [9] 规则: push 后建 → 绿后立即删)
