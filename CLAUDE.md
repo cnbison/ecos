@@ -269,9 +269,11 @@ discussions/YYYY-MM-DD-主题关键词.md
 >
 > 本节规范从此强制生效。
 >
-> **v0.55.0 自动化** (2026-07-23)：5 项防御性自检 + pytest 22 测试已统一到 `bash scripts/check_defensive.sh`，本地 `make check` / GitHub Actions `.github/workflows/test.yml` 都跑，避免手动漏检。详见 [§v0.55.0 pytest 自动化套件](#v0550-pytest-自动化套件-2207-23-新增)。
+> **v0.64.1 自动化** (2026-07-29 Bisen 拍板改写)：5 项防御性自检 + pytest 245 测试已统一到 `bash scripts/check_defensive.sh`。**本地强制** (`pre-commit` hook 跑静态 / `pre-push` hook 跑全量) + **GitHub Actions 改 manual only**, 不再消耗 CI 自动配额. 详见 [§v0.64.1 本地强制 + CI 手动](#v0641-本地强制--ci-手动-2026-07-29-bisen-拍板改写).
 
-### 每次 commit 前的自检清单（必跑）
+### 每次 commit 前的自检清单（已自动化，hook 强制）
+
+> **v0.64.1 后**: `pre-commit` hook 已自动跑 [1][2][3][5] 四项 (秒级), `pre-push` hook 跑全部 5 项 + pytest (~30s-1min). 下面这些命令是 **hook 失败时手动 debug 用**, 不需要每次手动跑.
 
 ```bash
 # 1) silent failure 扫描：禁止新增 'except Exception: pass' / 'except: continue'
@@ -323,38 +325,41 @@ grep -n "_get_or_create_student\|save_student_state\|load_student_state" web/api
 >
 > 例外：仅在 `__init__.py` 的 `Optional` import 兜底，或 `feature flag` 关闭分支允许 silent pass——但**必须加注释说明**。
 
-### [9] CI 状态监控 (2026-07-28 Bisen 反馈后新增, v0.58.3 落规则)
+### [9] 本地 push 前必跑 (2026-07-28 Bisen 反馈后新增, v0.58.3 落规则 → v0.64.1 改写)
 
 > **起源**: 2026-07-28 Bisen 反馈 5 封 GitHub Actions 失败邮件 (14:57 → 18:31, 5 个 commit 全 fail).
 > **根因**: Mavis 每次 `git push` 退出码 0 就报"成功"收工, **从不回头查 CI 状态**. 累计 5 个 commit (f383e00 / 7397381 / cd89519 / 6909442 / ed54f96) 全部 fail 但没察觉. 实际原因: `pyproject.toml` 漏 `flask` 依赖, v0.55.0 加 CI 时漏写, v0.56.1 加 `flask_client` fixture 后才暴露.
-> **规范**: **任何 push 之后, 必须建 `cron self` 监控 CI 状态** (每 5 分钟查最新 run, 失败立即报告 + 修复), 不能"看 push 退出码 0 就报成功".
+> **v0.64.1 修正 (Bisen 拍板 2026-07-29)**: 旧规范是"push 后建 cron 监控 CI 5 分钟, 绿后删", 已被废弃.
+> 根本问题是: **CI 环境没有真实 LLM / DB, 跑出来比本地少, 多次出现"本地绿 / CI 红"伪错配** (v0.58.3 flask 漏 / v0.58.4 DB 依赖 / v0.62.2 LLM mock 漏). 既然 CI 跑不全, 在 CI 上等结果就是浪费.
 >
-> **生命周期 (Bisen 2026-07-28 11:15 修正)**: cron 长期挂着是浪费 (CI 平时不跑新 commit 没事可查). 用 **"push 后建 → CI 绿后立即删"** 模式:
-> - push 之后: `mavis cron self --cron_name "monitor-ci-<short_sha>" --every "5m" --prompt "查 CI, 失败立刻报告 Bisen + 修; 绿后 Bisen 拍板删"`
-> - CI 绿 + Bisen 拍板: 立刻 `mavis cron delete monitor-ci-<short_sha>`, **不要挂着**
-> - Mavis 自身承诺: 自己记得 (在 CLAUDE.md [9] 这条规则里写明) + 主动提醒 Bisen
+> **新规范 (v0.64.1)**:
+> - **本地强制**: `pre-commit` hook 自动跑 5 项静态检查 (秒级), 不通过禁止 commit
+> - **本地强制**: `pre-push` hook 自动跑 5 项静态 + pytest 全量 (~30s-1min), 不通过禁止 push
+> - **GitHub Actions 改为 manual only** (`workflow_dispatch`), 仅排查"本地环境被污染"等问题时手动触发, 不消耗自动配额
+> - **不要** `git commit --no-verify` / `git push --no-verify` 绕过 hook (紧急 hotfix 除外, 绕过时要在 commit message 说明)
+> - **不要**再建 `monitor-ci-<short_sha>` cron 监控 CI (CI 不再自动跑, 没东西可监控)
 >
-> **修一类的扫描**:
-> - 加新依赖 → grep `from <pkg> import` / `import <pkg>` 全项目, **列全** → 同步更新 `pyproject.toml` dependencies
-> - 加新 test fixture (尤其 import 第三方包) → 必须先 `pip install -e ".[dev]"` 干净环境跑通再 push
-> - push 后 5 分钟内未收到 CI pass → 主动查 GitHub Actions 状态, 不等 Bisen 报
+> **Mavis 承诺 (沿用旧规范 [9] 精神)**:
+> - push 后不能看 `git push` 退出码 0 就报"成功" → 必须看 **pre-push hook 跑了什么 + pytest 全绿** 才算成功
+> - 加新依赖 → grep `from <pkg> import` / `import <pkg>` 全项目 → 同步更新 `pyproject.toml` dependencies
+> - 加新 test fixture (尤其 import 第三方包) → 必须先 `pip install -e ".[dev]"` 干净环境跑通, pre-push hook pytest 全绿再 push
 >
-> **自检命令** (push 后 5 分钟跑):
-> ```bash
-> curl -s "https://api.github.com/repos/cnbison/ecos/actions/runs?per_page=1" | python -c "import json,sys; r=json.load(sys.stdin)['workflow_runs'][0]; print(f\"{r['conclusion']} {r['name']} {r['html_url']}\")"
-> ```
->
-> **cron 模板**:
-> ```
-> mavis cron self --cron_name "monitor-ci-<short_sha>" --every "5m" --prompt "查 CI 状态, 失败立刻报告 Bisen, 修好后删 cron"
-> ```
+> **历史**: 旧"建 cron 监控 CI"规则 (2026-07-28 11:15 拍板) 已废弃, 因为 CI 不再自动跑, 没东西可监控.
 
-### v0.55.0 pytest 自动化套件 (2026-07-23 新增)
+### v0.64.1 本地强制 + CI 手动 (2026-07-29 Bisen 拍板改写)
 
-**入口**：
-- 本地：`bash scripts/check_defensive.sh` 或 `make check`
-- GitHub Actions：`.github/workflows/test.yml` (push main / PR main / 手动触发)
-- pytest：`make test` 或 `python -m pytest tests/ -v`
+**入口**（按拦截阶段排序）:
+- `pre-commit` hook (`githooks/pre-commit`): commit 前自动跑 `check_defensive.sh --static-only` (5 项静态, ~0.5s)
+- `pre-push` hook (`githooks/pre-push`): push 前自动跑 `check_defensive.sh` 全量 (5 项静态 + pytest, ~10-30s)
+- 本地手动: `bash scripts/check_defensive.sh` 或 `make check`
+- pytest 单独: `make test` 或 `python -m pytest tests/ -v`
+- GitHub Actions: `.github/workflows/test.yml` (manual only, 排查"本地环境被污染"时手动触发)
+
+**新机器启用** (clone 后跑一次):
+```bash
+bash scripts/install-hooks.sh    # 设 core.hooksPath = githooks/
+# 验证: git config --get core.hooksPath  → 应输出 githooks
+```
 
 **5 项防御性自检**（自动化）：
 
@@ -366,11 +371,13 @@ grep -n "_get_or_create_student\|save_student_state\|load_student_state" web/api
 | 4 | HTML class 与 CSS 对齐 | v0.47.3 inline / v0.50.0 5D badge class 错配 | `grep` HTML class vs CSS 选择器 (warning) |
 | 5 | DB 恢复 6 关键字段 | 4 次漏字段 (json/tc_states/trajectory/item_params) | 检查 6 字段全在 belief.py + db.py |
 
-**22 pytest 测试**（4 个文件）：
-- `test_defensive.py` (5)：5 项防御性自检的 pytest 版本（CI gate）
+**245 pytest 测试**（截至 v0.64.0, 15 个文件）：
+- `test_defensive.py` (5)：5 项防御性自检的 pytest 版本
 - `test_partial_credit.py` (5)：partial credit + MIRT 回归保护
-- `test_dual_layer.py` (2)：5D 双层架构（领域无关核心 + 编程应用层）
-- `test_cross_subject.py` (10)：跨学科迁移（5 学科 × 2 维度 = 10 测试）
+- `test_dual_layer.py` (2)：5D 双层架构
+- `test_cross_subject.py` (10)：跨学科迁移
+- `test_lca_persistence.py` / `test_lca_wired.py` / `test_dual_agent*.py` / `test_judge_*.py` / `test_rejudge_partial_credit.py` / `test_ece.py` / `test_v064_mastery_prob_after.py` 等: 后续 Phase 5+ 加的功能测试
+- **本地 pre-push hook 强制全跑**, 任何 1 个 fail 都会 abort push
 
 ### 计划中的防御机制（v0.47.6+ TODO）
 
@@ -430,10 +437,10 @@ grep -n "_get_or_create_student\|save_student_state\|load_student_state" web/api
     - 5 学科 (math/chinese/english/physics/chemistry) 各 10 道设计目标
     - 当前 5 学科扩展 0 题,防 v0.56.0+ 之前虚标
   - 防 v0.54.1-e 教训: 5D 核心必须领域无关,跨学科题库设计是 Phase 6 必修
-- [x] **CI gate v0.55.0-e**：CI 集成 (`.github/workflows/test.yml` + `Makefile`)
-  - 触发: push main / PR main / 手动
-  - 步骤: install deps → check_defensive (5 项) → pytest (22)
-  - macOS runner + Python 3.12 (Bisen 主开发机)
+- [x] **CI gate v0.55.0-e → v0.64.1 改写**：CI 集成改为 manual only (`.github/workflows/test.yml` + `Makefile` + 本地 `pre-commit`/`pre-push` hooks)
+  - **v0.55.0-e 原始** (2026-07-23): 触发 = push main / PR main / 手动, 步骤 = install deps → check_defensive (5 项) → pytest (22), macOS runner + Python 3.12
+  - **v0.64.1 改写** (2026-07-29 Bisen 拍板): CI 改 `workflow_dispatch` only, 因 CI 环境无 LLM/DB 跑不全 + 多次"本地绿 CI 红"伪错配. 拦截职责下放到本地 hook (commit 阶段 5 项静态, push 阶段 5 项 + pytest 245). CI 改 manual 是排查"本地环境被污染"时手动跑, 不消耗自动配额.
+  - **新规范**: 任何 push 前必跑 `pre-push` hook (本地强制), 不再建 `monitor-ci-<short_sha>` cron 监控 CI (CI 不再自动跑). 详见 § [9] 本地 push 前必跑.
 - [x] **CI gate v0.56.1**：不写启发式 fallback 替代 AI 评判 (silent degradation 变种) (Bisen 2026-07-24 原则)
   - 触发: lbc001 答 PB-Q26 完全正确, 但 LLM judge 返回非 JSON → /api/judge 旧版 fallback 走字符串严格相等, 把 nonlocal 答案 vs list 包装答案 判 false → score=0
   - 实施:

@@ -1,25 +1,19 @@
-name: ECOS Test Suite
+name: ECOS Test Suite (manual sanity check)
 
-# v0.55.0-e: CI 自动化 (防御性自检 + pytest)
+# v0.64.1: 改为 workflow_dispatch only
 #
-# 触发条件:
-#   - push 到 main 分支
-#   - pull request 到 main 分支
-#   - 手动触发 (workflow_dispatch)
+# 原因: 之前 push main 自动触发跑 CI, 但 CI 环境没有真实 LLM / DB, 跑出来
+#       比本地少 (pytest ~245 中只能跑无 fixture 的部分), 多次出现"本地绿 / CI 红"
+#       的伪错配 (v0.58.3 flask 依赖漏 / v0.58.4 DB 依赖 / v0.62.2 LLM mock 漏).
 #
-# 拦截目标:
-#   - silent pass 提交 (防御性自检 #1)
-#   - 版本号漏 bump (防御性自检 #2)
-#   - detect_with_hits 不传 library_str (防御性自检 #3)
-#   - HTML class 与 CSS 错配 (防御性自检 #4)
-#   - DB 恢复字段漏 (防御性自检 #5)
-#   - pytest 任何失败 (partial credit / 双层架构 / 跨学科迁移)
-
+# 新规则 (Bisen 2026-07-29 拍板):
+#   - 本地强制: pre-commit hook 跑 5 项静态检查 (秒级)
+#   - 本地强制: pre-push hook 跑 5 项静态 + pytest 全量 (~30s-1min)
+#   - CI 此处只做 manual sanity check: 排查"本地环境被污染"等问题时手动触发
+#   - 不消耗 CI 自动配额, 不在 push 后产生噪声邮件
+#
+# 用法: GitHub UI → Actions → "ECOS Test Suite (manual sanity check)" → Run workflow
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -44,8 +38,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
-      - name: Run defensive checks (5 项)
-        run: bash scripts/check_defensive.sh
+      - name: Run static defensive checks (5 项)
+        run: bash scripts/check_defensive.sh --static-only
 
       - name: Run pytest
         run: python -m pytest tests/ -v --tb=short

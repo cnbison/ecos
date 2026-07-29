@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# ECOS v0.64.1: pre-push hook
+# 跑全部 6 项 (前 5 项静态 + pytest 全量), push 阶段最后一道关
+# 退出码非 0 → abort push
+#
+# 绕过: git push --no-verify (不推荐, 会让远端 CI 风险上升)
+#
+# pytest 现在 ~245 测试, 跑全量约 30s-1min (取决于机器).
+# 这是 push 前的最后兜底, 跑不过说明本地没验证就推, 风险高.
+
+set -e
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+echo "═══════════════════════════════════════════════════════════════"
+echo "  ECOS pre-push: 全量检查 (5 项静态 + pytest)"
+echo "═══════════════════════════════════════════════════════════════"
+
+if ! bash scripts/check_defensive.sh; then
+    echo ""
+    echo "  ❌ 全量检查未通过, push 已拒绝"
+    echo ""
+    echo "  pytest 失败的常见原因:"
+    echo "    - 新增 test fixture 漏 mock LLM / 缺依赖 → 看 pytest 报的具体文件"
+    echo "    - 改了 belief.py / db.py 但没更新对应 test"
+    echo "    - 跑了 --static-only 通过但 pytest 漏过, 这次补上"
+    echo ""
+    echo "  修复后重试 push. 如需紧急绕过:"
+    echo "    git push --no-verify"
+    echo ""
+    exit 1
+fi
+
+echo ""
+echo "  ✅ pre-push 全量检查通过, 允许 push"
+echo ""
+exit 0

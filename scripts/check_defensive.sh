@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # v0.55.0-e: 防御性自检脚本 (5 项 + pytest)
+# v0.64.1:   加 --static-only flag (供 pre-commit hook 用, 跳过 pytest 提速)
 #
 # 拦截历史 (Bisen 2026-07-19 反馈后新增):
 # - 5 次虚标: 5D badge / LearningDNA / URL hash / hardcoded 版本号 / misconception 库 ID 错配
@@ -9,9 +10,28 @@
 # - 2 次 CSS 渲染失败 (v0.47.3 inline 旧版 + v0.50.0 5D badge class 错配)
 #
 # 用法:
-#   bash scripts/check_defensive.sh
+#   bash scripts/check_defensive.sh           # 全部 6 项 (前 5 项静态 + pytest)
+#   bash scripts/check_defensive.sh --static-only   # 仅前 5 项 (pre-commit hook 用, 秒级)
 #   make check
 set -e
+
+STATIC_ONLY=0
+for arg in "$@"; do
+    case "$arg" in
+        --static-only) STATIC_ONLY=1 ;;
+        -h|--help)
+            echo "用法: bash scripts/check_defensive.sh [--static-only]"
+            echo "  (default)   跑前 5 项静态检查 + pytest"
+            echo "  --static-only  只跑前 5 项静态检查 (pre-commit hook 用, 不跑 pytest)"
+            exit 0
+            ;;
+        *)
+            echo "未知参数: $arg" >&2
+            echo "用法: bash scripts/check_defensive.sh [--static-only]" >&2
+            exit 2
+            ;;
+    esac
+done
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -138,6 +158,18 @@ else
 fi
 
 # ── pytest 全量 ──────────────────────────────────────────────────
+if [ "$STATIC_ONLY" = "1" ]; then
+    echo ""
+    echo "═══════════════════════════════════════════════════════════════"
+    echo "  ⏭️  --static-only, 跳过 pytest"
+    echo "═══════════════════════════════════════════════════════════════"
+    echo ""
+    echo "═══════════════════════════════════════════════════════════════"
+    echo "  ✅ 静态检查全部通过"
+    echo "═══════════════════════════════════════════════════════════════"
+    exit 0
+fi
+
 echo ""
 echo "═══════════════════════════════════════════════════════════════"
 echo "  pytest 全量测试"

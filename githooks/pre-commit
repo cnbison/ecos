@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# ECOS v0.64.1: pre-commit hook
+# 跑前 5 项防御性自检 (静态, 秒级, 不含 pytest)
+# 退出码非 0 → abort commit
+#
+# 绕过: git commit --no-verify (不推荐, 除非紧急 hotfix)
+#
+# 历史动机: v0.55.0-e 把这 5 项从手动 → CI 自动 → 本地 git hook 自动.
+# 相比 CI 优势: commit 阶段就拦, 不消耗 CI 配额, 立刻看具体行号改.
+
+set -e
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+echo "═══════════════════════════════════════════════════════════════"
+echo "  ECOS pre-commit: 防御性自检 (5 项静态检查)"
+echo "═══════════════════════════════════════════════════════════════"
+
+if ! bash scripts/check_defensive.sh --static-only; then
+    echo ""
+    echo "  ❌ 防御性自检未通过, commit 已拒绝"
+    echo ""
+    echo "  修复后重试 commit. 如需紧急绕过:"
+    echo "    git commit --no-verify"
+    echo ""
+    exit 1
+fi
+
+echo ""
+echo "  ✅ pre-commit 静态检查通过, 允许 commit"
+echo ""
+exit 0
