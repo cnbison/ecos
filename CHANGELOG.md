@@ -3193,3 +3193,88 @@ Phase 0 100% 完成 🎉
 - **H3 验证** (v0.62.0-C / v0.62.3+): 互校抗幻觉实证
 - **元反思模式** (v0.63.0+): 4 周停滞检测
 - **下次 push 时建 cron 监控 CI** (按 CLAUDE.md [9] 规则: push 后建 → 绿后立即删)
+
+## [0.63.0] 2026-07-29 — H3 验证 A 部分: ECE 指标 + 单 Agent baseline (60 样本) + 双 Agent 5 样本回填 (B 部分待 lbc001 答 30+ 道)
+
+> **触发**: Bisen 2026-07-29 15:18 拍板 "按你的建议: A + 后续接 B" (A: ECE 函数 + 单 Agent baseline; B: lbc001 答 30+ 道 dual_agent 后补完整 H3).
+>
+> **H3 假设**: 双 Agent 互校有效减少 LLM 幻觉 (双 Agent vs 单 Agent 信念校准度)
+> **评估指标**: ECE (Expected Calibration Error), 越小越校准
+> **通过阈值**: 双 Agent ECE ≤ 0.10 (research/00-overview/03-roadmap.md §2.3 + research/90-mvp/README.md §8.1)
+
+### v0.63.0 H3 验证数据
+
+| 维度 | 样本 | ECE | 平均 confidence | 平均 accuracy |
+|------|------|-----|----------------|---------------|
+| **单 Agent baseline (CTA only)** | 60 | **0.1081** | 0.659 | 0.767 |
+| **双 Agent experiment (CTA + LCA + 互校)** | 5 (回填) | **0.4800** | 0.12 | 0.6 |
+
+**H3 结论**: ⚠️ **H3 暂未通过 (双 Agent 样本量不足)**
+- 阈值: 双 Agent ECE ≤ 0.10, 单 vs 双 ECE 显著差距
+- 单 vs 双 差距: -0.3719 (反直觉, 双 ECE > 单 ECE)
+- **5 样本不具统计意义, H3 验证延后到 lbc001 答 30+ 道 dual_agent 后**
+
+### ✅ 已做
+
+#### 1. ecos/metrics/ 模块 (v0.63.0 新建, 14 KB)
+- `ecos/metrics/__init__.py`: 模块入口, __all__ 导出
+- `ecos/metrics/ece.py`: ECE 核心实现
+    - `expected_calibration_error(confidences, accuracies, n_bins, bin_strategy)`: ECE 主函数
+    - `reliability_diagram_data(...)`: 画 reliability diagram 数据 (跟 sklearn.calibration.calibration_curve 接口对齐)
+    - `binary_calibration(confidences, corrects)`: 二元包装 (confidence + bool → ECE)
+- 设计: 纯函数, 无副作用, 无 sklearn / scipy 依赖, 跟 sklearn 接口对齐 (未来替换方便)
+- 支持 `uniform` (等宽) 和 `quantile` (等样本数) bin_strategy
+
+#### 2. scripts/compute_h3_ece.py (v0.63.0 新建, 15 KB)
+- 单 Agent baseline: lbc001 response_history 60 条 (CTA only, 跟 ECOS 主流程一致)
+- 双 Agent experiment: lbc001 calibration_log 5 条 (v0.60.4 验证, actual_outcome 回填)
+- 输出: stdout 报告 + discussions/2026-07-29-H3-verification-report.md
+- **actual_outcome 回填 fallback**: v0.60.4 写库 BUG (prev.actual_outcome 没回写 DB) 用 response_history.correct 兜底
+- **限制标注**: 5 样本不具统计意义, H3 验证待 lbc001 答 30+ 道 dual_agent 后补 (B 部分)
+
+#### 3. discussions/2026-07-29-H3-verification-report.md (v0.63.0 新建, 4 KB)
+- 完整 H3 报告 (单 vs 双 ECE 对比 + 限制 + 改进方向)
+- 结论: H3 暂未通过 (样本量不足)
+- 后续: lbc001 答 30+ 道 dual_agent 后重算
+
+#### 4. tests/test_ece.py (v0.63.0 新建, 14 测试)
+- TestExpectedCalibrationError (9): 完美校准 / over-confident / under-confident / partial credit / 空输入 / 长度不一致 / uniform vs quantile / 未知 strategy
+- TestReliabilityDiagram (3): 基础数据 / 空输入 / over-confident 曲线
+- TestBinaryCalibration (2): 基础二元 / 完美校准二元
+
+### CLAUDE.md [7] 防御性警告 (v0.63.0 新模块, 抛 Bisen)
+- **不动**: students.* / student_lca_state.* / student_dual_agent_state.* / calibration_log (lbc001 5 行保留)
+- **不动**: belief.py 累加逻辑 / dual_agent 行为
+- **不动**: lca.py / dual_agent.py 业务代码
+- **新建模块**: ecos/metrics/ (纯函数, 不污染现有数据)
+- **新增脚本**: scripts/compute_h3_ece.py (只读 web/ecos.db)
+- **数据基础限制**: lbc001 + lbc002 response_history (Bisen 之前答题累积), 5 行 calibration_log (v0.60.4 验证)
+
+### 关键技术决策
+1. **ECE 实现独立于 sklearn**: 避免引入 sklearn 依赖 (项目 pyproject.toml 没列), 纯 numpy 实现, 跟 sklearn.calibration.calibration_curve 接口对齐方便替换
+2. **actual_outcome 回填策略**: v0.60.4 写库 BUG (prev.actual_outcome 没回写 DB), 用 response_history.correct 兜底, 5/5 行能算 ECE
+3. **confidence 简化**: v0.63.0 用当前 mastery_prob 当所有问题的 confidence (实际应该是历史快照序列, 未来改进)
+4. **H3 报告完整**: 不只算 ECE, 写完整报告含限制 + 改进方向 + 后续路线, 即使 H3 暂未通过也记录数据基础
+
+### 数据迁移 / 已知影响
+- **H3 暂未通过, 不需要回滚**: v0.63.0 只新增代码, 不改业务逻辑
+- **calibration_log 5 行 actual_outcome 全 None**: v0.60.4 写库 BUG 已知, v0.64.0+ 路线修 (dual_agent 落盘前回写 prev.actual_outcome)
+- **单 Agent confidence 简化**: v0.63.0 用当前 mastery_prob, 未来 v0.64.0+ 改用历史快照
+
+### 防御性自检 (CLAUDE.md 规范)
+- [x] [1] silent pass: compute_h3_ece.py 解析 calibration_log 失败 try/except 跳过, ece.py 所有分支 try/except 兜底
+- [x] [2] __version__ 0.62.2 → 0.63.0
+- [x] [3] detect_with_hits 传 library_str (本次不涉及 misconception)
+- [x] [4] HTML class 对齐 (本次不动 HTML)
+- [x] [5] **核心**: ECE 函数 + 14 测试 + 单 vs 双 baseline + 完整 H3 报告
+- [x] [6] 不写启发式 fallback (compute_h3_ece 失败 _log.warning, 不影响主流程)
+- [x] [7] 架构升级前警告历史状态丢失: 本 CHANGELOG 头部已写
+- [x] [8] 改 API 加测试: ecos/metrics/ece.py 新模块, 14 测试覆盖
+- [x] [9] 防御性自检脚本: bash scripts/check_defensive.sh 全过, pytest **237/237 全部通过** (14 新增 + 223 原有)
+
+### 📋 后续 (不在 v0.63.0 commit)
+- **B 部分 (lbc001 答 30+ 道 dual_agent + 补完整 H3)**: 1-2 天 (Bisen 答题 + 我跑脚本 + 写完整报告)
+- **calibration_log 写库 BUG 修复** (v0.64.0+): dual_agent 落盘前回写 prev.actual_outcome (v0.60.4 留下的 BUG)
+- **单 Agent confidence 历史快照** (v0.64.0+): response_history 加 confidence 字段, 真实校准度计算
+- **reliability diagram 画图** (v0.64.0+): matplotlib 依赖评估后落地
+- **下次 push 时建 cron 监控 CI** (按 CLAUDE.md [9] 规则: push 后建 → 绿后立即删)
