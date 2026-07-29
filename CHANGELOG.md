@@ -3420,3 +3420,62 @@ Phase 0 100% 完成 🎉
 - **v0.53.0 下半段 C 主导题扩 20+ 题**: 1-2 天 (LLM 生成 + Bisen 审题, lbc001 答完 5 PC-C 后扩量)
 - **v0.64.0 后续 "下次 push 时建 cron 监控 CI" 作废说明**: 已在 v0.64.1 commit 038ad26 改写 (CI → 本地 git hooks, manual only), 详见 CHANGELOG 038ad26 commit message + CLAUDE.md § [9]
 - **5D 完整性下一阶段**: C/X 主导题扩量后, 5D 完整性从 5/5 巩固 → 5/5 高质量 (主导题数量均衡, 跨学科迁移可启动 v0.55.0-d 计划)
+
+## [0.66.0] 2026-07-29 — UI 修复: LearningDNA 待启用状态下隐藏分项细节 (Bisen 拍板)
+
+> **触发**: Bisen 2026-07-29 16:30 说 "UI 界面 LEARNINGDNA 部分既然写明待启用, 下边的分项细节就没必要显示, 应该隐藏不显示"
+> **核心问题**: `app.js:497` renderLDN 仍 render 4 个分项 (输入偏好/反馈偏好/错误模式/数据要求), 但 LearningDNA 是 v0.1.0 占位实现, 真实逻辑待 Phase 4+. "待启用"标题 + 4 个占位分项一起出现, 视觉上"半成品"感强, 用户疑惑.
+> **批**: Bisen 直接拍板隐藏 (没问, 简单情况)
+
+### ✅ 已做
+
+#### 1. web/student/app.js: renderLDN 改写
+- **v0.52.0 旧版** (l.497-512): render 4 个分项 (输入偏好/反馈偏好/错误模式/数据要求), 占位 "—" / "0 条"
+- **v0.66.0 新版** (l.510-513): 整个 ldn-row 容器 `style.display='none'` + `innerHTML=''`
+- 标题 "LearningDNA 待启用" 保留 (index.html 第 83 行, 不动 HTML)
+- 注释 (l.493-501) 改写: 加 v0.66.0 设计意图, 标 "v0.52.0 旧版 vs v0.66.0 新版" 对比
+
+#### 2. web/student/index.html: cache-busting bump v=0.65.0 → v=0.66.0 (只 app.js)
+- styles.css 不动 (本次不动 CSS), 不需要 bump
+- app.js `<script>` ?v=0.65.0 → ?v=0.66.0
+- 原因: 浏览器 cache 旧 app.js → 看不到 renderLDN 改动 → bump 强制刷新
+
+#### 3. ecos/__init__.py: __version__ 0.65.0 → 0.66.0
+- 符合 CLAUDE.md § 防御性自检 [2] 规则 (UI 修复 = 修复, 必 bump)
+
+### 🎨 视觉对比
+- **v0.66.0 之前**: LearningDNA 卡片显示为
+  ```
+  LearningDNA 待启用
+  需更多答题历史 (≥50 题) + 交互行为数据 才能推断
+  输入偏好   —
+  反馈偏好   —
+  错误模式   0 条
+  ```
+  (5 行, 标题 + 1 行说明 + 3 个占位数据)
+- **v0.66.0 之后**: LearningDNA 卡片显示为
+  ```
+  LearningDNA 待启用
+  ```
+  (1 行, 只有标题)
+
+### 📝 设计意图 (Bisen 拍板)
+- "待启用" 是**状态标记**, 不是**进度提示** → 既然未启用, 不该显示任何"长什么样"的分项
+- 占位数据 ("—" / "0 条") 是**误导信号**: 用户看到 "输入偏好 —" 会以为"有这功能只是没数据", 实际是"功能未实现"
+- 真正启用后再 render 分项 (Phase 4+ LearningDNA 真实实现上线), 改 renderLDN 1 行即可, 不用再改 UI 隐藏逻辑
+
+### 🛡️ 防御性自检 (CLAUDE.md 规范)
+- [x] [1] silent pass: 本次不动 exception
+- [x] [2] `__version__` 0.65.0 → 0.66.0 ✓
+- [x] [3] detect_with_hits 传 library_str: 本次不动 misconception
+- [x] [4] HTML class 对齐: 本次只改 JS renderLDN, 不动 HTML 结构; ldn-row class 不动
+- [x] [5] DB 恢复 6 关键字段: 本次不动 DB
+- [x] [6] 不写启发式 fallback: 本次不引入新逻辑, 是 UI 隐藏
+- [x] [7] 架构升级前警告历史状态丢失: UI 修复, 不动 schema
+- [x] [8] 改 API 加测试: 本次不动 API
+- [x] [9] 防御性自检脚本: pre-commit hook 应通过, pre-push hook pytest **245/245 全部通过**
+
+### 📋 后续 (不在 v0.66.0 commit)
+- **Phase 4+ LearningDNA 真实实现**: 长路, 需 lbc001 答题历史 ≥ 50 题 + 交互行为数据 (点击/停留时间/重做次数等), 当前没数据基础
+- **v0.65.0 后续** (C 主导题扩 20+ 题) 不变
+- **CI 现状** (v0.64.1 改写后) 不变: 本地 hook 强制, push 后不需要监控 CI

@@ -491,25 +491,17 @@ function renderTC(d) {
 }
 
 // 渲染 LearningDNA (v0.52.0: 数据量不足, 标"待启用")
-//   lbc001 22 道题, 9 道带 timestamp, 错误也少, 推断不出 LearningDNA 字段
-//   当前 LearningDNA 是 v0.1.0 占位实现, confidence=0.0, 真实估计逻辑待 Phase 4+
-//   隐藏置信度数字, 标"待启用"避免用户疑惑
+// v0.66.0: Bisen 拍板 "既然写明待启用, 下边的分项细节就没必要显示"
+//   - 当前 LearningDNA 是 v0.1.0 占位实现, confidence=0.0, 真实估计逻辑待 Phase 4+
+//   - lbc001 22 道题 / 9 个 timestamp / 错得少, 推断不出 LearningDNA 字段
+//   - v0.52.0 旧版: 仍 render 4 个分项 (输入偏好/反馈偏好/错误模式/数据要求), 标 "—" 占位
+//   - v0.66.0 新版: 整个 ldn-row 容器 style.display='none' 完全隐藏
+//     标题 "LearningDNA 待启用" 保留 (index.html 第 83 行, 不动 HTML)
+//     只在用户主动开发 Phase 4+ LearningDNA 真实实现时才显示分项
 function renderLDN(d) {
-  const ldn = d.learning_dna || {};
-  document.getElementById('ldnRow').innerHTML = `
-    <div style="color:#9ca3af; font-size:11px; padding:4px 0;">
-      需更多答题历史 (≥50 题) + 交互行为数据 才能推断
-    </div>
-    <div style="color:#6b7280; font-size:11px; padding:2px 0;">
-      <span style="display:inline-block; width:60px; color:#9ca3af;">输入偏好</span> ${ldn.input_preference || '—'}
-    </div>
-    <div style="color:#6b7280; font-size:11px; padding:2px 0;">
-      <span style="display:inline-block; width:60px; color:#9ca3af;">反馈偏好</span> ${ldn.feedback_preference || '—'}
-    </div>
-    <div style="color:#6b7280; font-size:11px; padding:2px 0;">
-      <span style="display:inline-block; width:60px; color:#9ca3af;">错误模式</span> ${(ldn.error_pattern || []).length || 0} 条
-    </div>
-  `;
+  const ldnRow = document.getElementById('ldnRow');
+  ldnRow.style.display = 'none';
+  ldnRow.innerHTML = '';  // 顺手清空, 避免占位数据泄露到 hidden 元素里
 }
 
 // 渲染 Trajectory
