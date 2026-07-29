@@ -21,7 +21,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from ...cta.belief_state import BeliefState, BloomLevel
-from ...lca.intervention import Intervention
+from ...lca.intervention import Intervention, InterventionType, CLTLevel, CAStage
 from ...lca.l4_optimization.attribution import CausalEffect
 from ...lca.orchestrator import LCAResult
 
@@ -189,6 +189,45 @@ class CalibratedLCAResult:
             "metadata": dict(self.metadata),
         }
 
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "CalibratedLCAResult":
+        """反序列化（v0.61.0 dual_agent 持久化 load 用）.
+
+        防御性自检 [5]: 11+ 关键字段 (intervention / bloom_target / clt_level / ca_stage
+        / actual_outcome / calibration_round 等) 必须全恢复, 缺字段 fallback 兜底.
+        """
+        intervention = Intervention.from_dict(d.get("intervention", {}))
+        try:
+            bloom_target = BloomLevel[d["bloom_target"]]
+        except KeyError:
+            bloom_target = BloomLevel.APPLY
+        try:
+            clt_level = CLTLevel[d["clt_level"]]
+        except KeyError:
+            clt_level = CLTLevel.DEVELOPING
+        try:
+            ca_stage = CAStage[d["ca_stage"]]
+        except KeyError:
+            ca_stage = CAStage.COACHING
+        return cls(
+            student_id=d.get("student_id", intervention.metadata.get("student_id", "")),
+            intervention=intervention,
+            rationale=d.get("rationale", ""),
+            expected_gain=float(d.get("expected_gain", 0.0)),
+            expected_risk=float(d.get("expected_risk", 0.0)),
+            bloom_target=bloom_target,
+            clt_level=clt_level,
+            ca_stage=ca_stage,
+            timestamp=float(d.get("timestamp", time.time())),
+            actual_outcome=d.get("actual_outcome"),
+            # causal_effect 暂不持久化 (LCAEngine 内部动态算)
+            causal_effect=None,
+            calibration_round=int(d.get("calibration_round", 0)),
+            strategy_challenge_pending=bool(d.get("strategy_challenge_pending", False)),
+            degraded_mode=bool(d.get("degraded_mode", False)),
+            metadata=dict(d.get("metadata", {})),
+        )
+
 
 # ---------------------------------------------------------------------------
 # 统一消息格式（spec §2.1）
@@ -281,6 +320,37 @@ class BeliefChallenge:
     belief_change: Optional[float] = None
     timestamp: float = field(default_factory=time.time)
 
+    def to_dict(self) -> Dict[str, Any]:
+        """序列化（v0.61.0 dual_agent 持久化用）."""
+        return {
+            "student_id": self.student_id,
+            "challenged_dimension": self.challenged_dimension,
+            "cta_claim": float(self.cta_claim),
+            "experimental_evidence": dict(self.experimental_evidence),
+            "confidence_in_evidence": float(self.confidence_in_evidence),
+            "calibration_round": int(self.calibration_round),
+            "resolved": bool(self.resolved),
+            "belief_change": (
+                float(self.belief_change) if self.belief_change is not None else None
+            ),
+            "timestamp": float(self.timestamp),
+        }
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "BeliefChallenge":
+        """反序列化（v0.61.0 dual_agent 持久化 load 用）."""
+        return cls(
+            student_id=d["student_id"],
+            challenged_dimension=d["challenged_dimension"],
+            cta_claim=float(d.get("cta_claim", 0.0)),
+            experimental_evidence=dict(d.get("experimental_evidence", {})),
+            confidence_in_evidence=float(d.get("confidence_in_evidence", 0.8)),
+            calibration_round=int(d.get("calibration_round", 0)),
+            resolved=bool(d.get("resolved", False)),
+            belief_change=d.get("belief_change"),
+            timestamp=float(d.get("timestamp", time.time())),
+        )
+
 
 @dataclass
 class StrategyChallenge:
@@ -304,6 +374,33 @@ class StrategyChallenge:
     resolved: bool = False
     revised_intervention_id: Optional[str] = None
     timestamp: float = field(default_factory=time.time)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """序列化（v0.61.0 dual_agent 持久化用）."""
+        return {
+            "student_id": self.student_id,
+            "current_intervention_type": self.current_intervention_type,
+            "cta_suggestion": self.cta_suggestion,
+            "evidence": self.evidence,
+            "calibration_round": int(self.calibration_round),
+            "resolved": bool(self.resolved),
+            "revised_intervention_id": self.revised_intervention_id,
+            "timestamp": float(self.timestamp),
+        }
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "StrategyChallenge":
+        """反序列化（v0.61.0 dual_agent 持久化 load 用）."""
+        return cls(
+            student_id=d["student_id"],
+            current_intervention_type=d["current_intervention_type"],
+            cta_suggestion=d["cta_suggestion"],
+            evidence=d.get("evidence", ""),
+            calibration_round=int(d.get("calibration_round", 0)),
+            resolved=bool(d.get("resolved", False)),
+            revised_intervention_id=d.get("revised_intervention_id"),
+            timestamp=float(d.get("timestamp", time.time())),
+        )
 
 
 @dataclass

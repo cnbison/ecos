@@ -19,8 +19,9 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from ..cta.belief_engine import BeliefEngine, BeliefEngineConfig
 from ..cta.belief_state import BeliefState
@@ -49,6 +50,8 @@ from .protocol.state_machine import (
     CalibrationState,
     CalibrationStateMachine,
 )
+
+_log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -169,8 +172,14 @@ class DualAgentOrchestrator:
 
         # Step 0: 填充上一轮的 actual_outcome（基于本次 observation）
         if prev_calibrated is not None:
-            # M2 W4 简化：用 correct 直接映射 reward（0.0 / 1.0）
-            prev_calibrated.actual_outcome = 1.0 if observation.correct else 0.0
+            # v0.61.0 改: observation.score 优先 (跟 belief_engine.py:292 一致)
+            #   之前: 二元 correct 派生 0.0/1.0, partial credit 0.7 答对被当 1.0
+            #   现在: score 优先 (0.0-1.0), 老调用方 (只传 correct) fallback 到 0/1
+            prev_calibrated.actual_outcome = (
+                observation.score
+                if observation.score > 0
+                else (1.0 if observation.correct else 0.0)
+            )
 
         # Step 1: 检查特殊模式（策略质疑 + 元反思）
         special_result = self._check_special_modes(sid, observation)
@@ -413,6 +422,119 @@ class DualAgentOrchestrator:
 
     def get_state_trajectory(self, sid: str) -> List[BeliefState]:
         return list(self.state_trajectory.get(sid, []))
+
+    # ---------------------------------------------------------------
+    # 持久化接口 (v0.61.0 dual_agent 持久化用)
+    # ---------------------------------------------------------------
+
+    def dump_state(self, sid: str) -> Optional[Dict[str, Any]]:
+        """导出 dual_agent 内部 state (8 字段全打包, 跟 DualAgentStore 一一对应).
+
+        CLAUDE.md 防御性自检 [5]: 8 字段必须一次全 dump, 避免分批漏字段.
+        CLAUDE.md 防御性自检 [6]: dump 失败不能污染 in-memory (这里只读, 不改).
+
+        Returns:
+            8 字段 dict (state_snapshot / intervention_history / state_trajectory /
+                         calibration_round / warnings / belief_challenges /
+                         strategy_challenges / consecutive_ineffective),
+            sid 未知时返回 None.
+        """
+        if sid not in self.state:
+            return None
+        return {
+            "state_snapshot": self.state[sid].to_dict(),
+            "intervention_history": [
+                r.to_dict() for r in self.intervention_history[sid]
+            ],
+            "state_trajectory": [
+                s.to_dict() for s in self.state_trajectory[sid]
+            ],
+            "calibration_round": int(self.calibration_round[sid]),
+            "warnings": list(self.warnings[sid]),
+            "belief_challenges": [
+                c.to_dict() for c in self.belief_challenges[sid]
+            ],
+            "strategy_challenges": [
+                c.to_dict() for c in self.strategy_challenges[sid]
+            ],
+            "consecutive_ineffective": int(self._consecutive_ineffective.get(sid, 0)),
+        }
+
+    def load_state(self, sid: str, snapshot: Dict[str, Any]) -> None:
+        """从 dump 恢复 dual_agent 内部 state (8 字段全恢复).
+
+        CLAUDE.md 防御性自检 [5]: 8 字段必须一次全 load, 缺字段 fallback 0/[].
+        CLAUDE.md 防御性自检 [6]: load 失败不能污染 in-memory (caller 负责 try/except).
+
+        跟 v0.57.0 LCAEngine.load_state 同样模式: 字段缺失用 default 兜底.
+        """
+        from ..cta.belief_state import BeliefState
+        from .protocol.messages import BeliefChallenge, StrategyChallenge
+
+        self.state[sid] = BeliefState.from_dict(snapshot.get("state_snapshot", {}))
+        # 确保 student_id 一致 (snapshot 是从 sid dump 出来的, 但保险起见)
+        self.state[sid].student_id = sid
+
+        self.intervention_history[sid] = [
+            CalibratedLCAResult.from_dict(r)
+            for r in snapshot.get("intervention_history", [])
+        ]
+        self.state_trajectory[sid] = [
+            BeliefState.from_dict(s) for s in snapshot.get("state_trajectory", [])
+        ]
+        self.calibration_round[sid] = int(snapshot.get("calibration_round", 0))
+        self.warnings[sid] = list(snapshot.get("warnings", []))
+        self.belief_challenges[sid] = [
+            BeliefChallenge.from_dict(c) for c in snapshot.get("belief_challenges", [])
+        ]
+        self.strategy_challenges[sid] = [
+            StrategyChallenge.from_dict(c) for c in snapshot.get("strategy_challenges", [])
+        ]
+        self._consecutive_ineffective[sid] = int(snapshot.get("consecutive_ineffective", 0))
+
+    def has_state(self, sid: str) -> bool:
+        """检查 orch 内部是否有该 sid 的 state (跟 LCAEngine._get_bandit 同样模式)."""
+        return sid in self.state
+
+    def ensure_state_loaded(self, sid: str, snapshot: Optional[Dict[str, Any]]) -> None:
+        """确保 sid 的 state 已加载 (v0.61.0 启动 lazy init 用).
+
+        行为:
+          - 已有 state (in-memory) → 跳过
+          - 无 state 但有 snapshot (from DB) → load_state
+          - 无 state 且无 snapshot → 冷启动 (create_initial_state, 跟 v0.60.0 同样行为)
+
+        防御性自检 [1]: load 失败必须 warning, 不能 silent pass.
+        """
+        if sid in self.state:
+            return
+        if snapshot is not None:
+            try:
+                self.load_state(sid, snapshot)
+                _log.info(
+                    "dual_agent state loaded from DB (sid=%s, calibration_round=%d)",
+                    sid, self.calibration_round.get(sid, 0),
+                )
+            except Exception:
+                _log.warning(
+                    "dual_agent.load_state 失败 (sid=%s), 回退冷启动",
+                    sid, exc_info=True,
+                )
+                # 兜底: 跟没 snapshot 一样冷启动
+                self._init_fresh_state(sid)
+        else:
+            self._init_fresh_state(sid)
+
+    def _init_fresh_state(self, sid: str) -> None:
+        """冷启动 (跟 v0.60.0 同样行为, 抽出函数)."""
+        self.state[sid] = self.cta_engine.create_initial_state(sid)
+        self.intervention_history[sid] = []
+        self.state_trajectory[sid] = []
+        self.calibration_round[sid] = 0
+        self.warnings[sid] = []
+        self.belief_challenges[sid] = []
+        self.strategy_challenges[sid] = []
+        self._consecutive_ineffective[sid] = 0
 
 
 __all__ = ["DualAgentOrchestrator", "DualAgentConfig"]

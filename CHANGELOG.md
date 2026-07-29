@@ -2904,6 +2904,124 @@ Phase 0 100% 完成 🎉
 - **下次 push 时建 cron 监控 CI** (按 CLAUDE.md [9] 规则: push 后建 → 绿后立即删)
 
 
+## [0.61.0] 2026-07-29 — dual_agent 持久化 + actual_outcome 改 score 派生 (Bisen 拍板 v0.61.0 启动)
+
+> **触发**: v0.60.4 dual_agent 行为验证完成 (lbc001 答题 5 道), CHANGELOG v0.60.4 标记 v0.61.0+ 启动 dual_agent 持久化. Bisen 2026-07-29 11:08 拍板 "v0.61.0 = dual_agent 持久化 + actual_outcome 改 score 派生, 一起做".
+>
+> **CLAUDE.md [7] 防御性警告 (v0.61.0 架构升级, 抛 Bisen)**:
+> - **不动**: students.* / student_lca_state.* / calibration_log (lbc001 5 行) / belief_engine state
+> - **新增**: `student_dual_agent_state` 表 (per-student 1 row, 跟 v0.57.0 `student_lca_state` 同样独立表模式)
+> - **dual_agent 之前没真存过 in-memory data** (v0.60.4 验证 5 道 in-memory 进程退丢), **持久化从 0 开始**, 跟 v0.57.0 LCA 同样态度 (不写历史迁移脚本)
+> - **顺手修**: `actual_outcome` 改 score 派生 (跟 belief_engine.py:292 一致), 修复 partial credit 0.7 答对被当 1.0 算的小 BUG
+> - **不修 (scope creep)**: LCA 共享实例 arm_pull 涨 1 trade-off (留 v0.62.0+), 元反思模式 (留 v0.63.0+)
+
+### ✅ 已做
+
+#### 1. 序列化基础设施 (BeliefState / BeliefChallenge / StrategyChallenge / CalibratedLCAResult)
+
+- `ecos/cta/belief_state.py` 新增 `BeliefState.to_dict() / from_dict()` (含 5D 维度 / BloomProfile / LearningDNA / Trajectory / TCState / MisconceptionHit 全序列化, np.ndarray → list)
+- `ecos/dual_agent/protocol/messages.py` 新增 `BeliefChallenge.to_dict/from_dict` + `StrategyChallenge.to_dict/from_dict` + `CalibratedLCAResult.from_dict` (跟 v0.57.0 Intervention.from_dict 同样模式)
+- 防御性自检 [5]: 所有序列化字段一一对应, 缺字段 fallback (跟 LCA 同样兜底)
+
+#### 2. DualAgentStore (`ecos/persistence/dual_agent_store.py`, 新建, 13 KB)
+
+- 独立表 `student_dual_agent_state` (per-student 1 row, 1:1 with students, **不污染 students 表 schema**)
+- **CLAUDE.md 防御性自检 [5] 8 字段对齐** (一次性列全, 避免历史栽过的"分批漏字段"问题):
+    1. `state_snapshot`              (BeliefState.to_dict(), 当前 CTA 视角)
+    2. `intervention_history`        (List[CalibratedLCAResult.to_dict()])
+    3. `state_trajectory`            (List[BeliefState.to_dict()], max 100/sid)
+    4. `calibration_round`           (INTEGER)
+    5. `warnings`                    (List[str] 抗幻觉警告)
+    6. `belief_challenges`           (List[BeliefChallenge.to_dict()])
+    7. `strategy_challenges`         (List[StrategyChallenge.to_dict()])
+    8. `consecutive_ineffective`     (INTEGER, _consecutive_ineffective 计数器)
+- `DualAgentStateSnapshot` dataclass 全打包
+- `save_state / load_state / has_state / delete_state / get_all_students_with_dual_agent_state` 接口
+- UPSERT (`ON CONFLICT DO UPDATE`) 覆盖式
+- 独立 db connection (跟 v0.57.0 LCAStore 同样模式, 避免跟 Database 单例耦合)
+- 所有 except 块 `_log.warning(..., exc_info=True)` (防御性自检 [1])
+
+#### 3. DualAgentOrchestrator dump/load 接口 (`ecos/dual_agent/orchestrator.py`)
+
+- 新增 `dump_state(sid)` → 8 字段 dict (跟 DualAgentStore 一一对应)
+- 新增 `load_state(sid, snapshot)` → 8 字段全恢复 orch 内部 dict
+- 新增 `has_state(sid)` → 跟 LCAEngine._get_bandit 同样模式
+- 新增 `ensure_state_loaded(sid, snapshot)` → 启动 lazy init (有 snapshot load, 无 snapshot 冷启动, 跟 v0.60.0 同样行为)
+- 新增 `_init_fresh_state(sid)` → 抽出冷启动逻辑 (跟 v0.60.0 同样行为, 减少重复代码)
+- 防御性自检 [5]: 8 字段 dump/load 一次性列全
+- 防御性自检 [1]: load 失败 `_log.warning(..., exc_info=True)` + 回退冷启动
+
+#### 4. actual_outcome 改 score 派生 (`ecos/dual_agent/orchestrator.py:173`)
+
+- 之前: `prev_calibrated.actual_outcome = 1.0 if observation.correct else 0.0` (二元 0/1, partial credit 0.7 答对被当 1.0)
+- 现在: `prev_calibrated.actual_outcome = observation.score if observation.score > 0 else (1.0 if observation.correct else 0.0)` (跟 belief_engine.py:292 同样优先级)
+- 副作用:
+    - `_consecutive_ineffective` 计数 (`actual_outcome < 0.3` 触发) 行为更准
+    - `calibration_log.message_payload.actual_outcome` 持久化精度提升
+- 老调用方兼容: 只传 `correct` 不传 `score` → fallback 到 0/1 (跟 belief_engine 同样兼容)
+
+#### 5. web/api/dual_agent.py 接入持久化
+
+- 新增 `DUAL_AGENT_DB_PATH = os.environ.get("ECOS_DB_PATH", "web/ecos.db")` (跟 LCA / Database 单例共享 web/ecos.db)
+- 新增 `get_dual_agent_store()` 单例 (lazy init, 防御性自检 [1])
+- 新增 `_loaded_students: set[str]` (跟 LCA 同样模式, 避免重复 load_state)
+- 新增 `_load_dual_state_if_needed(sid)` → 启动 lazy load
+    - 已加载 → 跳过
+    - 首次访问 → 从 DB load, 写 orch + _loaded_students
+    - DB 无状态 → 标记已加载, 走冷启动
+    - load 失败 → _log.warning + 冷启动
+- 新增 `_save_dual_state(sid, orch)` → dump_state 8 字段 → DualAgentStore.save_state
+- 每次 `process_observation_for_student` 末尾:
+    1. 调 `_load_dual_state_if_needed(sid)` 启动 lazy load
+    2. 调 `orch.process_observation(...)`
+    3. 调 `_save_dual_state(sid, orch)` 落盘 (失败 _log.warning 不污染主响应, 防御性自检 [6])
+    4. 调 `_write_calibration_log(...)` (跟 v0.60.0 同样)
+
+#### 6. 测试套件 (`tests/test_dual_agent_persistence.py`, 新建, 20 测试)
+
+- `TestDualAgentStorePersistence` (4): save/load roundtrip / unknown student → None / UPSERT 覆盖 / has_state
+- `TestDualAgentOrchestratorPersistence` (5): dump_state 8 字段 / dump unknown sid → None / load_state 8 字段 / ensure_state_loaded 冷启动 / ensure_state_loaded from snapshot
+- `TestDualAgentRestartRecovery` (2, 核心 DoD): calibration_round 跨重启不归零 / 多学生数据独立
+- `TestDualAgentDefensiveChecks` (2): save 失败 _log.warning / load 失败 _log.warning
+- `TestActualOutcomeScoreDerivation` (3): score=0.7 派生 0.7 / score=0.3 派生 0.3 / 老调用方 (correct only) fallback 1.0
+- `TestBeliefStateSerialization` (2): minimal roundtrip / update 后 roundtrip 不丢关键信息
+- `TestDualAgentWebAPIIntegration` (2): process_observation 落库 / save 失败不污染 in-memory
+
+### 关键技术决策
+
+1. **8 字段一次性列全** (跟 v0.57.0 LCA 7 字段同样模板), 防御性自检 [5] 避免分批漏字段
+2. **每次 process_observation 末尾落盘** (跟 LCA 同样"每次都落盘"), IO < 100ms 跟 LLM 9-17s 比可忽略
+3. **独立 db connection + 独立表** (跟 LCAStore 同样), schema 漂移时容易隔离
+4. **dump_state/load_state 一一对应 8 字段**, 字段缺失 fallback 0/[] (跟 LCAEngine 同样兜底)
+5. **actual_outcome 改 score 派生跟 belief_engine 一致**, 避免 MIRT 已用 partial credit 但 dual_agent 还用二元的精度错位
+6. **新表 vs 加列**: 选独立表 `student_dual_agent_state`, 不污染 students 表 schema (跟 LCAStore 同样决策)
+
+### 数据迁移 / 已知影响
+
+- **v0.60.4 in-memory data 已丢**: lbc001 答题 5 道 (v0.60.4 验证) 的 dual_agent in-memory state 在 v0.60.4 commit 时进程退就丢了, 不会自动迁移到 DB. 从 v0.61.0 上线这一刻开始, 新数据持续保存.
+- Bisen 接受"错了就错了"态度: 不写历史数据迁移脚本, 新数据从 0 calibration_round 开始 (跟 v0.57.0 LCA 同样态度)
+- **LCA 共享实例 arm_pull 涨 1 trade-off 仍存在** (留 v0.62.0+), v0.61.0 持久化只解决"重启丢"问题
+- **bloom_target 跟 belief.py 不一致 trade-off 仍存在** (v0.60.4 验证时出现 REMEMBER vs EVALUATE 错位, 留 v0.62.0+)
+
+### 防御性自检 (CLAUDE.md 规范)
+
+- [x] [1] silent pass: dual_agent_store.py 5 个 except 块全 `_log.warning(..., exc_info=True)`, orchestrator.ensure_state_loaded load 失败有 _log.warning
+- [x] [2] __version__ 0.60.4 → 0.61.0
+- [x] [3] detect_with_hits 传 library_str (本次不涉及 misconception)
+- [x] [4] HTML class 对齐 (本次不动 HTML)
+- [x] [5] **核心**: 8 字段对齐 (DualAgentStore + DualAgentOrchestrator.dump_state/load_state + 序列化 dataclass 一次性列全)
+- [x] [6] 不写启发式 fallback (process_observation save 失败 _log.warning, 不静默降级)
+- [x] [7] 架构升级前警告历史状态丢失: 本 CHANGELOG 头部已写 CLAUDE.md [7] 防御性警告
+- [x] [8] 改 API 加测试: web/api/dual_agent.py 接入持久化, 20 个新测试覆盖
+- [x] [9] 防御性自检脚本: `bash scripts/check_defensive.sh` 全过, pytest **214/214 全部通过** (20 新增 + 194 原有)
+
+### 📋 后续 (不在 v0.61.0 commit)
+
+- **LCA 共享实例修复** (v0.62.0+): dual_agent 改独立 LCA 视图, 解决 arm_pull 涨 1 trade-off
+- **bloom_target 跟 belief.py 对齐** (v0.62.0+): dual_agent 启动时从 belief_engine 拿最新 state 覆盖初始 state
+- **H3 验证** (v0.62.0+): 互校抗幻觉实证 (CTA vs LCA 信念一致率指标)
+- **元反思模式** (v0.63.0+): 4 周停滞检测 (MetaReflection, Phase 5+ 计划)
+- **下次 push 时建 cron 监控 CI** (按 CLAUDE.md [9] 规则: push 后建 → 绿后立即删)
 
 
 

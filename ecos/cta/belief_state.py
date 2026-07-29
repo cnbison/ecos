@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Dict, List
+from typing import Any, Dict, List
 
 import numpy as np
 
@@ -340,3 +340,273 @@ class BeliefState:
             bloom_profile=self.bloom_profile,
             confidence=self.overall_confidence,
         )
+
+    # ── 序列化（v0.61.0 dual_agent 持久化用）───────────────────────────
+
+    def to_dict(self) -> Dict[str, Any]:
+        """序列化为 dict（用于 JSON 持久化 / dual_agent_state 表）.
+
+        v0.61.0 新增：dual_agent 持久化需要 BeliefState 落盘.
+        np.ndarray 用 .tolist() 转 Python list, datetime 用 ISO format.
+
+        防御性自检：保持跟 dump_state() 调用一致, 字段一一对应.
+        """
+        return {
+            "student_id": self.student_id,
+            "K": _dim_to_dict(self.K),
+            "P": _dim_to_dict(self.P),
+            "S": _dim_to_dict(self.S),
+            "C": _conf_dim_to_dict(self.C),
+            "X": _dim_to_dict(self.X),
+            "theta_mean": self.theta_mean.tolist(),
+            "theta_cov": self.theta_cov.tolist(),
+            "bloom_profile": _bloom_to_dict(self.bloom_profile),
+            "learning_dna": _dna_to_dict(self.learning_dna),
+            "trajectory": _traj_to_dict(self.trajectory),
+            "overall_confidence": self.overall_confidence,
+            "last_updated": self.last_updated.isoformat(),
+            "version": self.version,
+        }
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "BeliefState":
+        """从 dict 反序列化（v0.61.0 dual_agent 持久化 load 用）.
+
+        缺失字段用 default 兜底, 保持跟 to_dict 对称.
+        student_id 缺失时 fallback "" (orch.load_state 会用 sid 强制覆盖).
+        """
+        import numpy as np
+        return cls(
+            student_id=d.get("student_id", ""),
+            K=_dim_from_dict(d.get("K", {}), default_dim="K"),
+            P=_dim_from_dict(d.get("P", {}), default_dim="P"),
+            S=_dim_from_dict(d.get("S", {}), default_dim="S"),
+            C=_conf_dim_from_dict(d.get("C", {})),
+            X=_dim_from_dict(d.get("X", {}), default_dim="X"),
+            theta_mean=np.array(d.get("theta_mean", np.zeros(5).tolist())),
+            theta_cov=np.array(d.get("theta_cov", np.eye(5).tolist())),
+            bloom_profile=_bloom_from_dict(d.get("bloom_profile", {})),
+            learning_dna=_dna_from_dict(d.get("learning_dna", {})),
+            trajectory=_traj_from_dict(d.get("trajectory", {})),
+            overall_confidence=float(d.get("overall_confidence", 0.0)),
+            last_updated=_parse_iso(d.get("last_updated")),
+            version=d.get("version", "v1.0"),
+        )
+
+
+# ── Helper 序列化函数（BeliefState 嵌套结构用）────────────────────────
+
+def _iso(dt: Any) -> str:
+    """datetime → ISO str (None → '')."""
+    return dt.isoformat() if dt else ""
+
+
+def _parse_iso(s: Any) -> Any:
+    """ISO str → datetime (None / 空 / 解析失败 → datetime.now())."""
+    if not s:
+        from datetime import datetime
+        return datetime.now()
+    try:
+        from datetime import datetime
+        return datetime.fromisoformat(s)
+    except (ValueError, TypeError):
+        from datetime import datetime
+        return datetime.now()
+
+
+def _dim_to_dict(d: Any) -> Dict[str, Any]:
+    return {
+        "theta": float(d.theta),
+        "se": float(d.se),
+        "mastered": bool(d.mastered),
+        "mastery_prob": float(d.mastery_prob),
+        "confidence": float(d.confidence),
+        "evidence_ids": list(d.evidence_ids),
+        "last_updated": _iso(d.last_updated),
+        "dimension": d.dimension,
+    }
+
+
+def _dim_from_dict(d: Dict[str, Any], default_dim: str = "K") -> Any:
+    return DimensionState(
+        theta=float(d.get("theta", 0.0)),
+        se=float(d.get("se", 1.0)),
+        mastered=bool(d.get("mastered", False)),
+        mastery_prob=float(d.get("mastery_prob", 0.5)),
+        confidence=float(d.get("confidence", 0.0)),
+        evidence_ids=list(d.get("evidence_ids", [])),
+        last_updated=_parse_iso(d.get("last_updated")),
+        dimension=d.get("dimension", default_dim),
+    )
+
+
+def _conf_dim_to_dict(c: Any) -> Dict[str, Any]:
+    base = _dim_to_dict(c)
+    base.update({
+        "misconception_hits": [
+            {
+                "misc_id": h.misc_id,
+                "confidence": float(h.confidence),
+                "trigger_problem_id": h.trigger_problem_id,
+                "evidence_text": h.evidence_text,
+                "timestamp": _iso(h.timestamp),
+                "correction_strategy": h.correction_strategy,
+            }
+            for h in c.misconception_hits
+        ],
+        "tc_states": {
+            k: {
+                "tc_id": v.tc_id,
+                "status": v.status,
+                "progress": float(v.progress),
+                "confidence": float(v.confidence),
+                "liminal_signals": list(v.liminal_signals),
+                "post_liminal_jump_detected": bool(v.post_liminal_jump_detected),
+                "irreversible": bool(v.irreversible),
+                "timestamp": _iso(v.timestamp),
+            }
+            for k, v in c.tc_states.items()
+        },
+        "illusory_confidence_flag": bool(c.illusory_confidence_flag),
+        "discount_factor": float(c.discount_factor),
+    })
+    return base
+
+
+def _conf_dim_from_dict(d: Dict[str, Any]) -> Any:
+    base = _dim_from_dict(d, default_dim="C")
+    return ConfidenceDimensionState(
+        theta=base.theta,
+        se=base.se,
+        mastered=base.mastered,
+        mastery_prob=base.mastery_prob,
+        confidence=base.confidence,
+        evidence_ids=base.evidence_ids,
+        last_updated=base.last_updated,
+        dimension=base.dimension,
+        misconception_hits=[
+            MisconceptionHit(
+                misc_id=h["misc_id"],
+                confidence=float(h.get("confidence", 0.0)),
+                trigger_problem_id=h.get("trigger_problem_id", ""),
+                evidence_text=h.get("evidence_text", ""),
+                timestamp=_parse_iso(h.get("timestamp")),
+                correction_strategy=h.get("correction_strategy", ""),
+            )
+            for h in d.get("misconception_hits", [])
+        ],
+        tc_states={
+            k: TCState(
+                tc_id=v["tc_id"],
+                status=v.get("status", "pre_liminal"),
+                progress=float(v.get("progress", 0.0)),
+                confidence=float(v.get("confidence", 0.0)),
+                liminal_signals=list(v.get("liminal_signals", [])),
+                post_liminal_jump_detected=bool(v.get("post_liminal_jump_detected", False)),
+                irreversible=bool(v.get("irreversible", False)),
+                timestamp=_parse_iso(v.get("timestamp")),
+            )
+            for k, v in d.get("tc_states", {}).items()
+        },
+        illusory_confidence_flag=bool(d.get("illusory_confidence_flag", False)),
+        discount_factor=float(d.get("discount_factor", 1.0)),
+    )
+
+
+def _bloom_to_dict(b: Any) -> Dict[str, Any]:
+    return {
+        "remember": float(b.remember),
+        "understand": float(b.understand),
+        "apply": float(b.apply),
+        "analyze": float(b.analyze),
+        "evaluate": float(b.evaluate),
+        "create": float(b.create),
+        "dominant_layer": b.dominant_layer.name,
+        "confidence": float(b.confidence),
+        "evidence_ids": list(b.evidence_ids),
+    }
+
+
+def _bloom_from_dict(d: Dict[str, Any]) -> Any:
+    try:
+        dominant = BloomLevel[d.get("dominant_layer", "UNDERSTAND")]
+    except KeyError:
+        dominant = BloomLevel.UNDERSTAND
+    return BloomProfileState(
+        remember=float(d.get("remember", 0.5)),
+        understand=float(d.get("understand", 0.5)),
+        apply=float(d.get("apply", 0.5)),
+        analyze=float(d.get("analyze", 0.5)),
+        evaluate=float(d.get("evaluate", 0.5)),
+        create=float(d.get("create", 0.5)),
+        dominant_layer=dominant,
+        confidence=float(d.get("confidence", 0.0)),
+        evidence_ids=list(d.get("evidence_ids", [])),
+    )
+
+
+def _dna_to_dict(d: Any) -> Dict[str, Any]:
+    return {
+        "input_preference": d.input_preference,
+        "feedback_preference": d.feedback_preference,
+        "fatigue_pattern": dict(d.fatigue_pattern),
+        "error_pattern": list(d.error_pattern),
+        "motivation_pattern": dict(d.motivation_pattern),
+        "confidence": float(d.confidence),
+    }
+
+
+def _dna_from_dict(d: Dict[str, Any]) -> Any:
+    return LearningDNAState(
+        input_preference=d.get("input_preference", "visual"),
+        feedback_preference=d.get("feedback_preference", "immediate"),
+        fatigue_pattern=dict(d.get("fatigue_pattern", {})),
+        error_pattern=list(d.get("error_pattern", [])),
+        motivation_pattern=dict(d.get("motivation_pattern", {})),
+        confidence=float(d.get("confidence", 0.0)),
+    )
+
+
+def _traj_to_dict(t: Any) -> Dict[str, Any]:
+    return {
+        "snapshots": [
+            {
+                "timestamp": _iso(s.timestamp),
+                "theta_5d": s.theta_5d.tolist() if hasattr(s.theta_5d, "tolist") else list(s.theta_5d),
+                "bloom_profile": _bloom_to_dict(s.bloom_profile),
+                "tc_states": {
+                    k: {
+                        "tc_id": v.tc_id,
+                        "status": v.status,
+                        "progress": float(v.progress),
+                        "confidence": float(v.confidence),
+                        "liminal_signals": list(v.liminal_signals),
+                        "post_liminal_jump_detected": bool(v.post_liminal_jump_detected),
+                        "irreversible": bool(v.irreversible),
+                        "timestamp": _iso(v.timestamp),
+                    }
+                    for k, v in s.tc_states.items()
+                },
+                "misc_history": list(s.misc_history),
+                "confidence": float(s.confidence),
+            }
+            for s in t.snapshots
+        ],
+        "predictions": dict(t.predictions),
+    }
+
+
+def _traj_from_dict(d: Dict[str, Any]) -> Any:
+    import numpy as np
+    snapshots = []
+    for s in d.get("snapshots", []):
+        snapshots.append(StateSnapshot(
+            timestamp=_parse_iso(s.get("timestamp")),
+            theta_5d=np.array(s.get("theta_5d", np.zeros(5).tolist())),
+            bloom_profile=_bloom_from_dict(s.get("bloom_profile", {})),
+            confidence=float(s.get("confidence", 0.0)),
+        ))
+    return TrajectoryState(
+        snapshots=snapshots,
+        predictions=dict(d.get("predictions", {})),
+    )
