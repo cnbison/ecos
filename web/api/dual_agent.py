@@ -66,17 +66,23 @@ def get_dual_orchestrator():
 
     防御性自检 [1]: lazy init 失败必须有日志, 不能 silent pass.
 
-    设计: 跟 web/api/lca.py 共享 LCAEngine 实例 (避免 LinUCB 双份).
+    v0.62.0-A 设计: dual_agent 用**独立 LCAEngine 实例**, 跟 web/api/lca.py 隔离.
+      - 之前 v0.60.0 共享 LCAEngine: 同一次答题 arm_pull 涨 2 次 (lca_select 1 + dual_agent 1)
+      - 现在 dual_agent 内部 LCAEngine 独立 → arm_pull 互不串扰
+      - dual_agent 内部 LCA state (per-student bandit) **不持久化**, 重启后冷启动
+        (dual_agent 8 字段持久化照常, calibration_round / intervention_history 等)
+      - 教学决策 LCAEngine (web/api/lca.py) 完全不动, lbc001 32+ 道训练数据保留
     """
     global _orchestrator
     if _orchestrator is None:
         try:
             from ecos.cta.belief_engine import BeliefEngine
             from ecos.dual_agent import DualAgentConfig, DualAgentOrchestrator
-            from web.api.lca import get_lca_engine
+            from ecos.lca.orchestrator import LCAEngine, LCAEngineConfig
 
             cta_engine = BeliefEngine()
-            lca_engine = get_lca_engine()  # 共享 LCAEngine 单例
+            # v0.62.0-A: 独立 LCAEngine 实例, 跟 web/api/lca.py 隔离
+            lca_engine = LCAEngine(config=LCAEngineConfig())
             cfg = DualAgentConfig(
                 cta_config=cta_engine.config,
                 lca_config=lca_engine.config,
@@ -89,7 +95,7 @@ def get_dual_orchestrator():
             )
             _log.info(
                 "DualAgentOrchestrator 初始化完成 (DUAL_AGENT_ENABLED=%s, "
-                "timeout_sec=%d)",
+                "timeout_sec=%d, lca_engine=独立实例_v0.62.0)",
                 DUAL_AGENT_ENABLED, cfg.timeout_sec,
             )
         except Exception:

@@ -3026,3 +3026,65 @@ Phase 0 100% 完成 🎉
 
 
 
+
+## [0.62.0] 2026-07-29 — LCA 独立视图 (修复 v0.60.0 arm_pull 涨 1 trade-off, Bisen 11:08 拍板 v0.61.0 后续)
+
+> **触发**: v0.60.0 dual_agent 接入主循环时留 "LCA arm_pull 会多 +1 (已知 trade-off)" 标记, 留 v0.62.0+ 修. Bisen 2026-07-29 14:41 拍板 "直接开 v0.62.0-A LCA 独立视图".
+>
+> **根因 (调研发现, 跟 v0.60.0 commit message 表述略有差异)**:
+> - LinUCB.select_arm **不涨** arm_pull_counts (只选 arm 不更新 state)
+> - 只有 LinUCB.update(arm, context, reward) 才 `arm_pull_counts[arm] += 1`
+> - LCAEngine.select_intervention → 涨 0, LCAEngine.update → 涨 1
+> - v0.60.0 共享 LCAEngine 时, 每次答题 arm_pull 涨 2 次 (lca_update 1 + dual_agent internal update 1)
+> - v0.60.0 commit 写"涨 1"实际是"双调用方"含义, 不是单次涨 1
+>
+> **CLAUDE.md [7] 防御性警告 (v0.62.0-A 架构升级, 抛 Bisen)**:
+> - **不动**: students.* / student_lca_state.* (lbc001 32+ 道 LCA 训练数据保留) / student_dual_agent_state.* / calibration_log (lbc001 5 行)
+> - **改动**: web/api/dual_agent.py get_dual_orchestrator 内部 lca_engine 改独立 LCAEngine 实例
+> - **dual_agent 内部 LCA state (per-student bandit) 不持久化**, 重启后冷启动 (设计选择, dual_agent 8 字段仍持久化)
+> - **lca.py 教学决策 LCAEngine 完全不动**
+
+### ✅ 已做
+
+#### 1. web/api/dual_agent.py get_dual_orchestrator 改造
+- 之前: `lca_engine = get_lca_engine()` (v0.60.0 共享 LCAEngine 实例)
+- 现在: `lca_engine = LCAEngine(config=LCAEngineConfig())` (独立实例)
+- 防御性自检 [1]: lazy init 失败仍 _log.warning(..., exc_info=True)
+- 日志区分: `_log.info(..., lca_engine=独立实例_v0.62.0)` 跟 v0.60.0 区分
+
+#### 2. dual_agent 内部 LCA state 设计 (新决策)
+- per-student bandit 内部 state 走**独立 LCAEngine.bandits dict** (跟 v0.57.0 LCA 同样模式)
+- **不持久化** (跟 belief_engine in-memory 同样, dual_agent 重启后冷启动)
+- 8 字段持久化照常 (calibration_round / intervention_history / state_trajectory / warnings / belief_challenges / strategy_challenges / state_snapshot / consecutive_ineffective)
+
+#### 3. 测试套件 (tests/test_dual_agent_lca_isolation.py, 新建 5 测试)
+- TestLCAEngineInstanceIsolation (2): dual_agent LCAEngine != lca.py LCAEngine / 独立 bandits dict
+- TestArmPullCountsIsolation (2): dual_agent 跑 process_observation 后 lca.py arm_pull 不变 / 反之亦然
+- TestPerStudentBanditStillIsolated (1, 回归): v0.57.0 per-student bandit 隔离不破坏 (student_a 跑 3 次, student_b 跑 1 次, a.total=3, b.total=1)
+
+### 关键技术决策
+1. **独立 LCAEngine 实例 vs per-caller 视图**: 选独立实例 (方案简单, 跟 v0.57.0 LCA per-student bandit 同样模式, 不引入新视图概念)
+2. **dual_agent 内部 LCA state 不持久化**: dual_agent 主要靠 CTA belief, LinUCB 训练数据是辅助; 冷启动可接受, 跟 belief_engine in-memory 同样
+3. **lca.py 完全不动**: 教学决策 LCAEngine 是 v0.60.0 之前的设计, lbc001 32+ 道训练数据保留, 不破坏
+
+### 数据迁移 / 已知影响
+- **dual_agent 内部 LCA 训练数据从 0 起步**: v0.60.4 验证时 dual_agent 内部 LCAEngine 跟 lca.py 共享, 之前的 arm_pull 数据混在 lca.py 那边. v0.62.0 起 dual_agent 内部 LinUCB 冷启动, 不写迁移脚本 (跟 v0.57.0 / v0.61.0 同样态度)
+- **lca.py LCAEngine 数据不受影响**: lbc001 32+ 道 LCA 训练数据保留, 教学 arm_pull 继续累加
+- **dual_agent 互校行为基本不变**: 内部 LCA select / update 仍跑, 只是走独立 LinUCB 实例, 决策信号更准 (不被双调用方污染)
+
+### 防御性自检 (CLAUDE.md 规范)
+- [x] [1] silent pass: get_dual_orchestrator lazy init 失败 _log.warning(..., exc_info=True)
+- [x] [2] __version__ 0.61.0 → 0.62.0
+- [x] [3] detect_with_hits 传 library_str (本次不涉及 misconception)
+- [x] [4] HTML class 对齐 (本次不动 HTML)
+- [x] [5] **核心**: dual_agent 跟 lca.py LCAEngine 实例分离 (1 行代码 + 5 测试)
+- [x] [6] 不写启发式 fallback (本次不涉及 /api/judge)
+- [x] [7] 架构升级前警告历史状态丢失: 本 CHANGELOG 头部已写 CLAUDE.md [7] 防御性警告
+- [x] [8] 改 API 加测试: web/api/dual_agent.py 接入独立 LCAEngine, 5 个新测试覆盖
+- [x] [9] 防御性自检脚本: bash scripts/check_defensive.sh 全过, pytest **219/219 全部通过** (5 新增 + 214 原有)
+
+### 📋 后续 (不在 v0.62.0 commit)
+- **bloom_target 跟 belief.py 对齐** (v0.62.0-B): dual_agent 启动时从 belief_engine 拿最新 state 覆盖初始 state (解决 v0.60.4 验证时 REMEMBER vs EVALUATE 错位)
+- **H3 验证** (v0.62.0-C): 互校抗幻觉实证 (CTA vs LCA 信念一致率指标, lbc001 32+ 道已满足触发条件)
+- **元反思模式** (v0.63.0+): 4 周停滞检测 (MetaReflection, Phase 5+ 计划)
+- **下次 push 时建 cron 监控 CI** (按 CLAUDE.md [9] 规则: push 后建 → 绿后立即删)
