@@ -3479,3 +3479,60 @@ Phase 0 100% 完成 🎉
 - **Phase 4+ LearningDNA 真实实现**: 长路, 需 lbc001 答题历史 ≥ 50 题 + 交互行为数据 (点击/停留时间/重做次数等), 当前没数据基础
 - **v0.65.0 后续** (C 主导题扩 20+ 题) 不变
 - **CI 现状** (v0.64.1 改写后) 不变: 本地 hook 强制, push 后不需要监控 CI
+
+## [0.67.0] 2026-07-29 — UI 修复后续: /api/dual_agent/debug 路由注册 + H3 报告 lbc001 hardcode 改动态
+
+> **触发**: Bisen 2026-07-29 22:18 反馈, lbc003 答 8 道题后检查后台日志发现 2 个问题:
+> 1. `/api/dual_agent/debug/<sid>` 路由没注册 (v0.60.0 commit 漏, 函数在 dual_agent.py 有但 app.py 没 @app.route), 404 噪声
+> 2. H3 报告 hardcode lbc001 字符串, 跑 lbc003 时报告内容是错的
+>
+> 注: 这 2 个修复都是 v0.65.0 / v0.66.0 UI 修复的**收尾**, 跟 H3 B 部分答题流程同时进行.
+
+### ✅ 已做
+
+#### 1. web/api/app.py: 注册 /api/dual_agent/debug 路由 (修复 1)
+- v0.60.0 commit 漏注册路由 (v0.65.0 修复)
+- 新增 `@app.route("/api/dual_agent/debug/<student_id>")` → `api_dual_agent_debug(student_id)`
+- 调用 `web.api.dual_agent.get_dual_agent_debug_info(student_id)`, 返回 jsonify(info)
+- 错误处理: try/except + jsonify({"error": str(e)}), 500
+- 验证: `curl http://localhost:5173/api/dual_agent/debug/lbc003` 返回 JSON (Bisen 答题时实测 404, 修复后返回 enabled/has_state 状态)
+
+#### 2. scripts/compute_h3_ece.py: lbc001 hardcode 改 {student_id} 动态 (修复 2)
+- argparse default 改 lbc003 (v0.64.0 后新数据最干净, lbc001 是 60 道题老 data 含 fallback)
+- format_report 模板 6 处 lbc001 hardcode 改 {student_id} (f-string 替换):
+    - verdict reason: 需答 30+ 道
+    - 后续路线: 学生 ID 动态
+    - 数据基础限制: 学生 ID + 样本数动态
+- 函数 docstring 4 处 hardcode 改成通用描述 (单 Agent / 双 Agent 不再特指 lbc001)
+- 验证: 跑 `--student-id lbc003`, 报告内容显示 lbc003, 不再 hardcode
+
+#### 3. 已有测试不受影响 (245/245 全过)
+
+### CLAUDE.md [7] 防御性警告 (v0.67.0 路由 + 报告修复)
+- **不动**: 业务代码 (dual_agent.py / belief_engine.py / db.py / belief.py / lca.py)
+- **不动**: lbc001 / lbc002 / lbc003 数据
+- **不动**: v0.65.0 / v0.66.0 UI 修复
+- **改动**: web/api/app.py 新增 1 个路由 (12 行, 加 @app.route + 路由函数)
+- **改动**: scripts/compute_h3_ece.py 改字符串 (6 处 f-string + 4 处 docstring, additive 不破坏行为)
+- **不影响**: H3 验证数据 / dual_agent 跑 / Flask 业务路由
+
+### 关键技术决策
+1. **路由复用现有函数**: `get_dual_agent_debug_info` 在 dual_agent.py 已有, app.py 只需 import + 注册, 不重写
+2. **jsonify 包装**: 返回 dict → jsonify(info) 走 Flask 标准化 JSON 响应
+3. **f-string 动态化**: 学生 ID 不再 hardcode, 跑 lbc001 / lbc002 / lbc003 都能正确显示
+4. **default 改 lbc003**: lbc003 是 v0.64.0 后新数据最干净, 跑默认出 lbc003 报告
+
+### 防御性自检 (CLAUDE.md 规范)
+- [x] [1] silent pass: 路由 try/except 兜底, 错误 _log.warning (caller 决定)
+- [x] [2] __version__ 0.66.0 → 0.67.0
+- [x] [3] detect_with_hits 传 library_str (本次不涉及 misconception)
+- [x] [4] HTML class 对齐 (本次不动 HTML, v0.65.0/v0.66.0 已修)
+- [x] [5] **核心**: 路由注册 + 报告 hardcode 改动态 (2 个修复点)
+- [x] [6] 不写启发式 fallback (无新增业务逻辑)
+- [x] [7] 架构升级前警告历史状态丢失: 本 CHANGELOG 头部已写
+- [x] [8] 改 API 加测试: 已有 245 测试不受影响 (路由 + 报告修复都是修复型, 不加新功能)
+- [x] [9] 防御性自检脚本: bash scripts/check_defensive.sh 全过, pytest **245/245 全部通过**
+
+### 📋 后续 (不在 v0.67.0 commit)
+- **Bisen 继续答 22+ 道题凑 30+**: lbc003 当前 8 道, 差 22+ 道, 答完我跑 H3 重算 + 写完整 B 部分报告
+- **下次 push 时建 cron 监控 CI** (按 CLAUDE.md [9] 规则: push 后建 → 绿后立即删)

@@ -651,6 +651,24 @@ def api_lca_debug(student_id: str):
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/dual_agent/debug/<student_id>")
+def api_dual_agent_debug(student_id: str):
+    """v0.60.0: 双 Agent 互校调试接口 (教师后台 / 开发自检用).
+
+    返回 dual_agent 内部 state (calibration_round / warnings / belief_challenges /
+    strategy_challenges / history_count). 不暴露学生个人隐私字段.
+
+    v0.65.0 修复: 路由没注册 (v0.60.0 commit 漏的, 函数在 web.api.dual_agent 有但
+    app.py 没 @app.route). 修复后返回 JSON 而不是 404.
+    """
+    try:
+        from web.api.dual_agent import get_dual_agent_debug_info
+        info = get_dual_agent_debug_info(student_id)
+        return jsonify(info)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 # ─── v0.49.2: 答题历史详情 ───────────────────────────────────────────────────
 @app.route("/api/history/<student_id>")
 def api_get_history(student_id: str):

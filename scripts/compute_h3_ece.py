@@ -6,25 +6,25 @@
   - 报告输出: discussions/2026-07-29-H3-verification-report.md
 
 H3 验证设计 (单 vs 双 Agent 对比):
-  - 单 Agent (CTA only): 用 lbc001 response_history 32+ 道
+  - 单 Agent (CTA only): 用 lbc00X response_history 30+ 道
     - confidence: BeliefState 各维度 mastery_prob (after update)
     - accuracy: response_history.correct (二元) / score (partial credit)
-  - 双 Agent (CTA + LCA + 互校): 用 lbc001 calibration_log (5 行, v0.60.4 验证)
+  - 双 Agent (CTA + LCA + 互校): 用 lbc00X calibration_log (v0.60.4 验证 5 行)
     - confidence: message_payload.expected_gain (互校预测的 gain)
     - accuracy: actual_outcome (实际 outcome, v0.61.0 改 score 派生)
 
 数据基础:
-  - lbc001 response_history: 32+ 道 (CTA 单跑, lbc001 整个答题历史)
-  - lbc001 calibration_log: 5 行 (v0.60.4 dual_agent 跑过 5 道)
-  - lbc001 belief.py: 累加 32+ 道, K/P/S/C/X 5D 状态可读
+  - lbc00X response_history: 30+ 道 (CTA 单跑, 整个答题历史)
+  - lbc00X calibration_log: 5 行 (v0.60.4 dual_agent 跑过 5 道)
+  - lbc00X belief.py: 累加 30+ 道, K/P/S/C/X 5D 状态可读
 
 输出:
   - 打印到 stdout: 单 Agent baseline ECE + 双 Agent experiment ECE + 结论
   - 写入 discussions/2026-07-29-H3-verification-report.md: 完整报告
 
 限制 (v0.63.0 时):
-  - dual_agent 只有 5 行 calibration_log (lbc001), 统计意义不足
-  - H3 暂未通过, 待 lbc001 答 30+ 道 dual_agent 后再补 (跟 A + B 后续接策略一致)
+  - dual_agent 只有 5 行 calibration_log (lbc00X), 统计意义不足
+  - H3 暂未通过, 待 lbc00X 答 30+ 道 dual_agent 后再补 (跟 A + B 后续接策略一致)
 
 用法:
     python scripts/compute_h3_ece.py
@@ -80,7 +80,7 @@ def compute_single_agent_ece(
     student_id: str,
     dimension: str = "K",
 ) -> Dict[str, Any]:
-    """单 Agent baseline: 算 lbc001 答题历史的 5D 某维度校准度.
+    """单 Agent baseline: 算学生答题历史的 5D 某维度校准度.
 
     v0.64.0 改进: 用 response_history[i].mastery_prob_after[dimension] 当 confidence,
                   不再是 v0.63.0 简化 (用当前 mastery_prob 当所有问题 confidence).
@@ -142,7 +142,7 @@ def compute_dual_agent_ece(
     student_id: str,
     limit: int = 1000,
 ) -> Dict[str, Any]:
-    """双 Agent experiment: 算 lbc001 calibration_log 的校准度.
+    """双 Agent experiment: 算学生 calibration_log 的校准度.
 
     confidence: message_payload.expected_gain (互校预测的 gain, 0-1)
     accuracy: actual_outcome (实际 outcome, v0.61.0 改 score 派生 0-1)
@@ -297,7 +297,7 @@ def format_report(
             verdict = "⚠️ **H3 暂未通过 (双 Agent 样本量不足)**"
             reason = (
                 f"双 Agent 只有 {dual_n} 行 calibration_log, 统计意义不足, "
-                f"需要 lbc001 答 30+ 道 dual_agent 后再补完整 H3 验证 "
+                f"需要 {student_id} 答 30+ 道 dual_agent 后再补完整 H3 验证 "
                 f"(跟 v0.63.0 路线 A + 后续 B 一致)"
             )
         elif dual_ece <= h3_pass_threshold:
@@ -326,25 +326,25 @@ def format_report(
         ])
 
     lines.extend([
-        "## 4. 限制与建议 (v0.63.0)",
+        f"## 4. 限制与建议 (v0.63.0 路线 A, 跑 {student_id})",
         "",
         "### 数据基础限制",
-        f"- 单 Agent baseline: lbc001 response_history {single_n} 条 (够 30+, 统计意义 OK)",
-        f"- 双 Agent experiment: lbc001 calibration_log **{dual_n} 条** (不足 30, 统计意义有限)",
+        f"- 单 Agent baseline: {student_id} response_history {single_n} 条 (够 30+, 统计意义 OK)",
+        f"- 双 Agent experiment: {student_id} calibration_log **{dual_n} 条** (不足 30, 统计意义有限)",
         "",
         "### 方法限制",
-        "- 单 Agent confidence 用当前 mastery_prob 简化 (实际应该是历史快照序列)",
+        "- v0.64.0 改进: 单 Agent confidence 用 mastery_prob_after 历史快照 (老 data 兜底)",
         "- 双 Agent confidence 用 message_payload.expected_gain (互校预测 gain, 不是直接的 confidence)",
         "- 没做 p-value 显著性检验 (样本量不足, 跑也不显著)",
         "",
         "### 后续 (v0.63.0+ 路线 B)",
-        "1. lbc001 答 30+ 道题 (feature flag on, ECOS_DUAL_AGENT_ENABLED=1)",
+        f"1. {student_id} 答 30+ 道题 (feature flag on, ECOS_DUAL_AGENT_ENABLED=1)",
         "2. 收集 calibration_log 30+ 行",
         "3. 跑本脚本重算 H3 (单 vs 双 ECE 对比 + p-value)",
         "4. 写完整 H3 报告 (含显著性检验)",
         "",
         "### 改进方向",
-        "- 单 Agent confidence 存历史快照 (v0.64.0+ 路线: response_history 加 confidence 字段)",
+        "- v0.64.0 已落地: mastery_prob_after 字段 (response_history 历史快照)",
         "- 双 Agent confidence 改用 CalibratedLCAResult.intervention.confidence (更直接的校准信号)",
         "- 加 reliability diagram 画图 (matplotlib 依赖待评估)",
         "",
@@ -360,8 +360,8 @@ def main():
     parser = argparse.ArgumentParser(description="H3 验证: 单 vs 双 Agent 校准度对比")
     parser.add_argument(
         "--student-id",
-        default="lbc001",
-        help="学生 ID (默认 lbc001)",
+        default="lbc003",
+        help="学生 ID (默认 lbc003, v0.64.0 后新数据最干净)",
     )
     parser.add_argument(
         "--dimension",
