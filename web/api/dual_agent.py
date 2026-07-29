@@ -130,10 +130,13 @@ def get_dual_agent_store():
 def _load_dual_state_if_needed(student_id: str) -> None:
     """从 DB 加载 dual_agent 状态到 orch (v0.61.0 启动 lazy load, 跟 LCA 同样模式).
 
-    行为:
+    行为 (v0.62.1 升级: bloom_target 跟 belief.py 对齐):
       - 已加载过 (在 _loaded_students 里) 跳过
       - 首次访问 → 从 DB load, 写入 orch 内部 dict + 加 _loaded_students
-      - DB 无该学生状态 (新学生) → 不做任何事, 双 Agent 冷启动
+      - DB 有状态 → load (v0.61.0 行为)
+      - DB 无状态 → **v0.62.1 改**: 从 web/api/belief.py 拿最新 state 深拷贝,
+        避免 v0.60.4 验证时 bloom_target=REMEMBER 跟 belief.py EVALUATE 错位
+      - belief.py 也没该学生 (新学生) → 兜底 create_initial_state (跟 v0.60.0 行为)
       - load 失败 → _log.warning + 冷启动 (create_initial_state)
 
     CLAUDE.md 防御性自检 [1]: 失败必须有日志, 不能 silent pass.
@@ -148,7 +151,8 @@ def _load_dual_state_if_needed(student_id: str) -> None:
 
     store = get_dual_agent_store()
     if not store.has_state(student_id):
-        # DB 无状态 → 标记为已加载, 走冷启动
+        # DB 无状态 → v0.62.1: 从 belief.py 拿最新 state 深拷贝
+        _init_dual_state_from_belief_py(student_id, orch)
         _loaded_students.add(student_id)
         return
 
@@ -172,6 +176,54 @@ def _load_dual_state_if_needed(student_id: str) -> None:
     }
     orch.ensure_state_loaded(student_id, snapshot=dump_dict)
     _loaded_students.add(student_id)
+
+
+def _init_dual_state_from_belief_py(student_id: str, orch) -> None:
+    """v0.62.1: 从 web/api/belief.py 拿最新 BeliefState 深拷贝, 喂给 dual_agent orch.
+
+    解决 v0.60.4 验证时 bloom_target=REMEMBER 跟 belief.py 最新 EVALUATE 错位 BUG.
+
+    行为:
+      - 调 _get_or_create_student(sid) 拿 belief.py 模块级 dict 里的 state
+      - 用 BeliefState.from_dict(state.to_dict()) 深拷贝 (v0.61.0 序列化基础)
+      - 覆盖 orch.state[sid], 其他 7 字段 (intervention_history / calibration_round 等) 仍走 _init_fresh_state 默认值
+      - belief.py 也没该学生 → 兜底 _init_fresh_state (跟 v0.60.0 行为一致)
+      - 任何异常 → _log.warning + 兜底 _init_fresh_state (CLAUDE.md [1] 防御性)
+
+    为什么不直接引用 belief_state:
+      - dual_agent 改 state 不应污染 belief.py
+      - belief.py 改 state 不应污染 dual_agent
+      - 用 from_dict 重新构造 BeliefState 实例, 100% 隔离
+    """
+    try:
+        from ecos.cta.belief_state import BeliefState
+        from web.api.belief import _get_or_create_student
+
+        belief_student = _get_or_create_student(student_id)
+        belief_state = belief_student["state"]
+        # 深拷贝: from_dict 重新构造 BeliefState 实例, 5D / Bloom / TC / Misc / np.ndarray 全隔离
+        copied_state = BeliefState.from_dict(belief_state.to_dict())
+        copied_state.student_id = student_id  # 强制 sid 一致 (兜底)
+
+        # 其他 7 字段仍走 _init_fresh_state 默认值 (intervention_history / calibration_round 等)
+        orch._init_fresh_state(student_id)
+        # 覆盖 state 为 belief.py 深拷贝
+        orch.state[student_id] = copied_state
+        _log.info(
+            "v0.62.1: dual_agent state 从 belief.py 深拷贝 (sid=%s, "
+            "bloom_dominant=%s, K.theta=%.4f)",
+            student_id,
+            copied_state.bloom_profile.dominant_layer.name,
+            copied_state.K.theta,
+        )
+    except Exception:
+        # CLAUDE.md [1]: 失败必须有日志, 不能 silent pass
+        # 兜底: 跟 v0.60.0 同样冷启动 (create_initial_state)
+        _log.warning(
+            "v0.62.1: _init_dual_state_from_belief_py 失败 (sid=%s), 兜底冷启动",
+            student_id, exc_info=True,
+        )
+        orch._init_fresh_state(student_id)
 
 
 # ─── Public API ─────────────────────────────────────────────────────────────

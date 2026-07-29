@@ -3088,3 +3088,64 @@ Phase 0 100% 完成 🎉
 - **H3 验证** (v0.62.0-C): 互校抗幻觉实证 (CTA vs LCA 信念一致率指标, lbc001 32+ 道已满足触发条件)
 - **元反思模式** (v0.63.0+): 4 周停滞检测 (MetaReflection, Phase 5+ 计划)
 - **下次 push 时建 cron 监控 CI** (按 CLAUDE.md [9] 规则: push 后建 → 绿后立即删)
+
+## [0.62.1] 2026-07-29 — bloom_target 跟 belief.py 对齐 (修复 v0.60.4 验证错位 BUG)
+
+> **触发**: v0.60.0 dual_agent 接入主循环时留 "bloom_target 跟 belief.py 不一致" 标记, v0.60.4 验证时实测 bloom=REMEMBER 跟 belief.py EVALUATE 错位. Bisen 2026-07-29 14:51 拍板 "v0.62.0-B".
+>
+> **根因**:
+> - 之前 web/api/dual_agent.py _load_dual_state_if_needed(sid) → orch._init_fresh_state(sid)
+> - → cta_engine.create_initial_state(sid) → **永远是初始 state** (K.theta=0, bloom=REMEMBER)
+> - belief.py `_STUDENT_STATES[student_id]["state"]` 累加 32+ 道题, bloom 已变 EVALUATE
+> - 双流程 state 完全脱节 → dual_agent process_observation 里 bloom_target=REMEMBER 跟 belief.py 最新 EVALUATE 错位
+>
+> **CLAUDE.md [7] 防御性警告 (v0.62.1 架构升级, 抛 Bisen)**:
+> - **不动**: students.* / student_lca_state.* / student_dual_agent_state.* / calibration_log / belief.py `_STUDENT_STATES` 累加逻辑
+> - **改动**: web/api/dual_agent.py _load_dual_state_if_needed DB 无状态时改走 _init_dual_state_from_belief_py
+> - **belief.py 拿深拷贝** (用 v0.61.0 BeliefState.to_dict/from_dict), 100% 隔离, 改自己 state 不污染 belief.py
+> - **新学生 (belief.py 也没状态) 兜底**: _get_or_create_student 自动 create_initial_state, 跟 v0.60.0 行为一致
+
+### ✅ 已做
+
+#### 1. web/api/dual_agent.py _load_dual_state_if_needed 改造
+- DB 有状态分支: 不动 (v0.61.0 load_state 行为)
+- DB 无状态分支: **v0.62.1 改** 调 _init_dual_state_from_belief_py 而非 _init_fresh_state
+
+#### 2. _init_dual_state_from_belief_py 新函数 (v0.62.1 新增)
+- 调 `_get_or_create_student(sid)` 拿 belief.py 模块级 dict 里的 BeliefState
+- 用 `BeliefState.from_dict(state.to_dict())` 深拷贝 (v0.61.0 序列化基础)
+- 覆盖 orch.state[sid], 其他 7 字段 (intervention_history / calibration_round 等) 仍走 _init_fresh_state 默认值
+- 失败兜底: _log.warning + _init_fresh_state (CLAUDE.md [1] 防御性)
+- 防御性自检 [1]: 任何异常 (belief.py 不可用 / BeliefState 序列化失败) → _log.warning + 兜底
+
+#### 3. 测试套件 (tests/test_dual_agent_belief_alignment.py, 新建 4 测试)
+- TestBloomTargetAlignment (2): bloom_dominant / K.theta 跟 belief.py 对齐 / 新学生兜底 create_initial_state
+- TestStateIsolation (2): dual_agent update 不污染 belief.py / belief.py 后累加不影响 dual_agent 已加载 state (snapshot 隔离)
+
+### 关键技术决策
+1. **深拷贝 vs 引用**: 选深拷贝 (BeliefState.from_dict 重新构造实例), 100% 隔离, 改自己 state 不污染对方 (跟 v0.60.4 设计意图一致)
+2. **DB 有 vs 无状态分支**: DB 有状态优先 (v0.61.0 行为), DB 无状态走 belief.py 拿 (新逻辑), 保证 v0.61.0 持久化数据优先
+3. **新学生兜底**: 跟 v0.60.0 行为一致, 避免新增行为差异
+4. **不实时同步**: dual_agent 已加载 state 跟 belief.py 解耦, belief.py 后续累加不自动同步到 dual_agent (避免运行时双向同步复杂性)
+
+### 数据迁移 / 已知影响
+- **已落盘 dual_agent state 不变**: v0.61.0 之前 dual_agent 持久化表 0 行, v0.62.1 不需要数据迁移
+- **lbc001 dual_agent 第一次访问**: 走 _init_dual_state_from_belief_py → 拿 belief.py 累加 32+ 道的 state → bloom_target 跟 belief.py 对齐
+- **lbc002 dual_agent 第一次访问**: 同上
+- **新学生**: 走 _get_or_create_student 自动 create_initial_state, 跟 v0.60.0 行为一致
+
+### 防御性自检 (CLAUDE.md 规范)
+- [x] [1] silent pass: _init_dual_state_from_belief_py 失败 _log.warning(..., exc_info=True) + 兜底 _init_fresh_state
+- [x] [2] __version__ 0.62.0 → 0.62.1
+- [x] [3] detect_with_hits 传 library_str (本次不涉及 misconception)
+- [x] [4] HTML class 对齐 (本次不动 HTML)
+- [x] [5] **核心**: dual_agent state bloom_target 跟 belief.py 对齐 (深拷贝, 1 个新函数 + 4 测试)
+- [x] [6] 不写启发式 fallback (本次不涉及 /api/judge)
+- [x] [7] 架构升级前警告历史状态丢失: 本 CHANGELOG 头部已写 CLAUDE.md [7] 防御性警告
+- [x] [8] 改 API 加测试: web/api/dual_agent.py 接入 belief.py 拿深拷贝, 4 个新测试覆盖
+- [x] [9] 防御性自检脚本: bash scripts/check_defensive.sh 全过, pytest **223/223 全部通过** (4 新增 + 219 原有)
+
+### 📋 后续 (不在 v0.62.1 commit)
+- **H3 验证** (v0.62.0-C / v0.62.2+): 互校抗幻觉实证 (CTA vs LCA 信念一致率指标, lbc001 32+ 道已满足触发条件)
+- **元反思模式** (v0.63.0+): 4 周停滞检测 (MetaReflection, Phase 5+ 计划)
+- **下次 push 时建 cron 监控 CI** (按 CLAUDE.md [9] 规则: push 后建 → 绿后立即删)
