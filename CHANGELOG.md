@@ -2852,6 +2852,58 @@ Phase 0 100% 完成 🎉
 - **push 后建 cron 监控 CI** (v0.60.2 cron `monitor-ci-f34ff8b` 已删, 重新建 `monitor-ci-<v0.60.3 sha>`)
 - **Phase 5**: lbc001 答题 5 道验证 dual_agent + 备份清理
 
+---
+
+## [0.60.4] 2026-07-29 — Phase 5 收尾: dual_agent 行为验证 + 备份清理 (Bisen 10:51 答题 5 道完成)
+
+> **触发**: Bisen 7-29 10:30-10:48 用 lbc001 答题 5 道 (4 对 1 错), 启动方式 `ECOS_DUAL_AGENT_ENABLED=1 python -m web.api.app`.
+>
+> **CLAUDE.md [7] 防御性警告 (Phase 5 专用, 抛 Bisen)**:
+> - 触碰 lbc001 运行时 state (5D 累加 + warmup_count 涨 5), 但**全部在 belief.py 现有路径**, dual_agent 走的是 in-memory 新 state
+> - **不触碰 lbc002 状态** (没答题)
+> - calibration_log 表新增 5 行 (lbc001), 是设计意图
+> - 备份 `web/ecos.db.bak.rejudge_lbc001_*` 在 v0.60.4 删除 (按 v0.58.5 计划, dual_agent 验证通过)
+
+### ✅ 已做
+
+#### 1. dual_agent 行为验证 (lbc001 答题 5 道)
+- **DB 验证**: `calibration_log` 表新增 5 行 (id 59-63), student_id=lbc001, round 1-5
+- **payload 检查**: 
+  - trigger_reason 全部 = `normal_cycle` (lbc001 答题 4 对 1 错很顺, 没触发 belief_challenge)
+  - intervention_type: explanatory / practice (跟 LCA 一致)
+  - duration_ms: 4-20ms (互校很快, 性能 OK)
+  - bloom_target: REMEMBER (dual_agent 进程内初始 state 视角, 跟 belief.py 看到的最新 bloom=EVALUATE 不一致 — 已知 v0.60.0 trade-off, dual_agent 状态不持久化, v0.61.0+ 修)
+- **lbc001 state 验证**: warmup_count 55 → 60 (+5), 5D 完整, bloom 涨到 EVALUATE 0.99 (dual_agent 没污染, 走 belief.py 老路径写入)
+- **lbc002 state**: 完全没动 (last_active 还是 7-28 22:41, 0 触碰)
+
+#### 2. 备份清理 (按 v0.58.5 计划)
+- `mavis-trash web/ecos.db.bak.rejudge_lbc001_20260727_172948` 已删除
+- 这是 v0.58.1 rejudge_lbc001 的 pre-write 备份, dual_agent 验证通过后已无用
+
+#### 3. `ecos/__init__.py` version bump
+- `__version__` 0.60.3 → 0.60.4
+
+### 防御性自检 (CLAUDE.md 规范)
+
+- [x] [1] silent pass 扫描: 0 处
+- [x] [2] `__version__` 0.60.3 → 0.60.4
+- [x] [3] detect_with_hits 传 library_str (本次不涉及)
+- [x] [4] HTML class 对齐 (本次不动 HTML)
+- [x] [5] DB 7 字段恢复 (lbc001 现有 state 完整保留 + calibration_log 新增 5 行, lbc002 0 触碰)
+- [x] [6] 不写启发式 fallback: dual_agent 失败已验证 (test_dual_agent_integration.py)
+- [x] [7] 架构升级警告 state: 已抛 Bisen 拍板, dual_agent 走新路径, belief.py 老路径不动
+- [x] [8] 改 API 加测试: dual_agent 行为已通过 12 集成测试 + 5 真实答题验证
+- [x] pytest: **194/194 全部通过** (v0.60.3 修完没破任何东西)
+
+### 📋 后续 (不在 v0.60.4 commit)
+
+- **dual_agent 持久化** (v0.61.0+): dual_agent.state / intervention_history 落盘, 解决 in-memory 重启丢 + bloom_target 跟 belief.py 不一致问题
+- **H3 验证** (v0.62.0+): 互校抗幻觉实证 (CTA vs LCA 信念一致率指标)
+- **元反思模式** (v0.63.0+): 4 周停滞检测 (MetaReflection, Phase 5+ 计划)
+- **LCA_ENABLED=True 长期评估** (v0.64.0+): 当前 dual_agent 跟 LCA 共享 engine, arm_pull 涨 1 是已知 trade-off
+- **下次 push 时建 cron 监控 CI** (按 CLAUDE.md [9] 规则: push 后建 → 绿后立即删)
+
+
 
 
 
