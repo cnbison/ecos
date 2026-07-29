@@ -31,6 +31,7 @@
 >   详见 [discussions/2026-07-22-partial-credit重大学术弊端发现.md](./discussions/2026-07-22-partial-credit重大学术弊端发现.md)
 > - **C/X 维度 0 主导题** — 5D 评估实际是 3D 评估 (K/P/S 真评估, C/X 标"待启用")。Phase 5 重新设计 C/X 主导题。
 >   详见 [discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md](./discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md)
+>   ✅ **v0.65.0 修复 (2026-07-29)**: C/X 各加 5 主导题 (v0.54.2/3), ungrayscale 跟 K/P/S 一致. lbc001 C=-0.12 X=0.47 / lbc002 C=-0.20 X=0.82 (真评估非零). 视觉降权改 W4 conf<0.5 灰显机制 (主导题少时自然灰显). 详见 CHANGELOG.md v0.65.0 章节.
 > - **ECOS 端到端流程** — 8 阶段闭环 + 5D/Bloom 数值变化的通俗化解读 (Bisen 触发 2026-07-22)
 >   详见 [research/90-mvp/06-ecos-end-to-end-flow-analysis.md](./research/90-mvp/06-ecos-end-to-end-flow-analysis.md)
 >

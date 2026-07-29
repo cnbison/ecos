@@ -64,15 +64,16 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // v0.52.1: 5D 维度标注
-//   K/P/S 真评估 (有主导题)
-//   C/X "待启用" (当前 Q 矩阵 0 主导题, Phase 5 重新设计)
-//   详见 discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md
+// v0.65.0: C/X 已有 5 道主导题 (v0.54.2/3), pending 标记改 false, 颜色跟 K/P/S 协调
+//   - K/P/S 主导题 46 道 (PB-*), C/X 各 5 道 (PC-C / PC-X)
+//   - 视觉降权改为 W4 conf<0.5 灰显机制 (renderDims 已实现), 不再硬编码 pending
+//   - 历史: 旧注释写"Q 矩阵 0 主导题"是 v0.52.1 时代过期, 6 天前 v0.54.3 后不准
 const DIMS = [
   {k:'K', label:'概念理解', color:'#1e40af', pending: false},
   {k:'P', label:'程序知识', color:'#7c3aed', pending: false},
   {k:'S', label:'策略知识', color:'#059669', pending: false},
-  {k:'C', label:'元认知',   color:'#9ca3af', pending: true,  pendingNote: 'Phase 5 启用'},
-  {k:'X', label:'跨域迁移', color:'#9ca3af', pending: true,  pendingNote: 'Phase 5 启用'},
+  {k:'C', label:'元认知',   color:'#ea580c', pending: false},
+  {k:'X', label:'跨域迁移', color:'#0891b2', pending: false},
 ];
 
 async function start(sidOverride) {

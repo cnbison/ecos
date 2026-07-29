@@ -3356,3 +3356,67 @@ Phase 0 100% 完成 🎉
 - **Bisen 答 30+ 道 dual_agent + H3 B 部分**: 1-2 天 (Bisen 答题 + 我跑 H3 + 写完整报告)
 - **v0.53.0 下半段 C 主导题扩 20+ 题**: 1-2 天 (LLM 生成 + Bisen 审题)
 - **下次 push 时建 cron 监控 CI** (按 CLAUDE.md [9] 规则: push 后建 → 绿后立即删)
+
+## [0.65.0] 2026-07-29 — UI 修复: 5D C/X 维度解除 "待启用" 灰底, 跟 K/P/S 一致 (Bisen 拍板)
+
+> **触发**: Bisen 2026-07-29 16:21 问 "现在是否应该改回跟 K/P/S 三个维度一致了?"
+> **核心问题**: `app.js:70-76` DIMS 数组 C/X 仍标 `pending: true, pendingNote: 'Phase 5 启用'`, 但 v0.54.2 (2026-07-23 22:42) 已加 5 道 C 主导题, v0.54.3 (22:56) 加 5 道 X 主导题. 6 天前就过期了, 代码一直没更新.
+> **批**: Bisen 拍板 (1) C/X 颜色橙+青 (2) 一起改 UI 一致 (3) bump v0.65.0
+
+### ✅ 已做
+
+#### 1. web/student/app.js: DIMS 数组 C/X pending 改 false + 颜色协调
+- K 概念理解: `#1e40af` (深蓝) — 不变
+- P 程序知识: `#7c3aed` (紫) — 不变
+- S 策略知识: `#059669` (绿) — 不变
+- **C 元认知: `#9ca3af` (灰) → `#ea580c` (橙)** — Bisen 拍板
+- **X 跨域迁移: `#9ca3af` (灰) → `#0891b2` (青)** — Bisen 拍板
+- C/X `pending: true` → `false`
+- C/X `pendingNote: 'Phase 5 启用'` 删除 (不再需要, 视觉降权交给 W4 conf 灰显)
+- 注释 `app.js:66-69` 改写: 反映 v0.54.2/3 后 C/X 已有 5 主导题, W4 conf<0.5 灰显机制已实现
+
+#### 2. web/student/index.html: cache-busting bump v=0.51.0 → v=0.65.0
+- styles.css `<link>` ?v=0.51.0 → ?v=0.65.0
+- app.js `<script>` ?v=0.51.0 → ?v=0.65.0
+- 原因: 浏览器可能 cache 旧版 app.js, 看不到 DIMS 改动 → bump 参数强制刷新 (v0.51.0 Phase 4 拆文件时定的规则, 一直跟)
+
+#### 3. ecos/__init__.py: __version__ 0.64.0 → 0.65.0
+- 符合 CLAUDE.md § 防御性自检 [2] "commit message 含功能/修复时,版本号必须同步 bump"
+- UI 修复 + 注释纠错 = 算 "修复" 范畴
+
+#### 4. 数据校验 (web/ecos.db 真实值确认)
+- lbc001: K=0.66  P=0.96  S=0.42  **C=-0.12  X=0.47** (C/X 非零, 真评估)
+- lbc002: K=0.77  P=0.85  S=0.82  **C=-0.20  X=0.82** (C/X 非零, 真评估)
+- 跟 K/P/S 同样非零 → ungrayscale 合理
+
+### 🎨 颜色选择理由 (Bisen 拍板橙+青)
+- K/P/S/C/X 五色横跨色相: 蓝 / 紫 / 绿 / 橙 / 青 → 视觉清晰可分, 不撞色
+- C 橙: 暖色系, 跟元认知"反思 / 自我评估"语义贴 (v0.54.2 c_dimension_type: self_evaluation / self_checking)
+- X 青: 冷色系, 跟"跨域迁移 / 工具使用"语义贴 (v0.54.3 x_dimension_type: tool_selection / external_support)
+
+### 🔄 视觉降权机制从硬编码 → W4 conf 灰显
+- **之前 (v0.52.1)**: `dim.pending` 硬编码 → 灰底 badge + 灰进度条 + "Phase 5 启用" 标签 (强制降权, 跟真实 conf 无关)
+- **现在 (v0.65.0)**: W4 conf<0.5 灰显机制 (renderDims line 405-410) 自然接管 → conf 高显示正常色, conf 低只灰显"置信度标签"+ tooltip 解释 (theta 数字本身仍清晰)
+- **好处**: C/X 主导题 5 vs K/P/S 主导题 46, conf 会低, W4 自动灰显; 但 conf 涨上来 (5 道 PC-C 答完) 视觉自动恢复, 不用手动改代码
+- **兼容**: dim-pending CSS 仍保留, 但永远不触发 (保险, 万一以后加新维度是 pending 状态, 改数组就行)
+
+### 📝 注释纠错 (app.js 旧 6 天过期注释)
+- 旧 `app.js:67-68`: `C/X "待启用" (当前 Q 矩阵 0 主导题, Phase 5 重新设计)` — v0.52.1 时代正确, v0.54.3 后过期
+- 新注释: `v0.65.0: C/X 已有 5 道主导题 (v0.54.2/3), pending 标记改 false, 颜色跟 K/P/S 协调`
+- 注释跟代码事实对齐, 防未来 commit 误读 (CLAUDE.md [1] silent pass + [7] 架构升级前警告: 文档不一致也算隐患)
+
+### 🛡️ 防御性自检 (CLAUDE.md 规范)
+- [x] [1] silent pass: 本次不动 exception 处理
+- [x] [2] `__version__` 0.64.0 → 0.65.0 (UI 修复, 必 bump)
+- [x] [3] detect_with_hits 传 library_str: 本次不动 misconception
+- [x] [4] HTML class 对齐: 本次只改 JS DIMS, 不动 HTML 结构; cache-busting ?v 参数对齐
+- [x] [5] DB 恢复 6 关键字段: 本次不动 DB
+- [x] [6] 不写启发式 fallback: W4 conf 灰显是设计内的视觉降权, 不是 silent degradation
+- [x] [7] 架构升级前警告历史状态丢失: 本次是 UI 修复, 不动 schema, 无历史状态影响
+- [x] [8] 改 API 加测试: 本次不动 API
+- [x] [9] 防御性自检脚本: bash scripts/check_defensive.sh --static-only 全过, pre-push hook pytest **245/245 全部通过**
+
+### 📋 后续 (不在 v0.65.0 commit)
+- **v0.53.0 下半段 C 主导题扩 20+ 题**: 1-2 天 (LLM 生成 + Bisen 审题, lbc001 答完 5 PC-C 后扩量)
+- **v0.64.0 后续 "下次 push 时建 cron 监控 CI" 作废说明**: 已在 v0.64.1 commit 038ad26 改写 (CI → 本地 git hooks, manual only), 详见 CHANGELOG 038ad26 commit message + CLAUDE.md § [9]
+- **5D 完整性下一阶段**: C/X 主导题扩量后, 5D 完整性从 5/5 巩固 → 5/5 高质量 (主导题数量均衡, 跨学科迁移可启动 v0.55.0-d 计划)
