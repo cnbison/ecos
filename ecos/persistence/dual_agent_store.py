@@ -113,6 +113,15 @@ class DualAgentStore:
 
     设计: 简单直接, 8 字段全 JSON 序列化.
     不做 incremental save / 缓存 — 每次 save 都是全量覆盖 (per-student 数据量小).
+
+    v0.68.0: 修 Flask threaded dev server 跨线程 BUG.
+      之前 sqlite3.connect 默认 check_same_thread=True, connection 绑定到主线程,
+      子线程请求报 "SQLite objects created in a thread can only be used in that same thread".
+      lbc003 答 35 题期间 dual_agent_state 只落盘 21/35 round, 副作用:
+        - state_trajectory 长度 21 (缺 14 round)
+        - calibration_round 卡在 21 (跟 calibration_log 写到 31 错位)
+        - H3 V2 (overall_confidence) 只能拿到 20 样本 (不够 30 显著)
+      修复: check_same_thread=False + WAL 模式 (跟 v0.51.1 db.py 同样范式).
     """
 
     def __init__(self, db_path: str = "web/ecos.db"):
@@ -122,10 +131,19 @@ class DualAgentStore:
 
     @property
     def conn(self) -> sqlite3.Connection:
-        """Lazy 数据库连接 (单例)."""
+        """Lazy 数据库连接 (单例).
+
+        v0.68.0: check_same_thread=False + WAL 模式 (跟 db.py v0.51.1 同样范式).
+          WAL 允许 reader/writer 并发, 适合 Flask 多线程 dispatch.
+        """
         if self._conn is None:
-            self._conn = sqlite3.connect(self.db_path, timeout=10.0)
+            self._conn = sqlite3.connect(
+                self.db_path,
+                timeout=10.0,
+                check_same_thread=False,
+            )
             self._conn.row_factory = sqlite3.Row
+            self._conn.execute("PRAGMA journal_mode = WAL")
         return self._conn
 
     @contextmanager

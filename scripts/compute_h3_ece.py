@@ -65,12 +65,33 @@ def load_student_response_history(student_id: str) -> List[Dict[str, Any]]:
 def load_student_calibration_log(student_id: str, limit: int = 1000) -> List[Dict[str, Any]]:
     """从 web/ecos.db 读学生 calibration_log (dual_agent 互校历史).
 
+    v0.68.0 改进: 按 calibration_round DISTINCT 去重 (取每 round 最新的 row).
+      背景: lbc003 在 dual_agent_state 落盘 thread-safety BUG 期间,
+            orch 重启时 round 5-8 各被 process_observation 跑 2 次,
+            同一 calibration_round 在 calibration_log 出现 2 行 (重复行).
+            H3 验证必须按 round 去重, 否则同一数据被算 2 次.
+
     Returns:
         List[dict] 每条含: calibration_round, message_payload, actual_outcome, ...
+        按 calibration_round 升序, 每个 round 只保留 1 行 (最新的).
     """
     from ecos.persistence.db import get_db
     db = get_db()
-    return db.load_calibration_history(student_id, limit=limit)
+    raw = db.load_calibration_history(student_id, limit=limit)
+    # 按 timestamp DESC 排序 (load_calibration_history 已经 DESC), 同 round 取第一行
+    by_round: Dict[int, Dict[str, Any]] = {}
+    duplicates = 0
+    for row in raw:
+        cr = row.get("calibration_round")
+        if cr is None:
+            continue
+        if cr in by_round:
+            duplicates += 1
+            continue
+        by_round[cr] = row
+    # 按 calibration_round 升序返回
+    return {"rows": [by_round[cr] for cr in sorted(by_round.keys())],
+            "duplicates_dropped": duplicates}
 
 
 # ─── 单 Agent baseline ECE ───────────────────────────────────────
@@ -125,6 +146,10 @@ def compute_single_agent_ece(
     result["dimension"] = dimension
     result["student_id"] = student_id
     result["used_fallback"] = used_fallback
+    # v0.68.0: 加 calibration_errors (显著性检验用)
+    result["calibration_errors"] = [
+        abs(c - a) for c, a in zip(confidences, accuracies)
+    ]
     if used_fallback > 0:
         result["msg"] = (
             f"v0.64.0 改进: {len(history) - used_fallback}/{len(history)} 用 "
@@ -151,8 +176,13 @@ def compute_dual_agent_ece(
       v0.60.4 留下的 calibration_log actual_outcome 全 None BUG 已经被
       dual_agent._write_prev_actual_outcome (v0.64.0 新增) 修复:
       process_observation 时自动回写 prev 的 actual_outcome 到 DB.
+
+    v0.68.0 改进: load_student_calibration_log 已按 calibration_round DISTINCT 去重,
+      避免 dual_agent_state 落盘 BUG 期间同 round 重复行被算 2 次.
     """
-    log = load_student_calibration_log(student_id, limit=limit)
+    loaded = load_student_calibration_log(student_id, limit=limit)
+    log = loaded["rows"] if isinstance(loaded, dict) else loaded
+    duplicates = loaded["duplicates_dropped"] if isinstance(loaded, dict) else 0
     if not log:
         return {
             "student_id": student_id,
@@ -201,6 +231,8 @@ def compute_dual_agent_ece(
     msg = "v0.64.0 改进: 直接读 calibration_log.actual_outcome (无 fallback)"
     if skipped_no_outcome > 0:
         msg += f", skip {skipped_no_outcome}/{len(log)} 行 (v0.60.4 历史数据)"
+    if duplicates > 0:
+        msg += f", v0.68.0 DISTINCT 去重 drop {duplicates} 行重复 round"
     return {
         "student_id": student_id,
         "n_samples": len(confidences),
@@ -208,6 +240,8 @@ def compute_dual_agent_ece(
         "avg_confidence": sum(confidences) / len(confidences),
         "avg_accuracy": sum(accuracies) / len(accuracies),
         "skipped_no_outcome": skipped_no_outcome,
+        "duplicates_dropped": duplicates,
+        "calibration_errors": [abs(c - a) for c, a in zip(confidences, accuracies)],
         "msg": msg,
     }
 
@@ -215,12 +249,88 @@ def compute_dual_agent_ece(
 # ─── 报告生成 ────────────────────────────────────────────────────
 
 
+def compute_significance(
+    single: Dict[str, Any],
+    dual: Dict[str, Any],
+) -> Dict[str, Any]:
+    """v0.68.0: 算单 vs 双 Agent 校准误差的显著性 (Welch's t-test + Mann-Whitney U).
+
+    校准误差定义: |confidence - accuracy| per 样本 (越小越校准).
+    比较单 vs 双 两组独立样本的校准误差均值, 看双 Agent 是否显著降低校准误差.
+
+    用两个互补检验:
+      1. Welch's t-test (scipy.stats.ttest_ind, equal_var=False): 假设近似正态, 参数检验
+      2. Mann-Whitney U test (scipy.stats.mannwhitneyu): 非参数, 不要求正态
+
+    p < 0.05 视为统计显著 (H3: 双 Agent 显著优于单 Agent = 校准误差显著更小).
+
+    Returns:
+        dict 含 test_name / statistic / p_value / verdict / single_errors / dual_errors.
+    """
+    from scipy import stats
+
+    single_errors = single.get("calibration_errors", [])
+    dual_errors = dual.get("calibration_errors", [])
+    if not single_errors or not dual_errors:
+        return {
+            "test_name": "N/A",
+            "statistic": None,
+            "p_value": None,
+            "verdict": "数据不足, 无法算显著性 (单或双 calibration_errors 空)",
+            "single_errors": single_errors,
+            "dual_errors": dual_errors,
+        }
+
+    # Welch's t-test (independent, unequal variance)
+    t_stat, t_p = stats.ttest_ind(single_errors, dual_errors, equal_var=False)
+    # Mann-Whitney U test (non-parametric, two-sided)
+    u_stat, u_p = stats.mannwhitneyu(single_errors, dual_errors, alternative="two-sided")
+
+    # 选更保守的 p (max of two tests)
+    p = max(t_p, u_p)
+    test_name = f"Welch t-test + Mann-Whitney U (max p)"
+
+    # H3 假设: 双 Agent < 单 Agent (calibration error)
+    single_mean = sum(single_errors) / len(single_errors)
+    dual_mean = sum(dual_errors) / len(dual_errors)
+    if dual_mean < single_mean and p < 0.05:
+        verdict = f"✅ 显著: 双 Agent 校准误差 ({dual_mean:.4f}) < 单 Agent ({single_mean:.4f}), p={p:.4f}"
+    elif dual_mean < single_mean and p < 0.10:
+        verdict = f"⚠️ 趋势显著: 双 Agent 校准误差 < 单 Agent, p={p:.4f} (< 0.10 但 ≥ 0.05)"
+    elif dual_mean < single_mean:
+        verdict = f"⚠️ 方向对 (双 < 单) 但 p={p:.4f} ≥ 0.05, 样本量不足"
+    elif dual_mean > single_mean:
+        verdict = f"❌ 方向反: 双 Agent ({dual_mean:.4f}) > 单 Agent ({single_mean:.4f}), 互校没起作用, p={p:.4f}"
+    else:
+        verdict = f"➖ 双 = 单, p={p:.4f}"
+
+    return {
+        "test_name": test_name,
+        "t_stat": float(t_stat),
+        "t_p": float(t_p),
+        "u_stat": float(u_stat),
+        "u_p": float(u_p),
+        "p_value": float(p),
+        "single_mean": single_mean,
+        "dual_mean": dual_mean,
+        "single_n": len(single_errors),
+        "dual_n": len(dual_errors),
+        "verdict": verdict,
+        "single_errors": single_errors,
+        "dual_errors": dual_errors,
+    }
+
+
 def format_report(
     student_id: str,
     single_agent: Dict[str, Any],
     dual_agent: Dict[str, Any],
+    significance: Optional[Dict[str, Any]] = None,
 ) -> str:
-    """生成 H3 验证报告 (Markdown)."""
+    """生成 H3 验证报告 (Markdown).
+
+    v0.68.0: 加 significance 参数 (单 vs 双 calibration error 显著性检验).
+    """
     lines = [
         f"# H3 验证报告: {student_id}",
         "",
@@ -350,6 +460,40 @@ def format_report(
         "",
     ])
 
+    # v0.68.0: §5 显著性检验 (单 vs 双 calibration error)
+    if significance is not None and significance.get("p_value") is not None:
+        lines.extend([
+            "## 5. 显著性检验 (v0.68.0 新增)",
+            "",
+            f"**检验方法**: {significance.get('test_name', '?')}",
+            f"**校准误差定义**: per 样本 |confidence - accuracy| (越小越校准)",
+            "",
+            f"- 单 Agent 校准误差均值: `{significance.get('single_mean', 0):.4f}` ({significance.get('single_n', 0)} 样本)",
+            f"- 双 Agent 校准误差均值: `{significance.get('dual_mean', 0):.4f}` ({significance.get('dual_n', 0)} 样本)",
+            f"- Welch's t-test: t = {significance.get('t_stat', 0):.4f}, p = {significance.get('t_p', 0):.4f}",
+            f"- Mann-Whitney U: U = {significance.get('u_stat', 0):.4f}, p = {significance.get('u_p', 0):.4f}",
+            f"- **综合 p-value (取 max)**: `{significance.get('p_value', 0):.4f}`",
+            "",
+            f"**结论**: {significance.get('verdict', '?')}",
+            "",
+            "### 显著性解读",
+            "- p < 0.05: 强烈支持 H3 (双 Agent 显著降低校准误差)",
+            "- 0.05 ≤ p < 0.10: 趋势支持, 建议增大样本量再验",
+            "- p ≥ 0.10: 当前数据不足以支持 H3, 方向对但需更多样本",
+            "",
+        ])
+    else:
+        lines.extend([
+            "## 5. 显著性检验 (v0.68.0 新增)",
+            "",
+            "**跳过**: 数据不足, 无法算显著性",
+            "",
+        ])
+
+    lines.extend([
+        "",
+    ])
+
     return "\n".join(lines)
 
 
@@ -372,7 +516,7 @@ def main():
         "--output-md",
         type=str,
         default=None,
-        help="报告输出到 MD 文件 (默认 discussions/2026-07-29-H3-verification-report.md)",
+        help="报告输出到 MD 文件 (默认 discussions/2026-07-30-H3-verification-B-report.md, v0.68.0 改 B 报告, 不覆盖 A)",
     )
     args = parser.parse_args()
 
@@ -392,14 +536,26 @@ def main():
     print(f"  ECE: {dual.get('ece', 'N/A')}")
     print()
 
-    # 输出报告
-    report = format_report(args.student_id, single, dual)
+    # v0.68.0: 算单 vs 双 显著性 (校准误差)
+    print("▶ 算单 vs 双 显著性 (Welch t + Mann-Whitney U)...")
+    significance = compute_significance(single, dual)
+    if significance.get("p_value") is not None:
+        print(f"  单 Agent 校准误差均值: {significance['single_mean']:.4f} ({significance['single_n']} 样本)")
+        print(f"  双 Agent 校准误差均值: {significance['dual_mean']:.4f} ({significance['dual_n']} 样本)")
+        print(f"  p-value: {significance['p_value']:.4f}")
+        print(f"  verdict: {significance['verdict']}")
+    else:
+        print(f"  {significance.get('verdict', '?')}")
+    print()
+
+    # 输出报告 (v0.68.0: 加 significance 参数)
+    report = format_report(args.student_id, single, dual, significance)
     print("=" * 60)
     print(report)
 
-    # 写 MD
+    # 写 MD (v0.68.0: default 改 B 报告, 不覆盖 A)
     if args.output_md is None:
-        output_path = PROJECT_ROOT / "discussions" / "2026-07-29-H3-verification-report.md"
+        output_path = PROJECT_ROOT / "discussions" / "2026-07-30-H3-verification-B-report.md"
     else:
         output_path = Path(args.output_md)
     output_path.parent.mkdir(parents=True, exist_ok=True)

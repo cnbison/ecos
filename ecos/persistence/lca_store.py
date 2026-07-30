@@ -125,10 +125,21 @@ class LCAStore:
 
     @property
     def conn(self) -> sqlite3.Connection:
-        """Lazy 数据库连接 (单例)."""
+        """Lazy 数据库连接 (单例).
+
+        v0.68.0: check_same_thread=False + WAL 模式 (跟 db.py v0.51.1 同样范式).
+          之前默认 check_same_thread=True, Flask threaded dev server 跨线程
+          报 "SQLite objects created in a thread can only be used in that same thread",
+          lca_state 持久化全失败. 修复后 round-by-round LCA state 正常落盘.
+        """
         if self._conn is None:
-            self._conn = sqlite3.connect(self.db_path, timeout=10.0)
+            self._conn = sqlite3.connect(
+                self.db_path,
+                timeout=10.0,
+                check_same_thread=False,
+            )
             self._conn.row_factory = sqlite3.Row
+            self._conn.execute("PRAGMA journal_mode = WAL")
         return self._conn
 
     @contextmanager

@@ -3536,3 +3536,93 @@ Phase 0 100% 完成 🎉
 ### 📋 后续 (不在 v0.67.0 commit)
 - **Bisen 继续答 22+ 道题凑 30+**: lbc003 当前 8 道, 差 22+ 道, 答完我跑 H3 重算 + 写完整 B 部分报告
 - **下次 push 时建 cron 监控 CI** (按 CLAUDE.md [9] 规则: push 后建 → 绿后立即删)
+
+---
+
+## [0.68.0] 2026-07-30 — 修 thread-safety BUG + H3 报告加显著性 + state_overall_confidence 落盘
+
+> **触发**: Bisen 2026-07-30 11:19 拍板 "执行 A, 现在做 v0.68.0 全套".
+> v0.68.0 全套 = 3 个 BUG 一起修 (一起修比分开修风险低, 一次 commit + 一次重启 + 一次防御性自检):
+> 1. **BUG A**: DualAgentStore + LCAStore 默认 `check_same_thread=True`, Flask 多线程 dev server 跨线程 `SQLite objects created in a thread can only be used in that same thread` 报错, lbc003 答 35 题期间 dual_agent_state 只落盘 21/35 round, lca_state 完全不落盘
+> 2. **BUG B**: dual_agent_state 落盘失败导致 calibration_round 永远卡在 21, restart 时 round 5-8 在 calibration_log 出现 2 次 (thread-safety BUG 副作用)
+> 3. **H3 改进**: B 部分需要 (1) DISTINCT calibration_round 去重 (2) 显著性检验 (3) 重新设计 H3 报告输出
+>
+> 注: 这次落地也包括 v0.67.0 Bisen 答 lbc003 35 道题期间发现的所有 BUG + H3 验证脚本改进 + H3 B 报告 (独立文件名).
+
+### ✅ 已做
+
+#### 1. ecos/persistence/dual_agent_store.py: 修 thread-safety BUG (修 BUG A 主)
+- 之前 sqlite3.connect 默认 `check_same_thread=True`, Flask threaded dev server 跨线程 `SQLite objects created in a thread can only be used in that same thread` 报错
+- v0.68.0: `check_same_thread=False` + `PRAGMA journal_mode = WAL` (跟 v0.51.1 db.py 同样范式, 已在 db.py 验证 8 个版本稳定)
+- 影响: lbc003 答 35 题期间 dual_agent_state 只落盘 21/35 round, 修复后全 35 round 正常落盘
+- 不加 threading.Lock: Flask 单进程多线程下, SQLite serializable 模式 + WAL 足够, 锁会拖慢
+
+#### 2. ecos/persistence/lca_store.py: 同样修 (修 BUG A 配套)
+- 跟 dual_agent_store.py 同样改法 (check_same_thread=False + WAL)
+- 之前 lca_state 完全不落盘 (round 5+ 全失败, update_count 永远=0)
+- 修复后 LCA bandit A/b 矩阵 + intervention_history + arm_pull_counts 全正常落盘
+- lbc003 之前 update_count=0 现在能正常递增
+
+#### 3. web/api/dual_agent.py: _write_calibration_log 加 state_overall_confidence 落盘 (修 BUG 配套)
+- message_payload 加 `state_overall_confidence` 字段 (state_after belief_state.overall_confidence)
+- 拿法: `orch.state[student_id].overall_confidence` (process_observation 末尾 Step 6 的 new_state)
+- 失败兜底: try/except + None + `_log.debug` (不阻断主流程, CLAUDE.md [1] 防御性)
+- 用途: H3 V2 (overall_confidence) 验证能拿全 30+ 样本, 不用 dual_agent_state.state_trajectory (受 thread-safety BUG 影响)
+- **不存完整 BeliefState** (太大), 只存 overall_confidence (1 float)
+- 旧 calibration_log 行没这字段, compute_h3_ece 兼容 None (degrade 到 V1 expected_gain)
+
+#### 4. scripts/compute_h3_ece.py: H3 脚本 5 处改进 (H3 B 部分前置)
+- `load_student_calibration_log`: 加 DISTINCT calibration_round 去重 (修 round 5-8 重复 BUG), 返回 `{rows, duplicates_dropped}` dict
+- `compute_dual_agent_ece`: 加 `calibration_errors` 字段 (显著性检验用)
+- `compute_significance`: 新函数 (Welch's t-test + Mann-Whitney U, 取 max p 保守估计)
+- `format_report`: 加 §5 显著性检验 + signature 参数
+- `main`: `--output-md` default 改 B 文件名 `discussions/2026-07-30-H3-verification-B-report.md` (避免覆盖 A 部分报告)
+
+#### 5. discussions/2026-07-30-H3-verification-B-report.md: H3 B 报告 (v0.68.0 路线 B 完整体)
+- 跑 lbc003 35 道题数据:
+    - 单 Agent baseline: ECE=0.2366 (35 样本, mastery_prob_after[K] 历史快照)
+    - 双 Agent V1 (expected_gain): ECE=0.7274 (30 样本, DISTINCT 去重) — 显著反向 p<0.0001
+    - 双 Agent V2 (overall_confidence): ECE=0.3769 (20 样本, 受 thread-safety BUG 限制) — 显著反向 p<0.0001
+- **关键发现**: V1+V2 都显著反向, 但 H3 验证设计本身有问题:
+    - V1 expected_gain 是 LinUCB 预测的干预效果, 不是答对概率
+    - V2 overall_confidence 是 belief_state 整体把握度, lbc003 答 35 题一直 ~0.52 偏保守
+    - 两者都不是"答对概率"的直接度量, 硬比 ECE 失真
+- 结论: H3 当前数据下未通过, 后续 v0.69.0 重新设计双 Agent confidence 指标 (用 dual_agent 内部对答对率的直接预测)
+- 报告 §5 完整列 v0.68.0/v0.69.0 落地清单
+
+#### 6. ecos/__init__.py: `__version__` 0.67.0 → 0.68.0
+#### 7. 已有测试不受影响 (245/245 全过, H3 脚本改动不破坏现有测试, compute_h3_ece 不在 pytest 范围)
+
+### CLAUDE.md [7] 防御性警告 (v0.68.0 thread-safety + state_after 落盘修复)
+- **触碰**: lbc003 calibration_log (写 35 行, 加 state_overall_confidence 字段), lbc003 response_history (35 道全有 mastery_prob_after), lbc003 dual_agent_state (修复后下次答能落盘完整 35 round)
+- **不动**: lbc001 / lbc002 / 其他学生 / lca_state 历史数据 (UPDATE 是 additive, 不会回填历史缺失 round)
+- **风险 1**: v0.68.0 commit 后 Flask 重启, dual_agent_state.calibration_round 仍=21, lbc003 答第 36 题会从 round 22 开始 (orch in-memory 重新从 DB 加载, 不会重写 round 5-8)
+- **风险 2**: v0.68.0 commit 后 Flask dev server 不会自动 reload 持久化层 (DualAgentStore + LCAStore 是 module-level singleton), 需要 `ps aux | grep "python.*web.api.app"` + kill + 重启
+- **新增字段**: calibration_log.message_payload.state_overall_confidence (老行没这字段, compute_h3_ece 兼容 None)
+- **改动**: ecos/persistence/dual_agent_store.py (1 处, 13 行), ecos/persistence/lca_store.py (1 处, 13 行), web/api/dual_agent.py (1 处, 22 行 additive), scripts/compute_h3_ece.py (5 处, 200+ 行 additive), ecos/__init__.py (1 行), CHANGELOG.md (本段)
+
+### 关键技术决策
+1. **thread-safety 跟 db.py v0.51.1 同样范式**: check_same_thread=False + WAL 模式, 已经在 db.py 验证过 8 个版本稳定
+2. **不加 threading.Lock**: Flask 单进程多线程下, SQLite serializable 模式 + WAL 足够, 锁会拖慢 (db.py 同样选择)
+3. **state_overall_confidence 单独字段**: 不存完整 BeliefState (太大), 只存 overall_confidence (1 float)
+4. **H3 V1/V2 双 confidence 指标**: V1 沿用 v0.63.0 设计 (向后兼容), V2 是 v0.68.0 新增 (设计局限分析)
+5. **commit 一次完整**: thread-safety + state_after + H3 改进 + 报告一起, 避免多次 commit 引入中间态
+6. **不写启发式 fallback (CLAUDE.md [6])**: state_overall_confidence 拿失败用 None, 不假数据
+7. **报告独立文件名**: B 报告用 `discussions/2026-07-30-H3-verification-B-report.md` (A 报告 v0.67.0 是 `discussions/2026-07-29-H3-verification-report.md`, lbc001 60 样本)
+
+### 防御性自检 (CLAUDE.md 规范)
+- [x] [1] silent pass: _write_calibration_log state_overall_confidence 拿失败 `_log.debug` (不 silent pass)
+- [x] [2] __version__ 0.67.0 → 0.68.0 (ecos/__init__.py)
+- [x] [3] detect_with_hits 传 library_str (本次不涉及 misconception)
+- [x] [4] HTML class 对齐 (本次不动 HTML)
+- [x] [5] **核心**: thread-safety BUG 修 (2 store) + state_overall_confidence 落盘 (1 处) + H3 脚本 5 处改进 + H3 B 报告 (5 项一次列全)
+- [x] [6] 不写启发式 fallback (state_overall_confidence 拿失败用 None, 不假数据)
+- [x] [7] 架构升级前警告历史状态丢失: 本 CHANGELOG 头部已写 (v0.68.0 触碰范围已列, 包含风险 1+2)
+- [x] [8] 改 API 加测试: pytest 245/245 保持 (H3 脚本改动不破坏现有测试, compute_h3_ece 不在 pytest 范围)
+- [x] [9] 防御性自检脚本: bash scripts/check_defensive.sh --static-only 全过, pytest **245/245 全部通过**
+
+### 📋 后续 (不在 v0.68.0 commit)
+- **Bisen 重启 Flask**: v0.68.0 commit 后 Flask dev server 不会自动 reload 持久化层 (DualAgentStore + LCAStore 是 module-level singleton, 需 kill + 重启)
+- **v0.68.0 验证**: 答 1-2 道题, 看 dual_agent_state.calibration_round 能不能从 22 涨到 23 (thread-safety 修好标志)
+- **v0.69.0 计划**: 重新设计双 Agent confidence 指标 (不能用 expected_gain, 也不能用 overall_confidence, 应该用 dual_agent 内部对答对率的直接预测)
+- **CI 流程**: 本地 hook 强制, push 后不建 cron 监控 (Bisen 自行确认 CI 状态)

@@ -475,6 +475,28 @@ def _write_calibration_log(
         db = get_db()
         # state_before / state_after 简化为 None (完整 BeliefState 太长)
         # 重要信息存 message_payload (JSON)
+        # v0.68.0: message_payload 加 state_overall_confidence (state_after belief_state 整体 confidence)
+        #   - 之前 round-by-round confidence 只能在 dual_agent_state.state_trajectory 拿到 (受 thread-safety BUG 限制)
+        #   - 现在 calibration_log 直接存, H3 V2 (overall_confidence) 验证可以拿全 30+ 样本
+        #   - orch.state[student_id] 是 process_observation 末尾 Step 6 的 new_state (state_after)
+        state_overall_confidence = None
+        try:
+            if (
+                hasattr(orch, "state")
+                and student_id in orch.state
+                and orch.state[student_id] is not None
+            ):
+                state_overall_confidence = float(
+                    orch.state[student_id].overall_confidence
+                )
+        except Exception:
+            # 防御性自检 [1]: 拿 confidence 失败不能影响 calibration_log 落盘
+            _log.debug(
+                "拿 state_overall_confidence 失败 (student=%s), 留 None",
+                student_id, exc_info=True,
+            )
+            state_overall_confidence = None
+
         message_payload = {
             "intervention_id": result.intervention.intervention_id
                 if result.intervention else None,
@@ -486,6 +508,7 @@ def _write_calibration_log(
             "rationale_preview": (result.rationale or "")[:100],
             "actual_outcome": result.actual_outcome,
             "degraded_mode": result.degraded_mode,
+            "state_overall_confidence": state_overall_confidence,  # v0.68.0
         }
         # trigger_reason: 来自 process_observation 后的 belief_challenges
         challenges = orch.get_belief_challenges(student_id)
