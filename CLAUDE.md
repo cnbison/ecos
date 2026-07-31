@@ -22,21 +22,30 @@
 | **Phase 5（产品化，✅ 准备启动）** | 实验报告 + 修订文档 | ✅ 完整 Python 包 + Web UI | 完整产品 |
 | **Phase 6（系统完善，待启动）** | 研究文档 + 应用原型设计 | ✅ ecos/ Python 包 + 实验代码 | 应用探索 |
 
-> **当前阶段（2026-07-22）**：**Phase 4（Product Demo 完整化）** — ✅ 实际完成 v0.52.3 (Bisen 自定义 Phase 1-4 全部落地, 含 5D 视觉化 / 答题历史 / Tab 导航 / Phase 4 架构现代化)。
-> ECOS 7 组件: 5D+cov / Bloom 6级 / TC 状态 / LearningDNA (标"待启用") / Trajectory / Misconceptions / overall_confidence。
-> 详见 [03-roadmap.md](./research/00-overview/03-roadmap.md) (v1.3 → v1.4 待更新)。
+> **当前阶段（2026-07-30）**：**Phase 4（Product Demo 完整化）实际完成，Phase 5（产品化）已启动 v0.54.0 → v0.68.0**。
+> - Phase 4: ✅ 实际完成 v0.52.3 (Bisen 自定义 Phase 1-4 全部落地, 含 5D 视觉化 / 答题历史 / Tab 导航 / Phase 4 架构现代化)。
+> - Phase 5: 🚀 已启动并推进：partial credit (v0.54.0) / C/X 主导题 (v0.54.2/3) / LCA 接入 + 持久化 (v0.56.0/0.57.0) /
+>   dual_agent 接入 + 持久化 (v0.60.0/0.61.0/0.62.0) / H3 验证 A+B 报告 (v0.63.0/0.68.0) / v0.69.0 confidence 指标重设计 PRD。
+> ECOS 7 组件: 5D+cov (K/P/S/C/X 均真评估) / Bloom 6级 / TC 状态 / LearningDNA (标"待启用") / Trajectory / Misconceptions / overall_confidence。
+> 详见 [03-roadmap.md](./research/00-overview/03-roadmap.md) (v1.5 已同步)。
 >
-> **当前已知重大弊端 (Bisen 2026-07-22 测试发现)**:
-> - **Partial Credit 缺失** — 学生答对 70% 但缺 I/O 时, ECOS 按 0% 处理, K 维度多跌 0.27, L6 多跌 0.2。Phase 5 必修。
->   详见 [discussions/2026-07-22-partial-credit重大学术弊端发现.md](./discussions/2026-07-22-partial-credit重大学术弊端发现.md)
-> - **C/X 维度 0 主导题** — 5D 评估实际是 3D 评估 (K/P/S 真评估, C/X 标"待启用")。Phase 5 重新设计 C/X 主导题。
+> **历史重大弊端跟进 (Bisen 2026-07-22 测试发现 → 2026-07-30 状态)**:
+> - ✅ **Partial Credit 缺失 — v0.54.0 已修复**。学生答对 70% 但缺 I/O 时, ECOS 不再按 0% 处理。
+>   详见 [discussions/2026-07-22-partial-credit重大学术弊端发现.md](./discussions/2026-07-22-partial-credit重大学术弊端发现.md) + CHANGELOG v0.54.0
+> - ✅ **C/X 维度 0 主导题 — v0.54.2/3 + v0.65.0 已修复**。5D 评估现在是真 5D (lbc001 C=-0.12 X=0.47; lbc002 C=-0.20 X=0.82)。
 >   详见 [discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md](./discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md)
->   ✅ **v0.65.0 修复 (2026-07-29)**: C/X 各加 5 主导题 (v0.54.2/3), ungrayscale 跟 K/P/S 一致. lbc001 C=-0.12 X=0.47 / lbc002 C=-0.20 X=0.82 (真评估非零). 视觉降权改 W4 conf<0.5 灰显机制 (主导题少时自然灰显). 详见 CHANGELOG.md v0.65.0 章节.
-> - **ECOS 端到端流程** — 8 阶段闭环 + 5D/Bloom 数值变化的通俗化解读 (Bisen 触发 2026-07-22)
+> - ⚠️ **H3 验证当前未通过 — v0.68.0 B 报告显示 V1/V2 confidence 指标显著反向**。根因是指标选错 (expected_gain 不是答对概率 / overall_confidence 是系统把握度),
+>   v0.69.0 按 B4+C1+D1 方案重设计后重跑。
+>   详见 [discussions/2026-07-30-H3-verification-B-report.md](./discussions/2026-07-30-H3-verification-B-report.md) +
+>   [discussions/2026-07-30-v0690-confidence-redesign-PRD.md](./discussions/2026-07-30-v0690-confidence-redesign-PRD.md)
+> - ✅ **ECOS 端到端流程** — 8 阶段闭环 + 5D/Bloom 数值变化的通俗化解读 (Bisen 触发 2026-07-22)
 >   详见 [research/90-mvp/06-ecos-end-to-end-flow-analysis.md](./research/90-mvp/06-ecos-end-to-end-flow-analysis.md)
 >
 > **lbc001 27 道题测试发现 4 个 BUG** (2026-07-21):
 > 详见 [discussions/2026-07-21-lbc001测试发现4个BUG分析与修复计划.md](./discussions/2026-07-21-lbc001测试发现4个BUG分析与修复计划.md)
+>
+> **新增关键洞察 (2026-07-31 方向审查)**: README.md / 03-roadmap.md / CLAUDE.md 当前阶段标注停在 v0.53.1 (2026-07-22) 6-8 天,
+> 与工程实际进度 (v0.68.0) 严重脱节。已同步修正。
 >
 > 权威状态源：[README.md §当前状态](./README.md)。任何"当前阶段是 Phase 0"或类似过时标注都以此为准。
 
@@ -52,7 +61,7 @@
 | 2 | Tab 导航 (学习/轨迹/设置) | ✅ | v0.49.1 |
 | 3 | CSS 变量 / 进度条 8px / SVG 图标 | ✅ | v0.50.0 |
 | 4 | 拆文件 / API 封装 / URL hash 路由 | ✅ (C 状态管理留 v0.52.0) | v0.51.0 |
-| 5 | 状态管理 (App 对象) | 📋 后续 | v0.52.0+ |
+| 5 | 状态管理 (App 对象 / LCA + dual_agent 持久化) | ⚠️ 部分: LCA (v0.57.0) + dual_agent (v0.61.0) 已持久化, App 对象统一状态管理仍待 | v0.52.0+ |
 
 详细约定见 [§实验代码约定](#实验代码约定) 章节。
 

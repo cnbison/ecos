@@ -3,8 +3,8 @@
 > **教育认知操作系统**：面向 K12 学生的下一代 AI 辅助学习系统
 > 基于"**学生认知数字孪生 + AI 学习教练**"双 Agent 共进化架构
 
-[![Status](https://img.shields.io/badge/status-demo--v0.53.1-brightgreen)]()
-[![Version](https://img.shields.io/badge/version-0.53.1-blue)]()
+[![Status](https://img.shields.io/badge/status-demo--v0.68.0-brightgreen)]()
+[![Version](https://img.shields.io/badge/version-0.68.0-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)]()
 
 ---
@@ -119,34 +119,39 @@ ecos/
 └── prototypes/                        # 架构原型
 ```
 
-## 当前状态（2026-07-22，v0.53.1）— **🎉 Bisen 自定义 Phase 1-4 全部完成, 标"待 Phase 5"**
+## 当前状态（2026-07-30，v0.68.0）— **🚀 Phase 5 已启动：partial credit / C/X 主导题 / LCA / dual_agent / H3 验证落地**
 
 > **Bisen 路线**: Phase 1-4 是 UI 改进路线, 跟 ROADMAP Phase 0/4/5/6 不同。
-> 2026-07-22 v0.52.3 已完成 (v0.53.0 docs sync + v0.53.1 审查报告): 顶栏精简 / 题目合并 / 轨迹折叠 / 2 位小数 / Tab 导航 /
-> CSS 变量 / 5D badge / SVG icon / 拆文件 / API 封装 / URL hash 路由。
-> 详细见 [research/90-mvp/06-ecos-end-to-end-flow-analysis.md §0](research/90-mvp/06-ecos-end-to-end-flow-analysis.md)。
+> 2026-07-22 v0.52.3 已完成 Phase 1-4 (顶栏精简 / 题目合并 / 轨迹折叠 / 2 位小数 / Tab 导航 /
+> CSS 变量 / 5D badge / SVG icon / 拆文件 / API 封装 / URL hash 路由)。
+> 2026-07-23 ~ 2026-07-30 完成 Phase 5 核心骨架: partial credit / C/X 主导题 / LCA 接入与持久化 /
+> dual_agent 接入与持久化 / H3 验证 A+B 报告。
+> 详细见 [CHANGELOG.md](CHANGELOG.md) v0.54.0 → v0.68.0。
 
-**ECOS 7 组件当前状态** (v0.53.1):
+**ECOS 7 组件当前状态** (v0.68.0):
 | 组件 | 状态 | 详情 |
 |------|------|------|
-| 5D + θ_cov | ✅ 真评估 | K/P/S 三维真评估, C/X 标"待启用" (Phase 5 重新设计) |
+| 5D + θ_cov | ✅ 真评估 | K/P/S/C/X 五维均非零 (lbc001 C=-0.12 X=0.47; lbc002 C=-0.20 X=0.82) |
 | Bloom 6 级 | ✅ 真评估 | L1-L6 累积, dominant_layer |
 | TC 状态 | ✅ 真评估 | 5 topic × 3 阶段, post_liminal 不可逆 |
-| Trajectory | ✅ 真评估 | 时间序列, 折叠面板 |
+| Trajectory | ✅ 真评估 | 时间序列, 折叠面板, cap 500 |
 | Misconceptions | ✅ 真评估 | M1-M8 Python 库, v0.52.0 修过库 ID 错配 |
 | overall_confidence | ✅ 真评估 | `mean(5D conf)`, v0.48.1 改的 |
-| LearningDNA | ⚠️ **标"待启用"** | v0.1.0 占位, lbc001 数据不足, 等 ≥50 题 + 交互行为数据 |
+| LearningDNA | ⚠️ **标"待启用"** | v0.1.0 占位, 等 ≥50 题 + 交互行为数据 |
 
-**Bisen 测试发现 (lbc001 27 道题) 重大弊端 (2026-07-22)**:
-- 🔴 **Partial Credit 缺失**: 70% 答对按 0% 处理, K 多跌 0.27, L6 多跌 0.2。**Phase 5 必修**
-  详见 [discussions/2026-07-22-partial-credit重大学术弊端发现.md](discussions/2026-07-22-partial-credit重大学术弊端发现.md)
-- 🟡 **C/X 0 主导题**: 5D 评估实际 3D, Phase 5 重新设计 C/X 主导题
+**Bisen 测试发现与跟进 (2026-07-22 → 2026-07-30)**:
+- ✅ **Partial Credit 已实施**: v0.54.0 接入 `partial_score` 端到端, MIRT 支持部分对。
+  详见 [CHANGELOG.md](CHANGELOG.md) v0.54.0 + [discussions/2026-07-22-partial-credit重大学术弊端发现.md](discussions/2026-07-22-partial-credit重大学术弊端发现.md)
+- ✅ **C/X 0 主导题已修复**: v0.54.2/3 各加 5 主导题, v0.65.0 解除"待启用"灰底。
   详见 [discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md](discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md)
+- ⚠️ **H3 验证当前未通过, 根因是 confidence 指标选错**: v0.68.0 B 报告显示 V1/V2 ECE 均反向;
+  v0.69.0 重新设计 dual_agent confidence 指标 (LinUCB reward = actual_outcome)。
+  详见 [discussions/2026-07-30-H3-verification-B-report.md](discussions/2026-07-30-H3-verification-B-report.md)
 
-**累计产出** (v0.1.0 → v0.53.1, 2026-06-24 ~ 2026-07-22):
-- 78 Python 文件 / 113 MD 文件 / 16 JSON 文件
-- 124 commits, 近 1 周密集开发
-- 端到端流程: Q 矩阵设计 → 出题 → 答题 → AI 评判 → 状态更新 → 持久化 → 干预 → 个人画像
+**累计产出** (v0.1.0 → v0.68.0, 2026-06-24 ~ 2026-07-30):
+- 102 Python 文件 / 96 MD 文件 / 16 JSON 文件
+- 178 commits, 其中 57 个在 2026-07-22 之后
+- 端到端流程: Q 矩阵设计 → 出题 → 答题 → AI 评判 → 状态更新 → 持久化 → LCA 干预 → dual_agent 互校 → 个人画像
   详见 [research/90-mvp/06-ecos-end-to-end-flow-analysis.md](research/90-mvp/06-ecos-end-to-end-flow-analysis.md) (26.7 KB)
 
 ## 开发环境设置
@@ -193,19 +198,19 @@ python experiments/scripts/m2_w1_llm_client_smoke.py         # LLM 客户端
 
 > `.env` 文件会在 `from_env()` 调用时自动加载，无需手动 `source`。
 
-## 下一步（Phase 5 启动条件: lbc001 答 30+ 题）
+## 下一步（Phase 5 进行中）
 
-**当前状态**: v0.53.1 实际完成 Bisen 自定义 Phase 1-4 全部 + Phase 4 (ROADMAP) 7 组件完整 UI + docs sync + 审查报告。
-**Phase 5 启动条件**: lbc001 答 30+ 题（当前 27-29 题）+ Bisen 启动决策。
+**当前状态**: v0.68.0 Phase 5 已启动并推进: partial credit / C/X 主导题 / LCA / dual_agent 均已落地,
+H3 验证 A+B 报告已完成, 等待 v0.69.0 confidence 指标重设计后重跑 H3。
 
 | 优先级 | 任务 | 触发条件 | 详见 |
 |--------|------|---------|------|
-| **P0** | **Partial Credit 必修** (Bisen 2026-07-22 重大弊端) | lbc001 答 30+ 题 | [discussions/2026-07-22-partial-credit重大学术弊端发现.md](discussions/2026-07-22-partial-credit重大学术弊端发现.md) |
-| **P0** | **C 主导题扩 20+ 题** (调试题/错误分析/code reading/debug strategy) | 同上 | [discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md](discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md) |
-| P1 | **X 主导题扩 20+ 题** (Python↔JS/Java/C++/Ruby 跨语言类比) | v0.53.0 C 主导题答 20+ 题 | 同上 |
-| P1 | **X 维度 misconception 库** (M9-M16, 8 条候选) | v0.54.0 X 主导题答 20+ 题 | 同上 |
-| P1 | **状态管理** (App 对象, v0.51.0 Phase 4.3 留 v0.52.0+) | 不依赖 lbc001 | Phase 4 路线图 |
-| P2 | 老师端骨架接 lbc001 真实数据 | A 端跑稳后做 | 路线图 |
+| **P0** | **重新设计 dual_agent confidence 指标** (B4+C1+D1 方案) | v0.69.0 立即启动 | [discussions/2026-07-30-v0690-confidence-redesign-PRD.md](discussions/2026-07-30-v0690-confidence-redesign-PRD.md) |
+| **P0** | **H3 重跑** (用 V3 confidence 指标) | v0.69.0 落地后 | [discussions/2026-07-30-H3-verification-B-report.md](discussions/2026-07-30-H3-verification-B-report.md) |
+| P1 | C/X 主导题继续扩量 (从各 5 道到 20+ 道) | lbc001/lbc003 答完现有 C/X 题 | [discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md](discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md) |
+| P1 | LCA bandit 数据观察 + 干预效果分析 | v0.57.0 持久化数据积累 2 周 | CHANGELOG v0.57.0 |
+| P2 | LearningDNA 真实实现 | ≥50 题 + 交互行为数据 | — |
+| P2 | 老师端骨架 | A 端跑稳后做 | 路线图 |
 
 ## 关联项目
 
@@ -225,4 +230,4 @@ python experiments/scripts/m2_w1_llm_client_smoke.py         # LLM 客户端
 ---
 
 **创建日期**：2026-06-24
-**当前版本**：v0.53.1（2026-07-22 docs sync + 审查报告）
+**当前版本**：v0.68.0（2026-07-30 dual_agent thread-safety + H3 B 报告）
