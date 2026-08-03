@@ -12,6 +12,41 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.68.2] 2026-08-03
+
+### docs sync: 项目综合深度分析文档 + research/README SSOT 入口同步
+
+> **触发**：Bisen 2026-08-01 "深度分析" 请求 + 2026-08-03 "更新项目文件并推送" 指令。
+> **依据**：本次为纯文档同步，不涉及代码变更，不涉及功能/修复。
+> **背景**：v0.68.1 (2026-07-31) 项目方向审查已同步 README/roadmap/CLAUDE 到 v0.68.0 实际状态，但 research/README.md SSOT 入口仍停在 2026-06-24 项目初始状态（目录结构图仅列 01-04，标"待填充"），CHANGELOG.md 顶部仅到 [0.40.0]--这是 Bisen 7-31 审查未覆盖的文档债。
+
+**文档变更**：
+
+- **新增 `research/00-overview/10-comprehensive-deep-analysis-2026-08-01.md`（~470 行）**
+  - Bisen 2026-08-01 触发"深度分析"请求，必答 4 点：
+    1. 理论依据：5D MIRT + Bloom + TC + 双 Agent 互校 + Bjork/CLT/CA + LinUCB + POMDP
+    2. 业务流程：8 阶段端到端闭环 + 5D × 6 Bloom = 30 维状态空间
+    3. 技术利弊 + 功能/场景：利（理论严谨/可解释/持久化/抗幻觉/245 测试）+ 弊（H3 未过/工程复杂/学科单一/单用户小样本）+ 7 组件状态 + 强/弱/不适合场景 + 三重护城河
+    4. 竞品对比：Khanmigo / Duolingo Max / Squirrel AI vs ECOS，ECOS 在"理解+改变"两轴同时达到"是"，市场无竞品同时做到
+  - 详见 commit `8a4bb6f` + [discussions/2026-08-01-ecos-deep-analysis-session.md](../discussions/2026-08-01-ecos-deep-analysis-session.md)
+
+- **同步 `research/README.md` SSOT 入口（2026-06-24 -> 2026-08-03）**
+  - 时间戳：2026-06-24 -> 2026-08-03（v0.68.1）
+  - 状态表：从"8 份已建立 + 14 份占位"更新为"27+ 份已建立 + 0 占位"（Phase 0 完成于 2026-06-25，所有占位已填充）
+  - 目录结构图：
+    - 00-overview/：补 05-user-friendly-demo / 07-project-comprehensive-audit / 08-cx-dimension-semantic-decision / 10-comprehensive-deep-analysis
+    - 10-engineering/：删除"待填充"标注，已全部完成
+    - 20-pedagogy/：删除"待填充"标注，已全部完成
+    - 90-mvp/：从仅 README.md 扩展到 10 份文档（06 端到端流程 / 07-11 Phase 5 设计 / ECOS-Cognitive-Intervention-Workflow / ECOS-Demo-Showcase / python-basics-q-matrix-design）
+  - 末尾"下次更新"：从"战略层 4 份文档填充后"改为"按需同步"
+
+**版本号**：
+- `ecos/__init__.py`：`__version__ = "0.68.1"` -> `"0.68.2"`（patch bump，纯文档同步）
+
+**未覆盖的文档债**（后续可单独处理）：
+- CHANGELOG.md 从 [0.40.0] (2026-07-17) 到 [0.68.1] (2026-07-31) 的版本条目未回填（项目实践已转向 git log + discussions/ 记录，CHANGELOG 仅保留早期记录）
+- 本次仅加 [0.68.2] 条目，不回填 v0.41-v0.68 中间版本
+
 ## [0.39.0] 2026-07-10
 
 ### 战略转型：MVP → Product Demo 完整化

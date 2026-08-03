@@ -3,12 +3,12 @@
 > **ECOS 核心研究文档结构化目录**
 > 本目录是 ECOS 项目所有研究文档的 SSOT（Single Source of Truth）入口
 
-## 当前状态（2026-06-24）
+## 当前状态（2026-08-03，v0.68.1）
 
 | 状态 | 数量 | 说明 |
 |------|------|------|
-| ✅ 已建立 | 4 + 1 + 2 + 1 = 8 份 | 从 SelfLab 迁移的核心研究文档 |
-| 📋 占位 | 14 份 | 战略层 + 工程层 + 教学法层 + MVP 占位 |
+| ✅ 已建立 | 8 战略层 + 5 工程层 + 4 教学法层 + 10+ MVP/Demo = 27+ 份 | Phase 0 全部完成（2026-06-25）+ Phase 4 Demo 完整化（v0.52.3）+ Phase 5 进行中（v0.54.0 -> v0.68.1）|
+| 📋 占位 | 0 份 | 所有初始占位已填充 |
 
 ## 目录结构
 
@@ -22,22 +22,26 @@ research/
 │   ├── 02-cognitive-digital-twin-rounds-1-3.md # 第 1-3 轮对话
 │   ├── 03-cognitive-digital-twin-rounds-4-5.md # 第 4-5 轮对话
 │   └── 04-cognitive-digital-twin-v01-report.md # 5 轮综合 v0.1
-├── 00-overview/                             # 战略层（待填充）
-│   ├── 01-applications.md
-│   ├── 02-architecture.md
-│   ├── 03-roadmap.md
-│   └── 04-risks.md
-├── 10-engineering/                          # 工程层（待填充）
-│   ├── 01-cta-belief-engine.md
-│   ├── 02-lca-policy-engine.md
-│   ├── 03-bloom-goal-library.md
-│   ├── 04-dual-agent-calibration.md
-│   └── 05-persistence-session.md
-├── 20-pedagogy/                             # 教学法层（待填充）
-│   ├── 01-k12-cognitive-structure.md
-│   ├── 02-bloom-application.md
-│   ├── 03-learning-strategies.md
-│   └── 04-zpd-application.md
+├── 00-overview/                             # 战略层（✅ 全部完成）
+│   ├── 01-applications.md                   # 应用场景（v1.1，先 A 后 C）
+│   ├── 02-architecture.md                   # 整体架构（v1.4，三空间 + 双 Agent）
+│   ├── 03-roadmap.md                        # 路线图（v1.5，M0-M7 + H1-H7）
+│   ├── 04-risks.md                          # 风险矩阵
+│   ├── 05-user-friendly-demo.md             # 用户友好 Demo
+│   ├── 07-project-comprehensive-audit-2026-07-22.md  # 项目全面审查
+│   ├── 08-cx-dimension-semantic-decision.md # C/X 维度语义决策
+│   └── 10-comprehensive-deep-analysis-2026-08-01.md  # ⭐ 项目综合深度分析（4 必答点）
+├── 10-engineering/                          # 工程层（✅ 全部完成）
+│   ├── 01-cta-belief-engine.md              # CTA 5 层数学栈
+│   ├── 02-lca-policy-engine.md              # LCA LinUCB + CA 6 阶段
+│   ├── 03-bloom-goal-library.md             # Bloom 目标库
+│   ├── 04-dual-agent-calibration.md         # 双 Agent 互校
+│   └── 05-persistence-session.md           # 持久化 + 跨会话
+├── 20-pedagogy/                             # 教学法层（✅ 全部完成）
+│   ├── 01-k12-cognitive-structure.md        # K12 学段差异化
+│   ├── 02-bloom-application.md              # Bloom 在 K12 应用
+│   ├── 03-learning-strategies.md            # 学习策略空间
+│   └── 04-zpd-application.md                # ZPD 形式化
 ├── 30-shared-cognitive-tools/               # 共享工具箱（与 SelfLab 共享）
 │   ├── shared-cognitive-science-toolbox.md
 │   └── theoretical-foundations/             # ECOS 独有理论借鉴（SSOT: README.md）
@@ -48,8 +52,17 @@ research/
 ├── 40-aibeing-borrowing/                    # AiBeing 借鉴
 │   ├── 01-concept-borrowing.md
 │   └── 02-application-layer-borrowing.md
-└── 90-mvp/                                  # MVP 实施
-    └── README.md
+└── 90-mvp/                                  # MVP / Demo 实施（✅ 多份文档）
+    ├── README.md                            # MVP 设计总览
+    ├── 06-ecos-end-to-end-flow-analysis.md # ⭐ 8 阶段端到端流程 + 5D/Bloom 通俗化
+    ├── 07-phase5-partial-credit-implementation.md
+    ├── 08-phase5-c-dimension-questions.md
+    ├── 09-phase5-c-dimension-questions-expanded.md
+    ├── 10-phase5-c-confidence-questions-design.md
+    ├── 11-phase5-x-external-support-questions-design.md
+    ├── ECOS-Cognitive-Intervention-Workflow.md
+    ├── ECOS-Demo-Showcase-2026-07-06.md
+    └── python-basics-q-matrix-design.md    # Python Q 矩阵设计
 ```
 
 ## 必读文档（按重要性）
@@ -143,4 +156,4 @@ LCA: 重新规划
 
 **创建日期**：2026-06-24
 **维护者**：Bisen & Claude
-**下次更新**：战略层 4 份文档填充后
+**下次更新**：按需同步（新文档添加 / 阶段切换 / 假设验证结果更新时）
