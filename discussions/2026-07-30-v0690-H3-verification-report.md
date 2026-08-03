@@ -100,3 +100,54 @@
 - 冷启动期 ECE: 数据不足 (无 source=estimate_gain_fallback 样本)
 - 非冷启动期 ECE: `0.6210` (41 样本)
 
+
+## 7. v0.70.0-d 修复后重放结果 (2026-08-03 更新)
+
+> **触发**: v0.69.0 跑出来 V3=0 样本, 诊断发现策略质疑路径绕过 BUG.
+> **修复**: v0.70.0 抽出 `_post_process_calibration` 方法, 常态循环 + 特殊模式两路径都调.
+> **重放**: 用 lbc003 的 response_history 56 道, 全新 DualAgentOrchestrator 重跑 (in-memory, 不污染 DB).
+
+### 7.1 修复后 V3 字段写入情况
+
+- 总答题数: 56
+- 触发策略质疑次数: **50 (89.3%)** -- lbc003 K mastery 早期饱和, 后期 50/56 道全触发
+- V3 dual_agent_confidence 写入: **55/56 (98.2%)** ✅ (修复前 0/56)
+- V3 source 分布:
+  - linucb (LinUCB θ@x 预测): **40 样本** (修复前 0)
+  - estimate_gain_fallback (冷启动 fallback): **15 样本** (修复前 0)
+  - None (prev=None 第 1 道): 1 样本
+- LinUCB 总 pull 次数: 50 (B4 reward=actual_outcome 已训练)
+- 是否冷启动 (pulls < 10)? **False** (足够样本走 LinUCB θ@x)
+
+### 7.2 修复后 V3 ECE
+
+- 有效配对数 (V3 配 actual_outcome): **54**
+- 平均 V3 confidence: **0.1096**
+- 平均 actual_outcome: **0.8519**
+- **ECE (per-sample |V3 - actual| 平均): 0.7596** ❌
+
+### 7.3 新发现 BUG: LinUCB A 矩阵被策略质疑反复放大
+
+诊断 LinUCB 内部状态:
+- 每个 arm 的 A 矩阵最大特征值 ≈ 1.6e+05 (放大 16 万倍!)
+- 每个 arm 的 θ 范数 ≈ 1e-4 (几乎为 0)
+- θ = A^-1 b ≈ 0 -> expected_reward = θ @ x ≈ 0
+
+**根因**: `ecos/dual_agent/modes/strategy_challenge.py:107` 的 `bandit.bandit.A[last_arm] *= LINUCB_PENALTY_FACTOR` (10.0).
+lbc003 触发 50 次策略质疑, 每次 *10, A 矩阵累计放大 10^5 倍. θ 严重衰减, 预测永远接近 0.
+
+**影响**: 即使 v0.70.0-d 修复了路径绕过 BUG, V3 仍 ECE 0.76 (比 V1=0.62 还差), H3 仍未通过.
+
+### 7.4 后续修复方向 (v0.71+ P0-g)
+
+1. **限制每 arm 惩罚次数** (每个 arm 最多惩罚 N 次, 超过不再 *10)
+2. **用 LinUCB 标准 regularization** (A += λI, λ=1.0) 替代 *= 10
+3. **完全移除惩罚机制** (让 B4 reward=actual_outcome 自己训练, LinUCB 自我修正)
+
+### 7.5 H3 验证当前结论
+
+- ✅ v0.69.0 B4+C1+D1 修复策略质疑路径绕过 BUG (v0.70.0-d)
+- ❌ H3 仍未通过: V3 ECE=0.76 > 阈值 0.10
+- 📋 后续必修: LinUCB 惩罚机制无上限 BUG (v0.71+ P0-g)
+- 📋 后续观察: 修 LinUCB 惩罚后重跑 V3 ECE, 看是否 < 0.30
+
