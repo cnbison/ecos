@@ -50,6 +50,7 @@ from .protocol.state_machine import (
     CalibrationState,
     CalibrationStateMachine,
 )
+from .calibration import StudentCalibrationTracker
 
 _log = logging.getLogger(__name__)
 
@@ -114,6 +115,11 @@ class DualAgentOrchestrator:
         self.intervention_history: Dict[str, List[CalibratedLCAResult]] = {}
         self.state_trajectory: Dict[str, List[BeliefState]] = {}
         self.calibration_round: Dict[str, int] = {}
+
+        # v0.72.0 P0-i: 每学生 V3 confidence 后校准 (Platt Scaling) tracker
+        #   用于把 LinUCB θ@x 预测 (系统性低估 0.54) 校准到真答对概率
+        #   详见 ecos/dual_agent/calibration.py + discussions/2026-08-03-v0710-reliability-diagram-diagnosis.md §5
+        self._calibration_trackers: Dict[str, StudentCalibrationTracker] = {}
 
         # 抗幻觉警告 + challenge 历史（用于教师后台接口）
         self.warnings: Dict[str, List[str]] = {}
@@ -349,6 +355,31 @@ class DualAgentOrchestrator:
             dual_agent_confidence_source
         )
 
+        # v0.72.0 P0-i: V3 confidence 后校准 (Platt Scaling)
+        #   触发: v0.71.0 P0-g 修 LinUCB A 矩阵爆炸后, reliability diagram 诊断发现
+        #     V3 全局系统性低估 0.54 (avg_conf 0.32 vs avg_acc 0.85, 所有预测 [0.1, 0.4])
+        #   设计: 每学生独立 StudentCalibrationTracker, 累积 (raw_V3, actual_outcome) pairs
+        #     触发 PlattScaler refit (默认 5+ pairs), 用 sigmoid(A·V3 + B) 校准
+        #   写入: calibrated.metadata["dual_agent_confidence_calibrated"] (新字段)
+        #     + calibrated.metadata["dual_agent_confidence_calibrated_source"] (来源标记)
+        #   防御性自检 [1]: 任何 scipy 优化失败 _log.warning, 走 raw V3 兜底, 不 silent pass
+        #   防御性自检 [6]: 失败不污染 in-memory state (calibration_trackers dict)
+        try:
+            self._update_and_apply_calibration(
+                sid=sid,
+                prev_calibrated=prev_calibrated,
+                raw_v3=dual_agent_confidence,
+                calibrated=calibrated,
+            )
+        except Exception:
+            _log.warning(
+                "v0.72.0 Platt Scaling 校准失败 (sid=%s), 兜底写 raw V3",
+                sid, exc_info=True,
+            )
+            # 兜底: 写 raw V3 到 calibrated 字段, 不污染 calibration_trackers
+            calibrated.metadata["dual_agent_confidence_calibrated"] = dual_agent_confidence
+            calibrated.metadata["dual_agent_confidence_calibrated_source"] = "raw_v3_fallback"
+
         # v0.69.0-b: LinUCB update reward 改 actual_outcome (B4 方案)
         #   之前: reward = state_delta (mastery 增长预测)
         #   现在: reward = actual_outcome (partial credit 0-1, 答对概率直接度量)
@@ -376,6 +407,59 @@ class DualAgentOrchestrator:
                 new_state=new_state,
                 state_delta=state_delta,
             )
+
+    # ---------------------------------------------------------------
+    # v0.72.0 P0-i: V3 Platt Scaling 校准 (per-student tracker)
+    # ---------------------------------------------------------------
+
+    def _update_and_apply_calibration(
+        self,
+        sid: str,
+        prev_calibrated,
+        raw_v3: float,
+        calibrated,
+    ) -> None:
+        """v0.72.0: 更新 calibration tracker + 校准当前 V3.
+
+        流程 (per-student calibration, _post_process_calibration 内调用):
+          1. 拿 tracker (lazy init, default min_samples_to_fit=5)
+          2. 把上一轮的 (raw_V3, actual_outcome) 加进 tracker
+             (refit 内部触发, n_pairs >= 5 后自动跑)
+          3. 用 tracker.calibrate(raw_v3) 校准当前 V3
+          4. 写 calibrated.metadata["dual_agent_confidence_calibrated"] + source
+
+        Args:
+            sid: 学生 ID
+            prev_calibrated: 上一轮 CalibratedLCAResult (读 raw_V3 + actual_outcome)
+            raw_v3: 当前轮 raw V3 (LinUCB θ@x 或 estimate_gain_fallback)
+            calibrated: 当前轮 CalibratedLCAResult (写 calibrated V3 + source)
+
+        Notes:
+            - 冷启动期 (tracker 未 fitted): calibrated = raw, source = "raw_v3"
+            - 任何 refit/calibrate 失败: _log.warning, 写 raw V3 兜底, 不污染 tracker
+            - 设计: min_samples_to_fit=5 (实验调参依据: lbc003 56 道题, 49 校准 + 5 raw 足够 ECE 验证)
+        """
+        tracker = self._calibration_trackers.setdefault(
+            sid, StudentCalibrationTracker(min_samples_to_fit=5)
+        )
+
+        # 步骤 1: 把上一轮的 (raw_V3, actual_outcome) 加进 tracker
+        prev_raw_v3 = prev_calibrated.metadata.get("dual_agent_confidence")
+        prev_actual = prev_calibrated.actual_outcome
+        if prev_raw_v3 is not None and prev_actual is not None:
+            tracker.add_pair(float(prev_raw_v3), float(prev_actual))
+
+        # 步骤 2: 用 tracker 校准当前 V3
+        if tracker.is_fitted:
+            calibrated_value = tracker.calibrate(float(raw_v3))
+            source = "platt_scaling"
+        else:
+            calibrated_value = float(raw_v3)
+            source = "raw_v3"
+
+        # 步骤 3: 写 metadata
+        calibrated.metadata["dual_agent_confidence_calibrated"] = calibrated_value
+        calibrated.metadata["dual_agent_confidence_calibrated_source"] = source
 
     # ---------------------------------------------------------------
     # v0.69.0-b: dual_agent_confidence 计算 (B4 方案)

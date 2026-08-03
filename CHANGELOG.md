@@ -12,6 +12,53 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.72.0] 2026-08-03
+
+### feat: P0-i V3 confidence Platt Scaling 后校准 (H3 验证关键修复)
+
+> **触发**: v0.71.0 P0-g 修 LinUCB A 矩阵爆炸后, V3 ECE 仍 0.57 > 阈值 0.10. 画 reliability diagram 诊断发现 V3 全局低估 0.54 (avg conf 0.32 vs avg acc 0.85), 所有 V3 预测集中在 [0.1, 0.4] 区间.
+> **方案**: Bisen 2026-08-03 拍板 Option 2.A (Platt Scaling). P(correct=1 | raw_conf) = sigmoid(A·raw_conf + B), MLE 拟合 (raw_conf, actual_outcome) pairs.
+
+**新增模块** (P0-i 实现):
+- `ecos/dual_agent/calibration.py`: `PlattScaler` 类 (sigmoid 参数 MLE 拟合 + transform) + `StudentCalibrationTracker` 类 (per-student buffer + refit)
+- `ecos/dual_agent/orchestrator.py`: 新增 `_update_and_apply_calibration` 方法, 在 `_post_process_calibration` 内调
+  - 写 `dual_agent_confidence_calibrated` + `dual_agent_confidence_calibrated_source` 元数据
+  - 冷启动期 (n_pairs < 5): source = "raw_v3", 5+ pairs 后 source = "platt_scaling"
+
+**lbc003 56 道题重放结果**:
+
+| 指标 | 单 Agent | V3 raw (v0.71.0) | V3 calibrated (v0.72.0) |
+|---|---|---|---|
+| 平均 conf | 0.6831 | 0.3161 | **0.8426** |
+| 平均 actual_outcome | 0.8519 | 0.8519 | 0.8519 |
+| 全局 gap | +0.1688 | +0.5358 | **+0.0092** (perfect) |
+| **ECE** | **0.1740** | 0.6328 | **0.2794** |
+| 改善 (vs raw) | — | — | **-0.3534 (55.8%)** |
+
+**H3 验证状态**: ⚠️ 未通过 (calibrated ECE 0.28 > 阈值 0.10), 但已接近单 Agent baseline (0.17). 详见 [discussions/2026-07-30-v0690-H3-verification-report.md §9](discussions/2026-07-30-v0690-H3-verification-report.md).
+
+**诊断工具** (P0-h + P0-i):
+- `scripts/plot_reliability_diagram.py`: V3 raw reliability diagram (v0.71.0 P0-g 修复后)
+- `scripts/plot_reliability_diagram_v0720.py`: V3 raw + calibrated 对比 (v0.72.0 P0-i 修复后)
+- 图: `discussions/2026-08-03-v0710-reliability-diagram.png` + `discussions/2026-08-03-v0720-reliability-diagram-raw-vs-calibrated.png`
+
+**测试覆盖**:
+- `tests/test_platt_scaler.py` (15 测试): PlattScaler 基础 + StudentCalibrationTracker + orchestrator 集成 + lbc003 重放 ECE 改善
+- 全量: 318 测试通过 (303 旧 + 15 新)
+
+**P0-h Reliability Diagram 诊断**:
+- V3 全局低估 0.54, 根因是 LinUCB 线性模型 + 16 维 + 54 样本数学上拟合不了 lbc003 高 baseline (0.85)
+- 4 个候选方案: A. Platt Scaling (已选) / B. CTA+V3 混合 / C. 改用 mastery_prob / D. 重定义 H3
+- 详见 [discussions/2026-08-03-v0710-reliability-diagram-diagnosis.md](discussions/2026-08-03-v0710-reliability-diagram-diagnosis.md)
+
+**📋 后续 (v0.73+ 评估)**:
+- 增大 min_samples_to_fit (5 -> 10) 减少 refit 次数
+- 引入 L2 正则化 (Platt 1999) 避免极端参数
+- 跨学生迁移 (global scaler + per-student 偏移)
+- 若 ECE 仍 > 0.20, 顺势走 Plan B (重定义 H3 假设, 详见诊断报告 §4.4)
+
+---
+
 ## [0.71.0] 2026-08-03
 
 ### fix: P0-g 限制 LinUCB 每 arm 惩罚次数 (A 矩阵爆炸根因)

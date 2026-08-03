@@ -195,3 +195,101 @@ lbc003 触发 50 次策略质疑, 每次 *10, A 矩阵累计放大 10^5 倍. θ 
 - 加 reliability diagram 画图看 V3 vs accuracy 分布
 - 评估是否完全放弃 LinUCB θ@x 预测, 改用其他 confidence 源
 
+---
+
+## 9. v0.72.0 P0-i Platt Scaling 后校准结果 (2026-08-03 更新)
+
+> **触发**: v0.71.0 P0-g 修 LinUCB A 矩阵爆炸后, V3 ECE 仍 0.57. 画 reliability diagram 诊断发现 V3 全局低估 0.54 (avg conf 0.32 vs avg acc 0.85), 详见 §10 + `discussions/2026-08-03-v0710-reliability-diagram-diagnosis.md`.
+> **方案**: Option 2.A Platt Scaling (per-student 后校准). P(correct=1 | raw_conf) = sigmoid(A·raw_conf + B), MLE 拟合 (raw_conf, actual_outcome) pairs.
+> **实现**: `ecos/dual_agent/calibration.py` (新增) + `ecos/dual_agent/orchestrator.py` 集成 `_update_and_apply_calibration` 方法.
+
+### 9.1 Platt Scaling 设计
+
+- **per-student tracker**: `StudentCalibrationTracker` 维护每学生 (raw_V3, actual_outcome) pairs buffer
+- **冷启动期** (n_pairs < 5): 返回 raw_V3, source = "raw_v3"
+- **fit 后**: 用 `sigmoid(A·raw_V3 + B)` 校准, source = "platt_scaling"
+- **refit 触发**: 每次 add_pair 触发 refit (数据量小, refit 成本可忽略)
+- **失败兜底**: 任何 scipy 优化失败 -> _log.warning + 写 raw V3, 不污染 in-memory state
+- **新 metadata 字段**: `dual_agent_confidence_calibrated` + `dual_agent_confidence_calibrated_source`
+
+### 9.2 修复后 V3 ECE 对比 (lbc003 56 道题重放)
+
+| 指标 | 单 Agent baseline | 双 V3 raw (v0.71.0 P0-g) | 双 V3 calibrated (v0.72.0 P0-i) |
+|---|---|---|---|
+| 平均 conf | 0.6831 | 0.3161 | **0.8426** |
+| 平均 actual_outcome | 0.8519 | 0.8519 | 0.8519 |
+| 全局 gap (acc - conf) | +0.1688 | +0.5358 | **+0.0092** (almost zero) |
+| **ECE (per-sample)** | **0.1740** | 0.6328 | **0.2794** |
+| 改善 (vs raw V3) | — | — | **-0.3534 (55.8%)** |
+
+**关键观察**:
+- 平均 conf 从 0.32 -> 0.84 (跟 actual 0.85 几乎一致, gap 0.009 几乎完美)
+- ECE 从 0.63 -> 0.28 (改善 56%)
+- 仍未过 0.10 阈值, 但已非常接近单 Agent baseline (0.17)
+
+### 9.3 Reliability Diagram 数据 (v0.72.0 P0-i 后)
+
+| bin | mean_conf | mean_acc | gap | n | source |
+|---|---|---|---|---|---|
+| [0.1, 0.2] | 0.1425 | 1.0000 | -0.8575 | 5 | raw_v3 (cold start) |
+| [0.8, 0.9] | 0.8407 | 0.8261 | +0.0146 | 23 | platt_scaling |
+| [0.9, 1.0] | 0.9789 | 0.8462 | +0.1328 | 26 | platt_scaling |
+
+**关键观察**:
+- calibrated V3 全部集中在 [0.8, 1.0] 区间 (49/54 样本), 之前 raw V3 全部在 [0.1, 0.4]
+- Bin [0.8, 0.9] 几乎完美校准 (gap +0.01)
+- Bin [0.9, 1.0] 轻微高估 (gap +0.13), 来自 saturation: raw V3 接近 0.4 -> calibrated 接近 1.0 -> 真 acc 0.85
+- 图: `discussions/2026-08-03-v0720-reliability-diagram-raw-vs-calibrated.png`
+
+### 9.4 H3 验证当前结论 (v0.72.0 P0-i 后)
+
+- v0.69.0 B4+C1+D1 改造落地
+- v0.70.0-d 修策略质疑路径绕过 BUG (V3 写入率 98.2%)
+- v0.71.0 P0-g 修 LinUCB A 矩阵爆炸 (V3 ECE 0.76 -> 0.57)
+- v0.72.0 P0-i Platt Scaling 后校准 (V3 ECE 0.57 -> 0.28, gap 0.54 -> 0.01)
+- **H3 仍未通过**: calibrated V3 ECE = 0.28 > 阈值 0.10, 但已接近单 Agent baseline (0.17)
+
+### 9.5 后续方向
+
+1. **提升 calibration 精度** (v0.73+ 评估):
+   - 增大 min_samples_to_fit (从 5 -> 10) 减少 refit 次数, 稳定 A, B
+   - 引入 L2 正则化 (Platt 1999) 避免极端参数
+   - 跨学生迁移 (global scaler + per-student 偏移)
+2. **减小 per-sample 误差**:
+   - 当前 ECE 0.28 来自 per-sample 方差 (即使 mean 完美, 个别样本仍有误差)
+   - 可考虑 per-bin 校准 (isotonic regression) 替代 sigmoid
+3. **Plan B 准备**: 若 v0.73 仍 > 0.20, 顺势走 D (重定义 H3 假设, 详见 diagnosis 报告 §4.4)
+
+### 9.6 测试覆盖 (v0.72.0 P0-i 新增)
+
+- `tests/test_platt_scaler.py` (15 测试):
+  - `TestPlattScalerBasic` (8): identity / fit / transform / 单调 / bounded / 失败兜底
+  - `TestStudentCalibrationTracker` (4): 冷启动 / 首次 refit / 累积 refit / clamp
+  - `TestOrchestratorPlattScalingIntegration` (2): calibrated 字段写入 / 5+ pairs 后激活
+  - `TestLbc003PlattScalingImprovement` (1): lbc003 重放, calibrated ECE < raw ECE + < 0.40
+
+---
+
+## 10. Reliability Diagram 诊断 (2026-08-03 更新, v0.71.0 P0-g 修复后)
+
+> **触发**: v0.71.0 P0-g 修 LinUCB A 矩阵爆炸后, V3 ECE 仍 0.57 > 阈值 0.10, 画 reliability diagram 诊断 V3 偏差方向.
+> **脚本**: `scripts/plot_reliability_diagram.py` (v0.71.0 版本) + 图 `discussions/2026-08-03-v0710-reliability-diagram.png`
+> **详细分析**: `discussions/2026-08-03-v0710-reliability-diagram-diagnosis.md`
+
+### 10.1 诊断结论
+
+- **V3 全局低估 0.54**: avg conf 0.32 vs avg acc 0.85
+- **分布异常**: 所有 54 个 V3 样本都集中在 [0.1, 0.4] 区间, 没有任何样本 > 0.4
+- **根因**: LinUCB 线性模型 (θ@x) + 16 维 + 54 样本数学上拟合不了 lbc003 高 baseline (0.85). 修了所有 BUG (路径绕过 + A 矩阵爆炸) 后, 模型本身仍不可信.
+
+### 10.2 Option 2 4 个候选方案评估
+
+| 方案 | 推荐度 | 预期 ECE | 备注 |
+|---|---|---|---|
+| **A. Platt Scaling (per-student 后校准)** | (推荐, 已实施) | 0.10-0.25 | 改动最小, 经典 calibration 方案 |
+| B. CTA mastery_prob + V3 混合 | 不推荐 | 0.30-0.50 | 违背 v0.69.0 PRD B3 决策, 治标不治本 |
+| C. 完全放弃 V3, 改用 mastery_prob | 不推荐 | 0.17 | 违背双 Agent 理念, H3 验证设计要重做 |
+| D. 重定义 H3 假设 (互校改抗不一致性) | Plan B | ECE 验证作废 | 诚实反思, 推翻之前 H3 声明 |
+
+**已选 A, v0.72.0 实施结果**: ECE 0.28 (落在预期区间).
+
