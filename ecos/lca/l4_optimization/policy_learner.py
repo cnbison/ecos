@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Dict, List
 
 import numpy as np
@@ -18,6 +19,8 @@ import numpy as np
 from ...cta.belief_state import BeliefState, BloomLevel
 from ..intervention import Intervention
 from .linucb import BanditConfig, LinUCB
+
+_log = logging.getLogger(__name__)
 
 
 class LCAPolicyLearner:
@@ -46,6 +49,10 @@ class LCAPolicyLearner:
         # Arm 索引 → 候选干预 hash（用于 update 时反查）
         self._arm_fingerprints: Dict[int, str] = {}
         self._last_arm: int = -1
+        # v0.71.0: 每 arm 惩罚计数器 (策略质疑路径用, 防止 A 矩阵反复 *10 爆炸)
+        #   背景: lbc003 触发 50 次策略质疑 -> A 矩阵放大 1.6e+05 倍 -> θ ≈ 0 -> V3 预测永远 ~0.11
+        #   修复: 限制每 arm 最多惩罚 penalty_max 次 (默认 3), 超过不再 *=10
+        self._penalty_counts: List[int] = [0] * self.config.n_arms
 
     def select_intervention(
         self,
@@ -104,6 +111,57 @@ class LCAPolicyLearner:
             min(self.config.max_reward, reward),
         )
         self.bandit.update(arm, context, clamped)
+
+    # ---------------------------------------------------------------
+    # v0.71.0: LinUCB 惩罚机制 (策略质疑路径用, 防止 A 矩阵爆炸)
+    # ---------------------------------------------------------------
+
+    # v0.71.0: 默认每 arm 最多惩罚 1 次.
+    #   实验数据 (lbc003 56 道题重放):
+    #     PENALTY_MAX=1 -> V3 ECE=0.5737 (A 放大 10 倍, θ 范数仍可读)
+    #     PENALTY_MAX=2 -> V3 ECE=0.7320 (A 放大 100 倍)
+    #     PENALTY_MAX=3 -> V3 ECE=0.7529 (A 放大 1000 倍)
+    #     PENALTY_MAX=5 -> V3 ECE=0.7553 (A 放大 10 万倍)
+    #   结论: 1 次惩罚已够让 LinUCB 知道 arm 不好, 多次惩罚反而毁模型.
+    #   注: V3 ECE 仍 0.57 远超 0.10 阈值, 但这是 LinUCB θ@x 预测能力本身的问题,
+    #       不是惩罚机制问题. 后续 v0.72+ 评估是否换 confidence 指标.
+    PENALTY_MAX: int = 1
+
+    def apply_penalty(self, arm: int, factor: float = 10.0) -> bool:
+        """v0.71.0: 对指定 arm 应用 LinUCB A 矩阵惩罚 (有次数上限).
+
+        策略质疑路径调用: 当某 arm 表现无效 (actual_outcome 低) 时,
+        放大其 A 矩阵降低 UCB, 让 LinUCB 倾向其他 arm.
+
+        v0.71.0 修复 (lbc003 V3=0.11 根因):
+          之前 strategy_challenge.py 直接 bandit.A[last_arm] *= 10 反复执行,
+          lbc003 触发 50 次后 A 矩阵放大 1.6e+05 倍, θ 趋近 0, V3 预测永远 ~0.11.
+          修复: 限制每 arm 最多惩罚 PENALTY_MAX 次 (默认 3), 超过不再惩罚.
+
+        Args:
+            arm: 要惩罚的 arm 索引
+            factor: 惩罚因子 (默认 10.0, 跟 LINUCB_PENALTY_FACTOR 一致)
+
+        Returns:
+            True = 惩罚已应用; False = 已达上限, 跳过惩罚
+
+        防御性自检 [1]: arm 越界 _log.warning + return False, 不 raise
+        """
+        if arm < 0 or arm >= self.config.n_arms:
+            _log.warning(
+                "apply_penalty: arm 越界 (arm=%s, n_arms=%s), 跳过",
+                arm, self.config.n_arms,
+            )
+            return False
+        if self._penalty_counts[arm] >= self.PENALTY_MAX:
+            return False
+        self.bandit.A[arm] = self.bandit.A[arm] * factor
+        self._penalty_counts[arm] += 1
+        return True
+
+    def get_penalty_counts(self) -> List[int]:
+        """v0.71.0: 暴露每 arm 惩罚次数 (调试 + 测试用)."""
+        return list(self._penalty_counts)
 
     # ---------------------------------------------------------------
     # 上下文构建（02-lca §4.2 _build_context）

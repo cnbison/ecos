@@ -12,6 +12,51 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.71.0] 2026-08-03
+
+### fix: P0-g 限制 LinUCB 每 arm 惩罚次数 (A 矩阵爆炸根因)
+
+> **触发**: v0.70.0-d 修了策略质疑路径绕过 BUG 后, V3 字段终于写入 (55/56=98.2%), 但 V3 ECE=0.76 仍很差.
+> 诊断发现 LinUCB A 矩阵被反复放大: lbc003 触发 50 次策略质疑 -> A 放大 1.6e+05 倍 -> θ ≈ 0 -> V3 预测永远 ~0.11.
+
+**根因** (P0-g 诊断):
+- `ecos/dual_agent/modes/strategy_challenge.py:107` 的 `bandit.bandit.A[last_arm] *= LINUCB_PENALTY_FACTOR` (10.0)
+- v0.59.0 引入, 每次策略质疑触发都 *10, 无次数上限
+- lbc003 触发 50 次 -> A 矩阵放大 1.6e+05 倍 -> θ = A^-1 b ≈ 0
+
+**修复** (v0.71.0 P0-g):
+- `ecos/lca/l4_optimization/policy_learner.py`: 加 `_penalty_counts` 字段 + `apply_penalty(arm, factor)` 方法
+- 每 arm 最多惩罚 `PENALTY_MAX` 次 (默认 1), 超过返回 False, 不再 *=10
+- `ecos/dual_agent/modes/strategy_challenge.py`: 调 `bandit.apply_penalty(last_arm, factor=10.0)` 替代直接 `*= 10`
+
+**PENALTY_MAX 调参** (lbc003 56 道题重放):
+| PENALTY_MAX | V3 平均 conf | V3 ECE | A_max_eig |
+|---|---|---|---|
+| 1 (默认) | 0.3833 | 0.5737 | 1.65e+01 |
+| 2 | 0.1331 | 0.7320 | 1.71e+02 |
+| 3 | 0.0978 | 0.7529 | 1.71e+03 |
+| 5 | 0.0945 | 0.7553 | 1.71e+05 |
+
+PENALTY_MAX=1 最优 (ECE 0.57 < 0.76 之前), 1 次惩罚已够让 LinUCB 知道 arm 不好, 多次惩罚反而毁模型.
+
+**H3 验证当前结论**:
+- ✅ v0.69.0 B4+C1+D1 改造落地 (v0.69.0)
+- ✅ v0.70.0-d 修策略质疑路径绕过 BUG (V3 写入率 98.2%)
+- ✅ v0.71.0 P0-g 修 LinUCB A 矩阵爆炸 (V3 ECE 0.76 -> 0.57)
+- ❌ H3 仍未通过: V3 ECE=0.57 > 阈值 0.10
+- 📋 设计层面判断: LinUCB θ@x 预测能力本身不够 (即使 A 矩阵不爆炸, θ @ x 仍无法准确预测答对率)
+  - 后续 v0.72+ 评估: 是否换 confidence 指标 (如 CalibratedLCAResult.intervention.confidence)
+
+**改动文件**:
+- `ecos/lca/l4_optimization/policy_learner.py`: 加 `_penalty_counts` + `apply_penalty` + `PENALTY_MAX=1`
+- `ecos/dual_agent/modes/strategy_challenge.py`: 调 apply_penalty 替代直接 *=10
+- `tests/test_linucb_penalty_limit.py` (新): 6 测试覆盖
+- `discussions/2026-07-30-v0690-H3-verification-report.md`: H3 报告补 §8 P0-g 结果
+- `CHANGELOG.md / ecos/__init__.py`: bump 0.70.0 -> 0.71.0
+
+**测试**: 303 pytest 全过 (297+6 新), 5 防御自检全过.
+
+
 ## [0.70.0] 2026-08-03
 
 ### fix: v0.69.0-d 修策略质疑路径绕过 BUG (lbc003 V3=0 样本根因)

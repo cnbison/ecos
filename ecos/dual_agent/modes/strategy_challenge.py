@@ -104,7 +104,9 @@ class StrategyChallengeMode:
         if bandit is not None:
             last_arm = bandit._last_arm
             if last_arm >= 0 and last_arm < len(bandit.bandit.A):
-                bandit.bandit.A[last_arm] *= LINUCB_PENALTY_FACTOR
+                # v0.71.0: 改 apply_penalty, 限制每 arm 最多惩罚 3 次
+                #   之前 BUG: 直接 *=10 反复执行, lbc003 触发 50 次 -> A 放大 1.6e+05 倍 -> θ ≈ 0
+                bandit.apply_penalty(last_arm, factor=LINUCB_PENALTY_FACTOR)
 
         # 重新选择
         new_lca_result = self.lca.select_intervention(cta_input)
