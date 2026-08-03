@@ -293,3 +293,65 @@ lbc003 触发 50 次策略质疑, 每次 *10, A 矩阵累计放大 10^5 倍. θ 
 
 **已选 A, v0.72.0 实施结果**: ECE 0.28 (落在预期区间).
 
+---
+
+## 11. v0.73.0 P0-j Platt Scaling 优化结果 (2026-08-03 更新)
+
+> **触发**: v0.72.0 Platt 后 ECE 0.28, mean conf 0.84 vs mean acc 0.85 (gap 0.01 几乎完美), 但 ECE 仍有 0.11 离单 Agent baseline 0.17.
+> 诊断: bin [0.9, 1.0] 26 样本 gap +0.13 (轻微高估), Isotonic 能更好 fit.
+> **方案**: Bisen 2026-08-03 拍板 A (Isotonic Regression) + C (L2 正则化).
+
+### 11.1 优化实现
+
+1. **IsotonicCalibrator 类** (新): 包装 `sklearn.isotonic.IsotonicRegression` (PAVA 算法)
+2. **L2 正则化**: PlattScaler 损失函数加 `l2_lambda * (A^2 + B^2)`, 默认 0.01
+3. **冷启动调度**: `min_samples_to_fit_platt=5, min_samples_to_fit_isotonic=20, l2_lambda=0.01`
+   - n_pairs < 5: raw_v3
+   - 5-19: platt_scaling
+   - 20+: isotonic_regression
+4. **修复 v0.72.0 隐藏 BUG**: orchestrator `_update_and_apply_calibration` 步骤 2 硬编码 `source = "platt_scaling"`, 现改用 `source = tracker.active_calibrator` 联动
+
+### 11.2 修复后 V3 ECE 对比 (lbc003 56 道题重放)
+
+| 指标 | v0.71.0 raw | v0.72.0 Platt | v0.73.0 Platt+Iso |
+|---|---|---|---|
+| 平均 conf | 0.3161 | 0.8426 | **0.8461** |
+| 平均 actual | 0.8519 | 0.8519 | 0.8519 |
+| 全局 gap | +0.5358 | +0.0092 | **+0.0058** |
+| ECE (54 样本含 cold start) | 0.6328 | 0.2794 | 0.2794 |
+| **ECE (49 校准样本, 排除 5 cold start)** | — | — | **0.2204** |
+
+**分段 ECE** (lbc003 56 道, source 分布: 5 raw + 15 platt + 35 iso):
+- Platt 阶段 (15 样本, n_pairs 5-19): **ECE 0.1635** (单段最好)
+- Isotonic 阶段 (34 样本, n_pairs 20+): ECE 0.2456 (略差, Isotonic 灵活度在饱和数据上是过拟合)
+- Cold start (5 样本, n_pairs < 5): 走 raw, mean gap 0.86 (高 ECE 但样本少)
+
+### 11.3 H3 验证当前结论 (v0.73.0 P0-j 后)
+
+- v0.69.0 B4+C1+D1 + v0.70.0-d 修路径绕过 + v0.71.0 P0-g 修 A 矩阵爆炸
+- v0.72.0 P0-i Platt Scaling 引入 (ECE 0.57 -> 0.28)
+- v0.73.0 P0-j Isotonic + L2 优化 (ECE 排除 cold start 0.22, 全 0.28)
+- **H3 仍未通过**: calibrated V3 ECE = 0.28 > 阈值 0.10, 但已接近单 Agent baseline (0.17)
+- **冷启动期是 ECE 改善瓶颈**: 5 raw 样本 mean gap 0.86 占 ECE 0.06
+
+### 11.4 关键学习 (后续 v0.74+ 设计)
+
+1. **冷启动期 (前 5 rounds) 是最大瓶颈**: 不应该用 raw V3, 应该用其他 fallback (e.g., 全体学生平均 accuracy)
+2. **Isotonic 在小数据 (< 50) 不一定比 Platt 好**: lbc003 案例 35 isotonic 样本 ECE 0.25 > 15 platt 样本 ECE 0.16
+3. **Bin [0.9, 1.0] 仍是 V3 预测天然瓶颈**: LinUCB θ@x 在高 conf 区间缺乏细粒度, 任何 calibration 都受限于此
+4. **Plan B 准备**: 若 v0.74 仍 > 0.20, 走 D (重定义 H3, 把"互校抗幻觉"改成"互校减少 intervention 不一致性" 等可验证子假设)
+
+### 11.5 后续方向 (v0.74+)
+
+1. **冷启动期 fallback 优化**: 用 5D mastery_prob 加权 (跟单 Agent baseline 一样) 替换 raw V3
+2. **跨学生迁移**: global scaler (lbc001 + lbc002 + lbc003 历史) + per-student 偏移, 解决冷启动
+3. **LinUCB 加题目难度 feature**: 当前 16 维缺 difficulty, 加 1 维能改善高 conf bin
+4. **Plan B (重定义 H3)**: 若 v0.74 仍 > 0.20, 走 D 方案
+
+### 11.6 测试覆盖 (v0.73.0 新增 12 测试)
+
+- `TestL2Regularization` (3): l2_lambda 默认 / 负值报错 / 强 L2 拉回参数
+- `TestIsotonicCalibrator` (6): identity / 太少样本 / step function / 单调 / bounded / 越界报错
+- `TestTrackerSwitchesPlattToIsotonic` (3): active_calibrator 演化 / 非法配置报错 / l2_lambda 传给 PlattScaler
+- 全量: 330 测试通过 (303 旧 + 15 v0.72 + 12 v0.73)
+

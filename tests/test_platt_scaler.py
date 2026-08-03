@@ -143,7 +143,7 @@ class TestStudentCalibrationTracker:
     def test_cold_start_returns_raw(self):
         """冷启动期 (n_pairs < min_samples_to_fit), calibrate 返回 raw."""
         from ecos.dual_agent.calibration import StudentCalibrationTracker
-        tracker = StudentCalibrationTracker(min_samples_to_fit=5)
+        tracker = StudentCalibrationTracker(min_samples_to_fit_platt=5, min_samples_to_fit_isotonic=20)
         for i in range(4):
             tracker.add_pair(0.3, 1.0)
         assert not tracker.is_fitted
@@ -156,7 +156,7 @@ class TestStudentCalibrationTracker:
         np.random.seed(0)
         raw = np.full(20, 0.3) + np.random.rand(20) * 0.1
         actuals = (np.random.rand(20) < 0.8).astype(float)
-        tracker = StudentCalibrationTracker(min_samples_to_fit=5)
+        tracker = StudentCalibrationTracker(min_samples_to_fit_platt=5, min_samples_to_fit_isotonic=20)
         for r, a in zip(raw, actuals):
             tracker.add_pair(r, a)
         assert tracker.is_fitted
@@ -168,7 +168,7 @@ class TestStudentCalibrationTracker:
     def test_refit_uses_all_historical_pairs(self):
         """每次 add_pair 后 refit 都用全部历史 pairs."""
         from ecos.dual_agent.calibration import StudentCalibrationTracker
-        tracker = StudentCalibrationTracker(min_samples_to_fit=3)
+        tracker = StudentCalibrationTracker(min_samples_to_fit_platt=3, min_samples_to_fit_isotonic=20)
         tracker.add_pair(0.2, 1.0)
         tracker.add_pair(0.3, 1.0)
         assert not tracker.is_fitted
@@ -181,7 +181,7 @@ class TestStudentCalibrationTracker:
     def test_clamp_inputs(self):
         """raw_conf 和 actual_outcome 都 clamp 到 [0, 1]."""
         from ecos.dual_agent.calibration import StudentCalibrationTracker
-        tracker = StudentCalibrationTracker(min_samples_to_fit=2)
+        tracker = StudentCalibrationTracker(min_samples_to_fit_platt=5, min_samples_to_fit_isotonic=20)
         tracker.add_pair(2.0, 1.5)
         assert tracker._pairs[0] == (1.0, 1.0)
         tracker.add_pair(-0.5, -0.5)
@@ -317,3 +317,176 @@ class TestLbc003PlattScalingImprovement:
             f"calibrated ECE ({calibrated_ece:.4f}) 应低于 raw ECE ({raw_ece:.4f})"
         )
         assert calibrated_ece < 0.40, f"calibrated ECE {calibrated_ece:.4f} 应 < 0.40"
+
+        # v0.73.0 验证: source 分布有 isotonic_regression
+        src_counter = {}
+        for h in hist:
+            src = h.metadata.get('dual_agent_confidence_calibrated_source', 'none')
+            src_counter[src] = src_counter.get(src, 0) + 1
+        print(f"\nsource 分布: {src_counter}")
+        # 预期: 5 raw_v3 (cold start) + 15 platt_scaling (5-19 pairs) + 35 isotonic_regression (20+)
+        assert src_counter.get('isotonic_regression', 0) > 0, (
+            f"应有 isotonic_regression 样本, got {src_counter}"
+        )
+
+
+# ──────────────────────────────────────────────────────────────────────
+# 5. v0.73.0: Isotonic Regression + L2 正则化测试
+# ──────────────────────────────────────────────────────────────────────
+
+
+class TestL2Regularization:
+    """v0.73.0: PlattScaler L2 正则化 (Platt 1999 原文)."""
+
+    def test_l2_lambda_default(self):
+        """默认 l2_lambda=0.01."""
+        from ecos.dual_agent.calibration import PlattScaler
+        scaler = PlattScaler()
+        assert scaler.l2_lambda == 0.01
+
+    def test_l2_lambda_invalid_negative(self):
+        """l2_lambda < 0 抛 ValueError."""
+        from ecos.dual_agent.calibration import PlattScaler
+        with pytest.raises(ValueError):
+            PlattScaler(l2_lambda=-0.1)
+
+    def test_l2_penalizes_extreme_params(self):
+        """L2 正则化能拉回极端参数 (vs l2_lambda=0)."""
+        from ecos.dual_agent.calibration import PlattScaler
+        np.random.seed(42)
+        # 生成有偏数据: actual=0.8 但 raw=0.3 (跟 lbc003 一样)
+        raw = np.full(20, 0.3) + np.random.rand(20) * 0.05
+        actuals = (np.random.rand(20) < 0.8).astype(float)
+
+        # 无 L2
+        s_no_l2 = PlattScaler(l2_lambda=0.0)
+        s_no_l2.fit(raw, actuals)
+        # 强 L2
+        s_l2 = PlattScaler(l2_lambda=10.0)
+        s_l2.fit(raw, actuals)
+
+        # 强 L2 应该把 A, B 拉向 (1, 0) (identity)
+        assert abs(s_l2.A - 1.0) < abs(s_no_l2.A - 1.0), (
+            f"L2 应该拉 A 向 1.0, no_l2 A={s_no_l2.A:.4f}, l2 A={s_l2.A:.4f}"
+        )
+        assert abs(s_l2.B - 0.0) < abs(s_no_l2.B - 0.0), (
+            f"L2 应该拉 B 向 0.0, no_l2 B={s_no_l2.B:.4f}, l2 B={s_l2.B:.4f}"
+        )
+
+
+class TestIsotonicCalibrator:
+    """v0.73.0: IsotonicCalibrator 行为."""
+
+    def test_identity_when_unfitted(self):
+        """未 fitted, transform 返回 clip(raw, 0, 1)."""
+        from ecos.dual_agent.calibration import IsotonicCalibrator
+        c = IsotonicCalibrator()
+        assert not c._fitted
+        assert c.transform(0.5) == 0.5
+        assert c.transform(-0.1) == 0.0
+        assert c.transform(1.5) == 1.0
+
+    def test_fit_too_few_samples_keeps_unfitted(self):
+        """< 2 样本, _fitted 仍 False."""
+        from ecos.dual_agent.calibration import IsotonicCalibrator
+        c = IsotonicCalibrator()
+        c.fit([0.5], [1.0])
+        assert not c._fitted
+        assert c.transform(0.5) == 0.5
+
+    def test_fit_recovers_step_function(self):
+        """拟合分段常数: actual=0 在 [0, 0.5], actual=1 在 [0.5, 1]."""
+        from ecos.dual_agent.calibration import IsotonicCalibrator
+        c = IsotonicCalibrator()
+        raw = np.array([0.1, 0.2, 0.3, 0.4, 0.6, 0.7, 0.8, 0.9])
+        actual = np.array([0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0])
+        c.fit(raw, actual)
+        assert c._fitted
+        # 0.2 -> 0.0, 0.8 -> 1.0
+        assert c.transform(0.2) < 0.5
+        assert c.transform(0.8) > 0.5
+
+    def test_transform_monotonic(self):
+        """PAVA 保证输出单调."""
+        from ecos.dual_agent.calibration import IsotonicCalibrator
+        np.random.seed(0)
+        raw = np.linspace(0, 1, 20)
+        actual = raw + np.random.randn(20) * 0.05  # 大致单调
+        c = IsotonicCalibrator()
+        c.fit(raw, actual)
+        # 验证 monotonic
+        prev = -1.0
+        for r in np.linspace(0, 1, 30):
+            v = c.transform(r)
+            assert v >= prev, f"transform({r})={v} < prev {prev}, 非单调"
+            prev = v
+
+    def test_transform_bounded_0_1(self):
+        """输出在 [0, 1] (out_of_bounds=clip)."""
+        from ecos.dual_agent.calibration import IsotonicCalibrator
+        c = IsotonicCalibrator()
+        c.fit([0.1, 0.5, 0.9], [0.2, 0.5, 0.8])
+        for r in [0.0, 0.1, 0.5, 0.9, 1.0, -0.5, 1.5]:
+            v = c.transform(r)
+            assert 0.0 <= v <= 1.0, f"transform({r})={v} 越界"
+
+    def test_out_of_bounds_invalid_value(self):
+        """out_of_bounds 非法值抛 ValueError."""
+        from ecos.dual_agent.calibration import IsotonicCalibrator
+        with pytest.raises(ValueError):
+            IsotonicCalibrator(out_of_bounds='invalid')
+
+
+class TestTrackerSwitchesPlattToIsotonic:
+    """v0.73.0: StudentCalibrationTracker 自动 Platt -> Isotonic 切换."""
+
+    def test_active_calibrator_evolution(self):
+        """n_pairs 从 0 增长, active_calibrator 演化 raw_v3 -> platt_scaling -> isotonic_regression."""
+        from ecos.dual_agent.calibration import StudentCalibrationTracker
+        np.random.seed(0)
+        tracker = StudentCalibrationTracker(
+            min_samples_to_fit_platt=5,
+            min_samples_to_fit_isotonic=20,
+        )
+        assert tracker.active_calibrator == "raw_v3"
+
+        # 4 pairs (不够 platt)
+        for i in range(4):
+            tracker.add_pair(0.3, 1.0)
+        assert tracker.active_calibrator == "raw_v3"
+
+        # 5 pairs (刚好 platt)
+        tracker.add_pair(0.3, 1.0)
+        assert tracker.active_calibrator == "platt_scaling"
+
+        # 15 pairs (platt 阶段)
+        for i in range(10):
+            tracker.add_pair(0.3, 1.0)
+        assert tracker.active_calibrator == "platt_scaling"
+
+        # 20 pairs (切到 isotonic)
+        for i in range(5):
+            tracker.add_pair(0.3, 1.0)
+        assert tracker.active_calibrator == "isotonic_regression"
+
+    def test_invalid_min_samples_to_fit_isotonic(self):
+        """isotonic_min < platt_min 抛 ValueError."""
+        from ecos.dual_agent.calibration import StudentCalibrationTracker
+        with pytest.raises(ValueError):
+            StudentCalibrationTracker(
+                min_samples_to_fit_platt=10,
+                min_samples_to_fit_isotonic=5,  # < 10, invalid
+            )
+
+    def test_l2_lambda_propagated_to_platt(self):
+        """Tracker 的 l2_lambda 传给 PlattScaler."""
+        from ecos.dual_agent.calibration import StudentCalibrationTracker
+        from ecos.dual_agent.calibration import PlattScaler
+        tracker = StudentCalibrationTracker(l2_lambda=0.5)
+        # 触发 refit 5+ 次
+        for i in range(6):
+            tracker.add_pair(0.3, 1.0)
+        # active 是 platt
+        assert tracker.active_calibrator == "platt_scaling"
+        assert isinstance(tracker._scaler, PlattScaler)
+        assert tracker._scaler.l2_lambda == 0.5

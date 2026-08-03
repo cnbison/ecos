@@ -36,6 +36,7 @@ dependencies = [
     "scipy>=1.11",   # MIRT MAP 估计的 L-BFGS-B + Hessian 逆
     "openai>=1.0",  # OpenAI-Compatible Protocol：MiniMax-M3 / Moonshot Kimi 共用
     "flask>=2.0",   # v0.55.0 漏加 (web/api/app.py 入口用, v0.56.1+ test_judge_retry.py flask_client fixture 触发 import)
+    "scikit-learn>=1.3",  # v0.73.0 漏声明: ECE 计算 + Isotonic Regression 校准 (ecos/metrics/ece.py + ecos/dual_agent/calibration.py 用)
     # "pydantic>=2.0",   # Phase 4+ 按需加入
 ]
 

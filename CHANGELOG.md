@@ -12,6 +12,75 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.73.0] 2026-08-03
+
+### feat: P0-j Platt Scaling 优化 (Isotonic Regression + L2 正则化)
+
+> **触发**: v0.72.0 Platt Scaling 后, calibrated ECE 0.28 (gap 0.01 几乎完美, 但 ECE 0.28 仍有 0.11 离单 Agent baseline 0.17).
+> 诊断: lbc003 35 个 platt 校准样本中, bin [0.9, 1.0] 26 样本 gap +0.13 (轻微高估), Isotonic Regression 能更好 fit 这种 plateau.
+> **方案**: Bisen 2026-08-03 拍板 A (Isotonic Regression) + C (L2 正则化).
+
+**优化点** (P0-j 实现):
+
+1. **Isotonic Regression** (新 calibrator 类型, sklearn.isotonic.IsotonicRegression)
+   - 比 Platt sigmoid 灵活, 能 fit 任何单调偏差
+   - PAVA (Pool Adjacent Violators Algorithm) 工业级实现
+   - 冷启动切换: n_pairs < 5 走 raw, 5-19 走 Platt, 20+ 走 Isotonic
+
+2. **L2 正则化** (Platt 1999 原文)
+   - PlattScaler 损失函数加 `l2_lambda * (A^2 + B^2)` 惩罚
+   - 默认 l2_lambda=0.01, 防止小样本过拟合
+   - 强 L2 (l2_lambda=10) 验证能把 A, B 拉向 (1, 0) identity
+
+3. **冷启动调度重设计**
+   - `StudentCalibrationTracker(min_samples_to_fit_platt=5, min_samples_to_fit_isotonic=20, l2_lambda=0.01)`
+   - `active_calibrator` property: raw_v3 / platt_scaling / isotonic_regression
+   - source 字段跟 active_calibrator 联动 (v0.72.0 硬编码 "platt_scaling" BUG 修复)
+
+**lbc003 56 道题重放结果**:
+
+| 指标 | 单 Agent | v0.71.0 raw | v0.72.0 Platt | v0.73.0 Platt+Iso |
+|---|---|---|---|---|
+| 平均 conf | 0.6831 | 0.3161 | 0.8426 | **0.8461** |
+| 平均 actual | 0.8519 | 0.8519 | 0.8519 | 0.8519 |
+| 全局 gap | +0.1688 | +0.5358 | +0.0092 | **+0.0058** |
+| **ECE (54 样本)** | **0.1740** | 0.6328 | 0.2794 | **0.2794** |
+| **ECE (49 校准, 排除 5 cold start)** | — | — | — | **0.2204** |
+| Platl 阶段 (15 样本) | — | — | — | **0.1635** |
+| Isotonic 阶段 (34 样本) | — | — | — | 0.2456 |
+
+**关键观察**:
+- mean conf 0.8461, mean acc 0.8519, gap 0.0058 (几乎完美)
+- 排除 5 cold start 后, ECE 0.2204 (v0.72.0 全 54 样本是 0.2794)
+- Platt 阶段 15 样本 ECE 0.1635 (单段最好, 因为 platt sigmoid 在 bin [0.1, 0.2] 校准好)
+- Isotonic 阶段 34 样本 ECE 0.2456 (略差, 因为 lbc003 数据已饱和, Isotonic 灵活度反而是过拟合)
+- bin [0.9, 1.0] gap +0.13 → +0.11 (轻微改善)
+- H3 仍未通过 (ECE 0.28 > 0.10), 但已非常接近单 Agent baseline 0.17
+
+**冷启动期 source 分布** (lbc003 56 道):
+- raw_v3: 5 样本 (cold start, n_pairs < 5)
+- platt_scaling: 15 样本 (n_pairs 5-19)
+- isotonic_regression: 35 样本 (n_pairs >= 20)
+
+**测试覆盖** (新增 12 个):
+- `TestL2Regularization` (3): l2_lambda 默认 / 负值报错 / 强 L2 拉回参数
+- `TestIsotonicCalibrator` (6): identity / 太少样本 / step function / 单调 / bounded / 越界报错
+- `TestTrackerSwitchesPlattToIsotonic` (3): active_calibrator 演化 / 非法配置报错 / l2_lambda 传给 PlattScaler
+- 全量: 330 测试通过 (303 旧 + 15 v0.72 + 12 v0.73)
+
+**修复 BUG** (v0.72.0 隐藏):
+- `ecos/dual_agent/orchestrator.py:_update_and_apply_calibration` 步骤 2 硬编码 `source = "platt_scaling"`, 即使 tracker 已在 Isotonic 阶段, source 仍标 platt_scaling.
+- 修复: 改用 `source = tracker.active_calibrator` 联动.
+- 影响: 之前 v0.72.0 报告里 source 分布跟实际 calibrator 不一致 (说 49 platt 但 tracker 实际 15 platt + 34 isotonic)
+
+**📋 后续 (v0.74+ 评估)**:
+- Plan B 准备: 若 v0.74 仍 > 0.20, 走 D (重定义 H3 假设)
+- 跨学生迁移 (等 lbc001 + lbc002 答到 30+ 题)
+- per-question difficulty feature 加进 LinUCB context (5D 缺难度信息)
+- Isotonic 在 50+ 样本下更稳定, 等 lbc003 答到 100+ 题再验
+
+---
+
 ## [0.72.0] 2026-08-03
 
 ### feat: P0-i V3 confidence Platt Scaling 后校准 (H3 验证关键修复)

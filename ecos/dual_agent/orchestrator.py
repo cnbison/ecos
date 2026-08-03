@@ -439,8 +439,13 @@ class DualAgentOrchestrator:
             - 任何 refit/calibrate 失败: _log.warning, 写 raw V3 兜底, 不污染 tracker
             - 设计: min_samples_to_fit=5 (实验调参依据: lbc003 56 道题, 49 校准 + 5 raw 足够 ECE 验证)
         """
+        # v0.73.0: 调度 Platt (5-19) + Isotonic (20+), 冷启动期 raw
         tracker = self._calibration_trackers.setdefault(
-            sid, StudentCalibrationTracker(min_samples_to_fit=5)
+            sid, StudentCalibrationTracker(
+                min_samples_to_fit_platt=5,
+                min_samples_to_fit_isotonic=20,
+                l2_lambda=0.01,
+            )
         )
 
         # 步骤 1: 把上一轮的 (raw_V3, actual_outcome) 加进 tracker
@@ -450,9 +455,10 @@ class DualAgentOrchestrator:
             tracker.add_pair(float(prev_raw_v3), float(prev_actual))
 
         # 步骤 2: 用 tracker 校准当前 V3
+        # v0.73.0: source 跟 tracker.active_calibrator 联动 (raw_v3 / platt_scaling / isotonic_regression)
         if tracker.is_fitted:
             calibrated_value = tracker.calibrate(float(raw_v3))
-            source = "platt_scaling"
+            source = tracker.active_calibrator
         else:
             calibrated_value = float(raw_v3)
             source = "raw_v3"
