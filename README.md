@@ -178,6 +178,26 @@ python experiments/scripts/m2_w1_cta_basics_validation.py   # CTA 数学骨架
 python experiments/scripts/m2_w1_llm_client_smoke.py         # LLM 客户端
 ```
 
+### 启动 Web UI 与答题
+
+> Phase 4 起 Product Demo 形态：启动 Flask 后直接在浏览器答题，无需手动跑验证脚本。
+> 路由定义见 `web/api/app.py`：根路径 `/` 直接返回学生端 `index.html`。
+
+```bash
+# 启动 Flask（端口 5173，debug 模式，改代码自动重载）
+ECOS_DUAL_AGENT_ENABLED=1 python -m web.api.app
+```
+
+| 入口 | 地址 |
+|---|---|
+| 学生端答题 | `http://localhost:5173/`（根路径，即 `web/student/index.html`）|
+| 教师端 | `http://localhost:5173/teacher/index.html`（`web/teacher/`）|
+
+> **`ECOS_DUAL_AGENT_ENABLED`** 默认关闭（`"0"`）。设为 `1` 才走 dual_agent（CTA+LCA 协同）路径；
+> 不设则只走老路径，dual_agent 不启用、v0.69.0 confidence 指标也不跑。
+> 启动日志看到 `DualAgentOrchestrator 初始化完成 (DUAL_AGENT_ENABLED=True, ...)` 即确认已启用。
+> 想在本 session 持续生效可先 `export ECOS_DUAL_AGENT_ENABLED=1` 再启动。
+
 ### 依赖清单（自动从 pyproject.toml 解析）
 
 | 包 | 用途 |

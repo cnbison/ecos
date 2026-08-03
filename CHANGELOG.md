@@ -12,6 +12,25 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.69.1] 2026-08-03
+
+### docs: 补全 README「启动 Web UI 与答题」说明（开发环境设置脱节修正）
+
+> **触发**：Bisen 反馈 README「开发环境设置」一节只讲了 venv / pip install / .env / 验证脚本，
+> 未说明如何启动 Flask UI、如何答题、`ECOS_DUAL_AGENT_ENABLED` flag 用法。
+> Phase 4 起 Product Demo 形态已是「启动 Flask -> 浏览器答题」，但入口文档没补回 README。
+> 印证 2026-07-31 方向审查洞察「README 与工程实际进度脱节」的残留（阶段标注已同步，入口说明漏补）。
+
+**改动**：
+
+- `README.md` §开发环境设置：在「验证安装」之后新增「### 启动 Web UI 与答题」子节
+  - Flask 启动命令 `ECOS_DUAL_AGENT_ENABLED=1 python -m web.api.app`（端口 5173，debug 自动重载）
+  - 学生端答题入口 `http://localhost:5173/`（根路径 `/` 直接返回 `web/student/index.html`）
+  - 教师端入口 `http://localhost:5173/teacher/index.html`
+  - `ECOS_DUAL_AGENT_ENABLED` flag 说明（默认关闭 `"0"`，设 `1` 走 dual_agent CTA+LCA 协同；不设则 confidence 指标不跑）
+  - 启动日志确认点 `DualAgentOrchestrator 初始化完成 (DUAL_AGENT_ENABLED=True, ...)`
+- `ecos/__init__.py`：`__version__` 0.69.0 -> 0.69.1
+
 ## [0.69.0] 2026-08-03
 
 ### feat: 重新设计双 Agent Confidence 指标 (B4+C1+D1 方案落地)
