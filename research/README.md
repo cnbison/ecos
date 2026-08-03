@@ -3,11 +3,11 @@
 > **ECOS 核心研究文档结构化目录**
 > 本目录是 ECOS 项目所有研究文档的 SSOT（Single Source of Truth）入口
 
-## 当前状态（2026-08-03，v0.68.1）
+## 当前状态（2026-08-03，v0.69.0）
 
 | 状态 | 数量 | 说明 |
 |------|------|------|
-| ✅ 已建立 | 8 战略层 + 5 工程层 + 4 教学法层 + 10+ MVP/Demo = 27+ 份 | Phase 0 全部完成（2026-06-25）+ Phase 4 Demo 完整化（v0.52.3）+ Phase 5 进行中（v0.54.0 -> v0.68.1）|
+| ✅ 已建立 | 8 战略层 + 5 工程层 + 4 教学法层 + 10+ MVP/Demo = 29+ 份 | Phase 0 全部完成（2026-06-25）+ Phase 4 Demo 完整化（v0.52.3）+ Phase 5 进行中（v0.54.0 -> v0.69.0）|
 | 📋 占位 | 0 份 | 所有初始占位已填充 |
 
 ## 目录结构
@@ -30,7 +30,9 @@ research/
 │   ├── 05-user-friendly-demo.md             # 用户友好 Demo
 │   ├── 07-project-comprehensive-audit-2026-07-22.md  # 项目全面审查
 │   ├── 08-cx-dimension-semantic-decision.md # C/X 维度语义决策
-│   └── 10-comprehensive-deep-analysis-2026-08-01.md  # ⭐ 项目综合深度分析（4 必答点）
+│   ├── 10-comprehensive-deep-analysis-2026-08-01.md  # ⭐ 项目综合深度分析（4 必答点）
+│   ├── 11-ecos-2.0-architecture-proposal.md # ⭐ ECOS 2.0 架构提案（5 引擎 + 6 对象 + CTA/LCA 拆分）
+│   └── 12-kernel-mapping-current-vs-2.0.md # ⭐ Kernel 现状 vs 2.0 蓝图映射表
 ├── 10-engineering/                          # 工程层（✅ 全部完成）
 │   ├── 01-cta-belief-engine.md              # CTA 5 层数学栈
 │   ├── 02-lca-policy-engine.md              # LCA LinUCB + CA 6 阶段
