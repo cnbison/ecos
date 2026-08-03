@@ -497,6 +497,28 @@ def _write_calibration_log(
             )
             state_overall_confidence = None
 
+        # v0.69.0-c: 从 result.metadata 拿 dual_agent_confidence + source
+        #   - dual_agent 内部 process_observation Step 3 末尾计算, 写入 calibrated.metadata
+        #   - 跟 v0.68.0 state_overall_confidence 同模式 (失败兜底 None, 不阻断落盘)
+        #   - 老数据 (v0.69.0 之前) 没这 2 字段, compute_h3_ece V3 优先逻辑跳过 (V2/V1 兜底)
+        dual_agent_confidence = None
+        dual_agent_confidence_source = None
+        try:
+            metadata = getattr(result, "metadata", None) or {}
+            if metadata.get("dual_agent_confidence") is not None:
+                dual_agent_confidence = float(metadata["dual_agent_confidence"])
+                dual_agent_confidence_source = str(
+                    metadata.get("dual_agent_confidence_source", "linucb")
+                )
+        except Exception:
+            # 防御性自检 [1]: 拿 confidence 失败不能影响 calibration_log 落盘
+            _log.debug(
+                "拿 dual_agent_confidence 失败 (student=%s), 留 None",
+                student_id, exc_info=True,
+            )
+            dual_agent_confidence = None
+            dual_agent_confidence_source = None
+
         message_payload = {
             "intervention_id": result.intervention.intervention_id
                 if result.intervention else None,
@@ -508,7 +530,9 @@ def _write_calibration_log(
             "rationale_preview": (result.rationale or "")[:100],
             "actual_outcome": result.actual_outcome,
             "degraded_mode": result.degraded_mode,
-            "state_overall_confidence": state_overall_confidence,  # v0.68.0
+            "state_overall_confidence": state_overall_confidence,  # v0.68.0 (V2)
+            "dual_agent_confidence": dual_agent_confidence,  # v0.69.0 (V3, 优先)
+            "dual_agent_confidence_source": dual_agent_confidence_source,  # v0.69.0
         }
         # trigger_reason: 来自 process_observation 后的 belief_challenges
         challenges = orch.get_belief_challenges(student_id)

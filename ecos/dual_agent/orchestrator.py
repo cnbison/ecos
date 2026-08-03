@@ -247,13 +247,55 @@ class DualAgentOrchestrator:
                 confidence=min(1.0, len(self.intervention_history[sid]) / 30.0),
                 n_samples=len(self.intervention_history[sid]),
             )
-            # LCA update（LinUCB 收到 reward 信号）
-            self.lca_engine.update(
-                student_id=sid,
-                intervention=prev_calibrated.intervention,
-                new_state=new_state,
-                state_delta=state_delta,
+
+            # v0.69.0-b: 计算 dual_agent_confidence (LinUCB θ@x 预测答对概率)
+            #   - 用 calibrated.intervention (当前轮 N+1 选出的) 反查 arm
+            #   - 用 current_state (即 prev_state, 轮 N 之后的) 构建 context
+            #   - 冷启动期: 走 _estimate_gain fallback (source="estimate_gain_fallback")
+            #   - 非冷启动期: 走 LinUCB θ@x (source="linucb")
+            #   写入 calibrated.metadata (当前轮), _write_calibration_log 读取落盘
+            #   校准逻辑: calibration_log(round=N+1).dual_agent_confidence
+            #             vs calibration_log(round=N+1).actual_outcome (轮 N+2 填回)
+            #             跟 V1 (expected_gain) 同模式, compute_h3_ece V3 优先逻辑可校准
+            dual_agent_confidence, dual_agent_confidence_source = (
+                self._compute_dual_agent_confidence(
+                    sid=sid,
+                    intervention=calibrated.intervention,
+                    belief_state=current_state,
+                )
             )
+            calibrated.metadata["dual_agent_confidence"] = dual_agent_confidence
+            calibrated.metadata["dual_agent_confidence_source"] = (
+                dual_agent_confidence_source
+            )
+
+            # v0.69.0-b: LinUCB update reward 改 actual_outcome (B4 方案)
+            #   之前: reward = state_delta (mastery 增长预测)
+            #   现在: reward = actual_outcome (partial credit 0-1, 答对概率直接度量)
+            #   设计: dual_agent 内部 LCAEngine 是 v0.62.0-A 独立实例, 改 reward 不污染教学 LCA
+            #   state_delta 仍传 (attribution 用, 不变)
+            try:
+                self.lca_engine.update(
+                    student_id=sid,
+                    intervention=prev_calibrated.intervention,
+                    new_state=new_state,
+                    state_delta=state_delta,
+                    reward=prev_calibrated.actual_outcome,
+                )
+            except Exception:
+                _log.warning(
+                    "dual_agent LCAEngine.update reward=actual_outcome 失败 (sid=%s), "
+                    "fallback state_delta=%s",
+                    sid, state_delta, exc_info=True,
+                )
+                # 防御性自检 [6]: 失败不污染 in-memory, 走老路径 (state_delta reward)
+                #   跟 v0.68.0 行为一致, 但 dual_agent_confidence 字段已写入 metadata
+                self.lca_engine.update(
+                    student_id=sid,
+                    intervention=prev_calibrated.intervention,
+                    new_state=new_state,
+                    state_delta=state_delta,
+                )
 
         # Step 4: 抗幻觉检查（warn-only，不阻断）
         self._anti_hallucination_checks(cta_output, calibrated)
@@ -284,6 +326,105 @@ class DualAgentOrchestrator:
                 self._consecutive_ineffective[sid] = 0
 
         return calibrated
+
+    # ---------------------------------------------------------------
+    # v0.69.0-b: dual_agent_confidence 计算 (B4 方案)
+    # ---------------------------------------------------------------
+
+    def _compute_dual_agent_confidence(
+        self,
+        sid: str,
+        intervention,
+        belief_state: BeliefState,
+    ) -> tuple:
+        """计算 dual_agent_confidence (LinUCB θ@x 预测答对概率).
+
+        v0.69.0 PRD §3.1.2 + §7.2 重新设计:
+          - dual_agent 内部 LCAEngine 是 v0.62.0-A 独立实例, 不持久化 bandit 数据
+          - 冷启动期 (arm_pull_counts.sum() < cold_start_threshold): 走 _estimate_gain fallback
+          - 非冷启动期: 走 LinUCB θ@x (排除 confidence_bound, 只取 expected_reward)
+          - 失败兜底: 走 intervention.expected_gain (跟 V1 一致)
+
+        Args:
+            sid: 学生 ID
+            intervention: 选中的干预 (用于反查 arm 索引)
+            belief_state: 当前 BeliefState (用于构建 LinUCB context)
+
+        Returns:
+            (dual_agent_confidence, source_str) tuple
+              - dual_agent_confidence: float [0, 1] 答对概率预测
+              - source_str: "linucb" 或 "estimate_gain_fallback"
+
+        防御性自检 [1]: 任何失败都 fallback, 不 raise, 不 silent pass (有 _log.debug)
+        防御性自检 [6]: 失败不污染 in-memory state
+        """
+        # 默认 fallback: intervention.expected_gain (跟 V1 一致)
+        fallback_value = float(
+            getattr(intervention, "expected_gain", 0.5) or 0.5
+        )
+        fallback_source = "estimate_gain_fallback"
+
+        try:
+            # 拿 LinUCB bandit 实例 (dual_agent 内部 LCAEngine.bandits)
+            bandit = self.lca_engine.bandits.get(sid)
+            if bandit is None:
+                # bandit 未初始化 -> 冷启动, 走 fallback
+                return fallback_value, fallback_source
+
+            # 冷启动判定 (调用 LCAEngine._is_linucb_cold_start)
+            if self.lca_engine._is_linucb_cold_start(sid):
+                # 冷启动期: 走 _estimate_gain fallback
+                #   跟 v0.68.0 之前 V1 expected_gain 数值上接近, 但写入字段不同
+                try:
+                    est_gain = self.lca_engine._estimate_gain(
+                        intervention, belief_state
+                    )
+                    return float(est_gain), fallback_source
+                except Exception:
+                    _log.debug(
+                        "_estimate_gain fallback 失败 (sid=%s), 用 expected_gain",
+                        sid, exc_info=True,
+                    )
+                    return fallback_value, fallback_source
+
+            # 非冷启动期: LinUCB θ@x 预测
+            #   拿 chosen arm 的 θ_a = A_a^{-1} b_a
+            #   context = _build_context(belief_state)
+            #   expected_reward = θ_a @ x
+            import numpy as np
+
+            context = bandit._build_context(belief_state)
+            arm_idx = bandit._lookup_arm(intervention)
+            if arm_idx is None:
+                # arm 反查失败 (e.g. 新会话, intervention 不在 _arm_fingerprints 里)
+                _log.debug(
+                    "LinUCB arm_idx 反查失败 (sid=%s, intervention=%s), fallback",
+                    sid, intervention.intervention_id,
+                )
+                return fallback_value, fallback_source
+
+            # θ_a = A_a^{-1} b_a
+            try:
+                A_inv = np.linalg.inv(bandit.bandit.A[arm_idx])
+            except np.linalg.LinAlgError:
+                _log.debug(
+                    "LinUCB A matrix 奇异 (sid=%s, arm=%d), fallback",
+                    sid, arm_idx,
+                )
+                return fallback_value, fallback_source
+            theta = A_inv @ bandit.bandit.b[arm_idx]
+            expected_reward = float(theta @ context)
+
+            # 截断到 [0, 1] (LinUCB 预测可能轻微超出, 因为 theta @ x 没约束)
+            expected_reward = max(0.0, min(1.0, expected_reward))
+            return expected_reward, "linucb"
+
+        except Exception:
+            _log.warning(
+                "dual_agent_confidence 计算失败 (sid=%s), fallback expected_gain=%s",
+                sid, fallback_value, exc_info=True,
+            )
+            return fallback_value, fallback_source
 
     # ---------------------------------------------------------------
     # 特殊模式 + 抗幻觉 + 质疑处理

@@ -38,6 +38,10 @@ class BanditConfig:
     alpha: float = 1.0      # 探索系数（LinUCB 探索-利用平衡）
     min_reward: float = 0.0
     max_reward: float = 1.0
+    # v0.69.0: LinUCB 冷启动阈值 (arm_pull_counts.sum() < threshold -> 冷启动期)
+    # 冷启动期 expected_gain 走 _estimate_gain 简化估算, 非冷启动走 LinUCB θ@x 预测
+    # 默认 10: 10 个 arm 各拉 1 次, 或同 arm 拉 10 次, 之后 LinUCB 预测生效
+    cold_start_threshold: int = 10
 
 
 class LinUCB:

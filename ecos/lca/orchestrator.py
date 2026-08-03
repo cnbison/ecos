@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, List, Optional
@@ -40,6 +41,8 @@ from .l4_optimization import (
     LCAPolicyLearner,
 )
 from .rationale import RationaleGenerator
+
+_log = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -379,6 +382,7 @@ class LCAEngine:
         intervention: Intervention,
         new_state: BeliefState,
         state_delta: float,
+        reward: Optional[float] = None,
     ) -> None:
         """基于干预效果更新策略（LinUCB + 因果归因）.
 
@@ -387,12 +391,22 @@ class LCAEngine:
             intervention: 选中的干预
             new_state: 干预后 CTA 状态
             state_delta: 状态增量（new_theta - old_theta，归一化到 [0, 1]）
+                - 仍用于因果归因 (attribution)
+                - 当 reward=None 时, 也作为 LinUCB reward fallback (向后兼容)
+            reward: v0.69.0 新增. LinUCB reward 直接来源.
+                - dual_agent 路径: 传 actual_outcome (partial credit 0-1, 答对概率直接度量)
+                - 教学 LCA 路径: 不传 (默认 None), 用 state_delta 兜底 (跟 v0.68.0 一致)
+                - 设计理由: dual_agent 内部 LCAEngine 是 v0.62.0-A 独立实例, 改 reward 不污染教学 LCA
         """
-        # 归一化 state_delta 到 [0, 1]（reward 给 LinUCB）
-        # M2 W2 简化：调用方已归一化（如未归一化，M2 W4 接入时调整）
-        reward = max(0.0, min(1.0, state_delta))
+        # v0.69.0: reward 来源优先级: 显式传 reward > state_delta fallback
+        #   dual_agent 路径: reward = actual_outcome (答对概率)
+        #   教学 LCA 路径: reward = state_delta (mastery 增长, 跟之前一致)
+        if reward is None:
+            linucb_reward = max(0.0, min(1.0, state_delta))
+        else:
+            linucb_reward = max(0.0, min(1.0, reward))
 
-        # 因果归因
+        # 因果归因 (仍用 state_delta, 不用 reward, 因为 attribution 测的是状态变化)
         self.attribution.attribute_effect(
             intervention,
             student_id,
@@ -404,10 +418,48 @@ class LCAEngine:
         bandit.update(
             intervention=intervention,
             belief_state=new_state,
-            reward=reward,
+            reward=linucb_reward,
         )
         # v0.57.0: per-student update 计数
         self._update_count[student_id] = self._update_count.get(student_id, 0) + 1
+
+    # ---------------------------------------------------------------
+    # v0.69.0: LinUCB 冷启动判定 (B4 前置)
+    # ---------------------------------------------------------------
+
+    def _is_linucb_cold_start(self, student_id: str) -> bool:
+        """判定 LinUCB 是否处于冷启动期.
+
+        v0.69.0: 用于决定 dual_agent_confidence 来源
+          - 冷启动期: 走 _estimate_gain 简化估算 (source="estimate_gain_fallback")
+          - 非冷启动期: 走 LinUCB θ@x 预测 (source="linucb")
+
+        判定规则: arm_pull_counts.sum() < cold_start_threshold (默认 10)
+
+        Args:
+            student_id: 学生 ID
+
+        Returns:
+            True 如果 LinUCB 处于冷启动期 (应该走 fallback)
+            False 如果 LinUCB 已积累足够数据, θ@x 预测可信
+
+        防御性自检 [1]: 失败兜底返回 True (保守, 走简化估算)
+        """
+        try:
+            bandit = self.bandits.get(student_id)
+            if bandit is None:
+                # bandit 未初始化 -> 冷启动
+                return True
+            total_pulls = int(bandit.bandit.arm_pull_counts.sum())
+            threshold = self.config.bandit_config.cold_start_threshold
+            return total_pulls < threshold
+        except Exception:
+            _log.warning(
+                "LinUCB 冷启动判定失败 (student=%s), 兜底返回 True (走 fallback)",
+                student_id,
+                exc_info=True,
+            )
+            return True
 
     # ---------------------------------------------------------------
     # v0.57.0: per-student bandit 隔离 + 持久化接口

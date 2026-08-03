@@ -169,7 +169,11 @@ def compute_dual_agent_ece(
 ) -> Dict[str, Any]:
     """双 Agent experiment: 算学生 calibration_log 的校准度.
 
-    confidence: message_payload.expected_gain (互校预测的 gain, 0-1)
+    confidence 来源 (v0.69.0 V3 优先):
+      V3 (dual_agent_confidence): LinUCB θ@x 预测答对概率 (v0.69.0+ 新数据)
+      V2 (state_overall_confidence): belief_state 5D 平均 (v0.68.0+ 新数据)
+      V1 (expected_gain): _estimate_gain 简化估算 (老数据兜底)
+
     accuracy: actual_outcome (实际 outcome, v0.61.0 改 score 派生 0-1)
 
     v0.64.0 改进: 移除 v0.63.0 的 response_history 回填 fallback.
@@ -179,6 +183,11 @@ def compute_dual_agent_ece(
 
     v0.68.0 改进: load_student_calibration_log 已按 calibration_round DISTINCT 去重,
       避免 dual_agent_state 落盘 BUG 期间同 round 重复行被算 2 次.
+
+    v0.69.0 改进: V3 优先 confidence + 冷启动期分段 ECE.
+      - 冷启动期 (source="estimate_gain_fallback"): 前 N 道 LinUCB 没数据, expected_gain 用 _estimate_gain
+      - 非冷启动期 (source="linucb"): LinUCB θ@x 预测
+      - 报告分两段算 ECE, 让 Bisen 直观看到 LinUCB 预测质量
     """
     loaded = load_student_calibration_log(student_id, limit=limit)
     log = loaded["rows"] if isinstance(loaded, dict) else loaded
@@ -191,29 +200,72 @@ def compute_dual_agent_ece(
             "msg": "无 calibration_log, 无法算 experiment ECE (dual_agent 未启用过?)",
         }
 
+    # v0.69.0: V3 优先 / V2 其次 / V1 兜底, 同时记录版本分布 + 冷启动标记
     confidences = []
     accuracies = []
+    versions = []  # "V3" / "V2" / "V1" per 样本
+    cold_start_flags = []  # bool per 样本 (True if source == estimate_gain_fallback)
     skipped_no_outcome = 0
+    version_counts = {"V3": 0, "V2": 0, "V1": 0}
+    cold_start_counts = {"linucb": 0, "estimate_gain_fallback": 0, "unknown": 0}
+
     for row in log:
         try:
             payload = json.loads(row.get("message_payload", "{}") or "{}")
         except json.JSONDecodeError:
             continue
-        expected_gain = payload.get("expected_gain")
         actual_outcome = payload.get("actual_outcome")
-
-        if expected_gain is None:
-            continue
         # v0.64.0: 不再 fallback, 没 actual_outcome 的行 skip (历史 v0.60.4 数据)
         if actual_outcome is None:
             skipped_no_outcome += 1
             continue
 
-        # expected_gain 可能是负数或 > 1, 截断到 [0, 1]
-        conf = max(0.0, min(1.0, float(expected_gain)))
+        # v0.69.0: V3 优先 / V2 其次 / V1 兜底
+        dual_conf = payload.get("dual_agent_confidence")
+        overall_conf = payload.get("state_overall_confidence")
+        expected_gain = payload.get("expected_gain")
+        source = payload.get("dual_agent_confidence_source")
+
+        if dual_conf is not None:
+            conf = float(dual_conf)
+            version = "V3"
+            version_counts["V3"] += 1
+            # 冷启动标记 (仅 V3 有 source 字段)
+            if source == "estimate_gain_fallback":
+                cold_start_flags.append(True)
+                cold_start_counts["estimate_gain_fallback"] += 1
+            elif source == "linucb":
+                cold_start_flags.append(False)
+                cold_start_counts["linucb"] += 1
+            else:
+                # V3 数据但 source 缺失 (不应该发生, 但兜底)
+                cold_start_flags.append(False)
+                cold_start_counts["unknown"] += 1
+        elif overall_conf is not None:
+            conf = float(overall_conf)
+            version = "V2"
+            version_counts["V2"] += 1
+            # V2 没有 source 字段, 假设非冷启动 (v0.68.0 数据)
+            cold_start_flags.append(False)
+            cold_start_counts["unknown"] += 1
+        else:
+            conf = float(expected_gain) if expected_gain is not None else None
+            version = "V1"
+            version_counts["V1"] += 1
+            # V1 没有 source 字段
+            cold_start_flags.append(False)
+            cold_start_counts["unknown"] += 1
+
+        if conf is None:
+            # expected_gain 也是 None, 跳过
+            continue
+
+        # 截断到 [0, 1]
+        conf = max(0.0, min(1.0, conf))
         acc = max(0.0, min(1.0, float(actual_outcome)))
         confidences.append(conf)
         accuracies.append(acc)
+        versions.append(version)
 
     if not confidences:
         return {
@@ -221,18 +273,37 @@ def compute_dual_agent_ece(
             "n_samples": 0,
             "ece": None,
             "msg": (
-                f"calibration_log {len(log)} 行无 expected_gain/actual_outcome 配对, "
+                f"calibration_log {len(log)} 行无 confidence/actual_outcome 配对, "
                 f"skip {skipped_no_outcome} 行 (v0.60.4 历史数据, v0.64.0 修复)"
             ),
         }
 
     from ecos.metrics import expected_calibration_error
     ece = expected_calibration_error(confidences, accuracies)
-    msg = "v0.64.0 改进: 直接读 calibration_log.actual_outcome (无 fallback)"
+
+    # v0.69.0: 冷启动期 vs 非冷启动期分段 ECE
+    #   冷启动期 (前 N 道 LinUCB 没数据, source=estimate_gain_fallback)
+    #   非冷启动期 (LinUCB θ@x 预测, source=linucb)
+    cold_conf = [c for c, cs in zip(confidences, cold_start_flags) if cs]
+    cold_acc = [a for a, cs in zip(accuracies, cold_start_flags) if cs]
+    noncold_conf = [c for c, cs in zip(confidences, cold_start_flags) if not cs]
+    noncold_acc = [a for a, cs in zip(accuracies, cold_start_flags) if not cs]
+
+    cold_ece = (
+        expected_calibration_error(cold_conf, cold_acc)
+        if cold_conf else None
+    )
+    noncold_ece = (
+        expected_calibration_error(noncold_conf, noncold_acc)
+        if noncold_conf else None
+    )
+
+    msg = "v0.69.0 V3 优先 (dual_agent_confidence) / V2 (overall_confidence) / V1 (expected_gain) 兜底"
     if skipped_no_outcome > 0:
         msg += f", skip {skipped_no_outcome}/{len(log)} 行 (v0.60.4 历史数据)"
     if duplicates > 0:
         msg += f", v0.68.0 DISTINCT 去重 drop {duplicates} 行重复 round"
+
     return {
         "student_id": student_id,
         "n_samples": len(confidences),
@@ -242,6 +313,15 @@ def compute_dual_agent_ece(
         "skipped_no_outcome": skipped_no_outcome,
         "duplicates_dropped": duplicates,
         "calibration_errors": [abs(c - a) for c, a in zip(confidences, accuracies)],
+        # v0.69.0 新增字段
+        "version_counts": version_counts,
+        "versions": versions,  # per 样本版本标记 (供报告分析)
+        "cold_start_counts": cold_start_counts,
+        "cold_start_flags": cold_start_flags,
+        "cold_start_ece": cold_ece,
+        "cold_start_n_samples": len(cold_conf),
+        "non_cold_start_ece": noncold_ece,
+        "non_cold_start_n_samples": len(noncold_conf),
         "msg": msg,
     }
 
@@ -359,7 +439,7 @@ def format_report(
         f"- 学生: {dual_agent.get('student_id', '?')}",
         f"- 样本数: {dual_agent.get('n_samples', 0)}",
         f"- **ECE**: `{dual_agent.get('ece', 'N/A')}`",
-        f"- 平均 confidence (expected_gain): `{dual_agent.get('avg_confidence', 'N/A')}`",
+        f"- 平均 confidence (v0.69.0 V3 优先): `{dual_agent.get('avg_confidence', 'N/A')}`",
         f"- 平均 accuracy (actual_outcome): `{dual_agent.get('avg_accuracy', 'N/A')}`",
         f"- 注: {dual_agent.get('msg', '')}",
         "",
@@ -490,6 +570,86 @@ def format_report(
             "",
         ])
 
+    # v0.69.0: §6 V3/V2/V1 版本分布 + 冷启动分段
+    version_counts = dual_agent.get("version_counts", {})
+    cold_start_counts = dual_agent.get("cold_start_counts", {})
+    cold_ece = dual_agent.get("cold_start_ece")
+    cold_n = dual_agent.get("cold_start_n_samples", 0)
+    noncold_ece = dual_agent.get("non_cold_start_ece")
+    noncold_n = dual_agent.get("non_cold_start_n_samples", 0)
+
+    lines.extend([
+        "## 6. v0.69.0 Confidence 版本分布 + 冷启动分段",
+        "",
+        "### 6.1 Confidence 来源版本分布 (V3 优先 / V2 其次 / V1 兜底)",
+        "",
+        f"- V3 (dual_agent_confidence, LinUCB θ@x): **{version_counts.get('V3', 0)} 样本**",
+        f"- V2 (state_overall_confidence, belief_state 5D 平均): **{version_counts.get('V2', 0)} 样本**",
+        f"- V1 (expected_gain, _estimate_gain 简化估算): **{version_counts.get('V1', 0)} 样本**",
+        f"- 合计: {sum(version_counts.values())} 样本",
+        "",
+        "### 6.2 冷启动期 vs 非冷启动期分段 (仅 V3 数据有 source 标记)",
+        "",
+        f"- LinUCB 预测 (source=\"linucb\"): **{cold_start_counts.get('linucb', 0)} 样本**",
+        f"- _estimate_gain fallback (source=\"estimate_gain_fallback\"): **{cold_start_counts.get('estimate_gain_fallback', 0)} 样本**",
+        f"- source 缺失 (V2/V1 老数据): **{cold_start_counts.get('unknown', 0)} 样本**",
+        "",
+    ])
+
+    # 冷启动分段 ECE
+    if cold_ece is not None and noncold_ece is not None:
+        lines.extend([
+            "### 6.3 分段 ECE 对比 (验证 B4 LinUCB 预测质量)",
+            "",
+            f"- **冷启动期 ECE** (LinUCB 没数据, 走 _estimate_gain fallback): `{cold_ece:.4f}` ({cold_n} 样本)",
+            f"- **非冷启动期 ECE** (LinUCB θ@x 预测): `{noncold_ece:.4f}` ({noncold_n} 样本)",
+            "",
+        ])
+        if noncold_ece < cold_ece:
+            lines.extend([
+                f"**结论**: ✅ 非冷启动期 ECE ({noncold_ece:.4f}) < 冷启动期 ({cold_ece:.4f})",
+                f"  LinUCB θ@x 预测质量优于 _estimate_gain fallback, B4 方案有效",
+                "",
+            ])
+        elif noncold_ece > cold_ece:
+            lines.extend([
+                f"**结论**: ❌ 非冷启动期 ECE ({noncold_ece:.4f}) > 冷启动期 ({cold_ece:.4f})",
+                f"  LinUCB θ@x 预测质量反而差于 _estimate_gain fallback, B4 方案失败",
+                f"  可能原因: LinUCB reward=actual_outcome 改造后, 历史 calibration_round",
+                f"  数据对比性下降 (老数据 reward=state_delta, 新数据 reward=actual_outcome)",
+                "",
+            ])
+        else:
+            lines.extend([
+                f"**结论**: ➖ 非冷启动期 ECE = 冷启动期 ECE, LinUCB 预测质量与 fallback 相同",
+                "",
+            ])
+    elif cold_ece is not None:
+        lines.extend([
+            "### 6.3 分段 ECE 对比",
+            "",
+            f"- 冷启动期 ECE: `{cold_ece:.4f}` ({cold_n} 样本)",
+            f"- 非冷启动期 ECE: 数据不足 (LinUCB 还没积累 10+ arm pulls)",
+            "",
+            "**结论**: ⚠️ LinUCB 还在冷启动期, 等 lbc003 答 10+ 道后再看非冷启动段 ECE",
+            "",
+        ])
+    elif noncold_ece is not None:
+        lines.extend([
+            "### 6.3 分段 ECE 对比",
+            "",
+            f"- 冷启动期 ECE: 数据不足 (无 source=estimate_gain_fallback 样本)",
+            f"- 非冷启动期 ECE: `{noncold_ece:.4f}` ({noncold_n} 样本)",
+            "",
+        ])
+    else:
+        lines.extend([
+            "### 6.3 分段 ECE 对比",
+            "",
+            "**数据不足**: 没有带 source 标记的 V3 样本, 无法分段",
+            "",
+        ])
+
     lines.extend([
         "",
     ])
@@ -516,7 +676,7 @@ def main():
         "--output-md",
         type=str,
         default=None,
-        help="报告输出到 MD 文件 (默认 discussions/2026-07-30-H3-verification-B-report.md, v0.68.0 改 B 报告, 不覆盖 A)",
+        help="报告输出到 MD 文件 (默认 discussions/2026-07-30-v0690-H3-verification-report.md, v0.69.0 改 B+ 报告, 不覆盖 B)",
     )
     args = parser.parse_args()
 
@@ -553,9 +713,9 @@ def main():
     print("=" * 60)
     print(report)
 
-    # 写 MD (v0.68.0: default 改 B 报告, 不覆盖 A)
+    # 写 MD (v0.69.0: default 改 B+ 报告, 不覆盖 B)
     if args.output_md is None:
-        output_path = PROJECT_ROOT / "discussions" / "2026-07-30-H3-verification-B-report.md"
+        output_path = PROJECT_ROOT / "discussions" / "2026-07-30-v0690-H3-verification-report.md"
     else:
         output_path = Path(args.output_md)
     output_path.parent.mkdir(parents=True, exist_ok=True)

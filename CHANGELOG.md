@@ -12,6 +12,99 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.69.0] 2026-08-03
+
+### feat: 重新设计双 Agent Confidence 指标 (B4+C1+D1 方案落地)
+
+> **触发**：v0.68.0 H3 验证 B 报告显示 V1/V2 confidence 指标显著反向 (p<0.0001)。
+> **根因**：confidence 指标选错 -- V1 `expected_gain` 是"增长空间"不是答对概率；V2 `state_overall_confidence` 是系统对自身估计的把握度，也不是答对概率。
+> **PRD**：`discussions/2026-07-30-v0690-confidence-redesign-PRD.md` (Bisen 2026-07-30 21:25 拍板 B4+C1+D1 方案)
+> **目标**：让 LinUCB reward = actual_outcome，dual_agent_confidence 自动变成"答对概率预测"，H3 验证归因干净。
+
+**核心改动 (B4+C1+D1)**：
+
+- **B4. LinUCB reward 改 actual_outcome** (替代 state_delta)
+  - `ecos/lca/orchestrator.py`：`LCAEngine.update` 加 `reward: Optional[float] = None` 参数
+    - reward=None (默认)：走 state_delta fallback (向后兼容，教学 LCA 路径不变)
+    - reward=actual_outcome (dual_agent 路径)：用 actual_outcome 作为 LinUCB reward
+    - attribution 仍用 state_delta (不改)
+  - `ecos/dual_agent/orchestrator.py`：`process_observation` 调 LCAEngine.update 传 `reward=prev_calibrated.actual_outcome`
+  - 设计：dual_agent 内部 LCAEngine 是 v0.62.0-A 独立实例，改 reward 不污染教学 LCA
+- **C1. Confidence 仅记录不参与决策**
+  - dual_agent_confidence 不影响 LinUCB arm 选择，不影响 Intervention 决策
+  - H3 验证归因干净："互校抗幻觉"独立于"决策策略"
+- **D1. calibration_log 加 dual_agent_confidence 字段**
+  - `web/api/dual_agent.py`：`_write_calibration_log` message_payload 加 2 字段
+    - `dual_agent_confidence`：float (V3 优先 confidence)
+    - `dual_agent_confidence_source`：str ("linucb" 或 "estimate_gain_fallback")
+  - 三版兼容：V3 (`dual_agent_confidence`) / V2 (`state_overall_confidence`) / V1 (`expected_gain`)
+
+**新增组件**：
+
+- `BanditConfig.cold_start_threshold: int = 10` (`ecos/lca/l4_optimization/linucb.py`)
+  - arm_pull_counts.sum() < threshold -> 冷启动期，走 _estimate_gain fallback
+  - 默认 10：10 个 arm 各拉 1 次，或同 arm 拉 10 次，之后 LinUCB 预测生效
+- `LCAEngine._is_linucb_cold_start(sid)` 方法 (`ecos/lca/orchestrator.py`)
+  - 判定 LinUCB 是否处于冷启动期
+  - 防御性自检 [1]：失败兜底返回 True (保守，走 fallback)
+- `DualAgentOrchestrator._compute_dual_agent_confidence(sid, intervention, belief_state)` (`ecos/dual_agent/orchestrator.py`)
+  - 冷启动期：走 `_estimate_gain` fallback (source="estimate_gain_fallback")
+  - 非冷启动期：LinUCB θ@x 预测 (source="linucb")
+  - 失败兜底：走 intervention.expected_gain (跟 V1 一致)
+  - 写入 `calibrated.metadata`，`_write_calibration_log` 读取落盘
+
+**compute_h3_ece.py 升级 (V3 优先 + 冷启动分段)**：
+
+- `compute_dual_agent_ece` 改 confidence 选取逻辑：
+  - V3 (`dual_agent_confidence`) 优先 -> V2 (`state_overall_confidence`) -> V1 (`expected_gain`) 兜底
+- 加版本分布统计：报告 §6 显示 V3/V2/V1 各多少样本
+- 冷启动分段：source="estimate_gain_fallback" 的样本单独算 ECE
+- 报告 §6 加冷启动段 vs 非冷启动段对比，让 Bisen 直观看到 LinUCB 预测质量
+
+**测试新增 (46 测试，245 -> 291)**：
+
+- `test_linucb_cold_start.py` (11)：BanditConfig.cold_start_threshold + _is_linucb_cold_start 判定 + 失败兜底
+- `test_lca_update_reward_actual_outcome.py` (8)：LCAEngine.update reward 参数 + LinUCB b 向量更新 + attribution 仍用 state_delta
+- `test_dual_agent_confidence_computation.py` (9)：_compute_dual_agent_confidence 三种路径 + 失败兜底 + metadata 写入
+- `test_calibration_log_dual_confidence.py` (7)：_write_calibration_log 字段落盘 + 老数据兼容 + 失败兜底
+- `test_compute_h3_ece_v3_priority.py` (11)：V3 优先逻辑 + 冷启动分段 + format_report 版本分布
+
+**触碰范围 (CLAUDE.md [7] 防御性自查)**：
+
+触碰：
+- `ecos/lca/l4_optimization/linucb.py` (BanditConfig 加 cold_start_threshold)
+- `ecos/lca/orchestrator.py` (LCAEngine.update 加 reward 参数 + _is_linucb_cold_start 方法 + logger import)
+- `ecos/dual_agent/orchestrator.py` (process_observation 改 reward + _compute_dual_agent_confidence helper)
+- `web/api/dual_agent.py` (_write_calibration_log 加 dual_agent_confidence 字段)
+- `scripts/compute_h3_ece.py` (V3 优先 + 冷启动分段 + format_report §6)
+- `ecos/__init__.py` (version bump 0.68.2 -> 0.69.0)
+
+不动 (v0.62.0-A 隔离决策保留)：
+- `ecos/cta/belief_state.py` (BeliefState 字段不动)
+- `ecos/lca/intervention.py` (Intervention 数据结构不动)
+- `ecos/lca/rationale/generator.py` (rationale 文本不受影响)
+- 教学 LCA 路径 (`web/api/lca.py`)
+- lbc001 / lbc002 历史 calibration_log (老数据 V1/V2 继续读，不重写)
+
+**待 Bisen 手动执行 (v0.69.0-e)**：
+
+- lbc003 用 `ECOS_DUAL_AGENT_ENABLED=1` 启动 Flask，答 30+ 道题
+- 跑 `python scripts/compute_h3_ece.py --student-id lbc003`
+- 看 V3 优先 confidence 的 ECE 跟 V1/V2 哪个更校准
+- 看冷启动段 vs 非冷启动段 ECE 差异
+- 写 `discussions/2026-07-30-v0690-H3-verification-report.md` (B+ 报告)
+
+**通过标准**：
+
+| 维度 | 通过 | 不通过 |
+|------|------|--------|
+| 测试 | 291 pytest 全过 | 任何失败 |
+| V3 ECE | < 0.30 (跟 V1 0.72, V2 0.38 比显著改善) | ≥ 0.30 (B4 失败) |
+| V3 vs 单 Agent | ECE 差距缩小或至少不反向 | 显著反向 (B4 失败) |
+| 冷启动分段 | 非冷启动段 ECE < 冷启动段 (LinUCB 预测质量高) | 非冷启动段 ≥ 冷启动段 (LinUCB 没用) |
+
+---
+
 ## [0.68.2] 2026-08-03
 
 ### docs sync: 项目综合深度分析文档 + research/README SSOT 入口同步
