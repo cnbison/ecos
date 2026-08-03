@@ -12,6 +12,43 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.70.0] 2026-08-03
+
+### fix: v0.69.0-d 修策略质疑路径绕过 BUG (lbc003 V3=0 样本根因)
+
+> **触发**：v0.69.0 B4+C1+D1 改造落地后, lbc003 答 42 道题, H3 V3 (dual_agent_confidence) **0 样本**.
+> Bisen 反馈"答 20 道就提示全部完成"(实际是题库 56 道见底, 不是 BUG), 顺手发现 V3 字段从未写入.
+
+**根因** (P0-e 诊断):
+- lbc003 K mastery 早期饱和, 答题后期 avg_gain < 0.05 -> `_check_special_modes` 触发策略质疑
+- v0.69.0-b 只在常态循环路径 (Step 3.5) 写 `calibrated.metadata["dual_agent_confidence"]` + B4 LinUCB reward
+- 策略质疑路径 `_check_special_modes` 提前 return, **跳过 237 行代码块**
+- 结果: 42 道 calibration_log 全部 dual_agent_confidence=None, V3=0 样本; B4 LinUCB 从未训练
+
+**修复** (v0.69.0-d):
+- 抽出 `_post_process_calibration` 方法 (orchestrator.py:283-380)
+- 在两路径都调:
+  - 常态循环路径 (Step 3.5, 替代原 237-298 行)
+  - 特殊模式路径 (`_check_special_modes` Step D 末尾, append 之前)
+- 修复后重放 lbc003 56 道题: V3 写入率 55/56 (98.2%), B4 LinUCB 总 pull=50
+
+**新发现 BUG (P0 范围外, 后续修)**:
+- 策略质疑路径 `bandit.A[last_arm] *= 10` (LINUCB_PENALTY_FACTOR) 反复执行
+- lbc003 触发 50 次策略质疑 -> A 矩阵放大 1.6e+05 倍 -> θ ≈ 0 -> V3 预测永远 ~0.11
+- ECE 0.76 (反向, 比 V1=0.62 还差)
+- 根因: v0.59.0 引入的 LinUCB 惩罚机制无上限, 模型被毁
+- 修复方向 (v0.71+ P0-g): 用 LinUCB 标准 regularization (A += λI) 替代 *10, 或限制每 arm 惩罚次数
+
+**改动文件**:
+- `ecos/dual_agent/orchestrator.py`: 抽出 `_post_process_calibration` + 两路径都调
+- `tests/test_dual_agent_strategy_challenge_path.py` (新): 6 测试覆盖修复路径
+- `tests/test_dual_agent_belief_alignment.py`: 修 pre-existing K.theta 饱和边界 fail
+- `scripts/replay_lbc003_v0690d.py` (新): 重放脚本, 验证 V3 写入 + 算 ECE
+- `discussions/2026-07-30-v0690-H3-verification-report.md`: H3 B+ 报告 (含 V3 反向根因)
+
+**测试**: 297 pytest 全过 (245+46+6 新), 含 6 个 v0.69.0-d 修复路径测试.
+
+
 ## [0.69.1] 2026-08-03
 
 ### docs: 补全 README「启动 Web UI 与答题」说明（开发环境设置脱节修正）

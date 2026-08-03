@@ -233,69 +233,18 @@ class DualAgentOrchestrator:
                 fallback_reason="互校循环超时",
             )
 
-        # 填充上一轮的 causal_effect（基于本次 state 变化）
-        if prev_calibrated is not None and prev_calibrated.actual_outcome is not None:
-            state_delta = float(
-                new_state.K.mastery_prob - current_state.K.mastery_prob
-            )
-            from ..lca.l4_optimization.attribution import CausalEffect
-            prev_calibrated.causal_effect = CausalEffect(
-                intervention_type=prev_calibrated.intervention.intervention_type.value,
-                student_id=sid,
-                state_delta=state_delta,
-                estimated_ate=state_delta,  # M2 W4 简化
-                confidence=min(1.0, len(self.intervention_history[sid]) / 30.0),
-                n_samples=len(self.intervention_history[sid]),
-            )
-
-            # v0.69.0-b: 计算 dual_agent_confidence (LinUCB θ@x 预测答对概率)
-            #   - 用 calibrated.intervention (当前轮 N+1 选出的) 反查 arm
-            #   - 用 current_state (即 prev_state, 轮 N 之后的) 构建 context
-            #   - 冷启动期: 走 _estimate_gain fallback (source="estimate_gain_fallback")
-            #   - 非冷启动期: 走 LinUCB θ@x (source="linucb")
-            #   写入 calibrated.metadata (当前轮), _write_calibration_log 读取落盘
-            #   校准逻辑: calibration_log(round=N+1).dual_agent_confidence
-            #             vs calibration_log(round=N+1).actual_outcome (轮 N+2 填回)
-            #             跟 V1 (expected_gain) 同模式, compute_h3_ece V3 优先逻辑可校准
-            dual_agent_confidence, dual_agent_confidence_source = (
-                self._compute_dual_agent_confidence(
-                    sid=sid,
-                    intervention=calibrated.intervention,
-                    belief_state=current_state,
-                )
-            )
-            calibrated.metadata["dual_agent_confidence"] = dual_agent_confidence
-            calibrated.metadata["dual_agent_confidence_source"] = (
-                dual_agent_confidence_source
-            )
-
-            # v0.69.0-b: LinUCB update reward 改 actual_outcome (B4 方案)
-            #   之前: reward = state_delta (mastery 增长预测)
-            #   现在: reward = actual_outcome (partial credit 0-1, 答对概率直接度量)
-            #   设计: dual_agent 内部 LCAEngine 是 v0.62.0-A 独立实例, 改 reward 不污染教学 LCA
-            #   state_delta 仍传 (attribution 用, 不变)
-            try:
-                self.lca_engine.update(
-                    student_id=sid,
-                    intervention=prev_calibrated.intervention,
-                    new_state=new_state,
-                    state_delta=state_delta,
-                    reward=prev_calibrated.actual_outcome,
-                )
-            except Exception:
-                _log.warning(
-                    "dual_agent LCAEngine.update reward=actual_outcome 失败 (sid=%s), "
-                    "fallback state_delta=%s",
-                    sid, state_delta, exc_info=True,
-                )
-                # 防御性自检 [6]: 失败不污染 in-memory, 走老路径 (state_delta reward)
-                #   跟 v0.68.0 行为一致, 但 dual_agent_confidence 字段已写入 metadata
-                self.lca_engine.update(
-                    student_id=sid,
-                    intervention=prev_calibrated.intervention,
-                    new_state=new_state,
-                    state_delta=state_delta,
-                )
+        # v0.69.0-d: 抽出 _post_process_calibration, 常态循环 + 特殊模式两路径都调
+        #   之前 (v0.69.0-b): 只在常态循环路径写 dual_agent_confidence + B4 reward
+        #   BUG: lbc003 答 42 道题全触发策略质疑 (K mastery 饱和, avg_gain < 0.05)
+        #         -> _check_special_modes 提前 return -> 237 行代码从未执行 -> V3=0 样本
+        #   修复: _post_process_calibration 在两路径都调, 同步落盘 V3 + B4 reward
+        self._post_process_calibration(
+            sid=sid,
+            calibrated=calibrated,
+            prev_calibrated=prev_calibrated,
+            current_state=current_state,
+            new_state=new_state,
+        )
 
         # Step 4: 抗幻觉检查（warn-only，不阻断）
         self._anti_hallucination_checks(cta_output, calibrated)
@@ -326,6 +275,107 @@ class DualAgentOrchestrator:
                 self._consecutive_ineffective[sid] = 0
 
         return calibrated
+
+    # ---------------------------------------------------------------
+    # v0.69.0-d: _post_process_calibration 抽出 (策略质疑路径覆盖)
+    # ---------------------------------------------------------------
+
+    def _post_process_calibration(
+        self,
+        sid: str,
+        calibrated,
+        prev_calibrated,
+        current_state: BeliefState,
+        new_state: BeliefState,
+    ) -> None:
+        """v0.69.0-d: 后处理--填 prev.causal_effect + 写 calibrated.metadata + LinUCB update.
+
+        抽出此方法是因为 v0.69.0-b 改造时只在常态循环路径 (Step 3.5) 写入:
+          - prev_calibrated.causal_effect (基于 state_delta)
+          - calibrated.metadata["dual_agent_confidence"] (V3 LinUCB θ@x 预测)
+          - lca_engine.update(reward=prev_calibrated.actual_outcome) (B4 方案)
+
+        但 lbc003 答 42 道题全触发策略质疑 (K mastery 饱和, avg_gain < 0.05),
+        _check_special_modes 提前 return, 跳过 237 行代码 -> V3=0 样本 + B4 没训.
+
+        修复: 抽出此方法, 在两个路径都调:
+          1. 常态循环路径 (Step 3.5, 替代原 237-298 行代码块)
+          2. 特殊模式路径 (_check_special_modes Step D 末尾, append 之前)
+
+        Args:
+            sid: 学生 ID
+            calibrated: 当前轮 calibrated (写 metadata)
+            prev_calibrated: 上一轮 calibrated (读 actual_outcome, 写 causal_effect)
+            current_state: 上一轮结束后的 state (state_delta 起点)
+            new_state: 本轮 CTA 更新后的 state (state_delta 终点)
+
+        防御性自检 [1]: 任何失败 _log.warning, 不 raise, 不 silent pass
+        防御性自检 [6]: 失败不污染 in-memory state
+        """
+        if prev_calibrated is None or prev_calibrated.actual_outcome is None:
+            return
+
+        state_delta = float(
+            new_state.K.mastery_prob - current_state.K.mastery_prob
+        )
+        from ..lca.l4_optimization.attribution import CausalEffect
+        prev_calibrated.causal_effect = CausalEffect(
+            intervention_type=prev_calibrated.intervention.intervention_type.value,
+            student_id=sid,
+            state_delta=state_delta,
+            estimated_ate=state_delta,  # M2 W4 简化
+            confidence=min(1.0, len(self.intervention_history[sid]) / 30.0),
+            n_samples=len(self.intervention_history[sid]),
+        )
+
+        # v0.69.0-b: 计算 dual_agent_confidence (LinUCB θ@x 预测答对概率)
+        #   - 用 calibrated.intervention (当前轮 N+1 选出的) 反查 arm
+        #   - 用 current_state (即 prev_state, 轮 N 之后的) 构建 context
+        #   - 冷启动期: 走 _estimate_gain fallback (source="estimate_gain_fallback")
+        #   - 非冷启动期: 走 LinUCB θ@x (source="linucb")
+        #   写入 calibrated.metadata (当前轮), _write_calibration_log 读取落盘
+        #   校准逻辑: calibration_log(round=N+1).dual_agent_confidence
+        #             vs calibration_log(round=N+1).actual_outcome (轮 N+2 填回)
+        #             跟 V1 (expected_gain) 同模式, compute_h3_ece V3 优先逻辑可校准
+        dual_agent_confidence, dual_agent_confidence_source = (
+            self._compute_dual_agent_confidence(
+                sid=sid,
+                intervention=calibrated.intervention,
+                belief_state=current_state,
+            )
+        )
+        calibrated.metadata["dual_agent_confidence"] = dual_agent_confidence
+        calibrated.metadata["dual_agent_confidence_source"] = (
+            dual_agent_confidence_source
+        )
+
+        # v0.69.0-b: LinUCB update reward 改 actual_outcome (B4 方案)
+        #   之前: reward = state_delta (mastery 增长预测)
+        #   现在: reward = actual_outcome (partial credit 0-1, 答对概率直接度量)
+        #   设计: dual_agent 内部 LCAEngine 是 v0.62.0-A 独立实例, 改 reward 不污染教学 LCA
+        #   state_delta 仍传 (attribution 用, 不变)
+        try:
+            self.lca_engine.update(
+                student_id=sid,
+                intervention=prev_calibrated.intervention,
+                new_state=new_state,
+                state_delta=state_delta,
+                reward=prev_calibrated.actual_outcome,
+            )
+        except Exception:
+            _log.warning(
+                "dual_agent LCAEngine.update reward=actual_outcome 失败 (sid=%s), "
+                "fallback state_delta=%s",
+                sid, state_delta, exc_info=True,
+            )
+            # 防御性自检 [6]: 失败不污染 in-memory, 走老路径 (state_delta reward)
+            #   跟 v0.68.0 行为一致, 但 dual_agent_confidence 字段已写入 metadata
+            self.lca_engine.update(
+                student_id=sid,
+                intervention=prev_calibrated.intervention,
+                new_state=new_state,
+                state_delta=state_delta,
+            )
 
     # ---------------------------------------------------------------
     # v0.69.0-b: dual_agent_confidence 计算 (B4 方案)
@@ -474,6 +524,23 @@ class DualAgentOrchestrator:
                 calibration_round=self.calibration_round[sid],
             )
             calibrated.metadata["strategy_challenge_triggered"] = True
+
+            # v0.69.0-d: 特殊模式路径也调 _post_process_calibration
+            #   之前 BUG: lbc003 答 42 道题全触发策略质疑 -> _check_special_modes 提前
+            #   return -> 237 行代码从未执行 -> V3=0 样本 + B4 LinUCB reward 没训
+            #   修复: 在 append 之前调 _post_process_calibration, 写 V3 + B4 reward
+            prev_calibrated = (
+                self.intervention_history[sid][-1]
+                if self.intervention_history[sid] else None
+            )
+            self._post_process_calibration(
+                sid=sid,
+                calibrated=calibrated,
+                prev_calibrated=prev_calibrated,
+                current_state=current_state,
+                new_state=updated_state,
+            )
+
             self.intervention_history[sid].append(calibrated)
             self.state_trajectory[sid].append(updated_state)
             # v0.59.0 修: 跟正常路径对齐, trajectory 也限 100 (CLAUDE.md [7])
