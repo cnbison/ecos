@@ -220,11 +220,14 @@ class TestOrchestratorPlattScalingIntegration:
         orch.process_observation(obs2, student_id=sid)
         last = orch.intervention_history[sid][-1]
         assert 'dual_agent_confidence_calibrated' in last.metadata
-        # 1 pair < min_samples_to_fit=5, 走 raw_v3
-        assert last.metadata['dual_agent_confidence_calibrated_source'] == 'raw_v3'
+        # 1 pair < min_samples_to_fit_platt=5, 冷启动期
+        # v0.74.0 P0-k: 走 mean(mastery) fallback (替换 raw_v3)
+        #   之前 v0.72/v0.73: 走 raw_v3
+        assert last.metadata['dual_agent_confidence_calibrated_source'] == 'mean_mastery_fallback'
         raw = last.metadata['dual_agent_confidence']
         calibrated = last.metadata['dual_agent_confidence_calibrated']
-        assert abs(raw - calibrated) < 1e-6, f"raw={raw} calibrated={calibrated}"
+        # calibrated (= mean(mastery)) 应跟 raw V3 不同
+        assert abs(raw - calibrated) > 1e-3, f"raw={raw} calibrated={calibrated} 应不同"
 
     def test_platt_scaling_activates_after_5_pairs(self):
         """5+ pairs 后, calibrated 走 platt_scaling source."""

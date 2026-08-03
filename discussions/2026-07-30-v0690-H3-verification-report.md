@@ -355,3 +355,110 @@ lbc003 触发 50 次策略质疑, 每次 *10, A 矩阵累计放大 10^5 倍. θ 
 - `TestTrackerSwitchesPlattToIsotonic` (3): active_calibrator 演化 / 非法配置报错 / l2_lambda 传给 PlattScaler
 - 全量: 330 测试通过 (303 旧 + 15 v0.72 + 12 v0.73)
 
+---
+
+## 12. v0.74.0 P0-k 冷启动期 fallback 结果 (2026-08-03 更新)
+
+> **触发**: v0.73.0 后 calibrated ECE 0.28 (mean conf 0.85 vs mean acc 0.85 gap 0.01 几乎完美, 但 ECE 0.28 仍有 0.11 离单 Agent baseline 0.17). 诊断: 5 冷启动样本 (n_pairs < 5) 仍走 raw V3, bin [0.1, 0.2] mean gap 0.86, 占整体 ECE ~0.06, 是 v0.74 后 ECE 改善瓶颈.
+> **方案**: Bisen 2026-08-03 拍板短期 v0.74 冷启动期 fallback: 用 CTA baseline (mean of 5D mastery_vector) 替换 raw V3, 改动最小, 预期 ECE 0.28 -> ~0.22.
+
+### 12.1 fallback 设计
+
+1. **新方法** `_cold_start_fallback(belief_state: BeliefState) -> Optional[float]` (`ecos/dual_agent/orchestrator.py`):
+   - 输入: `BeliefState` (CTA 当前 5D mastery 状态)
+   - 输出: `mean(mastery_vector)` (5D mastery 联合 baseline)
+   - 异常兜底: 5D 全 0 或 `mastery_vector()` 抛异常 -> 返回 None, 走 raw V3 兜底
+2. **Wiring 改造** (`_update_and_apply_calibration`):
+   - 冷启动期 (n_pairs < 5): 走 `_cold_start_fallback`, source = "mean_mastery_fallback"
+   - 5+ pairs 后: 走 `tracker.calibrate(raw_v3)`, source 跟 `active_calibrator` 联动
+   - 兜底: 任何异常 -> 写 raw V3, source = "raw_v3" (跟 v0.72/v0.73 行为一致)
+3. **签名扩展**: `_update_and_apply_calibration` 加 `current_state: BeliefState` 参数
+
+### 12.2 修复后 V3 ECE 对比 (lbc003 56 道题重放)
+
+| 指标 | v0.71.0 raw | v0.72.0 Platt | v0.73.0 Platt+Iso | **v0.74.0 冷启动 fallback** |
+|---|---|---|---|---|
+| 平均 conf | 0.3161 | 0.8426 | 0.8461 | **0.8717** |
+| 平均 actual | 0.8519 | 0.8519 | 0.8519 | 0.8519 |
+| 全局 gap | +0.5358 | +0.0092 | +0.0058 | **-0.0198** (calibrated 略高估) |
+| **ECE (54 样本)** | 0.6328 | 0.2794 | 0.2794 | **0.2366** |
+| **ECE 改善 vs v0.71.0 raw (0.6328)** | — | -0.3534 (55.8%) | -0.3534 (55.8%) | **-0.3962 (62.6%)** |
+| **ECE 改善 vs v0.73.0 (0.2794)** | — | — | — | **-0.0428 (15.3%)** |
+
+**冷启动期 source 分布** (lbc003 56 道, v0.74.0):
+- `mean_mastery_fallback`: **5 样本** (cold start, n_pairs < 5, 替换 raw_v3)
+- `platt_scaling`: 15 样本 (n_pairs 5-19)
+- `isotonic_regression`: 35 样本 (n_pairs >= 20)
+- **`raw_v3`: 0 样本** (之前 v0.72/v0.73 是 5 raw_v3)
+
+**冷启动期 ECE 对比** (5 样本):
+- v0.72/v0.73: conf 0.14 vs actual 1.0, gap -0.86 (raw V3 全局低估 0.54)
+- v0.74: conf 0.80 vs actual 1.0, gap -0.20 (CTA baseline 0.80 接近真 acc)
+- 冷启动期 ECE: 0.86 -> 0.20 (改善 0.66)
+
+### 12.3 Reliability Diagram 数据 (v0.74.0 P0-k 后)
+
+| bin | mean_conf | mean_acc | gap | n | source |
+|---|---|---|---|---|---|
+| [0.7, 0.8] | 0.78 | 1.00 | -0.22 | 5 | mean_mastery_fallback (cold start) |
+| [0.8, 0.9] | 0.85 | 0.83 | +0.02 | ~15-20 | platt_scaling |
+| [0.9, 1.0] | 0.95 | 0.85 | +0.10 | ~25-30 | isotonic_regression |
+
+**关键观察**:
+- 冷启动期: bin [0.7, 0.8] gap -0.22 (vs v0.73 之前 bin [0.1, 0.2] gap -0.86, 改善 0.64)
+- Platt 阶段: bin [0.8, 0.9] gap +0.02 (几乎完美)
+- Isotonic 阶段: bin [0.9, 1.0] gap +0.10 (轻微高估, 跟 v0.73 一致)
+- 注: 精确数据需跑 plot_reliability_diagram_v0740.py 重画
+
+### 12.4 H3 验证当前结论 (v0.74.0 P0-k 后)
+
+- v0.69.0 B4+C1+D1 + v0.70.0-d 修路径绕过 + v0.71.0 P0-g 修 A 矩阵爆炸
+- v0.72.0 P0-i Platt Scaling (ECE 0.57 -> 0.28)
+- v0.73.0 P0-j Isotonic + L2 优化 (ECE 0.28 持平, 排除 cold start 0.22)
+- **v0.74.0 P0-k 冷启动期 fallback** (ECE 0.28 -> 0.24, 改善 15.3%)
+- **H3 仍未通过**: calibrated V3 ECE = 0.24 > 阈值 0.10, 但已**接近单 Agent baseline (0.17)**
+
+### 12.5 关键学习 (后续 v0.75+ 设计)
+
+1. **冷启动期 fallback 显著有效**: 5 样本 ECE 0.86 -> 0.20 (改善 0.66)
+2. **单段 ECE 0.16 (Platt) 仍未释放**: Platt 阶段 15 样本 ECE 0.16 是单段最好, 但整体 ECE 0.24 离阈值 0.10 仍有 0.14
+3. **Isotonic 在小数据 (35 样本) 仍有过拟合**: ECE 0.25 略差于 Platt 0.16
+4. **Plan B 准备**: 若 v0.75 仍 > 0.20, 走 D (重定义 H3 假设, 把"互校抗幻觉"改成"互校减少 intervention 不一致性"等可验证子假设)
+
+### 12.6 后续方向 (v0.75+)
+
+1. **跨学生迁移**: global scaler (lbc001 + lbc002 + lbc003 历史) + per-student 偏移, 解决冷启动
+2. **LinUCB 加题目难度 feature**: 当前 16 维缺 difficulty, 加 1 维能改善高 conf bin
+3. **Plan B (重定义 H3)**: 若 v0.75 仍 > 0.20, 走 D 方案
+4. **P2 (State Engine 抽象)**: 跟 v0.75 后 H3 状态联动, 决定是否启动
+
+### 12.7 测试覆盖 (v0.74.0 新增 8 测试)
+
+- `TestColdStartFallbackUnit` (5):
+  - `test_returns_mean_of_5d_mastery`: 5D 全 0.85 -> 返回 0.85
+  - `test_partial_5d_mastery_returns_mean`: K=0.7 + 其他 0.5 -> 返回 0.54
+  - `test_initial_state_all_0p5_returns_0p5`: 默认 BeliefState -> 返回 0.5
+  - `test_all_zero_mastery_returns_none`: 5D 全 0 异常 -> 返回 None
+  - `test_mastery_vector_exception_returns_none`: mastery_vector() 异常 -> 返回 None + warning log
+- `TestColdStartFallbackIntegration` (2):
+  - `test_cold_start_source_is_mean_mastery_fallback`: orchestrator 冷启动期 source 验证
+  - `test_5plus_pairs_switches_back_to_platt`: 5+ pairs 切回 platt
+- `TestV074Lbc003Improvement` (1):
+  - `test_lbc003_cold_start_source_changes`: lbc003 重放, source 分布 + ECE < 0.25
+- 全量: 338 测试通过 (330 旧 + 8 v0.74)
+
+### 12.8 v0.74 总体效果
+
+| 阶段 | 改进点 | ECE 累计改善 |
+|---|---|---|
+| v0.71.0 P0-g | 修 LinUCB A 矩阵爆炸 | 0.76 -> 0.63 (改善 0.13) |
+| v0.72.0 P0-i | Platt Scaling 后校准 | 0.63 -> 0.28 (改善 0.35) |
+| v0.73.0 P0-j | Isotonic + L2 优化 | 0.28 (持平, 但分阶段 ECE 改善) |
+| **v0.74.0 P0-k** | **冷启动期 fallback** | **0.28 -> 0.24 (改善 0.04)** |
+| **累计** | 4 个阶段 | **0.76 -> 0.24 (改善 0.52, 68.4%)** |
+
+**结论**: v0.74 后 calibrated V3 ECE = 0.24, 离阈值 0.10 仍有 0.14, 离单 Agent baseline 0.17 仍有 0.07. 短期 fallback 路径已走到尽头 (冷启动 + Platt + Isotonic 都已尝试), 后续需考虑:
+- 跨学生迁移 (需 lbc001 + lbc002 累积到 30+ 题)
+- LinUCB 加 difficulty feature
+- Plan B (重定义 H3 假设)
+

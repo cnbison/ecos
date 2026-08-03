@@ -370,6 +370,7 @@ class DualAgentOrchestrator:
                 prev_calibrated=prev_calibrated,
                 raw_v3=dual_agent_confidence,
                 calibrated=calibrated,
+                current_state=current_state,
             )
         except Exception:
             _log.warning(
@@ -418,6 +419,7 @@ class DualAgentOrchestrator:
         prev_calibrated,
         raw_v3: float,
         calibrated,
+        current_state: BeliefState,
     ) -> None:
         """v0.72.0: 更新 calibration tracker + 校准当前 V3.
 
@@ -456,16 +458,74 @@ class DualAgentOrchestrator:
 
         # 步骤 2: 用 tracker 校准当前 V3
         # v0.73.0: source 跟 tracker.active_calibrator 联动 (raw_v3 / platt_scaling / isotonic_regression)
+        # v0.74.0: 冷启动期 (n_pairs < 5) 用 CTA baseline 替换 raw V3
+        #   触发: v0.73.0 后 5 冷启动样本仍 mean gap 0.86, 占 ECE 0.06
+        #   方案: belief_state.mastery_vector() 均值 (5D 联合 baseline, 稳定 [0, 1])
+        #   兜底: 异常时返回 None, 走 raw V3 (不污染)
         if tracker.is_fitted:
             calibrated_value = tracker.calibrate(float(raw_v3))
             source = tracker.active_calibrator
         else:
-            calibrated_value = float(raw_v3)
-            source = "raw_v3"
+            # 冷启动期: 走 CTA baseline fallback
+            fallback_value = self._cold_start_fallback(current_state)
+            if fallback_value is not None:
+                calibrated_value = fallback_value
+                source = "mean_mastery_fallback"
+            else:
+                # 兜底: 写 raw V3 (跟 v0.72/v0.73 行为一致)
+                calibrated_value = float(raw_v3)
+                source = "raw_v3"
 
         # 步骤 3: 写 metadata
         calibrated.metadata["dual_agent_confidence_calibrated"] = calibrated_value
         calibrated.metadata["dual_agent_confidence_calibrated_source"] = source
+
+    # ---------------------------------------------------------------
+    # v0.74.0 P0-k: 冷启动期 fallback (CTA baseline)
+    # ---------------------------------------------------------------
+
+    def _cold_start_fallback(
+        self,
+        belief_state: BeliefState,
+    ) -> Optional[float]:
+        """v0.74.0: 冷启动期 fallback (n_pairs < min_samples_to_fit_platt).
+
+        触发: v0.72/v0.73 Platt/Isotonic 校准后, 5 冷启动样本仍 mean gap 0.86
+              (raw V3 全局低估 0.54, bin [0.1, 0.2] actual=1.0).
+              这 5 样本占 ECE 0.06, 是 v0.74 后 ECE 改善瓶颈.
+
+        方案: 用 CTA baseline (mean of 5D mastery_vector) 替换 raw V3:
+          - 5D mastery 联合 baseline, 单 Agent baseline ECE 0.17 (v0.69.0 H3 报告)
+          - 始终在 [0, 1], 不需要额外归一化
+          - 始终有值 (初始化 0.5, 学习后 0.5-0.99)
+          - 跟 dual_agent "用 CTA 理解 + LCA 决策" 哲学一致
+
+        优先级:
+          1. mean(mastery_vector) — 5D mastery 概率均值
+          2. 异常时返回 None → 调用方走 raw V3 兜底
+
+        Returns:
+            fallback value in [0, 1] 或 None (失败)
+
+        防御性自检 [1]: 任何异常 _log.warning, 不 raise, 不 silent pass
+        防御性自检 [6]: 失败不污染 in-memory state
+        """
+        try:
+            import numpy as np
+            mastery_vec = belief_state.mastery_vector()
+            # 防御: 若 5D mastery 全为 0 (异常状态), 返回 None
+            if float(np.sum(mastery_vec)) < 1e-6:
+                _log.warning(
+                    "v0.74.0 cold start fallback: 5D mastery 全 0, 走 raw V3 兜底",
+                )
+                return None
+            return float(np.mean(mastery_vec))
+        except Exception:
+            _log.warning(
+                "v0.74.0 cold start fallback 失败, 走 raw V3 兜底",
+                exc_info=True,
+            )
+            return None
 
     # ---------------------------------------------------------------
     # v0.69.0-b: dual_agent_confidence 计算 (B4 方案)
