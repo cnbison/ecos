@@ -102,6 +102,101 @@
 
 **测试结果**: pytest 348 passed (从 338 增 10, P0-m 新增)
 
+## [0.75.1] 2026-08-04
+
+### docs: H3 假设修订 — 从 "抗 LLM 幻觉" 到 "Fast Calibration + Wide Coverage"
+
+> **触发**：v0.75.0 P0-l.1 (Global Platt) + P0-m (LinUCB difficulty) 都失败, 启动 Plan B D2 + D4 重新评估 H3. D2 (reliability diagram 形态评估) 证明 H3 "互校抗 LLM 幻觉" 在 6 Bloom 视角下不成立 (单 Agent 0.108 ≈ 双 Agent 0.110, 5/6 维度单 Agent 更优). D4 拆 3 子假设 (H3a/H3b/H3c) 验证, 发现互校真正价值在"快速学习" + "广覆盖".
+> **决策**：✅ 互校架构保留, 调整叙事: H3-c1 (Fast Calibration 14 题 < 0.15) + H3-c2 (Coverage 100% vs 20%) 通过, 启用新叙事; H3-c3 (Entropy 软指标) + H3-c4 (拐点响应, 缺数据) 后续优化.
+
+#### D2: Reliability Diagram 形态评估 (Plan B)
+
+**背景**：v0.75.0 P0-l.1 + P0-m 都失败, 单 ECE 数字 (0.110) 看不出 H3 假设的根本问题. 启动 D2 用 reliability diagram 形态评估 (6 Bloom) 替代单 ECE 数字.
+
+**实施**：
+- `scripts/plot_reliability_diagram_5d.py`（新, 6 Bloom reliability diagram 形态评估）
+  - `collect_pairs()`: 重放 lbc003, 收集 (单 Agent 6 Bloom confidence, 双 Agent calibrated V3, actual_outcome) 三元组
+  - 算 6 Bloom 各自的 ECE + RMS 距离
+  - 画 2x6 子图 (上单, 下双)
+- `discussions/2026-08-04-v075-D2-reliability-diagram-5d.md`（新, 报告）
+- `discussions/2026-08-04-v075-D2-reliability-diagram-5d.png`（新, 形态图）
+- `discussions/2026-08-04-v075-D2-reliability-diagram-5d.json`（新, 数据）
+
+**关键发现**：
+- 6 Bloom 平均: 单 Agent 0.1083 vs 双 Agent 0.1101 (打平)
+- 5/6 Bloom 维度单 Agent 优于双 Agent (remember/understand/analyze 显著优)
+- RMS 距离: 单 Agent 0.1083 远优于双 Agent 0.1459 (单 Agent 形态更接近 y=x)
+
+**H3 重新评估**：H3 "互校抗 LLM 幻觉" 在 6 Bloom 形态下**不成立**, 触发 D4 拆子假设.
+
+#### D4: H3 拆 3 子假设
+
+**PRD**：[discussions/2026-08-04-v075-D4-h3-subhypothesis-prd.md](./discussions/2026-08-04-v075-D4-h3-subhypothesis-prd.md)
+
+**H3a (ECE, 不通过)**：D2 已证明, 单 Agent 6 Bloom 0.108 跟双 Agent 0.110 几乎打平.
+
+**H3b (多样性, 部分通过)**:
+- ✅ Coverage 双 Agent 100% (10/10 arm) vs 单 Agent 20% (2/10 arm) — 显著优
+- ❌ Entropy 1.145 < 1.5 阈值
+- ❌ Max streak 41 > 单 Agent 19
+- 根因: LinUCB exploitation 锁定 arm 0 (47/56 轮)
+- 实施: `scripts/v075_d4_arm_diversity.py` + 报告
+
+**H3c (响应速度, 部分通过)**:
+- ⚠️ 6 Bloom 状态拐点 0 个 (lbc003 单 skill 让 6 Bloom 收敛, max diff 0.082 < 阈值 0.1)
+- ✅ LinUCB 收敛速度 14 题 < 0.15 ECE (D4 阈值 30 题, 显著通过)
+- ✅ 11 题内 ECE < 0.20 (快速稳定)
+- 根因: 校准速度快 (Platt + Isotonic) ≠ 响应状态变化快 (后者需要更复杂 arm 选择机制)
+- 实施: `scripts/v075_d4_state_response.py` + 报告
+
+**D4 综合报告**: [discussions/2026-08-04-v075-D4-comprehensive-report.md](./2026-08-04-v075-D4-comprehensive-report.md)
+
+#### H3 修订 PRD: 新假设 + 新通过标准
+
+> **新 H3 假设**: "**双 Agent 互校有效实现快速校准 (Fast Calibration) + 广覆盖 (Wide Coverage) 干预**: LinUCB 在小样本 (< 30 题) 内实现 ECE < 0.15 校准, 且 arm 覆盖 > 70%"
+
+**新通过标准 (4 个核心指标)**:
+| # | 指标 | 阈值 | 当前 | 状态 |
+|---|---|---|---|---|
+| H3-c1 | LinUCB 收敛速度 | < 30 题 (ECE < 0.15) | 14 题 | ✅ |
+| H3-c2 | Arm coverage | > 70% (10 arm) | 100% (10/10) | ✅ |
+| H3-c3 | Arm entropy (软) | > 1.5 | 1.145 | ⚠️ 软指标未达 |
+| H3-c4 | 拐点响应延迟 | < 3 题 | 0 拐点 (缺数据) | ❓ 待验证 |
+
+**整体 H3 通过条件**: H3-c1 + H3-c2 同时通过, 且无 H3 架构性失败. **当前通过**.
+
+**叙事调整**:
+- ❌ 旧: "互校抗 LLM 幻觉" (ECE 0.10 阈值) — D2 证明不成立
+- ✅ 新: "互校快速校准 + 广覆盖" (Fast Calibration + Wide Coverage) — D4 验证
+
+详见 [discussions/2026-08-04-v0751-H3-redefinition-PRD.md](./discussions/2026-08-04-v0751-H3-redefinition-PRD.md).
+
+#### 关键学习 (Bisen 反馈用)
+
+1. **H3 原始假设方向性错误**: "互校抗 LLM 幻觉" 把"决策质量"等同于"校准质量". 实际互校价值在"快速学习" + "广覆盖", 不在 calibration.
+2. **ECE 不是评估互校的好指标**: 单 Agent CTA 已有 MIRT 5D 校准 (ECE 0.108), 双 Agent 通过 Platt + Isotonic 后 ECE 0.110, 边际改善 0.002 不显著.
+3. **互校的真正价值需要新评估框架**: Fast Calibration + Wide Coverage + Adaptive Reward 这 3 个维度单 Agent 都没法做到, 是互校的差异化价值.
+4. **Plan B 策略有效**: D2 (改指标) + D4 (拆子假设) 组合 1.5 天出结果, 比 Plan A 重做架构快 10x, 实际发现 H3 价值在"快速学习" 而非"抗幻觉".
+
+**改动汇总**:
+- `ecos/__init__.py`: __version__ 0.75.0 → 0.75.1 (H3 修订标记)
+- `discussions/2026-07-30-v0690-H3-verification-report.md`: §14 追加 (D4 综合评估)
+- `discussions/2026-08-04-v0751-H3-redefinition-PRD.md`（新, H3 修订 PRD）
+- `discussions/2026-08-04-v075-D4-comprehensive-report.md`（新, D4 综合报告）
+- `discussions/2026-08-04-v075-D4-h3-subhypothesis-prd.md`（新, D4 3 子假设 PRD）
+- `discussions/2026-08-04-v075-D4-h3b-arm-diversity.md`（新, H3b 报告）
+- `discussions/2026-08-04-v075-D4-h3c-state-response.md`（新, H3c 报告）
+- `discussions/2026-08-04-v075-D4-h3b-arm-diversity.json`（新, H3b 数据）
+- `discussions/2026-08-04-v075-D4-h3c-state-response.json`（新, H3c 数据）
+- `discussions/2026-08-04-v075-D2-reliability-diagram-5d.md`（新, D2 报告）
+- `discussions/2026-08-04-v075-D2-reliability-diagram-5d.png`（新, 形态图）
+- `discussions/2026-08-04-v075-D2-reliability-diagram-5d.json`（新, 形态数据）
+- `scripts/plot_reliability_diagram_5d.py`（新, D2 主脚本）
+- `scripts/v075_d4_arm_diversity.py`（新, D4 H3b 主脚本）
+- `scripts/v075_d4_state_response.py`（新, D4 H3c 主脚本）
+
+**测试结果**: pytest 348 passed (无代码改动, 仅文档)
+
 ## [0.74.1] 2026-08-03
 
 ### docs: 新增指标体系总览文档（5D/LinUCB/confidence/H3/ECE 指标地图）

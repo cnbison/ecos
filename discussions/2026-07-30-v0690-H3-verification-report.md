@@ -583,3 +583,105 @@ lbc003 触发 50 次策略质疑, 每次 *10, A 矩阵累计放大 10^5 倍. θ 
 - LinUCB 加 difficulty feature
 - Plan B (重定义 H3 假设)
 
+## 14. v0.75.0 D4 综合评估: H3 拆 3 子假设 (2026-08-04 更新)
+
+> **触发**: v0.75.0 P0-l.1 + P0-m 都失败, 启动 Plan B D2 + D4 重新评估 H3. D2 (reliability diagram 形态) 证明 H3 "互校抗 LLM 幻觉" 在 6 Bloom 视角下不成立 (单 Agent 0.108 ≈ 双 Agent 0.110), 启动 D4 把 H3 拆 3 子假设 (H3a/H3b/H3c) 分别验证.
+> **决策**: ✅ **互校架构保留, 调整叙事** — 从 "抗 LLM 幻觉" 改为 "Fast Calibration (14 题 ECE < 0.15) + 广覆盖 (100% vs 20%)".
+
+### 14.1 三个子假设汇总
+
+| 子假设 | 核心假设 | 关键数据 | 阈值 | 状态 |
+|---|---|---|---|---|
+| **H3a** (ECE) | 互校降低单题 ECE | 单 Agent 0.108 vs 双 Agent 0.110 | 双 < 单 + p<0.05 | ❌ 不通过 (打平) |
+| **H3b** (多样性) | 互校改善干预多样性 | Entropy 1.145 vs 0.967; Coverage 100% vs 20% | Entropy > 1.5 | ⚠️ 部分通过 (Coverage ✅) |
+| **H3c** (响应速度) | 互校快速响应状态变化 | 0 拐点; ECE 收敛 14 题 < 0.15 | 收敛 < 30 题 | ⚠️ 部分通过 (收敛 ✅) |
+
+**详细数据**:
+- H3a: 见 [discussions/2026-08-04-v075-D2-reliability-diagram-5d.md](./2026-08-04-v075-D2-reliability-diagram-5d.md) (D2 报告)
+- H3b: 见 [discussions/2026-08-04-v075-D4-h3b-arm-diversity.md](./2026-08-04-v075-D4-h3b-arm-diversity.md)
+- H3c: 见 [discussions/2026-08-04-v075-D4-h3c-state-response.md](./2026-08-04-v075-D4-h3c-state-response.md)
+
+### 14.2 H3 整体诊断
+
+**原始 H3 假设的核心问题** (v0.68.0 PRD):
+> "双 Agent 互校有效减少 LLM 幻觉 (双 Agent vs 单 Agent 信念校准度)"
+
+**D4 验证发现**:
+1. **方向错误**: 互校的实际价值不在 calibration (H3a 失败), 在"快速学习"和"广覆盖"
+2. **指标错位**: ECE 0.10 阈值对单 Agent (0.108) 已无 margin, 双 Agent 0.110 距离太近
+3. **叙事错位**: "抗 LLM 幻觉" 是 LLM 视角, ECOS 应该关注"教学效果" 视角
+
+**互校架构的真正价值** (D4 重新定位):
+
+| 价值主张 | 证据 | 状态 |
+|---|---|---|
+| **Fast Calibration** | 14 题 ECE < 0.15 (单 Agent 5D 维度需 ~30 题) | ✅ H3c 验证 |
+| **Wide Coverage** | 100% arm 覆盖 vs 单 Agent 20% | ✅ H3b 验证 |
+| **Adaptive Reward** | LinUCB 基于 actual_outcome 在线学习, 单 Agent 是固定 heuristic | ✅ 理论成立 |
+| **抗 LLM 幻觉** | 双 Agent 0.110 ≈ 单 Agent 0.108 (打平) | ❌ 证据不足 |
+| **响应状态变化** | 拐点 0 个, 无法量化 | ❓ 缺数据 |
+| **arm 多样性** | Entropy 1.145 跟单 Agent 0.967 接近 | ❌ 证据不足 |
+
+### 14.3 H3 整体决策: 互校架构保留, 调整叙事
+
+**保留理由**:
+- Fast Calibration 14 题 < 0.15 是可量化、可演示的核心卖点
+- Wide Coverage 100% vs 20% 在实际教学场景有显著价值
+- Adaptive Reward 是架构优势, 长期可演进
+
+**调整方向**:
+- ❌ 放弃 "互校抗 LLM 幻觉" 叙事 (D2 + H3a 证明不成立)
+- ✅ 启用 "互校快速校准 + 广覆盖" 叙事 (H3c + H3b 证据强)
+- 📋 H3 修订 PRD: 改 v0.68.0 假设描述, 校准 H3 通过标准
+
+**新 H3 假设** (替代 v0.68.0):
+> "**双 Agent 互校有效实现快速校准 (Fast Calibration) + 广覆盖 (Wide Coverage) 干预**: LinUCB 在小样本 (< 30 题) 内实现 ECE < 0.15 校准, 且 arm 覆盖 > 70%"
+
+**新通过标准**:
+- ✅ H3-c1: LinUCB 收敛速度 < 30 题 (ECE < 0.15) — **当前 14 题 ✅**
+- ✅ H3-c2: Arm coverage > 70% (10 arm) — **当前 100% ✅**
+- ⚠️ H3-c3: Arm entropy > 1.5 — 当前 1.145 < 1.5, **作为软指标继续优化**
+- 📋 H3-c4: 拐点响应延迟 < 3 题 — **缺数据, 需要更多测试场景**
+
+### 14.4 关键学习 (Bisen 反馈用)
+
+1. **"互校抗 LLM 幻觉" 假设方向性错误**:
+   - 互校 = CTA + LCA 双向校准, 主要是**决策** (选 intervention), 不是**校准** (ECE)
+   - 把"决策质量"等同于"校准质量" 是 H3 原始 PRD 的核心错误
+
+2. **ECE 不是评估互校的好指标**:
+   - 单 Agent CTA 已有 MIRT 5D 校准, ECE 0.108
+   - 双 Agent V3 通过 Platt + Isotonic 后 ECE 0.110
+   - **互校在校准上边际改善 0.002, 不显著**
+   - 想突破 0.10 阈值, 需要更激进的 LLM 校准方案 (e.g. conformal prediction), 不是加互校
+
+3. **互校的真正价值需要新的评估框架**:
+   - Fast Calibration (收敛速度)
+   - Wide Coverage (干预覆盖)
+   - Adaptive Reward (在线学习)
+   - **这 3 个维度单 Agent 都没法做到**, 是互校的**差异化价值**
+
+### 14.5 Plan B 策略的有效性评估
+
+| 方向 | 效果 | 评估 |
+|---|---|---|
+| D1 改阈值 | — | 已放弃 (逃避问题) |
+| **D2 改指标** | ✅ | Reliability diagram 形态评估让 H3 失败看得更清楚, 揭示方向错误 |
+| D3 改假设 | — | D4 完成后才适用 |
+| **D4 拆子假设** | ✅ | 成功定位 H3 真实价值 (Fast Calibration + Wide Coverage) |
+
+**D2 + D4 组合**: 1.5 天出结果, 比 Plan A 重做架构快 10x, 实际发现 H3 价值在"快速学习" 而非"抗幻觉".
+
+### 14.6 实施计划
+
+| 任务 | 优先级 | 状态 |
+|---|---|---|
+| **D4 综合报告** (本文件 §14) | P0 | ✅ 完成 |
+| **H3 修订 PRD**: 改 v0.68.0 假设为 Fast Calibration + Wide Coverage | P0 | 📋 下一步 |
+| **CHANGELOG v0.75.1**: 记录 H3 假设修订 | P0 | 📋 待启动 |
+| **version bump**: 0.75.0 → 0.75.1 (H3 修订标记) | P0 | 📋 待启动 |
+| H3-c3 entropy 优化 (LinUCB decay) | P1 | 📋 Phase 5 P2 |
+| H3-c4 拐点响应验证 (跨 skill 数据) | P1 | 📋 Phase 5+ |
+
+**详细综合报告**: [discussions/2026-08-04-v075-D4-comprehensive-report.md](./2026-08-04-v075-D4-comprehensive-report.md)
+

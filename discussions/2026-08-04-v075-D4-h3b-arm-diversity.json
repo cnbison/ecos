@@ -1,0 +1,44 @@
+{
+  "n_rounds": 56,
+  "max_entropy": 3.321928094887362,
+  "single": {
+    "entropy": 0.9666186325481028,
+    "coverage": 0.2,
+    "consecutive_repeat_count": 49,
+    "max_consecutive_streak": 19,
+    "mean_interval_to_repeat": 1.7037037037037037,
+    "arm_distribution": {
+      "5": 22,
+      "7": 34
+    }
+  },
+  "dual": {
+    "entropy": 1.1454678501138726,
+    "coverage": 1.0,
+    "consecutive_repeat_count": 45,
+    "max_consecutive_streak": 41,
+    "mean_interval_to_repeat": 1.1956521739130435,
+    "arm_distribution": {
+      "0": 47,
+      "1": 1,
+      "2": 1,
+      "3": 1,
+      "4": 1,
+      "5": 1,
+      "6": 1,
+      "7": 1,
+      "8": 1,
+      "9": 1
+    }
+  },
+  "differences": {
+    "entropy": 0.17884921756576988,
+    "coverage": 0.8
+  },
+  "thresholds": {
+    "min_entropy": 1.5,
+    "min_coverage": 0.7
+  },
+  "h3b_pass": false,
+  "decision": "❌ H3b 不通过: 双 Agent 跟单 Agent 相当或更差"
+}

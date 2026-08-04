@@ -1,0 +1,71 @@
+{
+  "n_rounds": 56,
+  "n_change_points": 0,
+  "thresholds": {
+    "state_change": 0.1,
+    "response_window": 5,
+    "max_response_delay": 3,
+    "max_convergence_round": 30
+  },
+  "single_agent": {
+    "response_delay": 1
+  },
+  "dual_agent": {
+    "mean_response_delay": 0.0,
+    "median_response_delay": 0.0,
+    "max_response_delay": 0,
+    "n_responded": 0,
+    "n_no_response": 0,
+    "convergence_round_ece_15": 14,
+    "convergence_round_ece_20": 11
+  },
+  "ece_trajectory": [
+    {
+      "n_pairs": 5,
+      "ece": 0.39456235797982486
+    },
+    {
+      "n_pairs": 10,
+      "ece": 0.20361596115425745
+    },
+    {
+      "n_pairs": 15,
+      "ece": 0.1996105460009739
+    },
+    {
+      "n_pairs": 20,
+      "ece": 0.20903404572018536
+    },
+    {
+      "n_pairs": 25,
+      "ece": 0.16722723657614832
+    },
+    {
+      "n_pairs": 30,
+      "ece": 0.18010916623325934
+    },
+    {
+      "n_pairs": 35,
+      "ece": 0.18767625325276474
+    },
+    {
+      "n_pairs": 40,
+      "ece": 0.19888176319055856
+    },
+    {
+      "n_pairs": 45,
+      "ece": 0.22495749097193918
+    },
+    {
+      "n_pairs": 50,
+      "ece": 0.23152702744009696
+    },
+    {
+      "n_pairs": 55,
+      "ece": 0.21624025667459792
+    }
+  ],
+  "sample_delays": [],
+  "h3c_pass": true,
+  "decision": "✅ H3c 通过: 双 Agent 快速响应 + 收敛速度达标"
+}
