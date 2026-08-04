@@ -593,7 +593,15 @@ class DualAgentOrchestrator:
             #   expected_reward = θ_a @ x
             import numpy as np
 
-            context = bandit._build_context(belief_state)
+            # v0.75 P0-m: 启用 arm features 时, 传 intervention 让 _build_context
+            #   输出 17 维 context (16 student + 1 intervention.difficulty)
+            use_arm_features = (
+                self.lca_engine.config.bandit_config.use_arm_features
+            )
+            if use_arm_features:
+                context = bandit._build_context(belief_state, intervention=intervention)
+            else:
+                context = bandit._build_context(belief_state)
             arm_idx = bandit._lookup_arm(intervention)
             if arm_idx is None:
                 # arm 反查失败 (e.g. 新会话, intervention 不在 _arm_fingerprints 里)

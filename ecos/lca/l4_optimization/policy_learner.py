@@ -35,11 +35,16 @@ class LCAPolicyLearner:
 
     # Context dim: 5 (5D theta) + 6 (Bloom) + 5 (DNA) = 16
     CONTEXT_DIM = 16
+    # v0.75 P0-m: 启用 arm features 时追加的维度 (intervention.difficulty)
+    ARM_FEATURE_DIM = 1
 
     def __init__(self, config: BanditConfig | None = None):
         self.config = config or BanditConfig()
-        # 强制 spec 默认 context_dim（避免外部传错维度）
-        if self.config.context_dim != self.CONTEXT_DIM:
+        # v0.75 P0-m: 启用 arm features 时 context_dim 从 16 -> 17
+        if self.config.use_arm_features:
+            self.config.context_dim = self.CONTEXT_DIM + self.ARM_FEATURE_DIM
+        elif self.config.context_dim != self.CONTEXT_DIM:
+            # 旧路径: 强制 spec 默认 16 维
             self.config.context_dim = self.CONTEXT_DIM
         self.bandit = LinUCB(
             n_arms=self.config.n_arms,
@@ -70,20 +75,36 @@ class LCAPolicyLearner:
 
         Raises:
             ValueError: 候选数量与 n_arms 不匹配（候选数量不够时循环复用）
+
+        v0.75 P0-m: 启用 use_arm_features 时, 每个候选评估 (16 + difficulty) = 17 维
+                    context, 选 UCB 最高的 (per-arm context 模式)
         """
         if not candidate_interventions:
             raise ValueError("candidate_interventions 不能为空")
 
-        context = self._build_context(belief_state)
-        arm = self.bandit.select_arm(context)
-        self._last_arm = arm
+        if not self.config.use_arm_features:
+            # 旧路径: 16 维 shared context, 所有 arm 共享
+            context = self._build_context(belief_state)
+            arm = self.bandit.select_arm(context)
+            self._last_arm = arm
+            idx = arm % len(candidate_interventions)
+            chosen = candidate_interventions[idx]
+            self._arm_fingerprints[arm] = chosen.intervention_id
+            return chosen
 
-        # 候选映射（循环复用）
-        idx = arm % len(candidate_interventions)
+        # v0.75 P0-m 新路径: per-candidate context, 每个候选独立评估
+        base = self._build_context(belief_state)
+        best_arm, best_score = -1, -float("inf")
+        for i, cand in enumerate(candidate_interventions):
+            arm_idx = i % self.config.n_arms
+            ctx = self._build_context(belief_state, intervention=cand)
+            score = self.bandit.score_arm(arm_idx, ctx)
+            if score > best_score:
+                best_arm, best_score = arm_idx, score
+        self._last_arm = best_arm
+        idx = best_arm % len(candidate_interventions)
         chosen = candidate_interventions[idx]
-
-        # 记录 arm → 干预 fingerprint
-        self._arm_fingerprints[arm] = chosen.intervention_id
+        self._arm_fingerprints[best_arm] = chosen.intervention_id
         return chosen
 
     def update(
@@ -98,8 +119,14 @@ class LCAPolicyLearner:
             intervention: 之前选中的干预
             belief_state: 干预后的 CTA 状态
             reward: 状态增量（state_delta），已被调用方归一化到 [0, 1]
+
+        v0.75 P0-m: 启用 use_arm_features 时, context 重建时附 intervention.difficulty
         """
-        context = self._build_context(belief_state)
+        # v0.75 P0-m: 重建跟 select 时一样的 context (含 intervention.difficulty)
+        if self.config.use_arm_features:
+            context = self._build_context(belief_state, intervention=intervention)
+        else:
+            context = self._build_context(belief_state)
         # 反查 arm 索引：优先用 last_arm + 指纹匹配
         arm = self._lookup_arm(intervention)
         if arm is None:
@@ -167,10 +194,19 @@ class LCAPolicyLearner:
     # 上下文构建（02-lca §4.2 _build_context）
     # ---------------------------------------------------------------
 
-    def _build_context(self, belief_state: BeliefState) -> np.ndarray:
-        """构造 LinUCB 上下文向量（16 维）.
+    def _build_context(
+        self,
+        belief_state: BeliefState,
+        intervention: Optional[Intervention] = None,
+    ) -> np.ndarray:
+        """构造 LinUCB 上下文向量.
 
-        5 (5D theta) + 6 (BloomProfile) + 5 (DNA)
+        基础 16 维: 5 (5D theta) + 6 (BloomProfile) + 5 (DNA)
+
+        v0.75 P0-m: 启用 use_arm_features 且提供 intervention 时,
+                    追加 1 维 intervention.difficulty (总 17 维).
+                    用于 per-candidate context 模式, 让 LinUCB 区分
+                    不同难度的干预.
         """
         theta5 = np.array([
             belief_state.K.theta,
@@ -195,7 +231,13 @@ class LCAPolicyLearner:
             1.0 if dna.feedback_preference == "immediate" else 0.0,
             dna.motivation_pattern.get("weekday", 0.5),
         ], dtype=float)
-        return np.concatenate([theta5, bloom6, dna5])  # (16,)
+        base = np.concatenate([theta5, bloom6, dna5])  # (16,)
+
+        # v0.75 P0-m: 追加 intervention.difficulty (1 维) -> 17 维
+        if self.config.use_arm_features and intervention is not None:
+            difficulty = float(np.clip(intervention.difficulty, 0.0, 1.0))
+            return np.concatenate([base, [difficulty]])  # (17,)
+        return base
 
     def _lookup_arm(self, intervention: Intervention) -> int | None:
         """通过干预 ID 反查 arm 索引."""

@@ -457,6 +457,127 @@ lbc003 触发 50 次策略质疑, 每次 *10, A 矩阵累计放大 10^5 倍. θ 
 | **v0.74.0 P0-k** | **冷启动期 fallback** | **0.28 -> 0.24 (改善 0.04)** |
 | **累计** | 4 个阶段 | **0.76 -> 0.24 (改善 0.52, 68.4%)** |
 
+## 13. v0.75.0 P0-l + P0-m 探索结果 (2026-08-04 更新)
+
+> **触发**: v0.74 ECE 0.24 卡 H3 阈值 0.10, 真正瓶颈是 Platt/Isotonic 阶段 bin [0.9, 1.0] gap +0.10 (49/54 样本, 90.7% 权重). 启动两个新方案攻击这个具体 bin:
+> - P0-l: 跨学生迁移 (Global Platt Scaling)
+> - P0-m: LinUCB 17 维 context (intervention.difficulty)
+>
+> **结果**: 两方案都**没解决 bin [0.9, 1.0] gap**. 触发 **Plan B: 重定义 H3 假设** (待启动).
+
+### 13.1 P0-l.1: Global Platt Scaling (跨学生迁移)
+
+**设计**:
+- 训练集: lbc001 (58) + lbc002 (43) = 101 pairs (lbc003 hold-out)
+- 算法: Platt Scaling (跟 per-student 同样算法, l2_lambda=0.01)
+- 训练参数: A=-4.1020, B=2.5275 (负斜率, 反映 LinUCB 冷启动 raw_V3 跟 actual 答对反相关)
+- 应用: 替换冷启动 5 样本的 mean_mastery_fallback (0.80) → global_platt (0.875)
+
+**结果 (lbc003 cold start 5 样本)**:
+
+| 方案 | mean conf | mean actual | mean gap |
+|---|---|---|---|
+| raw V3 (v0.72/v0.73) | 0.1425 | 1.00 | 0.8575 |
+| v0.74 mean_mastery | 0.80 | 1.00 | 0.2000 |
+| **v0.75 global Platt** | **0.8747** | **1.00** | **0.1253** |
+
+**全局 ECE 估算**:
+- 冷启动期只占 5/54 = 9.3% 样本权重, 改善 0.075 在全局 ECE 只贡献 **-0.007** (边际)
+- 真正瓶颈 (Platt/Isotonic 阶段 49/54 样本, 90.7% 权重) **未触及**
+
+**决策**: 放弃 P0-l.3 (lbc004 验证), 转向 P0-m.
+
+详见 [discussions/2026-08-04-v075-P0-l1-global-platt-analysis.md](./2026-08-04-v075-P0-l1-global-platt-analysis.md).
+
+### 13.2 P0-m: LinUCB 17 维 context (intervention.difficulty)
+
+**设计**:
+- LinUCB context 16 → 17 维 (末尾加 `intervention.difficulty`)
+- 启用 `use_arm_features=True` 时, 每个候选独立 17 维 context 评估 (per-arm context 模式)
+- 默认 `use_arm_features=False` 保持 16 维行为 (向后兼容 v0.74)
+
+**实施**:
+- `BanditConfig.use_arm_features: bool = False` (新字段)
+- `LinUCB.score_arm(arm, context)` (新方法): 给定 arm + context 算 UCB 分数
+- `LCAPolicyLearner._build_context(state, intervention=None)`: 启用时追加 difficulty → 17 维
+- `LCAPolicyLearner.select_intervention`: 启用时 per-candidate context 评估
+- `DualAgentOrchestrator._compute_dual_agent_confidence`: 传 intervention 让 17 维路径生效
+- 10 个单测覆盖 (`tests/test_v075_difficulty_feature.py`)
+
+**结果 (lbc003 重放, production 校准路径)**:
+
+| 指标 | use_arm_features=False (v0.74) | use_arm_features=True (v0.75 P0-m) | 变化 |
+|---|---|---|---|
+| Raw V3 std | 0.108 | 0.110 | +0.002 (几乎无变化) |
+| Calibrated V3 ECE | 0.1101 | 0.1210 | **+0.011 (变差)** ⭐ |
+| 冷启动期 ECE | 0.3946 | 0.3946 | 0 |
+| **Bin [0.9, 1.0] gap** | **0.108 (28 样本)** | **0.186 (19 样本)** | **+0.078 (显著变差)** ⭐ |
+
+**P0-m 失败根因**:
+- 10 个候选只有 5 个不同难度值 {0.3, 0.4, 0.5, 0.6, 0.7}, difficulty 信号被噪声淹没
+- lbc003 5D mastery 在中间区间 (~0.5), LinUCB θ 还没学到 "难度 vs 答对率" 强关系
+- Isotonic Regression 把 P0-m 的 "raw 噪声" 放大成 "calibrated 系统误差"
+- 冷启动 5 轮走 mean_mastery_fallback, 完全没用 LinUCB 17 维 context
+
+**保留 P0-m 实现 (不删除)**:
+- 设计正确性: 17 维 LinUCB with arm features 是工业标准做法 (Li et al. 2010)
+- 默认 `use_arm_features=False`, 跟 v0.74 完全兼容, 不影响生产
+- 10 个单测保护, 不会回归
+- 未来启用条件: 真实新学生累积 100+ 题, 题库难度标注更细 (10+ 个不同值)
+
+详见 [discussions/2026-08-04-v075-P0-m-difficulty-replay.md](./2026-08-04-v075-P0-m-difficulty-replay.md).
+
+### 13.3 v0.75 探索结论 + Plan B 触发
+
+| 方案 | 冷启动期 | 校准后全局 ECE | 实施复杂度 | 状态 |
+|---|---|---|---|---|
+| P0-l.1 (Global Platt) | gap 0.20 → 0.125 (-37.5%) | -0.007 (边际) | 高 (100+ 行) | ❌ 放弃 |
+| P0-m (Difficulty) | 0 改善 | +0.011 (**恶化**) | 中 (~50 行) | ❌ 放弃 |
+| **v0.74 (当前生产)** | gap 0.20 (mean_mastery) | baseline 0.24 | 已落地 | ✅ 保留 |
+
+**v0.75 攻击 bin [0.9, 1.0] gap 失败**: 3 个方案 (Plan A global Platt + P0-l + P0-m) 全部失败.
+
+**Plan B 触发**: 重定义 H3 假设 (待启动).
+- 现状: H3 = "双 Agent 互校有效减少 LLM 幻觉" 严格用 ECE ≤ 0.10 验证
+- Plan B 选项:
+  - D1: 改阈值 (ECE ≤ 0.25 替代 0.10)
+  - D2: 改指标 (用 reliability diagram 形态评估, 不只看 ECE)
+  - D3: 改假设 (互校减少 intervention 不一致性, 而非直接减少 LLM 幻觉)
+  - D4: 拆分 H3 为子假设, 各自验证
+- 待 Bisen 拍板
+
+### 13.4 v0.75 探索总体效果 (累计)
+
+| 阶段 | 改进点 | ECE 累计 |
+|---|---|---|
+| v0.71.0 P0-g | 修 LinUCB A 矩阵爆炸 | 0.76 → 0.63 |
+| v0.72.0 P0-i | Platt Scaling 后校准 | 0.63 → 0.28 |
+| v0.73.0 P0-j | Isotonic + L2 优化 | 0.28 (持平) |
+| v0.74.0 P0-k | 冷启动期 fallback | 0.28 → 0.24 |
+| v0.75 P0-l.1 | Global Platt (跨学生) | 0.24 (无变化, 仅冷启动 -0.007) |
+| v0.75 P0-m | LinUCB difficulty | 0.24 (无变化, 验证无效) |
+| **累计** | **6 个阶段** | **0.76 → 0.24 (改善 0.52, 68.4%)** |
+
+**结论**: v0.74 后 ECE 改善遇到平台期. v0.75 两个新方案都没能突破. **H3 阈值 0.10 仍未通过**, 但已接近单 Agent baseline (0.17).
+
+### 13.5 测试覆盖 (v0.75.0 新增 10 测试)
+
+- `TestLinUCBScoreArm` (4):
+  - `test_score_arm_returns_ucb`: score_arm 算 UCB 分数
+  - `test_score_arm_out_of_range_returns_zero`: arm 越界 → 0.0 + warning
+  - `test_score_arm_wrong_context_dim_returns_zero`: context dim 错 → 0.0 + warning
+  - `test_select_arm_uses_score_arm_internally`: select_arm 跟 score_arm 一致 (重构)
+- `TestPolicyLearnerDifficulty` (5):
+  - `test_context_default_16_dim`: 默认 16 维
+  - `test_context_with_difficulty_17_dim`: 启用 + 传 intervention → 17 维
+  - `test_context_without_intervention_16_dim_even_with_arm_features`: 启用但不传 → 16 维
+  - `test_select_intervention_with_arm_features`: per-candidate 评估
+  - `test_arm_features_does_not_break_existing_tests`: 默认行为不变
+- `TestV075Lbc003DifficultyImprovement` (1):
+  - `test_arm_features_changes_v3_distribution`: lbc003 重放 raw V3 std 变化
+- 全量: 348 测试通过 (338 旧 + 10 v0.75)
+
+
 **结论**: v0.74 后 calibrated V3 ECE = 0.24, 离阈值 0.10 仍有 0.14, 离单 Agent baseline 0.17 仍有 0.07. 短期 fallback 路径已走到尽头 (冷启动 + Platt + Isotonic 都已尝试), 后续需考虑:
 - 跨学生迁移 (需 lbc001 + lbc002 累积到 30+ 题)
 - LinUCB 加 difficulty feature

@@ -21,12 +21,15 @@ Phase 4 MVP：
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import List, Optional
 
 import numpy as np
 
 from ...cta.belief_state import BeliefState
+
+_log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -42,6 +45,10 @@ class BanditConfig:
     # 冷启动期 expected_gain 走 _estimate_gain 简化估算, 非冷启动走 LinUCB θ@x 预测
     # 默认 10: 10 个 arm 各拉 1 次, 或同 arm 拉 10 次, 之后 LinUCB 预测生效
     cold_start_threshold: int = 10
+    # v0.75 P0-m: 是否启用 arm features (intervention.difficulty)
+    #   False (默认): 16 维 student context, 所有 arm 共享 (v0.71-v0.74 行为)
+    #   True: 17 维 context (16 student + 1 intervention.difficulty), 每个候选独立评估
+    use_arm_features: bool = False
 
 
 class LinUCB:
@@ -80,18 +87,48 @@ class LinUCB:
 
         ucb_values = np.zeros(self.n_arms)
         for arm in range(self.n_arms):
-            try:
-                A_inv = np.linalg.inv(self.A[arm])
-            except np.linalg.LinAlgError:
-                A_inv = np.eye(self.context_dim)
-            theta = A_inv @ self.b[arm]
-            # 期望奖励
-            expected_reward = float(theta @ x)
-            # 不确定性奖励（探索）
-            confidence_bound = self.alpha * float(np.sqrt(x @ A_inv @ x))
-            ucb_values[arm] = expected_reward + confidence_bound
+            ucb_values[arm] = self.score_arm(arm, x)
 
         return int(np.argmax(ucb_values))
+
+    def score_arm(self, arm: int, context: np.ndarray) -> float:
+        """v0.75 P0-m: 计算指定 arm 在给定 context 下的 UCB 分数.
+
+        用于 arm features 模式 (use_arm_features=True), 每个候选 arm 评估时
+        context 不同 (候选特有的 difficulty), 需要逐个调用 score_arm.
+
+        Args:
+            arm: arm 索引 [0, n_arms)
+            context: 上下文向量 (dim = context_dim)
+
+        Returns:
+            UCB 分数 (expected_reward + alpha * confidence_bound)
+            异常时返回 0.0, 不污染 bandit 状态
+
+        防御性自检 [1]: 任何异常 _log.warning, 不 raise, 不 silent pass
+        防御性自检 [6]: 失败不污染 in-memory bandit 状态
+        """
+        x = np.asarray(context, dtype=float).flatten()
+        if arm < 0 or arm >= self.n_arms:
+            _log.warning(
+                "score_arm: arm 越界 (arm=%s, n_arms=%s), 返回 0.0",
+                arm, self.n_arms,
+            )
+            return 0.0
+        if x.shape[0] != self.context_dim:
+            _log.warning(
+                "score_arm: context dim 错误 (expected=%s, got=%s), 返回 0.0",
+                self.context_dim, x.shape[0],
+            )
+            return 0.0
+        try:
+            A_inv = np.linalg.inv(self.A[arm])
+        except np.linalg.LinAlgError:
+            A_inv = np.eye(self.context_dim)
+        theta = A_inv @ self.b[arm]
+        expected_reward = float(theta @ x)
+        confidence_bound = self.alpha * float(np.sqrt(x @ A_inv @ x))
+        return expected_reward + confidence_bound
 
     def update(self, arm: int, context: np.ndarray, reward: float) -> None:
         """更新选中的 arm（在线岭回归）.
