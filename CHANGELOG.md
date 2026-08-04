@@ -12,6 +12,26 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.74.1] 2026-08-03
+
+### docs: 新增指标体系总览文档（5D/LinUCB/confidence/H3/ECE 指标地图）
+
+> **触发**：Bisen 反馈"各指标术语多（5D/H3/ECE/LinUCB），卡 H3 ECE 0.24，需罗列+解释+关联"。
+> **卡点确认**：calibrated V3 ECE = 0.2366（lbc003，56 道题）> 阈值 0.10，差 0.14；单 Agent baseline = 0.1740（差 0.07，已接近）。
+
+**改动**：
+
+- `research/10-engineering/06-metrics-and-indicators-overview.md`（新）：指标体系总览文档
+  - 四层架构：CTA 认知层 / LCA 决策层 / 双 Agent 互校层 / 验证层
+  - 各指标定义 + file:line 引用（5D/Bloom/TC/Misconception/LearningDNA/Trajectory/overall_confidence/LinUCB/Intervention/attribution/confidence V1-V3/calibration/ECE/H3 等）
+  - 指标间关联（一次答题完整数据流图）
+  - 版本演进表（v0.69->v0.74，双 Agent ECE 0.76->0.24，改善 68.4%）
+  - 卡点诊断（ECE 0.24 成因 + 5 个后续候选：跨学生迁移 / 加 difficulty feature / Isotonic 回退 Platt / Plan B 重定义 H3 / P2 State Engine）
+  - 关键澄清：cov = theta_cov（5×5 协方差矩阵，非 "coverage"）；confidence 三版语义（V1 增长空间 / V2 系统把握度 / V3 答对概率）
+- `research/README.md`：10-engineering 目录加 06 指针 + 状态标注 v0.69.0 -> v0.74.1（修正滞后，承接 7-31 方向审查洞察）
+- `ecos/__init__.py`：__version__ 0.74.0 -> 0.74.1
+- `discussions/2026-08-03-指标体系总览文档生成.md`（新）：会话记录
+
 ## [0.74.0] 2026-08-03
 
 ### feat: P0-k 冷启动期 fallback (CTA baseline 替换 raw V3)

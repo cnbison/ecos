@@ -3,11 +3,11 @@
 > **ECOS 核心研究文档结构化目录**
 > 本目录是 ECOS 项目所有研究文档的 SSOT（Single Source of Truth）入口
 
-## 当前状态（2026-08-03，v0.69.0）
+## 当前状态（2026-08-03，v0.74.1）
 
 | 状态 | 数量 | 说明 |
 |------|------|------|
-| ✅ 已建立 | 8 战略层 + 5 工程层 + 4 教学法层 + 10+ MVP/Demo = 29+ 份 | Phase 0 全部完成（2026-06-25）+ Phase 4 Demo 完整化（v0.52.3）+ Phase 5 进行中（v0.54.0 -> v0.69.0）|
+| ✅ 已建立 | 8 战略层 + 5 工程层 + 4 教学法层 + 10+ MVP/Demo = 29+ 份 | Phase 0 全部完成（2026-06-25）+ Phase 4 Demo 完整化（v0.52.3）+ Phase 5 进行中（v0.54.0 -> v0.74.1）|
 | 📋 占位 | 0 份 | 所有初始占位已填充 |
 
 ## 目录结构
@@ -38,7 +38,8 @@ research/
 │   ├── 02-lca-policy-engine.md              # LCA LinUCB + CA 6 阶段
 │   ├── 03-bloom-goal-library.md             # Bloom 目标库
 │   ├── 04-dual-agent-calibration.md         # 双 Agent 互校
-│   └── 05-persistence-session.md           # 持久化 + 跨会话
+│   ├── 05-persistence-session.md           # 持久化 + 跨会话
+│   └── 06-metrics-and-indicators-overview.md # ⭐ 指标体系总览（5D/LinUCB/confidence/H3/ECE）
 ├── 20-pedagogy/                             # 教学法层（✅ 全部完成）
 │   ├── 01-k12-cognitive-structure.md        # K12 学段差异化
 │   ├── 02-bloom-application.md              # Bloom 在 K12 应用
