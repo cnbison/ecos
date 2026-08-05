@@ -374,19 +374,24 @@
 
 ### 8.3 演进优先级建议
 
-**P2 (v0.71-0.73)** -- Kernel 稳定化（前提：H3 验证通过）：
-- v0.71.0：State Engine 抽象 + CQRS（belief_engine.py 拆分）
-- v0.72.0：Event Engine 雏形（LearningEvent 统一）
-- v0.73.0：Evaluation Engine 内置（compute_h3_ece.py 进 Runtime）
+> **[v0.77 更新 2026-08-05]**: P2 State Engine 完整重构评估结论为"暂缓,等 Phase 6 自然时机"。
+> 触发原因: v0.75.3 fingerprint 修复后 H3-c3 已通过 (entropy 2.546), v0.76 跨学生验证普适 (3/3 PASS),
+> LCA 路径已 read-only (CQRS 事实遵守), 真正 CQRS 违反集中在 web/api/belief.py DB 恢复路径 (15+ 处直接 mutation)。
+> 详见 [discussions/2026-08-05-v077-p2-state-engine-evaluation.md](../../discussions/2026-08-05-v077-p2-state-engine-evaluation.md)。
+> 替代方案: v0.77 加 `BeliefState.apply_snapshot()` 收口 DB 恢复路径 (方案 B, ~150 行, 低风险), Phase 6 跟 CTA 4 层拆分一起做完整 State Engine (方案 D)。
 
-**Phase 6 (v0.74-0.78)** -- CTA/LCA 拆分 + Engine 补全：
-- v0.74.0：CTA 4 层拆分
-- v0.75.0：LCA 4 层拆分
-- v0.76.0：Policy Engine 第二个 Policy（Thompson Sampling）
-- v0.77.0：Evidence Engine + Goal Ontology
-- v0.78.0：Runtime API 公开
+**v0.77 (短期)** -- 最小防御动作（方案 B）：
+- v0.77.0：`BeliefState.apply_snapshot()` 收口 DB 恢复路径 + 防御性自检 [6] 拦截直接 mutation
 
-**Phase 7+ (v0.79+)** -- 通用 Cognitive Runtime 推演：
+**Phase 6 (v0.78-0.82)** -- CTA/LCA 拆分 + Engine 补全（自然时机做完整 State Engine）：
+- v0.78.0：CTA 4 层拆分 + StateEngine 类引入（commit / validate / snapshot / diff）
+- v0.79.0：LCA 4 层拆分
+- v0.80.0：Event Engine 雏形（LearningEvent 统一）
+- v0.81.0：Policy Engine 第二个 Policy（Thompson Sampling）
+- v0.82.0：Evidence Engine + Goal Ontology + Runtime API 公开
+- ~~v0.73.0：Evaluation Engine 内置~~ (compute_h3_ece.py 外部脚本够用, 内置收益低)
+
+**Phase 7+ (v0.83+)** -- 通用 Cognitive Runtime 推演：
 - Twin -> Human Twin 抽象
 - Learning Goal -> Goal 抽象
 - 多 Domain 扩展（科研 / 职业 / 创意）
@@ -426,8 +431,20 @@ Bisen 在 2026-08-03 反馈"开发进展到现在,我感觉是有些凌乱了"�
 - v0.69.0 H3 验证失败（需回滚或重设计）
 - 现有架构能稳定支持新功能
 
+### 9.4 [v0.77 2026-08-05] P2 评估结果
+
+**触发条件状态**：
+- ✅ H3 验证通过（v0.75.3 fingerprint 修复后 H3-c3 PASS, v0.76 跨学生验证 3/3 PASS）
+- ❌ CQRS 违反没反复出现（LCA 路径已 read-only, 集中在 web/api/belief.py DB 恢复路径）
+
+**评估结论**：暂缓完整 State Engine 重构, 改走方案 B (v0.77 加 apply_snapshot 收口 DB 恢复) + 方案 D (Phase 6 跟 CTA 4 层拆分一起做)。
+
+**关键洞察**：v0.76 fingerprint 修复证明架构是健壮的 - BUG 只影响 theta 数值, 不影响架构选择。完整 State Engine 边际收益低 (LCA 已 read-only), Phase 6 是更自然的时机 (CTA 拆分本来就要重写 belief_engine.py)。
+
+详见 [discussions/2026-08-05-v077-p2-state-engine-evaluation.md](../../discussions/2026-08-05-v077-p2-state-engine-evaluation.md)。
+
 ---
 
 **创建日期**：2026-08-03
 **维护者**：Bisen & Claude
-**下次更新**：v0.71.0 Kernel 重构启动时（前提：v0.69.0 H3 验证通过）
+**下次更新**：v0.77 apply_snapshot 实施时 / Phase 6 CTA 4 层拆分启动时

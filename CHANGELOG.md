@@ -12,6 +12,51 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.77.0] 2026-08-05
+
+### evaluation: P2 State Engine 抽象引入评估 (结论: 暂缓完整重构, 走方案 B + D 组合)
+
+> **触发**: H3-c3 通过 (v0.75.3 fingerprint 修复) + v0.76 跨学生验证普适 (3/3 PASS), P2 启动条件满足, 需评估是否引入完整 State Engine 抽象.
+> **方法**: 审计 CQRS 违反位置 + 估算重构成本 + 比较 4 个替代方案 (完整 State Engine / 最小防御动作 / 暂不做 / 直接进 Phase 6).
+> **结论**: 暂缓完整 State Engine 重构, 走方案 B (v0.77 加 apply_snapshot) + 方案 D (Phase 6 跟 CTA 4 层拆分一起做).
+
+#### 评估关键发现
+
+1. **LCA 路径已 read-only**: 审计 ecos/lca/ 全目录, 所有 belief_state 访问都是读 (mastery_prob / theta / confidence), 无写入 - CQRS 已事实遵守
+2. **真正 CQRS 违反集中在 web/api/belief.py DB 恢复路径**: 15+ 处直接 state.X = value mutation, 绕过 BeliefEngine (字段新增历史 4 次漏恢复: json/tc_states/trajectory/item_params)
+3. **v0.69-v0.75 架构没建立在 BUG 上**: fingerprint BUG 只影响 theta 数值, 不影响架构选择 - 完整 State Engine 边际收益低
+4. **完整重构成本**: ~1500 行改动 + 60-80 测试回归, 阻塞 Phase 5 H3-c4 跨 skill 验证
+5. **Phase 6 是自然时机**: CTA 4 层拆分本来就要重写 belief_engine.py, State Engine 一起做避免 2 次大改
+
+#### 方案 B (短期 v0.77, 推荐)
+
+- 在 `ecos/cta/belief_state.py` 加 `apply_snapshot(snapshot: Dict) -> None` 方法
+- 在 `web/api/belief.py` 用 `state.apply_snapshot(db_snapshot)` 替代 82-195 行 15+ 处直接 mutation
+- 加防御性自检 [6]: DB 恢复路径必须走 apply_snapshot
+- 工作量 ~150 行, 风险低 (数值不变, 路径收口)
+
+#### 方案 D (中期 Phase 6 v0.78+, 推荐)
+
+- 跟 CTA 4 层拆分一起做完整 StateEngine 类 (commit / validate / snapshot / diff)
+- 自然时机, 避免 2 次大改
+- 加 state validation (K.mastery_prob 范围 [0,1] 等) + state diff (Evaluation Engine 用)
+
+#### 不推荐方案 A (完整 State Engine) 的理由
+
+- 工作量大 (~1500 行 + 60-80 测试回归)
+- 边际收益低 (LCA 已 read-only, 真正问题只在 DB 恢复)
+- 阻塞 Phase 5 H3-c4 跨 skill 验证 (业务价值更高)
+- Phase 6 一起做能避免 2 次大改
+
+#### 新增文件
+
+- `discussions/2026-08-05-v077-p2-state-engine-evaluation.md`: P2 评估报告
+
+#### 修订文件
+
+- `research/00-overview/12-kernel-mapping-current-vs-2.0.md` §8.3 演进优先级建议 + §9.4 P2 评估结果
+
+
 ## [0.76.0] 2026-08-05
 
 ### validation: 跨学生验证 fingerprint 修复普适性 (H3-c3 跨学生通过)
