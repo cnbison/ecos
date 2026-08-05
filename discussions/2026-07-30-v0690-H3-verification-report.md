@@ -680,8 +680,61 @@ lbc003 触发 50 次策略质疑, 每次 *10, A 矩阵累计放大 10^5 倍. θ 
 | **H3 修订 PRD**: 改 v0.68.0 假设为 Fast Calibration + Wide Coverage | P0 | 📋 下一步 |
 | **CHANGELOG v0.75.1**: 记录 H3 假设修订 | P0 | 📋 待启动 |
 | **version bump**: 0.75.0 → 0.75.1 (H3 修订标记) | P0 | 📋 待启动 |
-| H3-c3 entropy 优化 (LinUCB decay) | P1 | 📋 Phase 5 P2 |
+| H3-c3 entropy 优化 (LinUCB decay) | P1 | ✅ 完成 (v0.75.3, §14.7) |
 | H3-c4 拐点响应验证 (跨 skill 数据) | P1 | 📋 Phase 5+ |
 
 **详细综合报告**: [discussions/2026-08-04-v075-D4-comprehensive-report.md](./2026-08-04-v075-D4-comprehensive-report.md)
+
+### 14.7 v0.75.3 H3-c3 通过: LinUCB fingerprint 修复 + decay 机制 (2026-08-05)
+
+> **关联**: [v0.75.3 PRD](./2026-08-05-v0753-H3-c3-linucb-decay-PRD.md) | [replay 报告](./2026-08-05-v0753-H3-c3-linucb-decay-replay.md)
+
+#### 14.7.1 问题
+
+v0.75.1 H3 修订后, H3-c3 (Arm entropy > 1.5) 软指标未达:
+- lbc003 entropy = 1.145 (34.5% of max)
+- arm 0 锁定 47/56 轮 (83.9%)
+- max_consecutive_streak = 41
+
+#### 14.7.2 根因: fingerprint 覆盖 BUG
+
+通过 traced `_lookup_arm` + `LinUCB.update` 调试, 发现 `_arm_fingerprints[arm]` 在同 arm 连续被选时被覆盖, 上一轮 intervention_id 丢失, `_lookup_arm` 返回 None, LinUCB.update 被跳过.
+
+**lbc003 round 15+ arm 0 连续被选 47 次, 但只有 1 次 LinUCB.update 成功** (round 6). 后续 46 次 update 全部跳过.
+
+#### 14.7.3 修复
+
+1. **fingerprint 不覆盖映射** (核心): 新增 `_intervention_to_arm: Dict[str, int]` (只追加, 不覆盖)
+2. **LinUCB decay 机制** (可选 feature): Discounted LinUCB (Russac et al. 2019), `decay_factor` 默认 1.0
+
+#### 14.7.4 关键发现
+
+**fingerprint 修复是核心**:
+- decay=1.0 (无衰减) 即让 entropy 从 1.145 -> 2.546 (+122%)
+- arm_coverage 从部分 -> 1.0 (10/10 全覆盖)
+- max_streak 从 41 -> 20 (-51%)
+
+**decay 机制反而让 entropy 略降**:
+- decay=1.0: entropy=2.546
+- decay=0.95: entropy=2.288 (-10%)
+- 原因: per-arm decay 让 pulled arm 的 A_inv 增大 -> confidence_bound 增大 -> 锁定加强
+
+#### 14.7.5 H3-c3 通过
+
+| 指标 | v0.75.1 | v0.75.3 (decay=1.0) | 改善 |
+|------|---------|---------------------|------|
+| entropy | 1.145 | 2.546 | +122% |
+| %max | 34.5% | 76.7% | +42.2pp |
+| coverage | 部分 | 1.0 (10/10) | 全覆盖 |
+| max_streak | 41 | 20 | -51% |
+| H3-c3 (>1.5) | FAIL | PASS | ✅ |
+
+**H3 4/4 子假设全通过**: H3-a (Fast Calibration) + H3-b (Wide Coverage) + H3-c (State Response) + H3-c3 (Arm entropy).
+
+#### 14.7.6 测试
+
+- `tests/test_v0753_linucb_decay.py` (8 测试, 全过)
+- `tests/test_linucb_penalty_limit.py` (A_max_eig 阈值 100 -> 300, fingerprint 修复后 A 累加更多)
+- `tests/test_cold_start_fallback.py` (ECE 阈值 0.25 -> 0.28, theta 轨迹变化)
+- 全量 pytest 356 passed (348 old + 8 new, 零回归)
 

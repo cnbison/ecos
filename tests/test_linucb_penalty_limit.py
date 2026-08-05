@@ -234,11 +234,13 @@ class TestLbc003ReplayPenaltyBounded:
 
         # 验证: A 矩阵最大特征值 <= 10^PENALTY_MAX (不爆炸)
         #   PENALTY_MAX=1 -> A_max_eig <= 10 + ε (因为还有正常的 x x^T 累加)
+        #   v0.75.3 H3-c3: fingerprint 修复后 update 每轮都调, A 累加更多,
+        #     阈值从 100 -> 300 (10 * penalty + ~50 updates * |x|^2 ≈ 110, 留余量)
         import numpy as np
         for arm_idx in range(bandit.config.n_arms):
             eigvals = np.linalg.eigvalsh(bandit.bandit.A[arm_idx])
-            # PENALTY_MAX=1 时, A = 10*I + sum(x x^T), 最大特征值应 < 100
-            assert eigvals.max() < 100, (
-                f"arm[{arm_idx}] A_max_eig={eigvals.max():.2e} > 100, "
+            # PENALTY_MAX=1 时, A = 10*I + sum(x x^T), 最大特征值应 < 300
+            assert eigvals.max() < 300, (
+                f"arm[{arm_idx}] A_max_eig={eigvals.max():.2e} > 300, "
                 f"惩罚机制仍让 A 矩阵爆炸"
             )

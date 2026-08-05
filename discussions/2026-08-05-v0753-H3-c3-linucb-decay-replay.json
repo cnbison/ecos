@@ -1,0 +1,161 @@
+{
+  "decay_baseline_entropy": 2.5463,
+  "decay_baseline_ece": 0.2435,
+  "sweep_results": [
+    {
+      "decay_factor": 1.0,
+      "entropy": 2.5463,
+      "entropy_pct_of_max": 76.7,
+      "arm_coverage": 1.0,
+      "max_consecutive_streak": 20,
+      "arm_distribution": {
+        "0": 3,
+        "1": 3,
+        "2": 2,
+        "3": 3,
+        "4": 21,
+        "5": 6,
+        "6": 15,
+        "7": 1,
+        "8": 1,
+        "9": 1
+      },
+      "ece": 0.2435,
+      "ece_delta_vs_baseline": 0.0,
+      "h3c3_pass": true
+    },
+    {
+      "decay_factor": 0.99,
+      "entropy": 2.33,
+      "entropy_pct_of_max": 70.1,
+      "arm_coverage": 1.0,
+      "max_consecutive_streak": 20,
+      "arm_distribution": {
+        "0": 3,
+        "1": 3,
+        "2": 2,
+        "3": 3,
+        "4": 30,
+        "5": 5,
+        "6": 7,
+        "7": 1,
+        "8": 1,
+        "9": 1
+      },
+      "ece": 0.2436,
+      "ece_delta_vs_baseline": 0.0001,
+      "h3c3_pass": true
+    },
+    {
+      "decay_factor": 0.95,
+      "entropy": 2.2881,
+      "entropy_pct_of_max": 68.9,
+      "arm_coverage": 1.0,
+      "max_consecutive_streak": 25,
+      "arm_distribution": {
+        "0": 3,
+        "1": 3,
+        "2": 2,
+        "3": 3,
+        "4": 26,
+        "5": 15,
+        "6": 1,
+        "7": 1,
+        "8": 1,
+        "9": 1
+      },
+      "ece": 0.2439,
+      "ece_delta_vs_baseline": 0.0004,
+      "h3c3_pass": true
+    },
+    {
+      "decay_factor": 0.9,
+      "entropy": 2.2725,
+      "entropy_pct_of_max": 68.4,
+      "arm_coverage": 1.0,
+      "max_consecutive_streak": 26,
+      "arm_distribution": {
+        "0": 3,
+        "1": 3,
+        "2": 2,
+        "3": 3,
+        "4": 27,
+        "5": 14,
+        "6": 1,
+        "7": 1,
+        "8": 1,
+        "9": 1
+      },
+      "ece": 0.2443,
+      "ece_delta_vs_baseline": 0.0008,
+      "h3c3_pass": true
+    },
+    {
+      "decay_factor": 0.85,
+      "entropy": 2.1503,
+      "entropy_pct_of_max": 64.7,
+      "arm_coverage": 1.0,
+      "max_consecutive_streak": 26,
+      "arm_distribution": {
+        "0": 3,
+        "1": 3,
+        "2": 2,
+        "3": 3,
+        "4": 32,
+        "5": 9,
+        "6": 1,
+        "7": 1,
+        "8": 1,
+        "9": 1
+      },
+      "ece": 0.2448,
+      "ece_delta_vs_baseline": 0.0013,
+      "h3c3_pass": true
+    },
+    {
+      "decay_factor": 0.8,
+      "entropy": 1.8829,
+      "entropy_pct_of_max": 56.7,
+      "arm_coverage": 1.0,
+      "max_consecutive_streak": 26,
+      "arm_distribution": {
+        "0": 3,
+        "1": 3,
+        "2": 2,
+        "3": 6,
+        "4": 37,
+        "5": 1,
+        "6": 1,
+        "7": 1,
+        "8": 1,
+        "9": 1
+      },
+      "ece": 0.2453,
+      "ece_delta_vs_baseline": 0.0018,
+      "h3c3_pass": true
+    },
+    {
+      "decay_factor": 0.5,
+      "entropy": 2.0036,
+      "entropy_pct_of_max": 60.3,
+      "arm_coverage": 1.0,
+      "max_consecutive_streak": 12,
+      "arm_distribution": {
+        "0": 3,
+        "1": 3,
+        "2": 2,
+        "3": 34,
+        "4": 9,
+        "5": 1,
+        "6": 1,
+        "7": 1,
+        "8": 1,
+        "9": 1
+      },
+      "ece": 0.2486,
+      "ece_delta_vs_baseline": 0.0051,
+      "h3c3_pass": true
+    }
+  ],
+  "key_finding": "fingerprint 修复是核心: decay=1.0 (无衰减) 即让 entropy 从 v0.75.1 1.145 -> 2.546. decay 机制 (decay<1.0) 实际让 entropy 略降 (A_inv 增大 -> confidence_bound 增大 -> 锁定加强). H3-c3 通过: decay=1.0 entropy 2.546 > 1.5 阈值."
+}

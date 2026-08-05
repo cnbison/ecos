@@ -49,6 +49,13 @@ class BanditConfig:
     #   False (默认): 16 维 student context, 所有 arm 共享 (v0.71-v0.74 行为)
     #   True: 17 维 context (16 student + 1 intervention.difficulty), 每个候选独立评估
     use_arm_features: bool = False
+    # v0.75.3 H3-c3: Discounted LinUCB decay factor (Russac et al. 2019)
+    #   1.0 (默认): 无衰减, 等价 v0.75.1 行为 (完全向后兼容)
+    #   0.95: 每轮历史 A/b 矩阵 *0.95, 14 轮后历史 weight ~0.49, 28 轮 ~0.24
+    #         A_inv 增大 -> confidence_bound 增大 -> 鼓励探索被忽略 arm
+    #   0.0: 只看当轮 (太激进, 不推荐)
+    # 用于打破 exploitation 锁定, 提升 arm entropy (H3-c3 软指标)
+    decay_factor: float = 1.0
 
 
 class LinUCB:
@@ -61,10 +68,13 @@ class LinUCB:
         bandit.update(arm_idx, context_vector, reward=0.3)
     """
 
-    def __init__(self, n_arms: int = 10, context_dim: int = 16, alpha: float = 1.0):
+    def __init__(self, n_arms: int = 10, context_dim: int = 16, alpha: float = 1.0,
+                 decay_factor: float = 1.0):
         self.n_arms = n_arms
         self.context_dim = context_dim
         self.alpha = alpha
+        # v0.75.3 H3-c3: Discounted LinUCB decay factor (1.0 = 无衰减, 等价 v0.75.1)
+        self.decay_factor = float(decay_factor)
         # 每个 arm 的协方差矩阵 + 线性参数
         self.A: List[np.ndarray] = [np.eye(context_dim) for _ in range(n_arms)]
         self.b: List[np.ndarray] = [np.zeros(context_dim) for _ in range(n_arms)]
@@ -131,10 +141,20 @@ class LinUCB:
         return expected_reward + confidence_bound
 
     def update(self, arm: int, context: np.ndarray, reward: float) -> None:
-        """更新选中的 arm（在线岭回归）.
+        """更新选中的 arm（在线岭回归 + v0.75.3 H3-c3 Discounted LinUCB）.
 
-        A_a ← A_a + x x^T
-        b_a ← b_a + r x
+        v0.75.1 原始公式:
+            A_a ← A_a + x x^T
+            b_a ← b_a + r x
+
+        v0.75.3 H3-c3 Discounted LinUCB (Russac et al. 2019):
+            A_a ← decay_factor * A_a + x x^T
+            b_a ← decay_factor * b_a + r x
+
+        decay_factor=1.0 (默认): 等价 v0.75.1 (完全向后兼容)
+        decay_factor<1.0: 历史 reward 衰减, 鼓励探索被忽略 arm
+            e.g. decay=0.95, arm 0 拉 47 次 -> 最早一轮 weight = 0.95^46 ≈ 0.097
+            A_inv 增大 -> confidence_bound 增大 -> 其他 arm UCB 升高
 
         Args:
             arm: 选中的 arm 索引
@@ -142,8 +162,8 @@ class LinUCB:
             reward: 观测到的奖励（state_delta，归一化到 [0, 1]）
         """
         x = np.asarray(context, dtype=float).flatten()
-        self.A[arm] = self.A[arm] + np.outer(x, x)
-        self.b[arm] = self.b[arm] + reward * x
+        self.A[arm] = self.decay_factor * self.A[arm] + np.outer(x, x)
+        self.b[arm] = self.decay_factor * self.b[arm] + reward * x
         self.arm_pull_counts[arm] += 1
 
     def get_arm_stats(self) -> dict:
@@ -152,6 +172,7 @@ class LinUCB:
             "n_arms": self.n_arms,
             "context_dim": self.context_dim,
             "alpha": self.alpha,
+            "decay_factor": self.decay_factor,  # v0.75.3 H3-c3
             "arm_pull_counts": self.arm_pull_counts.tolist(),
             "total_pulls": int(self.arm_pull_counts.sum()),
         }

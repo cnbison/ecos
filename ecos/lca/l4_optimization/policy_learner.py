@@ -50,10 +50,17 @@ class LCAPolicyLearner:
             n_arms=self.config.n_arms,
             context_dim=self.config.context_dim,
             alpha=self.config.alpha,
+            decay_factor=self.config.decay_factor,  # v0.75.3 H3-c3
         )
         # Arm 索引 → 候选干预 hash（用于 update 时反查）
         self._arm_fingerprints: Dict[int, str] = {}
         self._last_arm: int = -1
+        # v0.75.3 H3-c3: intervention_id -> arm 映射 (只追加, 不覆盖)
+        #   背景: _arm_fingerprints[arm] 在同 arm 连续被选时被覆盖, 上一轮 intervention_id 丢失,
+        #         _lookup_arm 返回 None, LinUCB.update 被跳过.
+        #         lbc003 round 15+ arm 0 连续被选 47 次, 但只有 1 次 update 成功.
+        #   修复: 维护 _intervention_to_arm dict, select_intervention 时追加, _lookup_arm 优先用它.
+        self._intervention_to_arm: Dict[str, int] = {}
         # v0.71.0: 每 arm 惩罚计数器 (策略质疑路径用, 防止 A 矩阵反复 *10 爆炸)
         #   背景: lbc003 触发 50 次策略质疑 -> A 矩阵放大 1.6e+05 倍 -> θ ≈ 0 -> V3 预测永远 ~0.11
         #   修复: 限制每 arm 最多惩罚 penalty_max 次 (默认 3), 超过不再 *=10
@@ -90,6 +97,7 @@ class LCAPolicyLearner:
             idx = arm % len(candidate_interventions)
             chosen = candidate_interventions[idx]
             self._arm_fingerprints[arm] = chosen.intervention_id
+            self._intervention_to_arm[chosen.intervention_id] = arm  # v0.75.3 H3-c3
             return chosen
 
         # v0.75 P0-m 新路径: per-candidate context, 每个候选独立评估
@@ -105,6 +113,7 @@ class LCAPolicyLearner:
         idx = best_arm % len(candidate_interventions)
         chosen = candidate_interventions[idx]
         self._arm_fingerprints[best_arm] = chosen.intervention_id
+        self._intervention_to_arm[chosen.intervention_id] = best_arm  # v0.75.3 H3-c3
         return chosen
 
     def update(
@@ -240,14 +249,23 @@ class LCAPolicyLearner:
         return base
 
     def _lookup_arm(self, intervention: Intervention) -> int | None:
-        """通过干预 ID 反查 arm 索引."""
+        """通过干预 ID 反查 arm 索引.
+
+        v0.75.3 H3-c3: 优先用 _intervention_to_arm (只追加, 不覆盖)
+          背景: _arm_fingerprints[arm] 在同 arm 连续被选时被覆盖, 上一轮 intervention_id 丢失,
+                _lookup_arm 返回 None, LinUCB.update 被跳过.
+                lbc003 round 15+ arm 0 连续被选 47 次, 但只有 1 次 update 成功.
+          修复: _intervention_to_arm dict 在 select_intervention 时追加 (不覆盖),
+                _lookup_arm 优先用它, O(1) 查找.
+        """
         target = intervention.intervention_id
+        # v0.75.3 H3-c3: 优先用 _intervention_to_arm (never overwrite)
+        if target in self._intervention_to_arm:
+            return self._intervention_to_arm[target]
+        # fallback: _arm_fingerprints (legacy, 可能被覆盖)
         for arm, fp in self._arm_fingerprints.items():
             if fp == target:
                 return arm
-        # fallback: 使用 last_arm（仅当指纹匹配时）
-        if self._last_arm >= 0 and self._arm_fingerprints.get(self._last_arm) == target:
-            return self._last_arm
         return None
 
 

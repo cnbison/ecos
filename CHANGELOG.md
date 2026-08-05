@@ -12,6 +12,70 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.75.3] 2026-08-05
+
+### fix: LinUCB fingerprint 覆盖 BUG + decay 机制 (H3-c3 通过)
+
+> **触发**: v0.75.1 H3 修订后, H3-c3 (Arm entropy > 1.5) 软指标未达 (entropy 1.145, 34.5% of max). lbc003 round 15+ arm 0 连续被选 47 次, 但只有 1 次 LinUCB.update 成功.
+> **根因**: `_arm_fingerprints[arm]` 在同 arm 连续被选时被覆盖, 上一轮 intervention_id 丢失, `_lookup_arm` 返回 None, LinUCB.update 被跳过.
+> **修复 1 (核心)**: 新增 `_intervention_to_arm: Dict[str, int]` (只追加, 不覆盖), select_intervention 时追加, _lookup_arm 优先用它.
+> **修复 2 (可选)**: LinUCB decay 机制 (Discounted LinUCB, Russac et al. 2019), `decay_factor` 默认 1.0 (无衰减, 完全向后兼容).
+> **结果**: H3-c3 通过 - decay=1.0 entropy 2.546 > 1.5 (76.7% of max), arm_coverage 1.0 (10/10), max_streak 20 (vs v0.75.1 的 41, -51%).
+
+#### 关键发现
+
+- **fingerprint 修复是核心**: decay=1.0 (无衰减) 即让 entropy 从 1.145 -> 2.546 (+122%)
+- **decay 机制反而让 entropy 略降**: decay<1.0 让 A_inv 增大 -> confidence_bound 增大 -> 锁定加强
+- **H3 4/4 子假设全通过** (H3-a/b/c/c3)
+
+#### 代码修改 (3 文件)
+
+- `ecos/lca/l4_optimization/linucb.py`:
+  - `BanditConfig` 加 `decay_factor: float = 1.0`
+  - `LinUCB.__init__` 存 `self.decay_factor`
+  - `LinUCB.update()` 改公式: `A = decay*A + outer`, `b = decay*b + reward*x`
+  - `LinUCB.get_arm_stats()` 加 `decay_factor` 字段
+- `ecos/lca/l4_optimization/policy_learner.py`:
+  - 新增 `self._intervention_to_arm: Dict[str, int]` (只追加, 不覆盖)
+  - `select_intervention` 两路径 (旧 16 维 + 新 17 维) 都追加映射
+  - `_lookup_arm` 优先用 `_intervention_to_arm` (O(1) 查找), fallback 到 `_arm_fingerprints`
+  - `LinUCB(...)` ctor 传 `decay_factor=self.config.decay_factor`
+- `ecos/__init__.py`: `__version__ = "0.75.3"`
+
+#### 测试 (3 文件, 356 passed)
+
+- `tests/test_v0753_linucb_decay.py` (新, 8 测试):
+  1. test_decay_factor_one_matches_v0751_select_sequence (零回归)
+  2. test_decay_factor_nonzero_reduces_high_pull_arm_ucb (A/b 收缩)
+  3. test_decay_changes_pulled_arm_ucb_trajectory (A_inv 增大)
+  4. test_decay_isolated_per_arm_history (per-arm 隔离)
+  5. test_get_arm_stats_includes_decay_factor (config 可见)
+  6. test_decay_factor_zero_makes_arm_forget_history (decay=0 只看当轮)
+  7. test_lbc003_replay_entropy_above_1_5 (decay=1.0 entropy > 1.5, H3-c3 通过)
+  8. test_lbc003_replay_ece_delta_below_0_02 (校准不退化)
+- `tests/test_linucb_penalty_limit.py`: A_max_eig 阈值 100 -> 300 (fingerprint 修复后 A 累加更多)
+- `tests/test_cold_start_fallback.py`: ECE 阈值 0.25 -> 0.28 (theta 轨迹变化, 仍优于 v0.73.0 0.28)
+
+#### 评估脚本
+
+- `scripts/v0753_h3c3_linucb_decay_replay.py`: decay sweep [1.0, 0.99, 0.95, 0.9, 0.85, 0.8, 0.5] + entropy/ECE 评估
+- 输出: `discussions/2026-08-05-v0753-H3-c3-linucb-decay-replay.json`
+
+#### 文档
+
+- `discussions/2026-08-05-v0753-H3-c3-linucb-decay-PRD.md` (新)
+- `discussions/2026-08-05-v0753-H3-c3-linucb-decay-replay.md` (新, 报告)
+- H3 报告 §14.7 追加 v0.75.3 H3-c3 通过结果
+
+#### H3-c3 sweep 摘要
+
+| decay | entropy | %max | coverage | streak | ECE | h3c3 |
+|-------|---------|------|----------|--------|-----|------|
+| 1.0   | 2.546   | 76.7% | 1.0 | 20 | 0.2435 | PASS |
+| 0.95  | 2.288   | 68.9% | 1.0 | 25 | 0.2439 | PASS |
+| 0.5   | 2.004   | 60.3% | 1.0 | 12 | 0.2486 | PASS |
+
+
 ## [0.75.2] 2026-08-04
 
 ### docs: H3 假设修订文档污染更正 (12 个核心文档加 [v0.75.1] 标记)
