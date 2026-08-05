@@ -12,6 +12,41 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.76.0] 2026-08-05
+
+### validation: 跨学生验证 fingerprint 修复普适性 (H3-c3 跨学生通过)
+
+> **触发**: v0.75.3 fingerprint 修复在 lbc003 上验证 entropy 1.145 -> 2.546 (+122%). 需验证修复不是 lbc003 特例.
+> **方法**: 对 lbc001/lbc002/lbc003 各跑两次 (BUG 修复 vs BUG 模拟), 对比 entropy.
+> **结果**: 3 个学生 BUG 修复后 entropy 全 > 1.5 (H3-c3 跨学生普适), 平均 entropy delta +1.209.
+
+#### 验证结果
+
+| 学生 | BUG 修复 entropy | BUG 模拟 entropy | Delta | streak 改善 |
+|------|-------------------|-------------------|-------|-------------|
+| lbc001 | 2.776 (PASS) | 1.496 (FAIL) | +1.280 | 41->20 |
+| lbc002 | 2.680 (PASS) | 1.734 (PASS) | +0.946 | 30->12 |
+| lbc003 | 2.546 (PASS) | 1.146 (FAIL) | +1.401 | 41->20 |
+
+#### 关键发现
+
+- **fingerprint 修复普适**: 所有学生 entropy delta > 0.3, streak 平均降低 20
+- **lbc003 受 BUG 影响最严重** (delta +1.401), lbc002 受影响最小 (delta +0.946)
+- **H3-c3 跨学生通过**: 3/3 学生 entropy > 1.5
+
+#### 新增文件
+
+- `scripts/v076_cross_student_fingerprint_validation.py`: 跨学生 replay 脚本 (BUG 修复 vs BUG 模拟对比)
+- `discussions/2026-08-05-v076-cross-student-fingerprint-validation.md`: 验证报告
+- `discussions/2026-08-05-v076-cross-student-fingerprint-validation.json`: 原始数据
+
+#### 局限性
+
+1. 仅 3 个学生, 不足以做统计显著性检验
+2. 三个学生都答 variables 技能, 跨 skill 验证留 v0.77+
+3. BUG 模拟方法 (清空 _intervention_to_arm) 是近似 v0.75.1 行为
+
+
 ## [0.75.3] 2026-08-05
 
 ### fix: LinUCB fingerprint 覆盖 BUG + decay 机制 (H3-c3 通过)

@@ -1,0 +1,156 @@
+{
+  "version": "v0.76",
+  "date": "2026-08-05",
+  "students": [
+    {
+      "student_id": "lbc001",
+      "bug_fixed": {
+        "student_id": "lbc001",
+        "n_rounds": 60,
+        "entropy": 2.7762,
+        "entropy_pct_of_max": 83.6,
+        "arm_coverage": 1.0,
+        "max_consecutive_streak": 20,
+        "arm_distribution": {
+          "0": 3,
+          "1": 3,
+          "2": 2,
+          "3": 21,
+          "4": 4,
+          "5": 11,
+          "6": 3,
+          "7": 3,
+          "8": 9,
+          "9": 1
+        },
+        "h3c3_pass": true
+      },
+      "bug_simulated": {
+        "student_id": "lbc001",
+        "n_rounds": 60,
+        "entropy": 1.4962,
+        "entropy_pct_of_max": 45.0,
+        "arm_coverage": 1.0,
+        "max_consecutive_streak": 41,
+        "arm_distribution": {
+          "0": 6,
+          "1": 1,
+          "2": 1,
+          "3": 45,
+          "4": 2,
+          "5": 1,
+          "6": 1,
+          "7": 1,
+          "8": 1,
+          "9": 1
+        },
+        "h3c3_pass": false
+      },
+      "entropy_delta": 1.28,
+      "streak_delta": 21,
+      "fingerprint_fix_effective": true
+    },
+    {
+      "student_id": "lbc002",
+      "bug_fixed": {
+        "student_id": "lbc002",
+        "n_rounds": 45,
+        "entropy": 2.6801,
+        "entropy_pct_of_max": 80.7,
+        "arm_coverage": 1.0,
+        "max_consecutive_streak": 12,
+        "arm_distribution": {
+          "0": 3,
+          "1": 3,
+          "2": 2,
+          "3": 1,
+          "4": 14,
+          "5": 2,
+          "6": 5,
+          "7": 13,
+          "8": 1,
+          "9": 1
+        },
+        "h3c3_pass": true
+      },
+      "bug_simulated": {
+        "student_id": "lbc002",
+        "n_rounds": 45,
+        "entropy": 1.7343,
+        "entropy_pct_of_max": 52.2,
+        "arm_coverage": 1.0,
+        "max_consecutive_streak": 30,
+        "arm_distribution": {
+          "0": 6,
+          "1": 1,
+          "2": 31,
+          "3": 1,
+          "4": 1,
+          "5": 1,
+          "6": 1,
+          "7": 1,
+          "8": 1,
+          "9": 1
+        },
+        "h3c3_pass": true
+      },
+      "entropy_delta": 0.9458,
+      "streak_delta": 18,
+      "fingerprint_fix_effective": true
+    },
+    {
+      "student_id": "lbc003",
+      "bug_fixed": {
+        "student_id": "lbc003",
+        "n_rounds": 56,
+        "entropy": 2.5463,
+        "entropy_pct_of_max": 76.7,
+        "arm_coverage": 1.0,
+        "max_consecutive_streak": 20,
+        "arm_distribution": {
+          "0": 3,
+          "1": 3,
+          "2": 2,
+          "3": 3,
+          "4": 21,
+          "5": 6,
+          "6": 15,
+          "7": 1,
+          "8": 1,
+          "9": 1
+        },
+        "h3c3_pass": true
+      },
+      "bug_simulated": {
+        "student_id": "lbc003",
+        "n_rounds": 56,
+        "entropy": 1.1455,
+        "entropy_pct_of_max": 34.5,
+        "arm_coverage": 1.0,
+        "max_consecutive_streak": 41,
+        "arm_distribution": {
+          "0": 47,
+          "1": 1,
+          "2": 1,
+          "3": 1,
+          "4": 1,
+          "5": 1,
+          "6": 1,
+          "7": 1,
+          "8": 1,
+          "9": 1
+        },
+        "h3c3_pass": false
+      },
+      "entropy_delta": 1.4008,
+      "streak_delta": 21,
+      "fingerprint_fix_effective": true
+    }
+  ],
+  "summary": {
+    "all_students_pass_h3c3_when_fixed": true,
+    "fix_effective_for_all": true,
+    "avg_entropy_delta": 1.2089
+  },
+  "conclusion": "fingerprint 修复普适: 所有学生 BUG 修复后 entropy > 1.5, BUG 模拟下 entropy 显著降低."
+}
