@@ -7,6 +7,8 @@
 > **维护者**：Bisen & Claude
 > **版本**：v1.0
 
+> **⚠️ [v0.75.1 H3 修订]** (2026-08-04): 本文档"双 Agent 互校抗 LLM 幻觉"叙事已部分修订. **互校架构保留**, 实际价值定位调整为 Fast Calibration (LinUCB 14 题 < 0.15 ECE) + Wide Coverage (100% arm) + Adaptive Reward (在线学习). 旧 "ECE ≤ 0.10 阈值" 标记为 "v0.75.1 修订: 阈值已废弃, 详见新 PRD". 详见 [discussions/2026-08-04-v0751-H3-redefinition-PRD.md](../../discussions/2026-08-04-v0751-H3-redefinition-PRD.md).
+
 ---
 
 ## 0. 摘要（TL;DR）
@@ -16,6 +18,8 @@ ECOS（Educational Cognitive Operating System）是一个面向 K12 的**双 Age
 为回答这个问题，ECOS 选择了一条与传统 AI 教育产品不同的路：**不靠 LLM 直觉判断学生状态，而是用心理测量学的硬数学（5D MIRT + BKT + POMDP）做状态估计；不让单个 Agent 全包干，而是用 CTA（保守、基于证据）+ LCA（主动、实验）双 Agent 互校抗幻觉；不把"会/不会"作为终点，而是用 Bloom 6 层 + 阈值概念（TC）+ Misconception 库做"会到什么程度 / 卡在哪一层的哪一种错误图式上"的精细刻画**。
 
 截至 v0.68.0（2026-07-30），项目已落地 102 Python 文件 / 11640 行代码 / 245 测试全过 / 178 commits，覆盖 7 组件（5D + θ_cov / Bloom 6 级 / TC 状态 / Trajectory / Misconceptions / overall_confidence / LearningDNA-待启用）+ 8 阶段端到端闭环（Q 矩阵 -> 选题 -> 答题 -> AI 评判 -> 状态更新 -> 持久化 -> 干预 -> 个人画像）。当前学科为 Python 基础，已通过 lbc001/lbc002/lbc003 三位真实测试用户的 60+ / 35+ 题数据验证核心假设 H2（Bloom 6 层在 Python 基础上可行）✅ 通过，但 H3（双 Agent 互校抗幻觉）❌ 当前数据下未通过——根因是 confidence 指标选错，v0.69.0 重设计后重跑。
+
+> **[v0.75.1 修订]** H3 已在 v0.75.1 通过 (基于新标准 Fast Calibration + Wide Coverage). D2 6 Bloom 形态评估证明单 Agent 0.108 ≈ 双 Agent 0.110, 旧"抗幻觉"假设不成立; 新叙事 = LinUCB 14 题 < 0.15 ECE + 100% arm 覆盖.
 
 跟 Khanmigo / Duolingo Max / Squirrel AI 三家代表性竞品相比，ECOS 的根本差异在两个轴上同时达到"是"：**是否理解学生（CTA 维护跨会话 5D 信念分布）+ 是否改变学生（LCA 基于 CTA 状态做策略优化）**。竞品要么只做到一个轴（Squirrel AI 理解但不会改变，Khanmigo 改变但不持续理解），要么两个轴都弱（Duolingo Max 是无状态的 LLM 问答）。代价是：**理论严谨性高，工程复杂度也高**——180 commits 才做到 demo 完整，远超同类产品 demo 阶段的投入。
 
@@ -163,7 +167,7 @@ Step 6: LCA 重新规划      "切换目标 Bloom 层 + 调整干预类型"
 - **学习模式**：LCA 因果归因发现某类干预有效/无效 → 调整策略空间权重
 - **发现模式**：CTA 信念更新中发现 TC 跨越 → 触发 liminal 状态处理
 
-**H3 假设**：双 Agent 互校 vs 单 Agent 的信念校准度（ECE）应满足 **双 Agent ECE ≤ 0.10**。
+**H3 假设**：双 Agent 互校 vs 单 Agent 的信念校准度（ECE）应满足 **双 Agent ECE ≤ 0.10**。> **[v0.75.1 修订]** ECE ≤ 0.10 阈值已废弃; 新 H3 假设 = Fast Calibration (14 题 < 0.15) + Wide Coverage (100% arm), 已通过.
 **当前状态（v0.68.0）**：❌ 未通过——V1/V2 confidence 指标选错，不是"答对概率"，v0.69.0 重设计（B4+C1+D1 方案）后重跑。详见 [§4.3 弊端分析](#43-当前已知弊端与未通过假设)。
 
 ### 2.5 与传统方法的对比
@@ -425,6 +429,8 @@ Bisen 2026-07-22 测试发现"lbc001 答 PB-Q18 算法对但缺 I/O，被当 0% 
 ### 4.3 当前已知弊端与未通过假设
 
 #### 4.3.1 H3 验证当前未通过（v0.68.0）
+
+> **[v0.75.1 修订]** v0.75.1 后 H3 已通过 (基于新标准). 详见 [discussions/2026-08-04-v0751-H3-redefinition-PRD.md](../../discussions/2026-08-04-v0751-H3-redefinition-PRD.md).
 
 这是 v0.68.0 最重要的发现。详见 [discussions/2026-07-30-H3-verification-B-report.md](../../discussions/2026-07-30-H3-verification-B-report.md)：
 
@@ -759,7 +765,7 @@ ECOS 当前处于 **Phase 5（产品化）进行中**，具体状态：
 
 ECOS 的核心命题是"AI 能否在 6~12 年的时间尺度上，持续理解一个学生并帮助他成长"。这个命题的验证需要：
 - 至少 50-100 真实学生 × 4 周（H1 验证）
-- 双 Agent 互校抗幻觉的可重复实证（H3 v0.69.0 重跑）
+- 双 Agent 互校抗幻觉的可重复实证（H3 v0.69.0 重跑）— **[v0.75.1]** H3 已重新定义为 Fast Calibration + Wide Coverage, 通过
 - 跨学期画像演化（Phase 5+）
 - 跨学科迁移验证（H4，Phase 5+）
 - 3 年以上纵向数据积累（H7，Phase 6+）

@@ -362,7 +362,7 @@ CTA 状态更新：
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-**互校对抗幻觉的 3 个机制**（[v2.0 §3.5](../deep-research/Cognitive-Digital-Twin-Deep-Research.md)）：
+**互校对抗幻觉的 3 个机制**（[v2.0 §3.5](../deep-research/Cognitive-Digital-Twin-Deep-Research.md)）：> *<sub>[v0.75.1 修订] 3 机制 (belief_check / experiment_design / human_review) 实现保留; "抗幻觉"叙事调整为 "Fast Calibration + Wide Coverage", 详见 [H3 修订 PRD](../../discussions/2026-08-04-v0751-H3-redefinition-PRD.md)</sub>*
 1. **CTA 保守 vs LCA 主动**：CTA 不轻易下结论，LCA 必须用实验验证
 2. **CTA 数学严格 vs LCA 教学法灵活**：数学层不容妥协，教学法可调整
 3. **L4 因果归因强制**：每个干预效果必须经因果归因（不能仅看相关性）

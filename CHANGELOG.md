@@ -12,6 +12,64 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.75.2] 2026-08-04
+
+### docs: H3 假设修订文档污染更正 (12 个核心文档加 [v0.75.1] 标记)
+
+> **触发**: v0.75.1 H3 假设修订后, 12 个核心架构文档仍残留"双 Agent 互校抗幻觉 + ECE ≤ 0.10 阈值" 的旧叙事, 容易误导新人 onboarding. 系统性加 [v0.75.1 H3 修订] 标记 + 链接到 H3 修订 PRD, 避免错误遗留.
+> **范围**: 12 个核心文档 + 2 处 docstring (代码层不改名, 仅加 docstring 解释). 历史 discussions 不动 (时间线证据).
+
+#### 修改清单
+
+**核心架构文档 (10 个) — 加 [v0.75.1] 标记**:
+- `research/00-overview/03-roadmap.md` (5 处): H3 假设表 / H3 验证目标 / 风险矩阵 / 决策点
+- `research/00-overview/10-comprehensive-deep-analysis-2026-08-01.md` (5+ 处 + 顶部 banner): H3 状态 / ECE 阈值 / 4.3.1 节
+- `research/00-overview/01-applications.md` (1 处): 双 Agent 互校机制行
+- `research/00-overview/02-architecture.md` (1 处): 互校对抗幻觉 3 机制
+- `research/00-overview/04-risks.md` (4 处): A4 风险 / 风险矩阵 / 触发条件
+- `research/00-overview/05-user-friendly-demo.md` (1 处): 竞品对比表
+- `research/00-overview/12-kernel-mapping-current-vs-2.0.md` (4 处): 抗幻觉章节 / 演进建议 / 80% 接近度
+- `research/10-engineering/01-cta-belief-engine.md` (1 处): ECE 阈值表
+- `research/10-engineering/04-dual-agent-calibration.md` (5 处): 抗幻觉核心 / 1.3 节 / 4 节 / 风险表 / 关键定位
+- `research/10-engineering/06-metrics-and-indicators-overview.md` (4 处): 互校抗幻觉章节 / H3 假设 / 阈值
+- `research/20-pedagogy/01-k12-cognitive-structure.md` (1 处): 双 Agent ECE 阈值
+- `research/90-mvp/README.md` (4 处): 6.3 抗幻觉 3 机制 / H3 表 / 验收条件 / A4 风险
+
+**深度研究文档 (2 个) — 加 [v0.75.1] banner**:
+- `research/deep-research/Cognitive-Digital-Twin-Deep-Research.md`: 顶部 banner 提示 v2.0 哲学 3 论证保留作为理论框架
+- `research/deep-research/ECOS系统性深度分析-混合优化版.md`: 顶部 banner 提示 H3 假设修订
+
+**代码层 (2 处 docstring)**:
+- `ecos/dual_agent/__init__.py`: 顶部 docstring 加 v0.75.1 修订说明 (互校架构保留 + 实际定位调整)
+- `ecos/dual_agent/anti_hallucination/__init__.py`: 顶部 docstring 加 v0.75.1 修订说明 (模块名保留理由)
+
+**代码层 (不改命名)**:
+- `ecos/dual_agent/anti_hallucination/` 目录名 + `belief_check.py` / `experiment_design.py` / `human_review.py` 文件名 + 类名 — **保留 v0.60-v0.75 历史命名**, 不重命名为 mutual_calibration
+- 理由: git 历史可追溯 / 16 个版本连贯性 / 教育价值 (新人看到名字会问 "为什么叫 anti_hallucination 但 H3 又改?" 引导理解 H3 修订历史)
+- docstring 已加修订说明, onboarding 风险已缓解
+
+#### 修改策略 (避免破坏历史引用)
+
+- 用 `[v0.75.1 H3 修订]` inline 标记 + 链接到 H3 修订 PRD, **不重写原文**
+- 保留行号稳定 (其他文档的链接不会断)
+- 保留 CHANGELOG 历史 v0.69-v0.75 记录 (时间线证据)
+- 历史 discussions (2026-07-24 LCA 接入, 2026-07-29 H3 报告等) **不动**, 是时间线证据
+
+#### 影响评估
+
+- ✅ 新人 onboarding: 看到 [v0.75.1] 标记会去看 H3 修订 PRD, 理解叙事调整
+- ✅ 历史可追溯: git log + CHANGELOG + 行号引用保持稳定
+- ✅ 代码层功能不变: 245 测试全绿
+- ✅ 文档一致性: 12 核心 + 2 深度研究文档 + 2 docstring 都已加修订标记
+
+**改动汇总**:
+- 12 个核心架构文档 (加 [v0.75.1] 标记)
+- 2 个深度研究文档 (加 banner)
+- 2 处 docstring (加修订说明)
+- `ecos/__init__.py`: __version__ 0.75.1 → 0.75.2
+
+**测试结果**: pytest 348 passed (无代码逻辑改动, 仅文档)
+
 ## [0.75.0] 2026-08-04
 
 ### feat: P0-l/m 探索 bin [0.9, 1.0] gap 改善方案 (Global Platt + LinUCB difficulty)

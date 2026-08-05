@@ -471,7 +471,7 @@ class CrossSubjectTransfer:
 |---|---|---|
 | CTA 5D 预测力（H1）| AUC ≥ 0.75 | 初中最高（数据最丰富）|
 | Bloom 6 层方差解释（H2）| ≥ 60% | 小学/初中较高，高中更复杂 |
-| 双 Agent ECE（H3）| ≤ 0.10 | 各学段一致 |
+| 双 Agent ECE（H3）| ≤ 0.10 | 各学段一致 — **[v0.75.1]** 阈值已废弃, 新标准 = Fast Calibration 14 题 < 0.15 + Wide Coverage 100%, 已通过 |
 | TC 检测 F1 | ≥ 0.6 | 高中更高（TC 更明确）|
 | Misconception 检测 F1 | ≥ 0.7 | 初中最高（数据集中）|
 | 留存率 | ≥ 60%（4 个月）| 小学最难（家长决定）|

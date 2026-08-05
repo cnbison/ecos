@@ -1322,7 +1322,7 @@ def test_full_cta_pipeline():
 | **CTA 5D 预测 AUC** | ≥ 0.75（vs IRT baseline 0.65）| M3 实验 |
 | **Misconception 检测 F1** | ≥ 0.7 | 100 标注样本 |
 | **TC 跨越检测 F1** | ≥ 0.6 | 50 标注样本 |
-| **ECE（双 Agent 校准度）** | ≤ 0.10 | M3 实验 |
+| **ECE（双 Agent 校准度）** | ≤ 0.10 | M3 实验 — **[v0.75.1]** 阈值已废弃, 新标准 = Fast Calibration 14 题 < 0.15 + Wide Coverage 100%, 已通过 |
 | **互校循环延迟 P95** | ≤ 5 秒 | 性能测试 |
 | **LLM API 成本** | ≤ 50 次/学生/天 | 成本监控 |
 

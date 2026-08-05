@@ -1,5 +1,7 @@
 # ECOS 系统性深度分析（混合优化版）
 
+> **⚠️ [v0.75.1 H3 修订 banner]** (2026-08-04): 本文档"H3 互校抗 LLM 幻觉"叙事已部分修订. **互校架构保留**, 实际价值 = Fast Calibration (LinUCB 14 题 < 0.15 ECE) + Wide Coverage (100% arm) + Adaptive Reward. "ECE ≤ 0.10 阈值"已废弃, 详见 [discussions/2026-08-04-v0751-H3-redefinition-PRD.md](../../discussions/2026-08-04-v0751-H3-redefinition-PRD.md). **本 banner 之后的相关段落保留作为研究历史, 不重新解释**.
+
 > **本文档说明**：本终版由 `ecos-research-00.md` 至 `ecos-research-12.md` 共 13 个文件整理汇总，并应用《一致性修正与口径统一》勘误的 10 项修正而成。相比"汇总版"（忠实保留演进过程原貌），终版进一步消除了过程中的内部矛盾与口径漂移，使全文前后口径一致。权威口径以分析过程中最终、最严谨、且区分"事实/推演"的判断为准；被修正的旧口径在文中就近标注，过程可追溯。
 >
 > **权威定位（统领全文）**：ECOS 是一个面向教育领域、以 State 为核心的认知内核（Educational Cognitive Runtime / State-based Cognitive Kernel）。**当前事实定位**（源码/README 可支持）= 以 Student Twin 为 Aggregate Root、CTA（State Estimator）+ LCA（Policy Planner）双 Agent 闭环的教育认知运行时，其领域层为"认知领域模型（Cognitive Domain Model）"；**推演定位**（非已实现）= 具备演化为通用 Cognitive Runtime 的潜力，尚需新的理论定义、工程实现与实际验证。

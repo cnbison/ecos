@@ -329,7 +329,7 @@
 
 ---
 
-## 7. 抗幻觉与质量保障映射（v0.60.0+ 已有部分）
+## 7. 抗幻觉与质量保障映射（v0.60.0+ 已有部分） — **[v0.75.1]** 章节保留, "抗幻觉"叙事已部分调整 (Fast Calibration + Wide Coverage)
 
 **2.0 定义**：Kernel 纯粹性 + 抗幻觉机制。
 
@@ -343,7 +343,7 @@
 | **245+291 测试 + 5 项防御性自检 + pre-commit/pre-push hooks** | 90% | 已有完善的测试 + 自检基础设施 |
 
 **演进建议**：
-- **保持**：抗幻觉机制和测试基础设施是 ECOS 的强项,2.0 不需要重做
+- **保持**：抗幻觉机制和测试基础设施是 ECOS 的强项,2.0 不需要重做 — **[v0.75.1]** 模块 (anti_hallucination/) 实现保留, 命名保留, docstring 已加修订说明
 - **加强**：把抗幻觉从 dual_agent 路径抽出来,作为 State Engine 的校验层（CQRS 配套）
 
 ---
@@ -354,7 +354,7 @@
 
 | 接近度 | 组件 | 数量 |
 |---|---|---|
-| 80%+ | LinUCB / LCAPolicyLearner / 测试基础设施 / 抗幻觉 | 4 |
+| 80%+ | LinUCB / LCAPolicyLearner / 测试基础设施 / 抗幻觉 | 4 — **[v0.75.1]** "抗幻觉" 调整为 "互校机制 (Fast Calibration + Wide Coverage)" |
 | 60-80% | BeliefState(Twin 雏形) / DimensionState(Belief 雏形) / MIRT(Inference) / BKT(Inference) | 4 |
 | 40-60% | Observation / CalibrationMessage / partial credit / LLM Critic / attribution | 5 |
 | 20-40% | calibration_log / response_history / evidence_predictions 占位 | 3 |
@@ -400,7 +400,7 @@
 Bisen 在 2026-08-03 反馈"开发进展到现在,我感觉是有些凌乱了"。根据本映射表分析：
 
 **不是架构债,是文档债 + 阶段债**：
-- 现有代码的 80% 接近 2.0（LinUCB / BeliefState / MIRT / BKT / 测试 / 抗幻觉）
+- 现有代码的 80% 接近 2.0（LinUCB / BeliefState / MIRT / BKT / 测试 / 抗幻觉）— **[v0.75.1]** "抗幻觉" = 互校机制 (Fast Calibration + Wide Coverage)
 - 真正缺失的是抽象层（State Engine / Event Bus / Evidence Engine）
 - "凌乱感"来自：
   1. **抽象缺失**：belief_engine.py 既是 Estimator 又是 Mutator,看起来"什么都做"

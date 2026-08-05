@@ -1,5 +1,7 @@
 # 认知数字孪生深度研究 v2.0：从学生认知孪生到 ECOS
 
+> **⚠️ [v0.75.1 H3 修订 banner]** (2026-08-04): 本文档"互校对抗 LLM 幻觉"叙事已部分修订. v2.0 哲学 3 + §3.5 互校对抗幻觉 3 机制是 v2.0 当时的理论框架, v0.75.1 实证后发现互校在 calibration 维度无显著优势, 实际价值 = Fast Calibration + Wide Coverage. **本 banner 之后的 v2.0 论证保留作为哲学理论框架, 不重新解释**. 详见 [discussions/2026-08-04-v0751-H3-redefinition-PRD.md](../../discussions/2026-08-04-v0751-H3-redefinition-PRD.md).
+
 > **版本**：v2.0（2026-06-24）
 > **基于**：5 轮 GPT 对话（Cognitive-State-A-to-B-Research 7 页综合站点 + Cognitive-Digital-Twin 第 1-3 轮 + Cognitive-Digital-Twin02 第 4-5 轮 + Cognitive-Digital-Twin03 综合 v0.1）+ SGE Phase 3 现状（18 个文件）+ AiBeing 借鉴体系
 > **关系**：v1.0（基于 3 轮对话，1138 行）已被本版本覆盖

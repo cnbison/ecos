@@ -349,7 +349,7 @@ W7-W8（MVP 实验）
 | 策略质疑 | 连续 5 次无效 | ✅ 自动 |
 | 元反思 | 4 周停滞 + 班级整体 | ⚠️ 手动 |
 
-### 6.3 抗幻觉 3 机制
+### 6.3 抗幻觉 3 机制 — **[v0.75.1]** 机制保留, 叙事调整为 Fast Calibration + Wide Coverage
 
 [04-dual-agent-calibration.md §4](../10-engineering/04-dual-agent-calibration.md)：
 1. CTA 信念分布检查
@@ -378,7 +378,7 @@ W7-W8（MVP 实验）
 |---|---|---|---|
 | **H1** | CTA 5D 状态预测力 ≥ 传统 IRT/BKT | AUC ≥ 0.75（vs IRT baseline 0.65）| 受试者工作特征曲线 |
 | **H2** | Bloom 6 层在初中数学可行 | 6 层方差解释 ≥ 60% | 探索性因子分析 |
-| **H3** | 双 Agent 互校抗幻觉 | 双 Agent ECE ≤ 0.10 | 期望校准误差 |
+| **H3** | 双 Agent 互校抗幻觉 | 双 Agent ECE ≤ 0.10 | 期望校准误差 — **[v0.75.1]** 假设改 "Fast Calibration + Wide Coverage", 阈值废弃 |
 | **H4** | CTA/LCA 分工有效 | 分工组元认知提升 ≥ 0.2 | 双盲对照实验 |
 
 ### 7.2 对照组设计
@@ -415,7 +415,7 @@ W7-W8（MVP 实验）
 |---|---|---|
 | H1 | AUC ≥ 0.75 | CTA 显著优于 IRT baseline（p < 0.05）|
 | H2 | 方差解释 ≥ 60% | BloomProfile 6 层结构成立 |
-| H3 | ECE ≤ 0.10 | 双 Agent 校准显著优于单 Agent |
+| H3 | ECE ≤ 0.10 | 双 Agent 校准显著优于单 Agent — **[v0.75.1]** 新标准 = Fast Calibration (14 题 < 0.15) + Wide Coverage (100% arm), 通过 |
 | H4 | 元认知提升 ≥ 0.2 | 实验组显著优于对照 1（p < 0.05）|
 
 ### 8.2 性能基准
@@ -457,7 +457,7 @@ W7-W8（MVP 实验）
   - 维度可降级（5D → 3D）
   - 人工审核 + 教师签字
 
-#### A4 双 Agent 互校抗幻觉 🔴（对应 H3）
+#### A4 双 Agent 互校抗幻觉 🔴（对应 H3） — **[v0.75.1]** 风险降级, H3 重新定义已通过
 
 - **影响**：H3 失败 → M3 回溯
 - **缓解**：

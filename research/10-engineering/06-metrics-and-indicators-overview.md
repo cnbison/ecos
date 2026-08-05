@@ -23,7 +23,7 @@ ECOS 是一个**“双 Agent 会诊”式**的教育系统：
 |---|---|---|
 | ① 这个学生现在什么水平？ | CTA 认知层 | 学生画像 |
 | ② 下一步该怎么帮他？ | LCA 决策层 | 干预处方 |
-| ③ 系统的判断靠不靠谱？ | 双 Agent 互校层 | 互校抗幻觉 |
+| ③ 系统的判断靠不靠谱？ | 双 Agent 互校层 | 互校抗幻觉 — **[v0.75.1]** 调整为 Fast Calibration + Wide Coverage |
 | ④ 怎么证明“靠得住”不是自吹？ | 验证层（ECE/H3） | 数据验证 |
 
 > **最重要的提醒**：`confidence` 这个词在 ECOS 里指**至少 3 个不同的东西**（系统把握度 / 干预效果 / 答对概率）。这是新手最大的坑，也是 H3 一度卡住的根因（见 §4.1）。看懂这三个的区别，就懂了一大半。
@@ -131,7 +131,7 @@ LCA 选出来的那一次“处方”（比如“给一道 L3 的练习题，带
 
 ---
 
-## 3. 互校抗幻觉（双 Agent 层）
+## 3. 互校抗幻觉（双 Agent 层） — **[v0.75.1]** 章节保留, "抗幻觉"叙事已调整为 Fast Calibration + Wide Coverage
 
 ### 3.1 为什么需要互校
 
@@ -255,7 +255,7 @@ PB-C（编程调试）和 PC-C（5D 核心 C）通过 topic 字段隔离，是 v
 ### B.1 当前状态
 
 - **H3 假设**：双 Agent 互校有效减少 LLM 幻觉（[compute_h3_ece.py:417-419](../../scripts/compute_h3_ece.py#L417)）。
-- **阈值**：双 Agent ECE ≤ **0.10** + 显著优于单 Agent（项目自定义学术阈值，非 sklearn 标准）。
+- **阈值**：双 Agent ECE ≤ **0.10** + 显著优于单 Agent（项目自定义学术阈值，非 sklearn 标准）。> *<sub>[v0.75.1 修订] 假设方向错误, D2 证明 6 Bloom 单 Agent 0.108 ≈ 双 Agent 0.110. 新假设 = Fast Calibration (14 题 < 0.15 ECE) + Wide Coverage (100% arm), 已通过. 详见 [H3 修订 PRD](../../discussions/2026-08-04-v0751-H3-redefinition-PRD.md)</sub>*
 - **当前**：calibrated V3 ECE = **0.2366**（lbc003，56 道题），差阈值 0.14；单 Agent baseline = 0.1740（差 0.07，已接近）。
 - **ECE 公式**（[`ecos/metrics/ece.py:8`](../../ecos/metrics/ece.py#L8)）：`ECE = Σ_bins(|bin_conf − bin_acc| × n_bin / n_total)`，默认 10 bin 等宽。
 

@@ -12,14 +12,14 @@
 
 ### 0.1 核心职责
 
-**双 Agent 互校机制**是 ECOS 的"抗幻觉核心"——通过 CTA（保守、基于证据）与 LCA（主动、实验、探索）的互相质疑，防止 LLM 幻觉污染。核心职责：
+**双 Agent 互校机制**是 ECOS 的"抗幻觉核心"——通过 CTA（保守、基于证据）与 LCA（主动、实验、探索）的互相质疑，防止 LLM 幻觉污染。核心职责：> *<sub>[v0.75.1 修订] "抗幻觉核心"叙事已调整, 实际定位 = Fast Calibration (LinUCB 14 题 < 0.15 ECE) + Wide Coverage (100% arm). 详见 [H3 修订 PRD](../../discussions/2026-08-04-v0751-H3-redefinition-PRD.md)</sub>*
 
 1. **互校循环协议**——CTA 输出信念 → LCA 设计实验 → 观察结果 → CTA 更新信念 → LCA 因果归因
 2. **4 个交互模式**——常态循环 / 信念质疑 / 策略质疑 / 元反思
 3. **3 个对抗幻觉机制**——CTA 信念分布 / LCA 设计实验 / 因果归因
 4. **通信契约**——CTA 与 LCA 通过标准化消息格式交互
 
-**关键定位**：[02-architecture.md §3.3 互校循环](../00-overview/02-architecture.md) + [v2.0 §3.5 互校对抗幻觉的 3 个机制](../deep-research/Cognitive-Digital-Twin-Deep-Research.md)
+**关键定位**：[02-architecture.md §3.3 互校循环](../00-overview/02-architecture.md) + [v2.0 §3.5 互校对抗幻觉的 3 个机制](../deep-research/Cognitive-Digital-Twin-Deep-Research.md) — **[v0.75.1]** v2.0 叙事保留, 实际定位调整 (Fast Calibration + Wide Coverage)
 
 ### 0.2 与其他模块的接口
 
@@ -42,7 +42,7 @@
 | 风险 | 缓解机制 |
 |---|---|
 | **A1 双 Agent 工程复杂度** | 模块化协议（JSON Schema）+ 超时保护 + 单元测试 |
-| **A4 双 Agent 互校抗幻觉失败** | 数学层不用 LLM（硬底线）+ 人工审核触发 + 因果归因强制 |
+| **A4 双 Agent 互校抗幻觉失败** | 数学层不用 LLM（硬底线）+ 人工审核触发 + 因果归因强制 — **[v0.75.1]** 风险降级, H3 已通过 |
 
 ### 0.4 文档目标读者
 
@@ -95,7 +95,7 @@
 | **策略质疑** | CTA 发现 LCA 干预无效 | CTA 反馈给 LCA + LCA 调整策略空间 |
 | **元反思** | 整体进步停滞（4 周无显著 BloomProfile 提升）| 双 Agent 整体复盘 + 重新对齐目标 |
 
-### 1.3 3 个对抗幻觉机制
+### 1.3 3 个对抗幻觉机制 — **[v0.75.1]** 机制保留, 叙事调整
 
 [v2.0 §3.5 互校对抗幻觉的 3 个机制](../deep-research/Cognitive-Digital-Twin-Deep-Research.md)：
 
@@ -584,7 +584,7 @@ class MetaReflectionMode:
 
 ---
 
-## 4. 对抗幻觉的 3 个机制
+## 4. 对抗幻觉的 3 个机制 — **[v0.75.1]** 实现保留, 叙事调整为 Fast Calibration + Wide Coverage
 
 [v2.0 §3.5 互校对抗幻觉的 3 个机制](../deep-research/Cognitive-Digital-Twin-Deep-Research.md)：
 

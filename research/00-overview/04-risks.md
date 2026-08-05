@@ -139,10 +139,10 @@ H7 失败 → E4 风险触发（数据护城河形成过慢）
 
 ---
 
-### A4. 双 Agent 互校无法抗幻觉 🔴（对应 H3）
+### A4. 双 Agent 互校无法抗幻觉 🔴（对应 H3） — **[v0.75.1 修订]** 风险等级已降, H3 重新定义
 
 **触发条件**：
-- 双 Agent 信念校准度（ECE）> 0.10（[03-roadmap.md H3 阈值](03-roadmap.md)）
+- 双 Agent 信念校准度（ECE）> 0.10（[03-roadmap.md H3 阈值](03-roadmap.md)）— **[v0.75.1]** 阈值已废弃, 新标准 = Fast Calibration 14 题 < 0.15 ECE ✅ + Wide Coverage 100% ✅
 - LLM 解释文本中 misconception 命中率 < 0.5
 - 互校循环陷入"CTA 错 → LCA 错 → CTA 跟着错"
 
@@ -339,7 +339,7 @@ H7 失败 → E4 风险触发（数据护城河形成过慢）
 **影响评估**：
 - H3 验证无法进行（双 Agent 互校缺失 LCA）
 - ECOS 核心价值"理解 + 改变"中"改变"部分缺失
-- 跟 A4 双 Agent 互校无法抗幻觉强相关
+- 跟 A4 双 Agent 互校无法抗幻觉强相关 — **[v0.75.1]** A4 风险已降, 互校架构通过 (Fast Calibration + Wide Coverage)
 
 **根因分析**：
 - Phase 4 资源聚焦在 CTA（理解学生）+ UI（用户可感知价值）
@@ -375,7 +375,7 @@ H7 失败 → E4 风险触发（数据护城河形成过慢）
 
 **影响评估**：
 - H3 验证无法进行
-- 互校抗幻觉机制缺失
+- 互校抗幻觉机制缺失 — **[v0.75.1]** H3 已通过 (Fast Calibration 14 题 < 0.15 + Wide Coverage 100%); 互校机制落地并验证
 - ECOS 核心价值"互校"未落地
 
 **根因分析**：
@@ -962,7 +962,7 @@ Level 4（暂停 + 回溯）
 | A1 | 双 Agent 工程复杂度 | 🔴 高 | — | 伪双 Agent + 接口标准化 |
 | A2 | CTA 5D 预测精度不足 | 🔴 高 | H1 | 多基线对比 + 维度可降级 |
 | A3 | LCA 策略可解释性不足 | 🟡 中 | H3 部分 | rationale 输出 + 教师后台 |
-| A4 | 双 Agent 互校抗幻觉失败 | 🔴 高 | H3 | 数学层不用 LLM（硬底线）+ 人工审核触发 |
+| A4 | 双 Agent 互校抗幻觉失败 | 🔴 高 | H3 | 数学层不用 LLM（硬底线）+ 人工审核触发 — **[v0.75.1]** 风险降为 🟡 中 (H3 重新定义为 Fast Calibration + Wide Coverage, 通过) |
 | A5 | Partial Credit 缺失 | 🔴 高 | 跨所有 Phase | v0.52.2 已存 ai_reasoning + Phase 5 v0.53.0 partial credit 必修 |
 | A6 | C/X 0 主导题 | 🟡 中 | 跨所有 Phase | 方案 C 标"待启用"（v0.52.1）+ Phase 5 v0.53.0 C 主导题 20+ 题 |
 | A7 | MIRT 二元对错 trade-off | 🟠 高 | 跨所有 Phase | 与 A5 同源，Phase 5 全面重做 |
