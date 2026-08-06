@@ -12,6 +12,52 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.77.1] 2026-08-06
+
+### feat: P2 方案 B 落地 - BeliefState.apply_snapshot() 收口 DB 恢复路径
+
+> **触发**: v0.77.0 评估文档 §8.1 短期 action items, DB 恢复路径 6 处直接 `state.X = value` mutation 收口到单一入口.
+> **方法**: 在 `BeliefState` 加 `apply_snapshot(snapshot: Dict) -> None` 方法, belief.py 构造 snapshot dict 后调用, 替代 6 处散落 mutation.
+> **结果**: 6 处直接 mutation 收口到 `state.apply_snapshot(snapshot)` 单一入口, 字段恢复跟 `to_dict` 一一对应, 根治"字段新增漏恢复"历史包袱 (CLAUDE.md §防御性自检 [5] 4 次同类 bug).
+
+#### apply_snapshot 接管字段 (6 个)
+
+- `theta_mean` (np.array 转换, 5 元素 list)
+- `theta_cov` (5x5 形状校验, 不匹配跳过保留原值)
+- `bloom_profile` (6 层概率 + confidence + update_dominant)
+- `learning_dna` (6 字段全: input_preference / feedback_preference / fatigue_pattern / error_pattern / motivation_pattern / confidence)
+- `overall_confidence` (float)
+- `C.tc_states` (Dict[str, TCState dict], timestamp 解析失败兜底 datetime.now())
+
+#### apply_snapshot 不接管字段 (caller 单独处理)
+
+- `trajectory`: 涉及 snap.bloom_profile 共享当前 state.bloom_profile (belief.py 现状), from_dict 会用 default BloomProfileState 退化 dominant_layer -> L1 (regression)
+- `K/P/S/C/X` 的 dim 派生字段 (theta/se/mastery_prob/confidence/mastered): caller 在 apply 后重算 (belief.py:289-330)
+- `student_id`: caller 控制 sid 兜底 (dual_agent.py:206 已有此模式)
+
+#### 防御性自检 [6] 新增
+
+- `scripts/check_defensive.sh` 加 [6/6]: 检查 `web/api/belief.py` 含 `state.apply_snapshot(` 调用
+- `tests/test_defensive.py` 加 `test_db_restore_uses_apply_snapshot`: pytest 版本
+- 6 项静态检查 + 376 pytest 测试 (含 19 个新增 apply_snapshot 测试)
+
+#### 改动文件
+
+- `ecos/cta/belief_state.py`: 加 `apply_snapshot` 方法 (~60 行)
+- `web/api/belief.py`: 6 处直接 mutation 改成构造 snapshot dict + apply_snapshot 调用 (line 76-152)
+- `tests/test_apply_snapshot.py` (新): 19 测试覆盖 6 字段恢复 + 不接管边界 + round-trip
+- `tests/test_defensive.py`: 加 `test_db_restore_uses_apply_snapshot` + 顶部 docstring 更新
+- `scripts/check_defensive.sh`: 加 [6/6] 自检 + 编号 [N/5] -> [N/6]
+- `CLAUDE.md`: 6 项防御性自检表 + 376 pytest 测试 + 自检描述
+
+#### 测试结果
+
+- 376 pytest 全过 (356 原有 + 19 apply_snapshot + 1 test_db_restore_uses_apply_snapshot)
+- 6 项静态检查全过
+- 数值不变 (apply_snapshot 跟原 belief.py 逻辑等价, 走 to_dict 逆运算)
+
+---
+
 ## [0.77.0] 2026-08-05
 
 ### evaluation: P2 State Engine 抽象引入评估 (结论: 暂缓完整重构, 走方案 B + D 组合)

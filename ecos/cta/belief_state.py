@@ -393,6 +393,77 @@ class BeliefState:
             version=d.get("version", "v1.0"),
         )
 
+    def apply_snapshot(self, snapshot: Dict[str, Any]) -> None:
+        """从 dict 应用快照到 self（DB 恢复路径单一入口，v0.77.1）.
+
+        替代 web/api/belief.py 直接 state.X = value 的字段 mutation.
+
+        接管字段（选择性, snapshot 含哪个就更新哪个, 缺失保留原值）:
+            - theta_mean (np.ndarray 5 元素)
+            - theta_cov (5x5 协方差, 形状不匹配时跳过)
+            - bloom_profile (6 层概率 + confidence + update_dominant)
+            - learning_dna (6 字段全)
+            - overall_confidence (float)
+            - C.tc_states (Dict[str, TCState dict])
+
+        不接管（保留 caller 单独处理）:
+            - trajectory: 涉及 snap.bloom_profile 共享当前 state.bloom_profile, from_dict 会用 default 退化 dominant_layer
+            - K/P/S/C/X 的 dim 派生字段 (theta/se/mastery_prob/confidence/mastered): caller 后续重算
+            - student_id: caller 控制 sid 兜底 (dual_agent.py:206 已有此模式)
+
+        Args:
+            snapshot: dict 格式, 字段跟 to_dict 部分对应 (caller 选择性传字段)
+        """
+        if "theta_mean" in snapshot:
+            self.theta_mean = np.array(snapshot["theta_mean"], dtype=float)
+        if "theta_cov" in snapshot:
+            cov = snapshot["theta_cov"]
+            if (
+                isinstance(cov, list)
+                and len(cov) == 5
+                and all(isinstance(r, list) and len(r) == 5 for r in cov)
+            ):
+                self.theta_cov = np.array(cov, dtype=float)
+        if "bloom_profile" in snapshot:
+            bp = snapshot["bloom_profile"]
+            self.bloom_profile.remember = float(bp.get("remember", 0.5))
+            self.bloom_profile.understand = float(bp.get("understand", 0.5))
+            self.bloom_profile.apply = float(bp.get("apply", 0.5))
+            self.bloom_profile.analyze = float(bp.get("analyze", 0.5))
+            self.bloom_profile.evaluate = float(bp.get("evaluate", 0.5))
+            self.bloom_profile.create = float(bp.get("create", 0.5))
+            self.bloom_profile.confidence = float(bp.get("confidence", 0.0))
+            self.bloom_profile.update_dominant()
+        if "learning_dna" in snapshot:
+            dna = snapshot["learning_dna"]
+            self.learning_dna.input_preference = dna.get("input_preference", "visual")
+            self.learning_dna.feedback_preference = dna.get("feedback_preference", "immediate")
+            self.learning_dna.fatigue_pattern = dict(dna.get("fatigue_pattern", {}))
+            self.learning_dna.error_pattern = list(dna.get("error_pattern", []))
+            self.learning_dna.motivation_pattern = dict(dna.get("motivation_pattern", {}))
+            self.learning_dna.confidence = float(dna.get("confidence", 0.0))
+        if "overall_confidence" in snapshot:
+            self.overall_confidence = float(snapshot["overall_confidence"])
+        if "C" in snapshot:
+            c_data = snapshot.get("C") or {}
+            tc_states_data = c_data.get("tc_states", {})
+            for tc_id, tc_data in tc_states_data.items():
+                ts_str = tc_data.get("timestamp")
+                try:
+                    ts = datetime.fromisoformat(ts_str) if ts_str else datetime.now()
+                except (ValueError, TypeError):
+                    ts = datetime.now()
+                self.C.tc_states[tc_id] = TCState(
+                    tc_id=tc_data.get("tc_id", tc_id),
+                    status=tc_data.get("status", "pre_liminal"),
+                    progress=float(tc_data.get("progress", 0.0)),
+                    confidence=float(tc_data.get("confidence", 0.0)),
+                    liminal_signals=list(tc_data.get("liminal_signals", [])),
+                    post_liminal_jump_detected=bool(tc_data.get("post_liminal_jump_detected", False)),
+                    irreversible=bool(tc_data.get("irreversible", False)),
+                    timestamp=ts,
+                )
+
 
 # ── Helper 序列化函数（BeliefState 嵌套结构用）────────────────────────
 

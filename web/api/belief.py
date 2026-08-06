@@ -73,16 +73,21 @@ def _get_or_create_student(student_id: str) -> dict:
             )
             state = engine.create_initial_state(student_id)
 
-            # 部分恢复:theta_mean / bloom_profile / learning_dna
+            # v0.77.1: DB 恢复走 apply_snapshot 单一入口 (替代 6 处直接 state.X = value mutation)
+            # 评估文档 §6.2 方案 B, 详见 discussions/2026-08-05-v077-p2-state-engine-evaluation.md
+            # 接管: theta_mean / theta_cov / bloom_profile / learning_dna / overall_confidence / C.tc_states
+            # 不接管: trajectory (snap.bloom_profile 共享当前 state) + dim 派生字段 (后续重算)
             import json as _json
+            snapshot: dict[str, Any] = {}
+
+            # 部分恢复:theta_mean / bloom_profile / learning_dna
             theta_str = db_row.get("current_state_5d")
             if theta_str:
                 try:
-                    theta_list = _json.loads(theta_str)
-                    state.theta_mean = np.array(theta_list, dtype=float)
+                    snapshot["theta_mean"] = _json.loads(theta_str)
                 except Exception:
                     _log.warning(
-                        "_get_or_create_student DB 恢复失败(student=%s)",
+                        "_get_or_create_student DB 恢复 theta_mean 失败(student=%s)",
                         student_id, exc_info=True,
                     )
             # v0.47.9: 恢复 theta_cov (5x5 后验协方差矩阵)
@@ -94,7 +99,7 @@ def _get_or_create_student(student_id: str) -> dict:
                 try:
                     cov_list = _json.loads(theta_cov_str)
                     if isinstance(cov_list, list) and len(cov_list) == 5 and all(len(row) == 5 for row in cov_list):
-                        state.theta_cov = np.array(cov_list, dtype=float)
+                        snapshot["theta_cov"] = cov_list
                 except Exception:
                     _log.warning(
                         "_get_or_create_student 恢复 theta_cov 失败(student=%s), 走 np.eye(5) 默认",
@@ -103,30 +108,19 @@ def _get_or_create_student(student_id: str) -> dict:
             bloom_str = db_row.get("current_bloom_profile")
             if bloom_str:
                 try:
-                    bp = _json.loads(bloom_str)
-                    state.bloom_profile.remember = bp.get("remember", 0.0)
-                    state.bloom_profile.understand = bp.get("understand", 0.0)
-                    state.bloom_profile.apply = bp.get("apply", 0.0)
-                    state.bloom_profile.analyze = bp.get("analyze", 0.0)
-                    state.bloom_profile.evaluate = bp.get("evaluate", 0.0)
-                    state.bloom_profile.create = bp.get("create", 0.0)
-                    state.bloom_profile.confidence = bp.get("confidence", 0.0)
-                    state.bloom_profile.update_dominant()
+                    snapshot["bloom_profile"] = _json.loads(bloom_str)
                 except Exception:
                     _log.warning(
-                        "_get_or_create_student DB 恢复失败(student=%s)",
+                        "_get_or_create_student DB 恢复 bloom_profile 失败(student=%s)",
                         student_id, exc_info=True,
                     )
             dna_str = db_row.get("current_learning_dna")
             if dna_str:
                 try:
-                    dna = _json.loads(dna_str)
-                    state.learning_dna.input_preference = dna.get("input_preference")
-                    state.learning_dna.feedback_preference = dna.get("feedback_preference")
-                    state.learning_dna.confidence = dna.get("confidence", 0.0)
+                    snapshot["learning_dna"] = _json.loads(dna_str)
                 except Exception:
                     _log.warning(
-                        "_get_or_create_student DB 恢复失败(student=%s)",
+                        "_get_or_create_student DB 恢复 learning_dna 失败(student=%s)",
                         student_id, exc_info=True,
                     )
 
@@ -134,32 +128,31 @@ def _get_or_create_student(student_id: str) -> dict:
             tc_states_str = db_row.get("tc_states")
             if tc_states_str:
                 try:
-                    from ecos.cta.belief_state import TCState as _TCState
                     tc_dict = _json.loads(tc_states_str)
-                    for tc_id, tc_data in tc_dict.items():
-                        try:
-                            ts_str = tc_data.get("timestamp")
-                            ts = _dt.fromisoformat(ts_str) if ts_str else _dt.now()
-                        except Exception:
-                            ts = _dt.now()
-                        tc_state = _TCState(
-                            tc_id=tc_data.get("tc_id", tc_id),
-                            status=tc_data.get("status", "pre_liminal"),
-                            progress=tc_data.get("progress", 0.0),
-                            confidence=tc_data.get("confidence", 0.0),
-                            liminal_signals=tc_data.get("liminal_signals", []),
-                            post_liminal_jump_detected=tc_data.get("post_liminal_jump_detected", False),
-                            irreversible=tc_data.get("irreversible", False),
-                            timestamp=ts,
-                        )
-                        state.C.tc_states[tc_id] = tc_state
+                    snapshot["C"] = {"tc_states": tc_dict}
                 except Exception:
                     _log.warning(
-                        "_get_or_create_student DB 恢复失败(student=%s)",
+                        "_get_or_create_student DB 恢复 tc_states 失败(student=%s)",
                         student_id, exc_info=True,
                     )
 
+            # W5 (2026-07-18): 恢复整体置信度(从 DB confidence 字段) -> snapshot
+            db_conf = db_row.get("confidence")
+            if db_conf is not None:
+                try:
+                    snapshot["overall_confidence"] = float(db_conf)
+                except (TypeError, ValueError):
+                    _log.warning(
+                        "_get_or_create_student DB 恢复 overall_confidence 失败(student=%s)",
+                        student_id, exc_info=True,
+                    )
+
+            # 应用快照 (单一入口, 替代 6 处直接 state.X = value mutation, v0.77.1)
+            # 接管: theta_mean / theta_cov / bloom_profile / learning_dna / overall_confidence / C.tc_states
+            state.apply_snapshot(snapshot)
+
             # W5+ (2026-07-18): 恢复 trajectory 最近 N 个 snapshot（Bisen 反馈"成长轨迹重启后没了"）
+            # v0.77.1: apply_snapshot 不接管 trajectory (snap.bloom_profile 共享当前 state, from_dict 会用 default 退化 dominant_layer)
             trajectory_str = db_row.get("trajectory_summary")
             if trajectory_str:
                 try:
@@ -182,22 +175,11 @@ def _get_or_create_student(student_id: str) -> dict:
                         state.trajectory.snapshots.append(snap)
                 except Exception:
                     _log.warning(
-                        "_get_or_create_student DB 恢复失败(student=%s)",
+                        "_get_or_create_student DB 恢复 trajectory 失败(student=%s)",
                         student_id, exc_info=True,
                     )
 
             _STUDENT_STATES[student_id] = {"engine": engine, "state": state}
-
-            # W5 (2026-07-18): 恢复整体置信度(从 DB confidence 字段)
-            db_conf = db_row.get("confidence")
-            if db_conf is not None:
-                try:
-                    state.overall_confidence = float(db_conf)
-                except (TypeError, ValueError):
-                    _log.warning(
-                        "_get_or_create_student DB 恢复失败(student=%s)",
-                        student_id, exc_info=True,
-                    )
 
             # W5 (2026-07-18): 恢复状态机字段(从 DB 读)
             warmup_count = int(db_row.get("warmup_count") or 0)

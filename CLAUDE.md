@@ -279,11 +279,11 @@ discussions/YYYY-MM-DD-主题关键词.md
 >
 > 本节规范从此强制生效。
 >
-> **v0.64.1 自动化** (2026-07-29 Bisen 拍板改写)：5 项防御性自检 + pytest 245 测试已统一到 `bash scripts/check_defensive.sh`。**本地强制** (`pre-commit` hook 跑静态 / `pre-push` hook 跑全量) + **GitHub Actions 改 manual only**, 不再消耗 CI 自动配额. 详见 [§v0.64.1 本地强制 + CI 手动](#v0641-本地强制--ci-手动-2026-07-29-bisen-拍板改写).
+> **v0.64.1 自动化** (2026-07-29 Bisen 拍板改写)：6 项防御性自检 + pytest 376 测试已统一到 `bash scripts/check_defensive.sh`。**本地强制** (`pre-commit` hook 跑静态 / `pre-push` hook 跑全量) + **GitHub Actions 改 manual only**, 不再消耗 CI 自动配额. 详见 [§v0.64.1 本地强制 + CI 手动](#v0641-本地强制--ci-手动-2026-07-29-bisen-拍板改写).
 
 ### 每次 commit 前的自检清单（已自动化，hook 强制）
 
-> **v0.64.1 后**: `pre-commit` hook 已自动跑 [1][2][3][5] 四项 (秒级), `pre-push` hook 跑全部 5 项 + pytest (~30s-1min). 下面这些命令是 **hook 失败时手动 debug 用**, 不需要每次手动跑.
+> **v0.64.1 后**: `pre-commit` hook 已自动跑 6 项静态 (秒级), `pre-push` hook 跑全部 6 项 + pytest (~30s-1min). 下面这些命令是 **hook 失败时手动 debug 用**, 不需要每次手动跑.
 
 ```bash
 # 1) silent failure 扫描：禁止新增 'except Exception: pass' / 'except: continue'
@@ -343,8 +343,8 @@ grep -n "_get_or_create_student\|save_student_state\|load_student_state" web/api
 > 根本问题是: **CI 环境没有真实 LLM / DB, 跑出来比本地少, 多次出现"本地绿 / CI 红"伪错配** (v0.58.3 flask 漏 / v0.58.4 DB 依赖 / v0.62.2 LLM mock 漏). 既然 CI 跑不全, 在 CI 上等结果就是浪费.
 >
 > **新规范 (v0.64.1)**:
-> - **本地强制**: `pre-commit` hook 自动跑 5 项静态检查 (秒级), 不通过禁止 commit
-> - **本地强制**: `pre-push` hook 自动跑 5 项静态 + pytest 全量 (~30s-1min), 不通过禁止 push
+> - **本地强制**: `pre-commit` hook 自动跑 6 项静态检查 (秒级), 不通过禁止 commit
+> - **本地强制**: `pre-push` hook 自动跑 6 项静态 + pytest 全量 (~30s-1min), 不通过禁止 push
 > - **GitHub Actions 改为 manual only** (`workflow_dispatch`), 仅排查"本地环境被污染"等问题时手动触发, 不消耗自动配额
 > - **不要** `git commit --no-verify` / `git push --no-verify` 绕过 hook (紧急 hotfix 除外, 绕过时要在 commit message 说明)
 > - **不要**再建 `monitor-ci-<short_sha>` cron 监控 CI (CI 不再自动跑, 没东西可监控)
@@ -359,8 +359,8 @@ grep -n "_get_or_create_student\|save_student_state\|load_student_state" web/api
 ### v0.64.1 本地强制 + CI 手动 (2026-07-29 Bisen 拍板改写)
 
 **入口**（按拦截阶段排序）:
-- `pre-commit` hook (`githooks/pre-commit`): commit 前自动跑 `check_defensive.sh --static-only` (5 项静态, ~0.5s)
-- `pre-push` hook (`githooks/pre-push`): push 前自动跑 `check_defensive.sh` 全量 (5 项静态 + pytest, ~10-30s)
+- `pre-commit` hook (`githooks/pre-commit`): commit 前自动跑 `check_defensive.sh --static-only` (6 项静态, ~0.5s)
+- `pre-push` hook (`githooks/pre-push`): push 前自动跑 `check_defensive.sh` 全量 (6 项静态 + pytest, ~10-30s)
 - 本地手动: `bash scripts/check_defensive.sh` 或 `make check`
 - pytest 单独: `make test` 或 `python -m pytest tests/ -v`
 - GitHub Actions: `.github/workflows/test.yml` (manual only, 排查"本地环境被污染"时手动触发)
@@ -371,7 +371,7 @@ bash scripts/install-hooks.sh    # 设 core.hooksPath = githooks/
 # 验证: git config --get core.hooksPath  → 应输出 githooks
 ```
 
-**5 项防御性自检**（自动化）：
+**6 项防御性自检**（自动化）：
 
 | # | 项 | 拦截历史 | 工具 |
 |---|----|---------|-----|
@@ -380,9 +380,11 @@ bash scripts/install-hooks.sh    # 设 core.hooksPath = githooks/
 | 3 | `detect_with_hits` 传 `library_str` | v0.52.0 BUG 2.1 库 ID 错配 | multi-line grep + 排除函数定义 + 注释行 |
 | 4 | HTML class 与 CSS 对齐 | v0.47.3 inline / v0.50.0 5D badge class 错配 | `grep` HTML class vs CSS 选择器 (warning) |
 | 5 | DB 恢复 6 关键字段 | 4 次漏字段 (json/tc_states/trajectory/item_params) | 检查 6 字段全在 belief.py + db.py |
+| 6 | DB 恢复走 apply_snapshot | v0.77.1 收口 6 处直接 state.X = value mutation | `grep "state.apply_snapshot(" web/api/belief.py` |
 
-**245 pytest 测试**（截至 v0.64.0, 15 个文件）：
-- `test_defensive.py` (5)：5 项防御性自检的 pytest 版本
+**376 pytest 测试**（截至 v0.77.1, 17 个文件）：
+- `test_defensive.py` (6)：6 项防御性自检的 pytest 版本
+- `test_apply_snapshot.py` (19)：v0.77.1 DB 恢复路径单一入口 (6 字段恢复 + 不接管边界 + round-trip)
 - `test_partial_credit.py` (5)：partial credit + MIRT 回归保护
 - `test_dual_layer.py` (2)：5D 双层架构
 - `test_cross_subject.py` (10)：跨学科迁移
@@ -405,7 +407,7 @@ bash scripts/install-hooks.sh    # 设 core.hooksPath = githooks/
     confidence 变化
   - 防 3 次同类: 未来 commit 列组件/字段前, 必须先看代码确认实现, 不能再
     "写 message 时想当然"
-  - **v0.55.0 自动化**：5 项自检 + pytest 22 测试全跑,任何"虚标"功能若代码
+  - **v0.55.0 自动化**：6 项自检 + pytest 376 测试全跑,任何"虚标"功能若代码
     没真实现,CI 必 fail
 - [x] **CI gate v0.52.0**：库 ID 错配 (BUG 2.1 教训)
   - 触发背景: `_llm_critic_misconception` 调 `detect_with_hits()` 没传

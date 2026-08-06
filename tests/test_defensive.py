@@ -1,4 +1,5 @@
 """v0.55.0-a: 5 项防御性自检 pytest 套件.
+v0.77.1: 加第 6 项 (DB 恢复必须走 apply_snapshot).
 
 CLAUDE.md §防御性自检规范 v0.47.6+ 自动化:
   1. silent failure 扫描 (except: pass 模式)
@@ -6,6 +7,7 @@ CLAUDE.md §防御性自检规范 v0.47.6+ 自动化:
   3. CSS 引用关系 (HTML class 名与 CSS 选择器匹配)
   4. DB 恢复路径 (_get_or_create_student 恢复所有字段)
   5. CI gate 库 ID (detect_with_hits 必须传 library_str)
+  6. DB 恢复走 apply_snapshot (v0.77.1, 拦截 6 处直接 state.X = value mutation)
 
 拦截历史 bug:
   - v0.47.5 修 8 处 silent pass
@@ -15,6 +17,7 @@ CLAUDE.md §防御性自检规范 v0.47.6+ 自动化:
   - v0.51.4 hardcoded 版本号
   - v0.52.0 misconception library_str 错配
   - v0.53.3 silent pass 修
+  - v0.77.1 DB 恢复字段漏根治 (apply_snapshot 单一入口)
 """
 import re
 import json
@@ -224,12 +227,42 @@ def test_ci_gate_explicit_libraries(ecos_dir: Path):
             )
 
 
+# ─── 测试 6: DB 恢复必须走 apply_snapshot ─────────────────────────────────
+
+def test_db_restore_uses_apply_snapshot(web_dir: Path):
+    """验证 web/api/belief.py _get_or_create_student 走 BeliefState.apply_snapshot 单一入口.
+
+    拦截历史:
+    - v0.46.5 import json 漏 (3-tuple -> dict 迁移)
+    - v0.47.4 item_params 漏 (MIRT K 暴跌 0.91)
+    - v0.47.5 trajectory / tc_states 漏
+    - v0.47.9 theta_cov 漏
+    - v0.49.2 response_history 改 dict 格式
+    - v0.52.0 misconception_hits 漏
+    - v0.77.1: 6 处直接 state.X = value mutation 收口到 apply_snapshot(snapshot)
+    """
+    belief_file = web_dir / "api" / "belief.py"
+    if not belief_file.exists():
+        pytest.skip(f"belief.py 不存在: {belief_file}")
+
+    content = belief_file.read_text(encoding="utf-8")
+
+    # 必须调用 state.apply_snapshot(snapshot)
+    if "_get_or_create_student" in content:
+        if "state.apply_snapshot(" not in content:
+            pytest.fail(
+                "❌ web/api/belief.py _get_or_create_student 没调用 state.apply_snapshot()\n"
+                "  拦截历史: 4 次 DB 恢复字段漏 (import json / tc_states / trajectory / item_params)\n"
+                "  v0.77.1 修复: 走 BeliefState.apply_snapshot(snapshot) 单一入口, 替代 6 处直接 state.X = value"
+            )
+
+
 # ─── 收集所有测试,方便 pytest 输出 ─────────────────────────────────────
 
 def pytest_report_header(config):
     """测试报告头部: 显示 ECOS pytest 套件版本."""
     return [
-        f"ECOS pytest 套件 v0.55.0-a",
-        f"  5 项防御性自检: silent pass / 版本号 / CSS / DB 恢复 / CI gate",
-        f"  拦截历史: 5 次虚标 + 5 处 silent pass"
+        f"ECOS pytest 套件 v0.77.1",
+        f"  6 项防御性自检: silent pass / 版本号 / CSS / DB 恢复字段 / CI gate / apply_snapshot",
+        f"  拦截历史: 5 次虚标 + 5 处 silent pass + 4 次 DB 字段漏"
     ]
