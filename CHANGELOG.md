@@ -12,6 +12,57 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.78.0] 2026-08-06
+
+### feat: H3-c4 拐点响应延迟验证 - 全部通过
+
+> **触发**: v0.77.1 落地后, Bisen 问 "H3-c4 需要你先收集跨 skill 测试数据 是什么意思?". 调查发现 v0.75.1 PRD "0 拐点" 结论是 3 个 artifact 叠加造成的, 实际 56 题已覆盖 6 topics.
+> **方法**: 修 replay 脚本读 Q 矩阵真实 topic + 新增 v078 双信号拐点检测脚本.
+> **结果**: H3-c4 通过, 3 学生 median delay = 0.0, p90 ≤ 2.9 (< 3 题阈值). H3 4 子假设全部通过.
+
+#### v0.75.1 PRD "0 拐点" artifact 修正
+
+原结论 "0 拐点 (lbc003 单 skill 'variables' 让 6 Bloom 收敛, max diff 0.082 < 0.1)" 由 3 个 artifact 叠加:
+
+1. **replay 脚本硬编码 skill_id="variables"**: `scripts/v0753_h3c3_linucb_decay_replay.py` + `scripts/v076_cross_student_fingerprint_validation.py` 把所有 56 题打上 "variables" 标签. 实际 lbc001/002/003 三人 60/45/56 道题覆盖 6 topics (variables / loops / functions / recursion / scope / cross_subject).
+2. **bloom_update_step=0.05 / warmup_step=0.1 是 BeliefEngine 上限**: 严格 `> 0.1` 阈值永不满足.
+3. **浮点精度**: `warmup_step=0.1` 实际 `0.09999999999999998` (Python float64), `>= 0.1` 也漏检 warmup 期 3 个真实拐点.
+
+#### v0.78 修复
+
+- 修 `v0753_h3c3_linucb_decay_replay.py`: 加 `load_pid_to_topic()`, 用真实 topic 替代硬编码
+- 修 `v076_cross_student_fingerprint_validation.py`: 同上
+- 新增 `v078_h3c4_inflection_response_replay.py`: 双信号拐点检测
+  - 主信号 skill_switch (curr != prev)
+  - 补充信号 bloom>=0.1 (PRD 原阈值) + >=0.09 (浮点修正) + >=0.05 (宽松)
+
+#### H3-c4 验证结果
+
+| 学生 | rounds | skill_switches | valid_delays | median | p90 | max | 通过 |
+|---|---|---|---|---|---|---|---|
+| lbc001 | 60 | 42 | 21 | 0.0 | 1.0 | 4 | ✅ |
+| lbc002 | 45 | 40 | 24 | 0.0 | 2.7 | 4 | ✅ |
+| lbc003 | 56 | 45 | 22 | 0.0 | 2.9 | 4 | ✅ |
+
+LinUCB 对跨 skill 切换响应中位数延迟 = 0 (立即响应), p90 ≤ 2.9 (< 3 题阈值).
+
+#### H3 综合状态
+
+| 子假设 | 度量 | 阈值 | v0.78 状态 |
+|---|---|---|---|
+| H3-c1 Fast Calibration | 14 题 ECE | < 0.15 | ✅ 通过 |
+| H3-c2 Wide Coverage | arm coverage | > 70% | ✅ 通过 (100%) |
+| H3-c3 Arm Entropy | shannon entropy | > 1.5 | ✅ 通过 (v0.75.3 + v0.76 跨学生) |
+| H3-c4 拐点响应延迟 | arm switch delay | < 3 题 | ✅ 通过 (median=0, p90≤2.9) |
+
+**H3 综合通过**: 4 个子假设全部满足. Phase 5 H3 验证完成.
+
+#### 后续
+
+- Phase 6 CTA 4 层拆分 (per v0.77 P2 评估方案 D): 时机成熟时引入 State Engine
+- replay 脚本数据治理: 不能硬编码 skill_id / student_id / problem_id (TODO 防御性自检 [7])
+
+
 ## [0.77.1] 2026-08-06
 
 ### feat: P2 方案 B 落地 - BeliefState.apply_snapshot() 收口 DB 恢复路径

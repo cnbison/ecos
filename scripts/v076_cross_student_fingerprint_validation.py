@@ -64,6 +64,19 @@ def load_history(student_id: str):
     return json.loads(row[0])
 
 
+def load_pid_to_topic() -> dict:
+    """v0.78: 从 Q 矩阵加载 problem_id -> topic 映射.
+
+    拦截历史: v0.75.3/v0.76 replay 脚本硬编码 skill_id="variables",
+    实际三个学生 56/45/60 道题都覆盖 6 topics.
+    硬编码导致 v0.76 报告 claim "三个学生都答 variables 技能" 是 replay artifact.
+    """
+    qm_path = _root / "data" / "python_basics_q_matrix.json"
+    with open(qm_path) as f:
+        qm = json.load(f)
+    return {p["problem_id"]: p["topic"] for p in qm["problems"]}
+
+
 def shannon_entropy(arms: list) -> float:
     if not arms:
         return 0.0
@@ -101,6 +114,7 @@ def replay_student(student_id: str, simulate_bug: bool = False) -> dict:
                       (清空 _intervention_to_arm, 强制走 _arm_fingerprints)
     """
     rh = load_history(student_id)
+    pid_to_topic = load_pid_to_topic()
     config = DualAgentConfig()
     config.lca_config.bandit_config.decay_factor = 1.0  # 默认无衰减
     orch = DualAgentOrchestrator(config=config, llm_client=None)
@@ -108,8 +122,10 @@ def replay_student(student_id: str, simulate_bug: bool = False) -> dict:
 
     arms = []
     for h in rh:
+        pid = h["problem_id"]
+        skill_id = pid_to_topic.get(pid, "python.variables")
         obs = Observation(
-            problem_id=h["problem_id"], skill_id="variables",
+            problem_id=pid, skill_id=skill_id,
             correct=bool(h.get("correct", 0)),
             score=float(h.get("score", 0.0)),
             bloom_level=BLOOM_MAP.get(h.get("bloom_level", "APPLY"), BloomLevel.APPLY),

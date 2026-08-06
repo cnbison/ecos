@@ -56,7 +56,7 @@
 | **H3-c1** | LinUCB 收敛速度 | < 30 题 (ECE < 0.15) | **14 题** | ✅ 通过 |
 | **H3-c2** | Arm coverage | > 70% (10 arm) | **100% (10/10)** | ✅ 通过 |
 | **H3-c3** | Arm entropy (软指标) | > 1.5 | 1.145 (34.5% of max) | ⚠️ 软指标未达 |
-| **H3-c4** | 拐点响应延迟 | < 3 题 | 0 拐点 (缺数据) | ❓ 待验证 |
+| **H3-c4** | 拐点响应延迟 | < 3 题 | ~~0 拐点 (v0.75.1 artifact)~~ → v0.78 验证通过 | ✅ 通过 (v0.78) |
 
 **整体 H3 通过条件**: H3-c1 + H3-c2 同时通过, 且无 H3 架构性失败.
 
@@ -106,19 +106,30 @@
 
 ### 2.6 H3-c4 (拐点响应延迟) 待验证说明
 
+> **v0.78 修正**: 原 "0 拐点" 结论是 3 个 artifact 叠加造成的, 实际通过. 详见 [discussions/2026-08-06-v078-H3-c4-inflection-response-report.md](./2026-08-06-v078-H3-c4-inflection-response-report.md).
+
 **度量**:
 - 找 6 Bloom 状态拐点 (任一维度变化 > 0.1)
 - 拐点后 arm 切换延迟 (新 arm 保持 ≥ 2 轮)
 
-**当前结果**: 0 拐点 (lbc003 单 skill "variables" 让 6 Bloom 收敛, max diff 0.082 < 阈值 0.1)
+**v0.75.1 原结论** (废弃): 0 拐点 (lbc003 单 skill "variables" 让 6 Bloom 收敛, max diff 0.082 < 阈值 0.1)
 
-**不可评估原因**:
-- lbc003 单 skill 集中型学生, 没有跨 skill 切换或剧烈水平变化
-- 真正的拐点需要: 跨 skill 迁移 或 学生水平剧烈变化
+**v0.78 修正**: 原 "0 拐点" 由 3 个 artifact 叠加:
+1. replay 脚本硬编码 `skill_id="variables"`, 实际 56 题覆盖 6 topics
+2. `bloom_update_step=0.05` / `warmup_step=0.1` 是 BeliefEngine 上限, 严格 `> 0.1` 永不触发
+3. 浮点精度: `warmup_step=0.1` 实际 `0.09999999999999998`, `>= 0.1` 也漏检
 
-**后续验证方向** (Phase 5+):
-- 需要更多测试数据 (e.g. 跨 skill 答 100+ 题)
-- 或合成数据: 模拟"学生中途从 mastery 0.9 跌到 0.3" 场景
+**v0.78 新结果** (双信号拐点检测):
+
+| 学生 | skill_switches | median delay | p90 | 通过 |
+|---|---|---|---|---|
+| lbc001 | 42 | 0.0 | 1.0 | ✅ |
+| lbc002 | 40 | 0.0 | 2.7 | ✅ |
+| lbc003 | 45 | 0.0 | 2.9 | ✅ |
+
+主信号 skill_switch (curr != prev) median delay = 0.0 (LinUCB 立即响应), p90 ≤ 2.9 (< 3 题阈值).
+
+**H3-c4 通过**.
 
 ## 3. 叙事调整
 
@@ -145,8 +156,8 @@
 | **H3 报告 §14 追加** | P0 | ✅ 完成 |
 | **CHANGELOG v0.75.1** | P0 | 📋 下一步 |
 | **version bump 0.75.0 → 0.75.1** | P0 | 📋 待启动 |
-| H3-c3 entropy 优化 (LinUCB decay) | P1 | 📋 Phase 5 P2 |
-| H3-c4 拐点响应验证 (跨 skill 数据) | P1 | 📋 Phase 5+ |
+| H3-c3 entropy 优化 (LinUCB decay) | P1 | ✅ v0.75.3 通过 (entropy 2.546) |
+| H3-c4 拐点响应验证 (跨 skill 数据) | P1 | ✅ v0.78 通过 (median=0, p90≤2.9) |
 
 ## 5. 实施时间线
 

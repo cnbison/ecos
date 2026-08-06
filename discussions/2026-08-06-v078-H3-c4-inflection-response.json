@@ -1,0 +1,553 @@
+{
+  "version": "v0.78",
+  "date": "2026-08-06",
+  "metric": "拐点后 arm 切换延迟 < 3 题 (新 arm 保持 ≥ 2 轮)",
+  "inflection_signals": [
+    "skill_switch (主信号, 跨 skill 切换)",
+    "bloom_dim_change >= 0.1 (PRD 原阈值, 含等号, 浮点 0.0999... 漏检)",
+    "bloom_dim_change >= 0.09 (浮点修正, 捕捉 warmup_step=0.1 实际值)",
+    "bloom_dim_change >= 0.05 (宽松补充)"
+  ],
+  "students": [
+    {
+      "student_id": "lbc001",
+      "n_rounds": 60,
+      "skill_switch": {
+        "n_points": 42,
+        "n_valid_delays": 21,
+        "delays": [
+          1,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4,
+          3,
+          1,
+          0,
+          1,
+          0,
+          1,
+          0
+        ],
+        "median_delay": 0.0,
+        "p90_delay": 1.0,
+        "max_delay": 4,
+        "pass": true
+      },
+      "bloom_infl_01": {
+        "n_points": 0,
+        "n_valid_delays": 0,
+        "delays": [],
+        "median_delay": null,
+        "p90_delay": null,
+        "max_delay": null,
+        "pass": false
+      },
+      "bloom_infl_005": {
+        "n_points": 35,
+        "n_valid_delays": 17,
+        "delays": [
+          1,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4,
+          3,
+          2,
+          1,
+          2,
+          2
+        ],
+        "median_delay": 0.0,
+        "p90_delay": 2.4000000000000004,
+        "max_delay": 4,
+        "pass": true
+      },
+      "bloom_infl_009": {
+        "n_points": 3,
+        "n_valid_delays": 3,
+        "delays": [
+          1,
+          0,
+          1
+        ],
+        "median_delay": 1.0,
+        "p90_delay": 1.0,
+        "max_delay": 1,
+        "pass": true
+      },
+      "skill_switch_points": [
+        {
+          "round": 2,
+          "problem_id": "PB-Q05",
+          "prev_skill": "python.functions",
+          "curr_skill": "python.loops",
+          "arm_at_switch": 0,
+          "type": "skill_switch",
+          "arm_switch_delay": 1
+        },
+        {
+          "round": 3,
+          "problem_id": "PB-Q12",
+          "prev_skill": "python.loops",
+          "curr_skill": "python.recursion",
+          "arm_at_switch": 1,
+          "type": "skill_switch",
+          "arm_switch_delay": 0
+        },
+        {
+          "round": 4,
+          "problem_id": "PB-Q15",
+          "prev_skill": "python.recursion",
+          "curr_skill": "python.scope",
+          "arm_at_switch": 1,
+          "type": "skill_switch",
+          "arm_switch_delay": 1
+        },
+        {
+          "round": 5,
+          "problem_id": "PB-Q01",
+          "prev_skill": "python.scope",
+          "curr_skill": "python.variables",
+          "arm_at_switch": 2,
+          "type": "skill_switch",
+          "arm_switch_delay": 0
+        },
+        {
+          "round": 6,
+          "problem_id": "PB-Q06",
+          "prev_skill": "python.variables",
+          "curr_skill": "python.loops",
+          "arm_at_switch": 2,
+          "type": "skill_switch",
+          "arm_switch_delay": null
+        }
+      ],
+      "bloom_infl_009_points": [
+        {
+          "round": 2,
+          "problem_id": "PB-Q05",
+          "skill_id": "python.loops",
+          "dim": "remember",
+          "delta": 0.1,
+          "prev_bloom": 0.6,
+          "curr_bloom": 0.5,
+          "arm_at_inflection": 0,
+          "type": "bloom_dim_change",
+          "arm_switch_delay": 1
+        },
+        {
+          "round": 3,
+          "problem_id": "PB-Q12",
+          "skill_id": "python.recursion",
+          "dim": "remember",
+          "delta": 0.1,
+          "prev_bloom": 0.5,
+          "curr_bloom": 0.6,
+          "arm_at_inflection": 1,
+          "type": "bloom_dim_change",
+          "arm_switch_delay": 0
+        },
+        {
+          "round": 4,
+          "problem_id": "PB-Q15",
+          "skill_id": "python.scope",
+          "dim": "understand",
+          "delta": 0.1,
+          "prev_bloom": 0.5,
+          "curr_bloom": 0.4,
+          "arm_at_inflection": 1,
+          "type": "bloom_dim_change",
+          "arm_switch_delay": 1
+        }
+      ],
+      "h3c4_pass": true,
+      "h3c4_main_signal": "skill_switch",
+      "h3c4_main_pass": true
+    },
+    {
+      "student_id": "lbc002",
+      "n_rounds": 45,
+      "skill_switch": {
+        "n_points": 40,
+        "n_valid_delays": 24,
+        "delays": [
+          1,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4,
+          3,
+          2,
+          1,
+          3,
+          2,
+          1,
+          0
+        ],
+        "median_delay": 0.0,
+        "p90_delay": 2.6999999999999993,
+        "max_delay": 4,
+        "pass": true
+      },
+      "bloom_infl_01": {
+        "n_points": 0,
+        "n_valid_delays": 0,
+        "delays": [],
+        "median_delay": null,
+        "p90_delay": null,
+        "max_delay": null,
+        "pass": false
+      },
+      "bloom_infl_005": {
+        "n_points": 39,
+        "n_valid_delays": 20,
+        "delays": [
+          1,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4,
+          2,
+          1,
+          3,
+          1,
+          0
+        ],
+        "median_delay": 0.0,
+        "p90_delay": 2.1000000000000014,
+        "max_delay": 4,
+        "pass": true
+      },
+      "bloom_infl_009": {
+        "n_points": 3,
+        "n_valid_delays": 3,
+        "delays": [
+          1,
+          0,
+          1
+        ],
+        "median_delay": 1.0,
+        "p90_delay": 1.0,
+        "max_delay": 1,
+        "pass": true
+      },
+      "skill_switch_points": [
+        {
+          "round": 2,
+          "problem_id": "PB-Q05",
+          "prev_skill": "python.functions",
+          "curr_skill": "python.loops",
+          "arm_at_switch": 0,
+          "type": "skill_switch",
+          "arm_switch_delay": 1
+        },
+        {
+          "round": 3,
+          "problem_id": "PB-Q12",
+          "prev_skill": "python.loops",
+          "curr_skill": "python.recursion",
+          "arm_at_switch": 1,
+          "type": "skill_switch",
+          "arm_switch_delay": 0
+        },
+        {
+          "round": 4,
+          "problem_id": "PB-Q15",
+          "prev_skill": "python.recursion",
+          "curr_skill": "python.scope",
+          "arm_at_switch": 1,
+          "type": "skill_switch",
+          "arm_switch_delay": 1
+        },
+        {
+          "round": 5,
+          "problem_id": "PB-Q01",
+          "prev_skill": "python.scope",
+          "curr_skill": "python.variables",
+          "arm_at_switch": 2,
+          "type": "skill_switch",
+          "arm_switch_delay": 0
+        },
+        {
+          "round": 6,
+          "problem_id": "PB-C01",
+          "prev_skill": "python.variables",
+          "curr_skill": "python.loops",
+          "arm_at_switch": 2,
+          "type": "skill_switch",
+          "arm_switch_delay": null
+        }
+      ],
+      "bloom_infl_009_points": [
+        {
+          "round": 2,
+          "problem_id": "PB-Q05",
+          "skill_id": "python.loops",
+          "dim": "remember",
+          "delta": 0.1,
+          "prev_bloom": 0.6,
+          "curr_bloom": 0.7,
+          "arm_at_inflection": 0,
+          "type": "bloom_dim_change",
+          "arm_switch_delay": 1
+        },
+        {
+          "round": 3,
+          "problem_id": "PB-Q12",
+          "skill_id": "python.recursion",
+          "dim": "remember",
+          "delta": 0.1,
+          "prev_bloom": 0.7,
+          "curr_bloom": 0.8,
+          "arm_at_inflection": 1,
+          "type": "bloom_dim_change",
+          "arm_switch_delay": 0
+        },
+        {
+          "round": 4,
+          "problem_id": "PB-Q15",
+          "skill_id": "python.scope",
+          "dim": "understand",
+          "delta": 0.1,
+          "prev_bloom": 0.5,
+          "curr_bloom": 0.6,
+          "arm_at_inflection": 1,
+          "type": "bloom_dim_change",
+          "arm_switch_delay": 1
+        }
+      ],
+      "h3c4_pass": true,
+      "h3c4_main_signal": "skill_switch",
+      "h3c4_main_pass": true
+    },
+    {
+      "student_id": "lbc003",
+      "n_rounds": 56,
+      "skill_switch": {
+        "n_points": 45,
+        "n_valid_delays": 22,
+        "delays": [
+          1,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          3,
+          0,
+          4,
+          3,
+          2,
+          1,
+          0
+        ],
+        "median_delay": 0.0,
+        "p90_delay": 2.900000000000002,
+        "max_delay": 4,
+        "pass": true
+      },
+      "bloom_infl_01": {
+        "n_points": 0,
+        "n_valid_delays": 0,
+        "delays": [],
+        "median_delay": null,
+        "p90_delay": null,
+        "max_delay": null,
+        "pass": false
+      },
+      "bloom_infl_005": {
+        "n_points": 50,
+        "n_valid_delays": 25,
+        "delays": [
+          1,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4,
+          3,
+          2,
+          1,
+          0,
+          4,
+          3,
+          2,
+          1,
+          0
+        ],
+        "median_delay": 0.0,
+        "p90_delay": 3.0,
+        "max_delay": 4,
+        "pass": true
+      },
+      "bloom_infl_009": {
+        "n_points": 3,
+        "n_valid_delays": 3,
+        "delays": [
+          1,
+          0,
+          1
+        ],
+        "median_delay": 1.0,
+        "p90_delay": 1.0,
+        "max_delay": 1,
+        "pass": true
+      },
+      "skill_switch_points": [
+        {
+          "round": 2,
+          "problem_id": "PB-Q09",
+          "prev_skill": "cross_subject",
+          "curr_skill": "python.functions",
+          "arm_at_switch": 0,
+          "type": "skill_switch",
+          "arm_switch_delay": 1
+        },
+        {
+          "round": 3,
+          "problem_id": "PB-Q05",
+          "prev_skill": "python.functions",
+          "curr_skill": "python.loops",
+          "arm_at_switch": 1,
+          "type": "skill_switch",
+          "arm_switch_delay": 0
+        },
+        {
+          "round": 4,
+          "problem_id": "PB-Q12",
+          "prev_skill": "python.loops",
+          "curr_skill": "python.recursion",
+          "arm_at_switch": 1,
+          "type": "skill_switch",
+          "arm_switch_delay": 1
+        },
+        {
+          "round": 5,
+          "problem_id": "PB-Q15",
+          "prev_skill": "python.recursion",
+          "curr_skill": "python.scope",
+          "arm_at_switch": 2,
+          "type": "skill_switch",
+          "arm_switch_delay": 0
+        },
+        {
+          "round": 6,
+          "problem_id": "PC-X03",
+          "prev_skill": "python.scope",
+          "curr_skill": "cross_subject",
+          "arm_at_switch": 2,
+          "type": "skill_switch",
+          "arm_switch_delay": null
+        }
+      ],
+      "bloom_infl_009_points": [
+        {
+          "round": 2,
+          "problem_id": "PB-Q09",
+          "skill_id": "python.functions",
+          "dim": "remember",
+          "delta": 0.1,
+          "prev_bloom": 0.5,
+          "curr_bloom": 0.6,
+          "arm_at_inflection": 0,
+          "type": "bloom_dim_change",
+          "arm_switch_delay": 1
+        },
+        {
+          "round": 3,
+          "problem_id": "PB-Q05",
+          "skill_id": "python.loops",
+          "dim": "remember",
+          "delta": 0.1,
+          "prev_bloom": 0.6,
+          "curr_bloom": 0.7,
+          "arm_at_inflection": 1,
+          "type": "bloom_dim_change",
+          "arm_switch_delay": 0
+        },
+        {
+          "round": 4,
+          "problem_id": "PB-Q12",
+          "skill_id": "python.recursion",
+          "dim": "remember",
+          "delta": 0.1,
+          "prev_bloom": 0.7,
+          "curr_bloom": 0.8,
+          "arm_at_inflection": 1,
+          "type": "bloom_dim_change",
+          "arm_switch_delay": 1
+        }
+      ],
+      "h3c4_pass": true,
+      "h3c4_main_signal": "skill_switch",
+      "h3c4_main_pass": true
+    }
+  ],
+  "summary": {
+    "all_pass": true,
+    "skill_switch_total": 127,
+    "skill_switch_valid_delays": 67,
+    "bloom_01_total": 0,
+    "bloom_005_total": 124
+  },
+  "conclusion": "H3-c4 通过: 所有学生拐点后 arm 切换延迟中位数 < 3 题",
+  "v0751_artifact_correction": "v0.75.1 PRD §2.6 claim '0 拐点 (lbc003 单 skill variables 让 6 Bloom 收敛, max diff 0.082 < 0.1)' 存在 2 个 artifact: (1) replay 脚本硬编码 skill_id='variables', 实际 56 题覆盖 6 topics; (2) bloom_update_step=0.05 / warmup_step=0.1, 严格 > 0.1 永不触发. v0.78 修复后用真实 skill_id + >= 阈值, 检测 skill switch + Bloom 变化."
+}

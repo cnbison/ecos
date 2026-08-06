@@ -63,6 +63,21 @@ def load_lbc003_history():
     return json.loads(row[0])
 
 
+def load_pid_to_topic() -> dict:
+    """v0.78: 从 Q 矩阵加载 problem_id -> topic 映射.
+
+    拦截历史: v0.75.3/v0.76 replay 脚本硬编码 skill_id="variables",
+    实际 lbc003 56 道题覆盖 6 topics (variables/loops/functions/recursion/scope/cross_subject).
+    硬编码导致 H3-c4 "0 拐点" 结论失真, 报告 claim "三个学生都答 variables 技能" 是 replay artifact.
+    """
+    qm_path = _root / "data" / "python_basics_q_matrix.json"
+    if not qm_path.exists():
+        raise FileNotFoundError(f"Q matrix not found: {qm_path}")
+    with open(qm_path) as f:
+        qm = json.load(f)
+    return {p["problem_id"]: p["topic"] for p in qm["problems"]}
+
+
 # ─── 重放 ──────────────────────────────────────────────────
 
 
@@ -77,8 +92,12 @@ BLOOM_MAP = {
 
 
 def replay_lbc003(decay_factor: float):
-    """重放 lbc003 指定 decay_factor, 返回 arms + calibrated V3 + actuals."""
+    """重放 lbc003 指定 decay_factor, 返回 arms + calibrated V3 + actuals.
+
+    v0.78: skill_id 从 Q 矩阵按 problem_id 读真实 topic, 不再硬编码 "variables".
+    """
     rh = load_lbc003_history()
+    pid_to_topic = load_pid_to_topic()
     config = DualAgentConfig()
     config.lca_config.bandit_config.decay_factor = decay_factor
     orch = DualAgentOrchestrator(config=config, llm_client=None)
@@ -89,8 +108,10 @@ def replay_lbc003(decay_factor: float):
     actuals = []
 
     for h in rh:
+        pid = h["problem_id"]
+        skill_id = pid_to_topic.get(pid, "python.variables")
         obs = Observation(
-            problem_id=h["problem_id"], skill_id="variables",
+            problem_id=pid, skill_id=skill_id,
             correct=bool(h.get("correct", 0)),
             score=float(h.get("score", 0.0)),
             bloom_level=BLOOM_MAP.get(h.get("bloom_level", "APPLY"), BloomLevel.APPLY),
