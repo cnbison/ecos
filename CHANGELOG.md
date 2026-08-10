@@ -87,6 +87,58 @@ NEW: `tests/test_learning_event_unification.py` (19 tests, 0.35s)
 | H3-c4 canary | PASS | PASS | 保持 |
 | v0.81 replay canary | PASS | PASS | 保持 |
 
+#### v0.84.0-b: Event Bus (in-process pub/sub)
+
+NEW: `ecos/event/__init__.py` (导出 EventBus + EventBusConfig + get_default_bus + reset_default_bus)
+
+NEW: `ecos/event/bus.py` (~165 lines)
+- `EventBusConfig` dataclass:
+  - mode: "sync" (default, Phase 7+: "async" 留 TODO)
+  - buffer_size: 1000 (async mode 用, v0.84.0-b 不实现)
+  - max_subscribers_per_topic: 10 (防御性, 防内存泄漏)
+- `EventBus` 类:
+  - `subscribe(topic, handler) -> sub_id` (UUID "sub_xxx"), 接受 Callable[[Any], None]
+  - `unsubscribe(sub_id) -> bool` (False if unknown, 不 raise)
+  - `publish(topic, event) -> int` (返成功 handler 数, sync 模式同步调所有 handler)
+  - `get_subscribers(topic) -> List[handler]` (test/debug, defensive copy)
+  - `get_topic_count(topic) -> int` (test/debug)
+  - `reset()` (test isolation, 清空所有 subscriber)
+  - 防御性自检 [1]: handler raise 不阻断其他 handler (catch + _log.warning + continue, publish 不 raise)
+  - 防御性自检 [1]: max_subscribers 达上限 _log.warning + 仍返 sub_id (record 但不 invoke)
+- 模块级 `_default_bus` singleton (懒加载, 跟 Runtime API `_default_belief_engine` 同模式)
+- `get_default_bus() -> EventBus` (production 主入口)
+- `reset_default_bus()` (test isolation, fixture autouse 用)
+
+NEW: `tests/test_event_bus.py` (15 tests, 0.20s)
+- 3 EventBusBasic (subscribe/publish single handler / no_subscribers / success_count)
+- 1 MultiHandler (3 handlers 1 topic, 全部 invoke)
+- 2 Unsubscribe (remove_handler / unknown_id_returns_false)
+- 2 HandlerExceptionIsolation (raise 不阻断其他 / warning log)
+- 1 TopicIsolation (publish topic_a 不 invoke topic_b handlers)
+- 1 MaxSubscribersLimit (max 达上限 + warning + 仍 record sub_id)
+- 2 ModuleSingleton (lazy_init / reset_clears)
+- 1 KwargsInjection (custom bus 注入, 测试隔离)
+- 1 BusIntrospection (get_subscribers / get_topic_count)
+- 1 DefensiveChecks (silent pass 扫描)
+
+向后兼容:
+- 755 现有 + 15 新增 = 770 全过 (replay/simulate/H3-c4 canary PASS)
+- EventBus 0 新 mutation site (bus 是 pub/sub, 不动 state, 跟 CQRS 兼容)
+- Runtime 暂不订阅 (留 v0.85+ 接, 避免一次性大改; v0.84.0-d Plugin SDK 改造时再接 Runtime subscriber)
+- 防御性自检 [8] 仍 hard block
+
+#### Architecture outcomes (cumulative after a+b)
+
+| 维度 | v0.83.0-d | v0.84.0-a | v0.84.0-b | Δ (cumulative) |
+|---|---|---|---|---|
+| Event Engine §1.2 | 80% | 80% (unification) | 95% (Bus added) | +15% |
+| Event (统一输入) §2.4 | 40% | 90% | 95% (Bus 可分发 6+ event_type) | +55% |
+| Plugin SDK §6 | 0% | 0% | 0% (v0.84.0-d 改造) | 保持 |
+| pytest 总数 | 736 | 755 | 770 | +34 tests (+4.6%) |
+| 防御性自检 [8] | hard block | hard block | hard block | 保持 |
+| H3-c4 canary | PASS | PASS | PASS | 保持 |
+| v0.81 replay canary | PASS | PASS | PASS | 保持 |
+
 
 ## [0.83.0] 2026-08-10
 
