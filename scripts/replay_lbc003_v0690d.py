@@ -41,6 +41,14 @@ def load_lbc003_response_history():
     return json.loads(row[0]) if row and row[0] else []
 
 
+def load_pid_to_topic():
+    """v0.79: 从 Q 矩阵加载 problem_id -> topic 映射 (替代硬编码 'variables')."""
+    qm_path = _root / 'data' / 'python_basics_q_matrix.json'
+    with open(qm_path) as f:
+        qm = json.load(f)
+    return {p['problem_id']: p['topic'] for p in qm['problems']}
+
+
 def bloom_str_to_enum(bloom_str: str) -> BloomLevel:
     mapping = {
         'REMEMBER': BloomLevel.REMEMBER,
@@ -59,6 +67,9 @@ def replay(student_id: str = 'lbc003_replay'):
     rh = load_lbc003_response_history()
     print(f'response_history 条数: {len(rh)}')
 
+    # v0.79: skill_id 从 Q 矩阵按 problem_id 查真实 topic
+    pid_to_topic = load_pid_to_topic()
+
     # 全新 orch (不接 DB, 不接 LLM)
     orch = DualAgentOrchestrator(config=DualAgentConfig(), llm_client=None)
 
@@ -72,9 +83,10 @@ def replay(student_id: str = 'lbc003_replay'):
     actual_outcomes = []
 
     for i, h in enumerate(rh):
+        pid = h['problem_id']
         obs = Observation(
-            problem_id=h['problem_id'],
-            skill_id='variables',  # 简化, 不影响 dual_agent 路径
+            problem_id=pid,
+            skill_id=pid_to_topic.get(pid, 'python.variables'),  # v0.79 改 Q 矩阵查
             correct=bool(h.get('correct', 0)),
             score=float(h.get('score', 0.0)),
             bloom_level=bloom_str_to_enum(h.get('bloom_level', 'APPLY')),

@@ -12,6 +12,49 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.79.0] 2026-08-10
+
+### feat: 防御性自检 [7] replay 脚本字面量 skill_id 治理
+
+> **触发**: v0.78 修了 v0.75.3 + v0.76 replay 脚本硬编码 skill_id="variables" 的 artifact, 发现还有 5 个 v075_* + replay_lbc003 脚本含同类硬编码. 按 CLAUDE.md §防御性自检规范 "修一个 bug 后必须 grep 同类模式" 原则, 收口同类问题.
+> **方法**: AST 检测 + 修 5 处硬编码 + 加 [7/7] 静态检查 + 加 pytest test_no_literal_skill_id_in_replay_scripts.
+> **结果**: 7 项静态 + 377 pytest 全绿, replay 脚本 skill_id 必须从 Q 矩阵动态查, 堵住 H3-c4 artifact 同类问题.
+
+#### 修复的 5 处硬编码
+
+| 文件 | 行号 | 修复 |
+|---|---|---|
+| `scripts/v075_d4_arm_diversity.py:108` | skill_id="variables" | 改 pid_to_topic.get(pid, "python.variables") |
+| `scripts/v075_d4_state_response.py:88` | skill_id="variables" | 同上 |
+| `scripts/v075_global_platt_analysis.py:64` | skill_id="variables" | 同上 |
+| `scripts/v075_p0m_difficulty_replay.py:86` | skill_id="variables" | 同上 |
+| `scripts/replay_lbc003_v0690d.py:77` | skill_id='variables' | 同上 |
+
+(加上 v0.78 已修的 v0753 + v076 + v078 三个, 共 8 个脚本完成治理)
+
+#### 防御性自检 [7/7] 新增
+
+- 新增 `scripts/check_no_literal_skill_id.py`: AST 解析, 找 keyword argument `skill_id="<literal>"` 字面量赋值
+- 排除 docstring + 排除 dict `.get(key, "default")` 默认值
+- `scripts/check_defensive.sh` 加 [7/7], 全部 [N/6] -> [N/7]
+- `tests/test_defensive.py` 加 `test_no_literal_skill_id_in_replay_scripts`: 子进程调 checker, 失败时 pytest.fail
+
+#### 规则细节
+
+- 禁止: `skill_id="<literal>"` 直接字面量赋值 (在 Observation() 等调用中)
+- 允许: `skill_id=<variable>` / `<function_call>` / `<dict>[<key>]`
+- 允许: `skill_id=pid_to_topic.get(pid, "default")` 中的 default 字符串 (dict 默认值, 不是直接赋值)
+- 允许: docstring / 注释内的描述文字
+
+#### 377 pytest 测试 (v0.78 376 + v0.79 +1)
+
+新增 1 测试: `tests/test_defensive.py::test_no_literal_skill_id_in_replay_scripts`
+
+#### 后续
+
+下一步进 Phase 6 CTA 4 层拆分 + StateEngine (per 12-kernel-mapping §8 v0.79+ 路线, Bisen 2026-08-06 拍板 Kernel 优先).
+
+
 ## [0.78.0] 2026-08-06
 
 ### feat: H3-c4 拐点响应延迟验证 - 全部通过

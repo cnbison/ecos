@@ -67,6 +67,12 @@ def replay_lbc003(use_arm_features: bool) -> dict:
     rh = json.loads(row[0])
     _log.info("lbc003 response_history: %d 条", len(rh))
 
+    # v0.79: skill_id 从 Q 矩阵按 problem_id 查真实 topic (替代硬编码 "variables")
+    qm_path = Path(__file__).resolve().parents[1] / "data" / "python_basics_q_matrix.json"
+    with open(qm_path) as f:
+        qm = json.load(f)
+    pid_to_topic = {p["problem_id"]: p["topic"] for p in qm["problems"]}
+
     bloom_map = {
         "REMEMBER": BloomLevel.REMEMBER, "UNDERSTAND": BloomLevel.UNDERSTAND,
         "APPLY": BloomLevel.APPLY, "ANALYZE": BloomLevel.ANALYZE,
@@ -82,8 +88,9 @@ def replay_lbc003(use_arm_features: bool) -> dict:
 
     # 跑完全部 rounds (actual_outcome 在 process_observation 时写回 prev)
     for h in rh:
+        pid = h["problem_id"]
         obs = Observation(
-            problem_id=h["problem_id"], skill_id="variables",
+            problem_id=pid, skill_id=pid_to_topic.get(pid, "python.variables"),
             correct=bool(h.get("correct", 0)),
             score=float(h.get("score", 0.0)),
             bloom_level=bloom_map.get(h.get("bloom_level", "APPLY"), BloomLevel.APPLY),

@@ -56,12 +56,19 @@ def replay_student(sid: str, response_history: list) -> list:
         "EVALUATE": BloomLevel.EVALUATE, "CREATE": BloomLevel.CREATE,
     }
 
+    # v0.79: skill_id 从 Q 矩阵按 problem_id 查真实 topic (替代硬编码 "variables")
+    qm_path = Path(__file__).resolve().parents[1] / "data" / "python_basics_q_matrix.json"
+    with open(qm_path) as f:
+        qm = json.load(f)
+    pid_to_topic = {p["problem_id"]: p["topic"] for p in qm["problems"]}
+
     orch = DualAgentOrchestrator(config=DualAgentConfig(), llm_client=None)
 
     # 步骤 1: 跑完全部 rounds
     for h in response_history:
+        pid = h["problem_id"]
         obs = Observation(
-            problem_id=h["problem_id"], skill_id="variables",
+            problem_id=pid, skill_id=pid_to_topic.get(pid, "python.variables"),
             correct=bool(h.get("correct", 0)), score=float(h.get("score", 0.0)),
             bloom_level=bloom_map.get(h.get("bloom_level", "APPLY"), BloomLevel.APPLY),
             response_time_sec=0.0,

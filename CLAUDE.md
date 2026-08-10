@@ -279,7 +279,7 @@ discussions/YYYY-MM-DD-主题关键词.md
 >
 > 本节规范从此强制生效。
 >
-> **v0.64.1 自动化** (2026-07-29 Bisen 拍板改写)：6 项防御性自检 + pytest 376 测试已统一到 `bash scripts/check_defensive.sh`。**本地强制** (`pre-commit` hook 跑静态 / `pre-push` hook 跑全量) + **GitHub Actions 改 manual only**, 不再消耗 CI 自动配额. 详见 [§v0.64.1 本地强制 + CI 手动](#v0641-本地强制--ci-手动-2026-07-29-bisen-拍板改写).
+> **v0.64.1 自动化** (2026-07-29 Bisen 拍板改写)：7 项防御性自检 + pytest 377 测试已统一到 `bash scripts/check_defensive.sh`。**本地强制** (`pre-commit` hook 跑静态 / `pre-push` hook 跑全量) + **GitHub Actions 改 manual only**, 不再消耗 CI 自动配额. 详见 [§v0.64.1 本地强制 + CI 手动](#v0641-本地强制--ci-手动-2026-07-29-bisen-拍板改写).
 
 ### 每次 commit 前的自检清单（已自动化，hook 强制）
 
@@ -371,7 +371,7 @@ bash scripts/install-hooks.sh    # 设 core.hooksPath = githooks/
 # 验证: git config --get core.hooksPath  → 应输出 githooks
 ```
 
-**6 项防御性自检**（自动化）：
+**7 项防御性自检**（自动化）：
 
 | # | 项 | 拦截历史 | 工具 |
 |---|----|---------|-----|
@@ -381,9 +381,10 @@ bash scripts/install-hooks.sh    # 设 core.hooksPath = githooks/
 | 4 | HTML class 与 CSS 对齐 | v0.47.3 inline / v0.50.0 5D badge class 错配 | `grep` HTML class vs CSS 选择器 (warning) |
 | 5 | DB 恢复 6 关键字段 | 4 次漏字段 (json/tc_states/trajectory/item_params) | 检查 6 字段全在 belief.py + db.py |
 | 6 | DB 恢复走 apply_snapshot | v0.77.1 收口 6 处直接 state.X = value mutation | `grep "state.apply_snapshot(" web/api/belief.py` |
+| 7 | replay 脚本无字面量 skill_id | v0.78 H3-c4 artifact (7 个 replay 脚本硬编码 skill_id="variables") | AST 检测 `scripts/check_no_literal_skill_id.py`, 排除 docstring + dict .get() 默认 |
 
-**376 pytest 测试**（截至 v0.77.1, 17 个文件）：
-- `test_defensive.py` (6)：6 项防御性自检的 pytest 版本
+**377 pytest 测试**（截至 v0.79.0, 17 个文件）：
+- `test_defensive.py` (7)：7 项防御性自检的 pytest 版本
 - `test_apply_snapshot.py` (19)：v0.77.1 DB 恢复路径单一入口 (6 字段恢复 + 不接管边界 + round-trip)
 - `test_partial_credit.py` (5)：partial credit + MIRT 回归保护
 - `test_dual_layer.py` (2)：5D 双层架构

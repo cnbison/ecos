@@ -2,6 +2,7 @@
 # v0.55.0-e: 防御性自检脚本 (5 项 + pytest)
 # v0.64.1:   加 --static-only flag (供 pre-commit hook 用, 跳过 pytest 提速)
 # v0.77.1:   加 [6] DB 恢复必须走 apply_snapshot (拦截 6 处直接 state.X = value mutation)
+# v0.79.0:   加 [7] replay 脚本不能含字面量 skill_id 硬编码 (AST 检测)
 #
 # 拦截历史 (Bisen 2026-07-19 反馈后新增):
 # - 5 次虚标: 5D badge / LearningDNA / URL hash / hardcoded 版本号 / misconception 库 ID 错配
@@ -9,10 +10,11 @@
 # - 3 次 partial credit 缺失
 # - 4 次 DB 恢复字段漏 (import json / tc_states / trajectory / item_params)
 # - 2 次 CSS 渲染失败 (v0.47.3 inline 旧版 + v0.50.0 5D badge class 错配)
+# - v0.78 H3-c4 artifact: 7 个 replay 脚本硬编码 skill_id="variables" (v0.79 修)
 #
 # 用法:
-#   bash scripts/check_defensive.sh           # 全部 6 项 (前 6 项静态 + pytest)
-#   bash scripts/check_defensive.sh --static-only   # 仅前 6 项 (pre-commit hook 用, 秒级)
+#   bash scripts/check_defensive.sh           # 全部 7 项 (前 7 项静态 + pytest)
+#   bash scripts/check_defensive.sh --static-only   # 仅前 7 项 (pre-commit hook 用, 秒级)
 #   make check
 set -e
 
@@ -22,8 +24,8 @@ for arg in "$@"; do
         --static-only) STATIC_ONLY=1 ;;
         -h|--help)
             echo "用法: bash scripts/check_defensive.sh [--static-only]"
-            echo "  (default)   跑前 6 项静态检查 + pytest"
-            echo "  --static-only  只跑前 6 项静态检查 (pre-commit hook 用, 不跑 pytest)"
+            echo "  (default)   跑前 7 项静态检查 + pytest"
+            echo "  --static-only  只跑前 7 项静态检查 (pre-commit hook 用, 不跑 pytest)"
             exit 0
             ;;
         *)
@@ -38,12 +40,12 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 echo "═══════════════════════════════════════════════════════════════"
-echo "  ECOS 防御性自检 (6 项 + pytest)"
+echo "  ECOS 防御性自检 (7 项 + pytest)"
 echo "═══════════════════════════════════════════════════════════════"
 echo ""
 
 # ── 1) silent pass 扫描 ────────────────────────────────────────────
-echo "▶ [1/6] 扫描 except ...: pass 沉默失败 (排除注释行 + 测试代码)"
+echo "▶ [1/7] 扫描 except ...: pass 沉默失败 (排除注释行 + 测试代码)"
 # 排除规则:
 #   - 注释行 (以 # 开头)
 #   - docstring (""" 或 ''' 包含 "except: pass" 的描述)
@@ -61,7 +63,7 @@ echo "  ✅ 无 silent pass"
 
 # ── 2) 版本号同步 ───────────────────────────────────────────────
 echo ""
-echo "▶ [2/6] 检查 __version__ 同步"
+echo "▶ [2/7] 检查 __version__ 同步"
 EXPECTED=$(grep -E '^__version__' ecos/__init__.py | head -1 | sed -E 's/.*"([0-9.]+)".*/\1/')
 if [ -z "$EXPECTED" ]; then
     echo "  ❌ ecos/__init__.py 缺少 __version__"
@@ -71,7 +73,7 @@ echo "  ✅ __version__ = $EXPECTED"
 
 # ── 3) 库 ID 显式传递 (CI gate v0.52.0) ───────────────────────
 echo ""
-echo "▶ [3/6] 拦截 detect_with_hits 不传 library_str (排除注释行 + 函数定义 + multi-line 检查)"
+echo "▶ [3/7] 拦截 detect_with_hits 不传 library_str (排除注释行 + 函数定义 + multi-line 检查)"
 # 检查策略: 找到所有 detect_with_hits( / misc_detector.detect( 的调用点
 #   - 排除函数定义 (def detect_with_hits(...):)
 #   - 排除注释行
@@ -114,7 +116,7 @@ echo "  ✅ 所有 detector 调用都传 library_str"
 
 # ── 4) HTML class 与 CSS 选择器对齐 ─────────────────────────────
 echo ""
-echo "▶ [4/6] HTML class 与 CSS 选择器对齐"
+echo "▶ [4/7] HTML class 与 CSS 选择器对齐"
 if [ -f "web/student/index.html" ] && [ -f "web/student/styles.css" ]; then
     HTML_CLASSES=$(grep -oE 'class="[^"]+"' web/student/index.html 2>/dev/null | sed -E 's/class="([^"]+)"/\1/g' | tr ' ' '\n' | sort -u)
     CSS_CLASSES=$(grep -oE '^\.[a-zA-Z][a-zA-Z0-9_-]+' web/student/styles.css 2>/dev/null | sed -E 's/^\.//g' | sort -u)
@@ -140,7 +142,7 @@ fi
 
 # ── 5) DB 恢复字段完整性 ───────────────────────────────────────
 echo ""
-echo "▶ [5/6] DB 恢复字段完整性 (6 关键字段)"
+echo "▶ [5/7] DB 恢复字段完整性 (6 关键字段)"
 if grep -q "_get_or_create_student\|save_student_state" web/api/belief.py 2>/dev/null; then
     REQUIRED_FIELDS=("response_history" "current_state_5d" "theta_cov" "current_bloom_profile" "tc_states" "misconception_history")
     MISSING_FIELDS=""
@@ -160,7 +162,7 @@ fi
 
 # ── 6) DB 恢复必须走 apply_snapshot ───────────────────────────────
 echo ""
-echo "▶ [6/6] DB 恢复路径必须走 apply_snapshot (禁止直接 state.X = value)"
+echo "▶ [6/7] DB 恢复路径必须走 apply_snapshot (禁止直接 state.X = value)"
 # v0.77.1: 评估文档 §6.2 方案 B, DB 恢复走 BeliefState.apply_snapshot 单一入口
 # 拦截历史: CLAUDE.md §防御性自检 [5] 4 次漏字段恢复 (import json / tc_states / trajectory / item_params)
 # 根因: 6 处直接 state.X = value mutation 散落, 加新字段时易漏一处
@@ -175,6 +177,18 @@ if grep -q "_get_or_create_student" web/api/belief.py 2>/dev/null; then
     echo "  ✅ belief.py DB 恢复走 apply_snapshot 单一入口"
 else
     echo "  ⏭️  跳过 (未发现 _get_or_create_student)"
+fi
+
+# ── 7) replay 脚本不能含字面量 skill_id 硬编码 ────────────────────
+echo ""
+echo "▶ [7/7] replay 脚本不能含字面量 skill_id 硬编码 (AST 检测)"
+# v0.79: 拦截 scripts/v0*.py + scripts/replay*.py 中 skill_id="<literal>" 字面量赋值
+# 拦截历史: v0.78 H3-c4 artifact (replay bug + bloom 上限 + 浮点精度 3 个叠加)
+#   v0.75.3 + v0.76 + v075_d4_* + replay_lbc003 等 7 个脚本硬编码 skill_id="variables"
+# 修复: 用 ast 模块解析, 排除 docstring + 排除 dict .get() 默认值
+python scripts/check_no_literal_skill_id.py
+if [ $? -ne 0 ]; then
+    exit 1
 fi
 
 # ── pytest 全量 ──────────────────────────────────────────────────

@@ -1,5 +1,6 @@
 """v0.55.0-a: 5 项防御性自检 pytest 套件.
 v0.77.1: 加第 6 项 (DB 恢复必须走 apply_snapshot).
+v0.79.0: 加第 7 项 (replay 脚本不能含字面量 skill_id 硬编码).
 
 CLAUDE.md §防御性自检规范 v0.47.6+ 自动化:
   1. silent failure 扫描 (except: pass 模式)
@@ -8,6 +9,7 @@ CLAUDE.md §防御性自检规范 v0.47.6+ 自动化:
   4. DB 恢复路径 (_get_or_create_student 恢复所有字段)
   5. CI gate 库 ID (detect_with_hits 必须传 library_str)
   6. DB 恢复走 apply_snapshot (v0.77.1, 拦截 6 处直接 state.X = value mutation)
+  7. replay 脚本不能含字面量 skill_id 硬编码 (v0.79.0, AST 检测, 拦截 H3-c4 artifact)
 
 拦截历史 bug:
   - v0.47.5 修 8 处 silent pass
@@ -18,6 +20,7 @@ CLAUDE.md §防御性自检规范 v0.47.6+ 自动化:
   - v0.52.0 misconception library_str 错配
   - v0.53.3 silent pass 修
   - v0.77.1 DB 恢复字段漏根治 (apply_snapshot 单一入口)
+  - v0.79.0 replay skill_id 硬编码根治 (AST 检测, 拦截 H3-c4 artifact)
 """
 import re
 import json
@@ -257,12 +260,53 @@ def test_db_restore_uses_apply_snapshot(web_dir: Path):
             )
 
 
+# ─── 测试 7: replay 脚本不能含字面量 skill_id 硬编码 ──────────────────────
+
+def test_no_literal_skill_id_in_replay_scripts(ecos_dir: Path):
+    """验证 scripts/v0*.py + scripts/replay*.py 不能含字面量 skill_id 硬编码.
+
+    拦截历史:
+    - v0.78 H3-c4 artifact: v0.75.3 + v0.76 + v075_d4_* + replay_lbc003 等 7 个脚本
+      硬编码 skill_id="variables", 导致 H3-c4 "0 拐点" 结论是 3 个 artifact 叠加
+      (replay bug + bloom_update_step 上限 + 浮点精度).
+    - v0.79 修: 改成 pid_to_topic.get(pid, "python.variables") 从 Q 矩阵动态查.
+    - v0.79 加防御性自检 [7]: AST 检测, 排除 docstring + dict .get() 默认值.
+
+    规则:
+    - 禁止: skill_id="<literal>" 直接字面量赋值 (在 Observation() 调用中)
+    - 允许: skill_id=<variable> / <function_call> / <dict>[<key>]
+    - 允许: skill_id=pid_to_topic.get(pid, "default") 中的 default 字符串
+    - 允许: docstring / 注释内的描述文字
+    """
+    import ast
+    import subprocess
+    import sys
+
+    # 调用 scripts/check_no_literal_skill_id.py 子进程
+    checker = ecos_dir.parent / "scripts" / "check_no_literal_skill_id.py"
+    if not checker.exists():
+        pytest.skip(f"checker not found: {checker}")
+
+    result = subprocess.run(
+        [sys.executable, str(checker)],
+        capture_output=True,
+        text=True,
+        cwd=str(ecos_dir.parent),
+    )
+    if result.returncode != 0:
+        pytest.fail(
+            f"❌ 发现字面量 skill_id 硬编码:\n{result.stdout}\n"
+            f"拦截历史: v0.78 H3-c4 artifact (7 个 replay 脚本硬编码 skill_id='variables')\n"
+            f"修复: 改成 skill_id=pid_to_topic.get(pid, 'python.variables')"
+        )
+
+
 # ─── 收集所有测试,方便 pytest 输出 ─────────────────────────────────────
 
 def pytest_report_header(config):
     """测试报告头部: 显示 ECOS pytest 套件版本."""
     return [
-        f"ECOS pytest 套件 v0.77.1",
-        f"  6 项防御性自检: silent pass / 版本号 / CSS / DB 恢复字段 / CI gate / apply_snapshot",
-        f"  拦截历史: 5 次虚标 + 5 处 silent pass + 4 次 DB 字段漏"
+        f"ECOS pytest 套件 v0.79.0",
+        f"  7 项防御性自检: silent pass / 版本号 / CSS / DB 恢复字段 / CI gate / apply_snapshot / replay skill_id",
+        f"  拦截历史: 5 次虚标 + 5 处 silent pass + 4 次 DB 字段漏 + 7 处 replay 硬编码"
     ]
