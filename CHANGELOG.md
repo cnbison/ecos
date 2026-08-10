@@ -79,6 +79,104 @@ class StateEngine:
 - v0.80.0 final: defensive check [8] AST scan direct state mutation (soft warning)
 
 
+### feat: v0.80.0-b BeliefUpdator + InferenceEngine extracted (CTA 4-layer split 第 2 阶段)
+
+> **范围**: 提取 InferenceEngine (pure inference, no state mutation) + BeliefUpdator (sole mutation site, calls StateEngine.commit). `BeliefEngine.update()` 改为 facade: build ObservationContext -> inference.run() -> belief_updater.apply(). `_llm_critic_perception` + `_llm_critic_misconception` 2 个私有方法迁移到 InferenceEngine 作为 `_compute_llm_perception` / `_compute_llm_misconception` (pure functions, populate InferenceResult).
+> **关键不变量**: InferenceEngine.run() 不 mutate state (5 个 critical test 验证 theta/theta_cov/dim_fields/bloom_profile/overall_confidence/last_updated 全部未动). BeliefUpdator.apply() 是唯一 mutation 入口 (调 StateEngine.commit).
+> **向后兼容**: 14 production files + 431 tests + H3-c4 regression canary 全部 0 改动通过. 新增 62 tests (InferenceEngine 28 + BeliefUpdator 34).
+> **bug 修复 (开发期发现)**: BeliefUpdator.apply() 原本在 commit 前设 `state.last_updated = result.last_updated`, 但 `bump_version` (commit 内部调用) 用 `now()` 覆盖, clobber 了 observation.timestamp. 修复: 改为 commit 后再 set, 确保 observation.timestamp 语义保留. 该 bug 未影响 H3-c4 (replay 不依赖 last_updated 字段), 但 unit test `test_apply_sets_last_updated` 抓到.
+
+#### 新增文件
+
+- `ecos/cta/inference_engine.py`: InferenceEngine 类 + ObservationContext + InferenceResult dataclass
+- `ecos/cta/belief_updater.py`: BeliefUpdator 类 (apply 方法调 StateEngine.commit)
+- `tests/test_inference_engine.py`: 28 测试 (含 5 个 critical 不变量 test: theta/theta_cov/dim_fields/bloom_profile/overall_confidence/last_updated 未 mutate)
+- `tests/test_belief_updater.py`: 34 测试 (覆盖 MIRT/Bloom/LLM perception/LLM misconception/TC/overall/trajectory/last_updated 全字段 mutation + StateEngine.commit 调用 + e2e integration)
+
+#### InferenceResult 字段组 (pure data, no mutation)
+
+```python
+@dataclass
+class InferenceResult:
+    # MIRT
+    theta_mean: Optional[np.ndarray]
+    theta_cov: Optional[np.ndarray]
+    dim_updates: Dict[str, Dict[str, Any]]  # K/P/S/C/X -> {theta, se, mastery_prob, mastered, confidence, evidence_id, last_updated}
+    # Bloom
+    bloom_field_updates: Dict[str, float]  # {field_name: new_prob}
+    bloom_dominant_recompute: bool
+    bloom_confidence: Optional[float]
+    bloom_evidence_id: Optional[int]
+    # LLM perception
+    llm_perception_bloom_target: Optional[Tuple[str, float]]  # (target_name, new_prob)
+    llm_perception_c_confidence: Optional[float]
+    llm_perception_dominant_recompute: bool
+    # LLM misconception
+    llm_misc_hit: Optional[MisconceptionHit]
+    llm_misc_illusory_flag: bool
+    llm_misc_c_discount_factor: Optional[float]
+    llm_misc_c_mastery_prob: Optional[float]
+    llm_misc_c_mastered: Optional[bool]
+    llm_misc_c_evidence_id: Optional[int]
+    # TC
+    tc_skill_id: Optional[str]
+    tc_state: Optional[TCState]
+    # Overall
+    overall_confidence: Optional[float]
+    # Trajectory
+    trajectory_snapshot: Optional[StateSnapshot]
+    trajectory_maxlen: Optional[int]
+    # Meta
+    last_updated: Optional[datetime]
+```
+
+#### BeliefEngine.update() 改 facade
+
+```python
+# v0.79 (inline ~46 mutations):
+state.K.theta = ...
+state.bloom_profile.apply = ...
+state.C.mastery_prob = ...
+state.overall_confidence = ...
+# ... (46 处直接 mutation)
+
+# v0.80.0-b (pure orchestration):
+ctx = ObservationContext(student_id, skill_id, problem_id, score, correct, bloom_level, ...)
+result = self._inference_engine.run(state, observation, ctx, history)  # NO mutation
+self._belief_updater.apply(state, result, observation, history[-1])   # sole mutation site
+return state
+```
+
+warmup/probe state machine + response_history accumulation 仍 inline (v0.80.0-c 提取).
+
+#### 关键不变量测试 (test_inference_engine.py)
+
+- `test_run_does_not_mutate_state_theta`: theta_mean/theta_cov 未动
+- `test_run_does_not_mutate_state_dim_fields`: K/P/S/C/X 字段未动
+- `test_run_does_not_mutate_bloom_profile`: bloom 6 字段未动
+- `test_run_does_not_mutate_overall_confidence`: overall_confidence 未动
+- `test_run_does_not_mutate_last_updated`: last_updated 未动
+
+#### H3-c4 回归 canary
+
+`scripts/v078_h3c4_inflection_response_replay.py` 全 3 学生 PASS:
+- lbc001: skill_switch median=0.0, p90=2.6, PASS
+- lbc002: skill_switch median=0.0, p90=2.7, PASS
+- lbc003: skill_switch median=0.0, p90=2.9, PASS
+
+无数值漂移, 证明 4-layer split 保持 v0.79 inference + mutation 语义.
+
+#### 7 项防御性自检全绿
+
+[1] silent pass / [2] version sync / [3] library_str / [4] CSS / [5] DB 字段 / [6] apply_snapshot / [7] replay skill_id
+
+#### 后续 (v0.80.0-c + d + final)
+
+- v0.80.0-c: ObservationEngine + FeatureExtractor extracted, `__getattr__` forwarding
+- v0.80.0-d: InferenceEngine 行数评估, 若 > 350 行则 sub-split to `ecos/cta/inference/`
+- v0.80.0 final: defensive check [8] AST scan direct state mutation (soft warning)
+
+
 ## [0.79.0] 2026-08-10
 
 ### feat: 防御性自检 [7] replay 脚本字面量 skill_id 治理

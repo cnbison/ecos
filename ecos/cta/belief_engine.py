@@ -10,6 +10,13 @@ M2 W1 范围：
   🚧 L3 CD-CAT 选题（Phase 4+ 实现 PWKL）
   🚧 L4 因果归因（Phase 4+ 实现 A/B Test）
   ✅ C 维度 misconception 折扣（M2 W3 通过 ConfidenceDimensionState 实现）
+
+v0.80.0-b: 4-layer split
+  - InferenceEngine.run() produces InferenceResult (NO state mutation)
+  - BeliefUpdator.apply() is sole mutation site (calls StateEngine.commit)
+  - update() is pure orchestration: build ctx -> run inference -> apply mutations
+  - _llm_critic_perception / _llm_critic_misconception moved to InferenceEngine
+  - warmup/probe state machine + response_history accumulation still inline (extract v0.80.0-c)
 """
 
 from __future__ import annotations
@@ -34,8 +41,11 @@ from .belief_state import (
     StateSnapshot,
     TrajectoryState,
 )
+from .belief_updater import BeliefUpdator
+from .inference_engine import InferenceEngine, ObservationContext
 from .l1_evolution import BKTEvolutionLayer, EvolutionConfig
 from .l2_mirt import BiFactorMIRT5D, MIRTConfig, MIRTItemParams
+from .state_engine import StateEngine, get_default_engine
 from .tc_detector import TCStateDetector
 
 if TYPE_CHECKING:
@@ -98,7 +108,7 @@ class BeliefEngineConfig:
     evolution_config: EvolutionConfig = field(default_factory=EvolutionConfig)
     mirt_config: MIRTConfig = field(default_factory=MIRTConfig)
     bloom_update_step: float = 0.05
-    # v0.47.5: 100 → 500,配合 API / DB 持久化 last_n(500) 一起放大
+    # v0.47.5: 100 -> 500,配合 API / DB 持久化 last_n(500) 一起放大
     # Bisen 反馈"成长轨迹应该按实际数量显示",12 道题应该显示 12 条
     trajectory_maxlen: int = 500
     # ── W1 warm-up 窗口（W1 2026-07-17 落地，详见 discussions/2026-07-17-方向选择-A先C后.md）──
@@ -112,6 +122,9 @@ class BeliefEngineConfig:
 class BeliefEngine:
     """CTA 信念引擎（M2 W3 范围）.
 
+    v0.80.0-b: facade over 4 layers (ObservationEngine + FeatureExtractor in v0.80.0-c).
+    Currently orchestrates InferenceEngine + BeliefUpdator directly.
+
     主入口:
         from ecos.llm_client import ECOSLLMClient
         client = ECOSLLMClient.from_env()
@@ -119,8 +132,8 @@ class BeliefEngine:
         state = engine.create_initial_state("student_001")
         state = engine.update(state, observation)
 
-    LLM Critic 集成（M2 W3）：
-        - 感知层（PerceptionCritic）：解析 explanation_text → Bloom 推断 + 知识点
+    LLM Critic 集成（M2 W3, v0.80.0-b 移到 InferenceEngine）：
+        - 感知层（PerceptionCritic）：解析 explanation_text -> Bloom 推断 + 知识点
         - Misconception 检测（MisconceptionDetector）：C 维度折扣
         - 解释层（ExplanationCritic）：由外部持有，BeliefEngine 不直接调用
     """
@@ -160,7 +173,19 @@ class BeliefEngine:
         self._probe_due_in: Dict[str, int] = {}
         self._probe_count: Dict[str, int] = {}  # 已插入的探针题数
 
-        # LLM Critic（M2 W3，延迟初始化）
+        # v0.80.0-b: 4-layer split - InferenceEngine (pure) + BeliefUpdator (sole mutator)
+        self._state_engine = get_default_engine()
+        self._inference_engine = InferenceEngine(
+            l1=self.l1,
+            l2=self.l2,
+            tc_detector=self.tc_detector,
+            config=self.config,
+            llm_client=llm_client,
+            misconception_library_str=misconception_library_str,
+        )
+        self._belief_updater = BeliefUpdator(self._state_engine)
+
+        # LLM Critic（M2 W3，延迟初始化）- kept on facade for backward compat (perception_critic / misc_detector properties)
         self._perception_critic: Optional["PerceptionCritic"] = None
         self._misc_detector: Optional["MisconceptionDetector"] = None
 
@@ -236,17 +261,13 @@ class BeliefEngine:
 
     @property
     def perception_critic(self) -> "PerceptionCritic":
-        if self._perception_critic is None:
-            from .llm_critic import PerceptionCritic
-            self._perception_critic = PerceptionCritic(self.llm_client)
-        return self._perception_critic
+        """v0.80.0-b: delegates to InferenceEngine (kept for backward compat)."""
+        return self._inference_engine.perception_critic
 
     @property
     def misc_detector(self) -> "MisconceptionDetector":
-        if self._misc_detector is None:
-            from .llm_critic import MisconceptionDetector
-            self._misc_detector = MisconceptionDetector(self.llm_client)
-        return self._misc_detector
+        """v0.80.0-b: delegates to InferenceEngine (kept for backward compat)."""
+        return self._inference_engine.misc_detector
 
     def create_initial_state(self, student_id: str) -> BeliefState:
         """创建新学生的初始 BeliefState."""
@@ -270,9 +291,12 @@ class BeliefEngine:
         observation: Observation,
         lca_result: Optional[LCAResult] = None,
     ) -> BeliefState:
-        """主更新入口——每次新观测后调用.
+        """主更新入口--每次新观测后调用.
 
-        M2 W3 新增 Step 5-6：LLM Critic 感知层 + Misconception 检测。
+        v0.80.0-b: 4-layer split
+          - warmup/probe state machine + response_history accumulation: inline (extract v0.80.0-c)
+          - InferenceEngine.run() produces InferenceResult (NO state mutation)
+          - BeliefUpdator.apply() is sole mutation site (calls StateEngine.commit)
 
         Args:
             state: 当前 BeliefState
@@ -287,7 +311,7 @@ class BeliefEngine:
         problem_id = observation.problem_id
         # v0.54.0-d: partial credit score 派生 correct
         #   优先级: observation.score >= 0.6 > observation.correct (老调用兼容)
-        #   老调用方只传 correct=True → score=0.0 → 派生 correct=False (强制用新 score)
+        #   老调用方只传 correct=True -> score=0.0 -> 派生 correct=False (强制用新 score)
         #   老代码改造: 应同时传 correct=True + score=1.0, 或只传 score=0.7
         score = observation.score if observation.score > 0 else (1.0 if observation.correct else 0.0)
         correct = score >= 0.6
@@ -319,9 +343,6 @@ class BeliefEngine:
         # ── W1 warm-up 期 Bloom 步长切换（更大，让学生感到"在进步"）──
         step = self.config.warmup_step if in_warmup else self.config.bloom_update_step
 
-        # Step 1: L1 BKT 更新
-        self.l1.update(skill_id, correct)
-
         # Step 2: 累积响应历史（用于 MIRT 估计 + 答题历史详情页 v0.49.2）
         #   v0.49.2: 改 append dict（之前是 3-tuple,缺 user_answer/timestamp）
         #   v0.52.2: 加 ai_reasoning (Bisen 反馈 partial credit 缺失, 短期先存 AI reasoning
@@ -344,193 +365,28 @@ class BeliefEngine:
             self._response_history[student_id] = history[-100:]
             history = self._response_history[student_id]
 
-        # Step 3: L2 MIRT MAP 估计
-        #   v0.54.0: 用 score 字段 (partial credit) 替换 correct (二元)
-        #   l2_mirt.py:135 公式 responses * log(probs) + (1-responses) * log(1-probs)
-        #   已支持连续 [0,1] 响应, MIRT 公式层不用改
-        #   兼容老数据: 老 dict 没 score 字段, fallback 到 correct (0/1)
-        if len(history) >= 2:
-            problem_ids = [h["problem_id"] for h in history]
-            responses = np.array(
-                [h.get("score", h.get("correct", 0)) for h in history],
-                dtype=float,
-            )
-            theta_hat, theta_cov = self.l2.estimate_theta(responses, problem_ids)
-            state.theta_mean = theta_hat
-            state.theta_cov = theta_cov
-            for i, dim_char in enumerate(["K", "P", "S", "C", "X"]):
-                dim_state = getattr(state, dim_char)
-                dim_state.theta = float(theta_hat[i])
-                dim_state.se = float(np.sqrt(max(theta_cov[i, i], 1e-6)))
-                dim_state.mastery_prob = float(1.0 / (1.0 + np.exp(-theta_hat[i])))
-                dim_state.mastered = dim_state.mastery_prob >= 0.5
-                # v0.48.0: dim.confidence 反映该维度**自己**的 SE
-                #   之前用 len(history) / 30.0 → 5 维度共用 history 长度,5 维度 conf 全一样(Bisen 反馈)
-                #   新公式: 1 / (1 + SE) — SE 越大 conf 越小,5 维度 conf 会按各自估算质量分化
-                #   范围: SE=0.5 → conf=0.67; SE=0.8 → conf=0.56; SE=1.0 → conf=0.5
-                dim_state.confidence = float(1.0 / (1.0 + dim_state.se))
-                dim_state.evidence_ids.append(len(history))
-                dim_state.last_updated = observation.timestamp
-
-        # Step 4: BloomProfile 更新（基于题目预设 bloom_level）
-        #   v0.54.0: partial credit 公式 (score - 0.5) * 2 * step
-        #   score=0.0 → delta = -step (max 跌)
-        #   score=0.5 → delta = 0 (中性, partial credit 文档设计)
-        #   score=1.0 → delta = +step (max 涨)
-        #   score=0.7 → delta = +0.4 * step (70% 答对应涨 step 的 40%)
-        bloom_name = bloom_level.name.lower()
-        current_prob = getattr(state.bloom_profile, bloom_name)
-        bloom_delta = (score - 0.5) * 2.0 * step
-        new_prob = max(0.0, min(1.0, current_prob + bloom_delta))
-        setattr(state.bloom_profile, bloom_name, new_prob)
-        state.bloom_profile.update_dominant()
-        state.bloom_profile.confidence = min(1.0, len(history) / 30.0)
-        state.bloom_profile.evidence_ids.append(len(history))
-
-        # Step 5: LLM Critic 感知层（M2 W3）——explanation_text 非空时调用
-        if observation.explanation_text and self.llm_client is not None:
-            self._llm_critic_perception(state, observation)
-
-        # Step 6: LLM Critic Misconception 检测（M2 W3）——C 维度折扣
-        if observation.explanation_text and self.llm_client is not None:
-            self._llm_critic_misconception(state, observation)
-
-        # Step 7: TC 状态检测（挂在 C 维度上）
-        has_misc = bool(state.C.misconception_hits)
-        current_tc = state.C.tc_states.get(skill_id, None)
-        updated_tc = self.tc_detector.detect(
-            topic=skill_id,
+        # v0.80.0-b: 4-layer split - build ObservationContext, run InferenceEngine, apply BeliefUpdator
+        # InferenceEngine.run() produces InferenceResult (NO state mutation, pure inference)
+        # BeliefUpdator.apply() is sole mutation site (calls StateEngine.commit for versioning)
+        # Step 1 BKT + Step 3 MIRT + Step 4 Bloom + Step 5 LLM perception + Step 6 LLM misconception
+        # + Step 7 TC + Step 8 overall_confidence + Step 9 trajectory + Step 10 last_updated
+        # all move to InferenceEngine.run() + BeliefUpdator.apply()
+        ctx = ObservationContext(
+            student_id=student_id,
+            skill_id=skill_id,
+            problem_id=problem_id,
+            score=score,
             correct=correct,
             bloom_level=bloom_level,
-            current_tc_state=current_tc,
-            has_active_misc=has_misc,
+            in_warmup=in_warmup,
+            just_exited_warmup=just_exited_warmup,
+            bloom_step=step,
+            observation=observation,
         )
-        state.C.tc_states[skill_id] = updated_tc
-
-        # Step 8: 整体置信度
-        # v0.48.1: 改成 5 维度 confidence 的均值(与 dim.confidence 同公式体系,数据一致)
-        #   Bisen 反馈: 5 维度 conf 都 0.5+,但总置信度 0.4(用 len(history)/30 算)
-        #   两个数字逻辑上应该一致,改成均值后:5 维度 0.5+ → 整体 0.5+
-        # 历史: 0.46.5 用 min(1.0, len(history)/30) 是"数据累积度"语义
-        #   0.48.0 把 dim.confidence 改成按 SE 算("估算质量"语义)
-        #   0.48.1 统一: overall = mean(dim.confidence),整体=5 维度估算质量的均值
-        # 数据累积度的语义在 history.length 已经表达,不需要重复
-        state.overall_confidence = float(np.mean([
-            state.K.confidence, state.P.confidence, state.S.confidence,
-            state.C.confidence, state.X.confidence,
-        ]))
-
-        # v0.64.0: 补 last history entry 的 mastery_prob_after 字段
-        #   之前 v0.49.2 / v0.52.2 / v0.54.0 在 Step 2 append 时还没 update,
-        #   所以 history[i] 缺 mastery_prob_after, H3 验证 confidence 用当前 mastery_prob 简化
-        #   现在 Step 8 算完 5D confidence 后,补 history[last] 字段
-        #   用途: H3 验证 / 答题历史详情页 / Phase 5 学术分析
-        #   向后兼容: 老 history[i] 没这字段, get("mastery_prob_after", {}) 兜底
-        if history:
-            history[-1]["mastery_prob_after"] = {
-                "K": float(state.K.mastery_prob),
-                "P": float(state.P.mastery_prob),
-                "S": float(state.S.mastery_prob),
-                "C": float(state.C.mastery_prob),
-                "X": float(state.X.mastery_prob),
-                "bloom_dominant": state.bloom_profile.dominant_layer.name,
-                "bloom_confidence": float(state.bloom_profile.confidence),
-                "overall_confidence": float(state.overall_confidence),
-            }
-
-        # Step 9: 追加轨迹快照
-        state.trajectory.append(state.snapshot())
-        if len(state.trajectory.snapshots) > self.config.trajectory_maxlen:
-            state.trajectory.snapshots = state.trajectory.snapshots[-self.config.trajectory_maxlen:]
-
-        # Step 10: 时间戳
-        state.last_updated = observation.timestamp
+        result = self._inference_engine.run(state, observation, ctx, history)
+        self._belief_updater.apply(state, result, observation, history[-1] if history else None)
 
         return state
-
-    def _llm_critic_perception(
-        self,
-        state: BeliefState,
-        observation: Observation,
-    ) -> None:
-        """Step 5：LLM Critic 感知层——更新 BloomProfile（感知推断的 bloom_level）."""
-        try:
-            p_out = self.perception_critic.perceive(
-                problem=observation.problem_text or observation.skill_id,
-                correct_answer=observation.correct_answer or "",
-                student_correctness=observation.correct,
-                student_explanation=observation.explanation_text,
-            )
-        except Exception:
-            # LLM 调用失败时跳过 Bloom 推断，不阻塞主流程（5D MIRT / Bloom 累积已先执行）
-            # v0.53.3: silent pass → logger.warning (CLAUDE.md §防御性自检)
-            #   不知道是 network / LLM / rate limit / JSON 错, 调试时找不到根因
-            logger.warning(
-                "_update_bloom_perception: LLM Critic.perceive 失败(student=%s, problem=%s), 跳过 Bloom 推断",
-                state.student_id, observation.problem_id, exc_info=True,
-            )
-            return
-
-        # Bloom 推断：仅当推断层高于当前 dominant_layer 时才采纳（避免过度更新）
-        if p_out.bloom_level is not None:
-            inferred_val = p_out.bloom_level.value
-            current_dom_val = state.bloom_profile.dominant_layer.value
-            if inferred_val > current_dom_val:
-                target_name = p_out.bloom_level.name.lower()
-                current_target_prob = getattr(state.bloom_profile, target_name)
-                setattr(
-                    state.bloom_profile,
-                    target_name,
-                    min(1.0, current_target_prob + self.config.bloom_update_step),
-                )
-                state.bloom_profile.update_dominant()
-
-        # 更新 C 维度的 explanation_quality（感知质量影响置信度）
-        state.C.confidence = state.C.confidence * 0.7 + p_out.explanation_quality * 0.3
-
-    def _llm_critic_misconception(
-        self,
-        state: BeliefState,
-        observation: Observation,
-    ) -> None:
-        """Step 6：LLM Critic Misconception 检测——C 维度折扣."""
-        try:
-            misc_hit = self.misc_detector.detect_with_hits(
-                student_explanation=observation.explanation_text,
-                problem=observation.problem_text or observation.skill_id,
-                trigger_problem_id=observation.problem_id,
-                # v0.52.0: 传对库 (BUG 2.1 修复)
-                #   之前不传 → detector fallback 到 K12 默认库 → 库 ID 错配
-                #   修复: 用 self.misconception_library_str (由 belief.py 注入)
-                library_str=self.misconception_library_str,
-            )
-        except Exception:
-            # v0.52.0: silent pass → logger.warning (CLAUDE.md §防御性自检)
-            #   之前 except: return 静默吞掉 LLM 调用失败, 不知道是 network/LLM/rate limit
-            #   Bisen 之前已经反馈过同款 silent pass (v0.47.5)
-            logger.warning(
-                "_llm_critic_misconception: LLM 调用失败(student=%s, problem=%s)",
-                state.student_id, observation.problem_id, exc_info=True,
-            )
-            return
-
-        if misc_hit is None:
-            return
-
-        # 记录 misconception 命中
-        state.C.misconception_hits.append(misc_hit)
-        state.C.illusory_confidence_flag = True
-
-        # 折扣因子：confidence 越高折扣越大（最多折扣 30%）
-        discount = 1.0 - min(misc_hit.confidence * 0.3, 0.3)
-        state.C.discount_factor = min(state.C.discount_factor * discount, 1.0)
-
-        # 折扣后修正 mastery_prob（伪置信标记）
-        state.C.mastery_prob = state.C.mastery_prob * state.C.discount_factor
-        state.C.mastered = state.C.mastery_prob >= 0.5
-
-        # evidence 记录
-        state.C.evidence_ids.append(len(observation.explanation_text))
 
     def get_bkt_mastery(self, skill_id: str) -> float:
         """便捷接口：获取 BKT 当前掌握概率."""

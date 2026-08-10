@@ -45,7 +45,8 @@
 
 **演进建议**：
 - **v0.80.0** ✅: StateEngine + validate + snapshot + diff 落地 (4/6 职责). apply_snapshot 改 shim 委托 StateEngine.commit
-- **v0.80.0-b/c/d**: BeliefUpdator + ObservationEngine + FeatureExtractor + InferenceEngine 拆分, update() 走 StateEngine.commit
+- **v0.80.0-b** ✅: InferenceEngine (pure) + BeliefUpdator (sole mutator) 提取, `update()` 改 facade. 5 个 critical 不变量 test 验证 InferenceEngine.run() 不 mutate state. 4-layer 拆分完成度 30% -> 60%
+- **v0.80.0-c/d**: ObservationEngine + FeatureExtractor 提取, `__getattr__` forwarding, 4-layer 拆分完成度 -> 80%
 - **v0.81.0**：Replay/Simulation (依赖 Event Engine)
 
 ### 1.2 Event Engine
@@ -245,17 +246,18 @@
 | 现有代码 | 接近度 | 说明 |
 |---|---|---|
 | **Observation Engine** | | |
-| `ecos/cta/belief_engine.py:Observation` dataclass | 40% | 已有 Observation 数据结构,但没有 Observation Engine |
+| `ecos/cta/belief_engine.py:Observation` dataclass | 40% | 已有 Observation 数据结构, v0.80.0-c 提取 ObservationEngine |
 | `BeliefEngine.update` 输入校验 | 30% | 隐式输入校验（score 范围 / correct 派生）,但散落在 update 内 |
 | **Feature Extractor** | | |
-| `BeliefEngine.update` 内 feature engineering | 30% | 隐式特征提取（partial credit / correct / bloom_level）,但跟 Inference 混在一起 |
+| `BeliefEngine.update` 内 feature engineering | 30% | 隐式特征提取（partial credit / correct / bloom_level）, v0.80.0-c 提取 FeatureExtractor |
 | **Inference Engine** | | |
+| `ecos/cta/inference_engine.py:InferenceEngine` (v0.80.0-b) | 80% | 已提取, 接口 `run(state, observation, ctx, history) -> InferenceResult` (pure, no state mutation). BKT/MIRT/TC/LLM Critic 内部调 |
 | `ecos/cta/l2_mirt.py:MIRT.estimate_theta` | 60% | MIRT 推断（5D theta 估计）,已是 Inference 的一部分 |
 | `ecos/cta/l1_evolution.py:EvolutionEngine` | 50% | BKT 进化（K/P/S/C/X mastery 演化）,已是 Inference |
 | `ecos/cta/tc_detector.py:TCDetector` | 50% | TC 检测,属于 Inference（不会 / 粗心 / 猜错的判别） |
 | `ecos/cta/llm_critic/` | 40% | LLM Critic,属于 Inference（深度推断） |
 | **Belief Update** | | |
-| `BeliefEngine.update` 末尾 state mutation | 60% | 已有 state mutation,但是 Inference 的一部分,没分离 |
+| `ecos/cta/belief_updater.py:BeliefUpdator` (v0.80.0-b) | 90% | 已提取, sole mutation site, `apply(state, result, observation, history_entry) -> event_id` 调 StateEngine.commit |
 
 **演进建议**：
 - **v0.74.0**：CTA 4 层拆分

@@ -383,8 +383,10 @@ bash scripts/install-hooks.sh    # 设 core.hooksPath = githooks/
 | 6 | DB 恢复走 apply_snapshot | v0.77.1 收口 6 处直接 state.X = value mutation | `grep "state.apply_snapshot(" web/api/belief.py` |
 | 7 | replay 脚本无字面量 skill_id | v0.78 H3-c4 artifact (7 个 replay 脚本硬编码 skill_id="variables") | AST 检测 `scripts/check_no_literal_skill_id.py`, 排除 docstring + dict .get() 默认 |
 
-**431 pytest 测试**（截至 v0.80.0, 18 个文件）：
-- `test_state_engine.py` (54)：v0.80.0 StateEngine commit/validate/snapshot/diff + apply_snapshot shim
+**493 pytest 测试**（截至 v0.80.0-b, 20 个文件）：
+- `test_state_engine.py` (54)：v0.80.0-a StateEngine commit/validate/snapshot/diff + apply_snapshot shim
+- `test_inference_engine.py` (28)：v0.80.0-b InferenceEngine (含 5 个 critical 不变量 test: run() 不 mutate state)
+- `test_belief_updater.py` (34)：v0.80.0-b BeliefUpdator (sole mutation site, calls StateEngine.commit)
 - `test_defensive.py` (7)：7 项防御性自检的 pytest 版本
 - `test_apply_snapshot.py` (19)：v0.77.1 DB 恢复路径单一入口 (6 字段恢复 + 不接管边界 + round-trip)
 - `test_partial_credit.py` (5)：partial credit + MIRT 回归保护
