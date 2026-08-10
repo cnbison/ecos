@@ -12,6 +12,66 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.83.0] 2026-08-10
+
+### feat: Evidence Engine + Runtime API — Evidence Engine 提取 (4 子版本第 1 个, v0.83.0-a)
+
+> **背景**: v0.80-v0.82 完成 Kernel-first 战略的前 3 个 kernel-deepening 版本 (CTA 4-layer + StateEngine 6/6 + LCA 4-layer). 下一个瓶颈: Evidence 散落 + Runtime API 不一致. kernel-mapping §1.4/§1.5/§5 标 0-30% 进度.
+> **Bisen 2026-08-06 拍板 Kernel-first**: v0.83 是 4 kernel-deepening 版本的第 4 个 (per 12-kernel-mapping §8.3). 教师/家长/跨学科 extension 推迟到 Phase 7+.
+> **v0.83.0 目标**: Evidence Engine 统一 5+ 来源 + Belief 关联 + Evaluation Engine (Twin attribution + Policy AB + Goal completion) + Runtime API 6 核心. 4 sub-commits a/b/c/d.
+> **v0.83.0-a 范围**: Evidence Engine 落地. Evidence 统一 schema (6 字段 + 4 派生) + EvidenceSource 6 来源枚举 + EvidenceEngine CRUD 跨 3 表 (evidence_log / calibration_log / event_log). 防御性自检 [8] 仍 hard block. 673 -> 688 tests.
+
+#### v0.83.0-a: Evidence Engine 提取
+
+NEW: `ecos/evidence/__init__.py` (导出 Evidence / EvidenceSource / EvidenceEngine / EvidenceConfig)
+
+NEW: `ecos/evidence/evidence.py` (~200 lines)
+- `EvidenceSource` 枚举 (6 种来源): RESPONSE_HISTORY / CALIBRATION_LOG / PARTIAL_CREDIT / LLM_CRITIC / MISCONCEPTION / EVENT_LOG
+  - `from_value(raw_str)` 兼容 db 反查 (unknown subtype 警告保留主 source)
+- `Evidence` dataclass (6 顶层 + 4 派生字段):
+  - 6 顶层: evidence_id / source / student_id / timestamp / payload / confidence
+  - 4 派生: problem_id / skill_id / goal_id / state_delta
+- `to_dict()` / `from_dict()` 序列化 (payload_json 字段)
+
+NEW: `ecos/evidence/evidence_engine.py` (~370 lines)
+- `EvidenceConfig` dataclass: max_per_student=10000 / auto_prune_days=0 (占位) / enable_event_log_integration=True
+- `EvidenceEngine` 类:
+  - `add(evidence) -> int` 跨 3 表路由 (RESPONSE_HISTORY/子类型 → evidence_log, CALIBRATION_LOG → calibration_log, EVENT_LOG → event_log)
+  - `query_by_id(evidence_id) -> Optional[Evidence]` 跨 3 表反查
+  - `query_by_student(student_id, since/until/limit) -> List[Evidence]` 跨 3 表合并 + 倒序
+  - `query_by_source(source, student_id) -> List[Evidence]` 按来源过滤 (子类型靠 _row_to_evidence 自动还原)
+  - `query_by_goal(goal_id) -> List[Evidence]` v0.83.0-a stub 返空 (Goal Ontology 0%)
+  - `attach_to_belief(evidence, state, dim)` v0.83.0-a stub (b 阶段接入)
+  - `_add_to_evidence_log` / `_add_to_calibration_log` / `_add_to_event_log` 3 个内部方法
+  - `_row_to_evidence` 还原 evidence_log 行 (含 source_subtype 自动还原为 LLM_CRITIC/MISCONCEPTION/PARTIAL_CREDIT)
+  - 防御性: 7 个 except 块全部 _log.warning(..., exc_info=True), 无 silent pass
+
+MODIFY: `ecos/__init__.py` (+1 line)
+- `__version__ = "0.83.0"` (a/b/c/d 4 commit 同步 bump)
+
+NEW: `tests/test_evidence.py` (15 tests, 0.21s)
+- 3 Evidence schema (默认构造 / round-trip / 6 来源枚举)
+- 5 来源集成 (RESPONSE_HISTORY / CALIBRATION_LOG / LLM_CRITIC / MISCONCEPTION / PARTIAL_CREDIT)
+- 3 query 接口 (by_student 倒序 / by_source 过滤 / by_goal stub)
+- 3 行为 (多学生隔离 / 时间过滤 / auto_prune 警告)
+- 1 防御性自检 (silent pass 扫描 evidence.py + evidence_engine.py)
+
+向后兼容:
+- 67 现有 evidence_log / calibration_log / event_log 表 schema 不破坏
+- 16 LCA tests + 122 4-layer tests + 7 H3-c4 canary tests 全过
+- H3-c4 canary PASS (Evidence 改动不影响 LCA 行为)
+- 防御性自检 [8] 仍 hard block (EvidenceEngine 0 新 mutation site)
+
+#### Architecture outcomes (a only)
+
+| 维度 | v0.82.0-d | v0.83.0-a | Δ |
+|---|---|---|---|
+| Evidence Engine | 0% (5+ 来源散落) | 100% (统一 schema + 6 来源 + 跨 3 表 CRUD) | +100% |
+| pytest 总数 | 673 | 688 | +15 tests (+2.2%) |
+| 防御性自检 [8] | hard block | hard block | 保持 |
+| H3-c4 canary | PASS | PASS | 保持 |
+
+
 ## [0.82.0] 2026-08-10
 
 ### feat: LCA 4-Layer Split — Planner 提取 (4 子版本第 1 个, v0.82.0-a)
@@ -271,9 +331,53 @@ NEW: `tests/test_policy_learner.py` (15 tests, 0.35s)
 - ✅ v0.82.0-c: Evaluator 提取 (estimate_gain/risk + record_intervention/attribute_effect, wrap LCAAttribution)
 - ✅ v0.82.0-d: PolicyLearner 提取 (LCAPolicyLearner 包装 + dump/load 委托) + LCAEngine facade finalization
 - 未来 v0.82.x 内 (但独立 commit, 不在 LCA split PR): LearningEvent unification / Event Bus / EventLog retention
-- 未来 v0.83+: Evidence Engine / Runtime API (Kernel-mapping §1.4 + §5)
+- ✅ v0.83.0-a: Evidence Engine 提取 (Evidence 统一 schema + 6 来源枚举 + 跨 3 表 CRUD)
+- 📋 v0.83.0-b: Belief-Evidence 关联 (BeliefState.add_evidence + 反查)
+- 📋 v0.83.0-c: Evaluation Engine (Twin attribution + Policy AB + Goal completion)
+- 📋 v0.83.0-d: Runtime API (6 核心纯函数 + kwargs)
 
-#### Verify (a+b+c+d) — v0.82 final
+#### Verify (v0.83.0-a)
+
+```bash
+# 1. Full pytest suite (688 tests after v0.83.0-a)
+python -m pytest tests/ -q
+# Expected: 688 passed (was 673 after v0.82.0-d, +15 Evidence tests)
+
+# 2. v0.78 H3-c4 LCA canary (Evidence 改动不破坏 H3-c4)
+python scripts/v078_h3c4_inflection_response_replay.py
+# Expected: H3-c4 PASS
+
+# 3. NEW: v0.83.0-a Evidence tests
+python -m pytest tests/test_evidence.py -v
+# Expected: 15 passed
+
+# 4. Defensive checks (8 items, [8] still hard block)
+bash scripts/check_defensive.sh
+# Expected: all 8 pass
+
+# 5. Version bump (a/b/c/d 4 commit 同步)
+grep '__version__' ecos/__init__.py
+# Expected: __version__ = "0.83.0"
+
+# 6. Evidence 6 来源 + 跨 3 表查询
+python -c "
+from ecos.evidence import Evidence, EvidenceSource, EvidenceEngine
+from datetime import datetime
+
+# 6 来源枚举
+assert len(EvidenceSource) == 6
+for s in EvidenceSource:
+    print(f'  {s.value}')
+
+# Evidence round-trip
+ev = Evidence(source=EvidenceSource.RESPONSE_HISTORY, student_id='s1',
+              timestamp=datetime.now(), payload={'skill_id': 'k1', 'correct': True},
+              confidence=0.9, problem_id='p1')
+d = ev.to_dict()
+ev2 = Evidence.from_dict(d)
+assert ev2.source == ev.source and ev2.problem_id == ev.problem_id
+print('Evidence to_dict/from_dict round-trip OK')
+"
 
 ```bash
 # 1. Full pytest suite (673 tests after v0.82.0-d)
