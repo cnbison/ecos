@@ -57,7 +57,7 @@
 - **v0.81.0-c** ✅: StateEngine.replay/simulate APIs (pure). 14 tests + 3 H3-c4 canary (replay path == inline path)
 - **v0.81.0-d** ✅: TODO mutations 迁移完成 (web/api/belief.py + ecos_session.py). check [8] hard block (exit 1). LINE_ALLOWLIST 8 -> 1
 - **v0.81.0 final** ✅: 6/6 StateEngine 职责, 616 tests (554 -> 616 +62), State Engine 抽象 100%
-- **v0.82.0**: LCA 4-layer split (next kernel-deepening version)
+- **v0.82.0** ✅ (2026-08-10): LCA 4-layer split (Planner + ExperimentDesigner + Evaluator + PolicyLearner) + LCAEngine facade finalization (632 → 491 行, -22%). 4 sub-commits (a/b/c/d). 57 tests (16+13+13+15). 防御性自检 [8] 仍 hard block (LCAEngine 不引入新 mutation site)
 - **v0.83.0**: Evidence Engine / Runtime API
 
 ### 1.2 Event Engine
@@ -85,8 +85,8 @@
 
 **演进建议**：
 - **v0.81.0** ✅: EventLog + LearningEvent + Replay/Simulation APIs (Option D direction, defer LearningEvent unification + Event Bus to v0.82+)
-- **v0.82.0**：统一 `Observation` + `CalibrationMessage` 为 `LearningEvent` (event_type 扩展); Event Bus (in-process pub/sub); EventLog retention policy
-- **v0.82+**：迁移已有 replay scripts (v078_h3c4_*, v0753_*) 到 StateEngine.replay (cleanup, not correctness)
+- **v0.82.0** (2026-08-10): LCA 4-layer split 优先级更高 (Kernel-first 战略), 抢占 v0.82 资源. LearningEvent unification / Event Bus / EventLog retention 推迟到 v0.82.x 后续 commit (不阻塞 LCA split)
+- **v0.82.x**: 统一 `Observation` + `CalibrationMessage` 为 `LearningEvent` (event_type 扩展); Event Bus (in-process pub/sub); EventLog retention policy; 迁移已有 replay scripts (v078_h3c4_*, v0753_*) 到 StateEngine.replay (cleanup, not correctness)
 
 ### 1.3 Policy Engine
 
@@ -293,24 +293,32 @@
 
 | 现有代码 | 接近度 | 说明 |
 |---|---|---|
-| **Planner** | | |
-| `ecos/lca/orchestrator.py:LCAEngine.select_intervention` Step 1-4 | 50% | 已有 Bloom 目标 / CA 阶段 / CLT 级别 / Bjork 触发判定,但跟 Experiment Designer 混在一起 |
-| **Experiment Designer** | | |
-| `ecos/lca/orchestrator.py:_generate_candidates` | 50% | 已有候选生成,但跟 Planner 没分离 |
-| `ecos/lca/intervention.py:Intervention` | 50% | 已有 Intervention 数据结构,但不是"实验设计"的语义 |
-| **Evaluator** | | |
-| `ecos/dual_agent/orchestrator.py` actual_outcome 填充 | 40% | 已有 actual_outcome 评估,但是 dual_agent 路径独有,教学 LCA 路径没 |
-| `ecos/lca/l4_optimization/attribution.py:LCAAttribution` | 50% | 已有因果归因,接近 Evaluator |
-| **Policy Learner** | | |
-| `ecos/lca/l4_optimization/policy_learner.py:LCAPolicyLearner` | 80% | LinUCB Policy Learner 已有 |
-| `ecos/lca/l4_optimization/linucb.py:LinUCB` | 80% | LinUCB 已有 |
+| **Planner (v0.82.0-a)** | | |
+| `ecos/lca/planner.py:Planner` | 100% | LCA 4-layer 第 1 层. 持有 L3 组件 (CLT/Bjork/CA scaffolding) + CAStateMachine. `plan(cta_input, intervention_history=None) -> PlanDecision` (4 步合一) |
+| `ecos/lca/planner.py:PlanDecision` (frozen) | 100% | 不可变值对象: bloom_target/ca_stage/clt_level/bjork_triggers. 给后 3 层消费 |
+| `ecos/lca/planner.py:PlannerConfig` | 100% | clt_config/ca_config/mastery_threshold=0.5/trajectory_min_len=5. 显式配置化 v0.81 LCAEngine 内联阈值 |
+| **Experiment Designer (v0.82.0-b)** | | |
+| `ecos/lca/experiment_designer.py:ExperimentDesigner` | 100% | LCA 4-layer 第 2 层. `design(plan, cta_input, n_candidates=None) -> List[Intervention]`. CA 阶段/Bjork/CLT 调整算法跟 v0.81 LCAEngine._generate_candidates 一致 |
+| `ecos/lca/experiment_designer.py:ExperimentDesignerConfig` | 100% | n_candidates=10 / default_types / default_difficulties / quantity_by_type / scaffolding_by_clt / feedback_density 全部可注入 |
+| `ecos/lca/cta_input.py:CTAInput` | 100% | v0.82.0-b 抽到独立文件 (打破 orchestrator ↔ experiment_designer 循环 import) |
+| **Evaluator (v0.82.0-c)** | | |
+| `ecos/lca/evaluator.py:Evaluator` | 100% | LCA 4-layer 第 3 层. `estimate_gain/risk` + `record_intervention/attribute_effect` (wrap LCAAttribution) |
+| `ecos/lca/evaluator.py:EvaluatorConfig` | 100% | gain_scale=0.3 / risk_gap_coef=0.5 / scaffolding_factor 显式化. expected_gain_scale 从 LCAEngineConfig 移除 |
+| **Policy Learner (v0.82.0-d)** | | |
+| `ecos/lca/policy_learner.py:PolicyLearner` | 100% | LCA 4-layer 第 4 层. per-student LCAPolicyLearner lazy init (v0.57.0 隔离). `select/update/is_cold_start/dump/load` 委托 LCAPolicyLearner |
+| `ecos/lca/policy_learner.py:PolicyLearnerConfig` | 100% | bandit_config + cold_start_threshold=10. v0.83+ 扩展 Thompson Sampling / POMDP 同接口 |
+| `ecos/lca/l4_optimization/policy_learner.py:LCAPolicyLearner` | 100% | v0.82.0-d 仍是底层实现, PolicyLearner 包装它 |
+| `ecos/lca/l4_optimization/linucb.py:LinUCB` | 100% | 核心算法, 跟 v0.81 一致 |
+| `ecos/lca/l4_optimization/attribution.py:LCAAttribution` | 100% | 因果归因, Evaluator 包装它 |
+| **LCAEngine facade (v0.82.0-d)** | | |
+| `ecos/lca/orchestrator.py:LCAEngine` | 100% | 632 → 491 行 (-22%). 委托 4 子层. 保留 5 接口方法 (select_intervention/update/dump_state/load_state/_is_linucb_cold_start) + 5 backward-compat shim (_get_bandit/_estimate_gain/__getattr__ 5 字段转发/self.bandits 引用=self.policy_learner._learners/self.attribution 引用=self.evaluator.attribution) |
 
-**演进建议**：
-- **v0.75.0**：LCA 4 层拆分
-  - `ecos/lca/planner.py`（Bloom / CA / CLT 决策）
-  - `ecos/lca/experiment_designer.py`（候选生成 + 实验设计）
-  - `ecos/lca/evaluator.py`（actual_outcome + calibration + causal effect）
-  - `ecos/lca/policy_learner.py`（LinUCB + Thompson + POMDP）
+**演进建议 (a/b/c/d 4 sub-phases, 2026-08-10 全部完成)**：
+- **v0.82.0-a** ✅ (2026-08-10): Planner 提取 (ec 193 行 + 16 tests + Planner.__getattr__ 5 字段转发)
+- **v0.82.0-b** ✅ (2026-08-10): ExperimentDesigner 提取 (220 行 + 13 tests) + cta_input.py 打破循环 import (30 行)
+- **v0.82.0-c** ✅ (2026-08-10): Evaluator 提取 (190 行 + 13 tests) + `engine.attribution` = `evaluator.attribution` shared reference (向后兼容 tests/test_lca_update_reward_actual_outcome.py monkey-patch)
+- **v0.82.0-d** ✅ (2026-08-10): PolicyLearner 提取 (270 行 + 15 tests) + LCAEngine facade finalization (491 行, -22%) + `engine.bandits` = `policy_learner._learners` shared reference (向后兼容 dual_agent/orchestrator.py:569 `lca_engine.bandits.get(sid)`)
+- **v0.83+**: Thompson Sampling / POMDP 在 PolicyLearner 同接口扩展 (LCA 4-layer 第 4 层演进)
 
 ---
 
@@ -381,6 +389,7 @@
 | 40-60% | Observation / CalibrationMessage / partial credit / LLM Critic / attribution | 5 |
 | 20-40% | calibration_log / response_history / evidence_predictions 占位 | 3 |
 | 80%+ | LinUCB / LCAPolicyLearner / 测试基础设施 / 抗幻觉 / StateEngine (6/6) / EventLog + Replay + Simulation | 6 - **[v0.81.0]** State Engine 抽象 + Event Engine 80% 完成 |
+| 100% (LCA 4-layer) | Planner / ExperimentDesigner / Evaluator / PolicyLearner / Intervention / LCAAttribution | 6 - **[v0.82.0]** LCA 4-layer split 100% 完成 (a/b/c/d 4 sub-phases, 2026-08-10) |
 | 60-80% | BeliefState(Twin 雏形) / DimensionState(Belief 雏形) / MIRT(Inference) / BKT(Inference) | 4 |
 | 40-60% | Observation / CalibrationMessage / partial credit / LLM Critic / attribution | 5 |
 | 20-40% | calibration_log / response_history / evidence_predictions 占位 | 3 |
@@ -396,7 +405,7 @@
 5. **LearningEvent type unification**（Observation + CalibrationMessage -> LearningEvent, v0.82）
 6. **Policy 评估框架**（AB test LinUCB vs Thompson）
 
-> **[v0.81.0 更新 2026-08-10]**: State Engine 抽象 + Event Replay + Event Simulation 已落地 (v0.80 + v0.81). 详情见 §1.1 + §1.2.
+> **[v0.82.0 更新 2026-08-10]**: LCA 4-layer split 100% 落地 (Planner + ExperimentDesigner + Evaluator + PolicyLearner). 4 sub-commits a/b/c/d. LCAEngine 632 → 491 行 (-22%, 含 4-layer 委托注释 + backward-compat shim). 57 新增 tests (16+13+13+15). 防御性自检 [8] 仍 hard block. 详情见 §4. v0.82 LCA split 抢占 v0.82 资源 (Kernel-first 战略), LearningEvent unification / Event Bus / EventLog retention 推迟到 v0.82.x 后续 commit.
 
 ### 8.3 演进优先级建议
 
