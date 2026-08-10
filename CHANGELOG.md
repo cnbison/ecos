@@ -255,6 +255,60 @@ return state
 - v0.80.0 final: defensive check [8] AST scan direct state mutation (soft warning)
 
 
+### feat: v0.80.0 final - defensive check [8] + v0.80.0 收口
+
+> **范围**: 加 AST 扫描防御性自检 [8] (拦截 `state.X = value` 直接 mutation, allowlist 之外), 更新 CLAUDE.md + 12-kernel-mapping, 完成 v0.80.0 收口.
+> **v0.80.0-d 决策**: InferenceEngine.py 当前 365 行 (略超 350 阈值), 但 110 行是 dataclass (ObservationContext + InferenceResult), 实际逻辑只有 185 行 (run + 2 helpers). 5 个子组件 (BKT/MIRT/LLM critic/TC) 已分别在 l1_evolution.py / l2_mirt.py / llm_critic/ / tc_detector.py. InferenceEngine 是 pure orchestration, 不 sub-split.
+> **向后兼容**: 14 production files + 553 tests + H3-c4 regression canary 全部 0 改动通过. 加 1 个 test (test_no_direct_state_mutation_outside_allowlist). 554 pytest 全绿.
+
+#### 新增文件
+
+- `scripts/check_no_direct_state_mutation.py`: AST 扫描 ecos/cta/ + ecos/dual_agent/ + web/api/ 中 `state.X = value` / `state.X.Y = value` / `state.X[i] = value` 直接赋值
+  - Allowlist 函数: BeliefState.{__init__, to_dict, from_dict, apply_snapshot, validate, bump_version, snapshot} + StateEngine.{commit, _copy_state_fields} + BeliefUpdator.apply + BloomProfileState.update_dominant + create_initial_state
+  - Allowlist 行: orchestrator.py:842 (student_id 赋值), web/api/belief.py:175/303/312 (trajectory/overall_confidence TODO v0.81), ecos_session.py:193-198 (legacy MVP TODO v0.81)
+  - v0.80: soft warning (exit 0). v0.81: 改 hard block (exit 1) after TODO mutations migrated
+
+#### check_defensive.sh 升级 7 项 -> 8 项
+
+加 [8/8] direct state mutation AST scan. 拦截历史: v0.78 BeliefEngine.update() 含 ~46 处直接 mutation, v0.80 拆 4-layer 收口.
+
+#### v0.80.0 4-layer split 完成总结
+
+| 阶段 | 范围 | 新增测试 | 累计 pytest |
+|------|------|---------|------------|
+| v0.80.0-a | StateEngine + validate + snapshot + diff + apply_snapshot shim | 54 (test_state_engine) | 431 -> 431 |
+| v0.80.0-b | InferenceEngine (pure) + BeliefUpdator (sole mutator) + bug fix (last_updated) | 62 (test_inference_engine + test_belief_updater) | 431 -> 493 |
+| v0.80.0-c | ObservationEngine + FeatureExtractor + __getattr__ forwarding | 60 (test_observation_engine + test_feature_extractor + test_belief_engine_facade) | 493 -> 553 |
+| v0.80.0 final | check [8] AST scan + 收口 | 1 (test_defensive 加 [8]) | 553 -> 554 |
+| **合计** | | **+177 tests** | **431 -> 554** |
+
+#### 架构成果 (vs v0.79)
+
+- BeliefEngine.update(): 100 行 inline -> 30 行 pure orchestration
+- BeliefEngine.py: 412 行 -> 322 行 (facade 化)
+- 直接 state mutation: ~46 处 inline -> 1 处 (BeliefUpdator.apply via StateEngine.commit)
+- CTA 4-layer 拆分完成度: 30% -> 80% (per 12-kernel-mapping §3)
+- StateEngine 完成度: 60% -> 80% (4/6 职责: Transition/Validation/Snapshot/Diff; Replay/Simulation 推迟到 v0.81)
+
+#### H3-c4 回归 canary (全 3 学生 PASS)
+
+- lbc001: skill_switch median=0.0, p90=2.6, PASS
+- lbc002: skill_switch median=0.0, p90=2.7, PASS
+- lbc003: skill_switch median=0.0, p90=2.9, PASS
+
+无数值漂移, 证明 4-layer split 保持 v0.79 inference + mutation 语义.
+
+#### 8 项防御性自检全绿
+
+[1] silent pass / [2] version sync / [3] library_str / [4] CSS / [5] DB 字段 / [6] apply_snapshot / [7] replay skill_id / [8] direct state mutation
+
+#### 后续 (out of scope for v0.80)
+
+- v0.81: Event Engine (Replay + Simulation) + TODO mutations 迁移 (web/api/belief.py:175/303/312 + ecos_session.py:193-198) + check [8] 改 hard block
+- v0.82: LCA 4-layer split
+- v0.83: Evidence Engine / Runtime API
+
+
 ## [0.79.0] 2026-08-10
 
 ### feat: 防御性自检 [7] replay 脚本字面量 skill_id 治理

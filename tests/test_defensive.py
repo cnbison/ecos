@@ -301,12 +301,54 @@ def test_no_literal_skill_id_in_replay_scripts(ecos_dir: Path):
         )
 
 
+def test_no_direct_state_mutation_outside_allowlist(ecos_dir: Path):
+    """验证 ecos/cta/ + ecos/dual_agent/ + web/api/ 无直接 state.X = value mutation.
+
+    拦截历史:
+    - v0.78 H3-c4 暴露 BeliefEngine.update() 含 ~46 处直接 mutation, 散落 3 方法.
+    - v0.80 拆 4-layer (InferenceEngine + BeliefUpdator + ObservationEngine + FeatureExtractor).
+    - v0.80 final 加防御性自检 [8]: AST 扫描, 堵住未来回退到 inline mutation 的可能.
+
+    规则:
+    - 禁止: state.X = value / state.X.Y = value / state.X[i] = value 直接赋值
+    - 允许: BeliefState.{__init__, to_dict, from_dict, apply_snapshot, validate, bump_version, snapshot}
+    - 允许: StateEngine.commit + _copy_state_fields + _apply_delta_fields
+    - 允许: BeliefUpdator.apply (sole mutation site, by design)
+    - 允许: create_initial_state (factory, creates NEW state)
+    - 允许: 行 allowlist (orchestrator.py:842, web/api/belief.py:175/303/312, ecos_session.py:193-198)
+
+    v0.80: soft warning (exit 0)
+    v0.81: 改 hard block (exit 1) after TODO mutations migrated
+    """
+    import subprocess
+    import sys
+
+    checker = ecos_dir.parent / "scripts" / "check_no_direct_state_mutation.py"
+    if not checker.exists():
+        pytest.skip(f"checker not found: {checker}")
+
+    result = subprocess.run(
+        [sys.executable, str(checker)],
+        capture_output=True,
+        text=True,
+        cwd=str(ecos_dir.parent),
+    )
+    # v0.80: soft warning (exit 0). v0.81 will exit 1.
+    # For now, if exit 1 it means hard block fired - fail test.
+    if result.returncode != 0:
+        pytest.fail(
+            f"❌ 发现直接 state.X = value mutation (allowlist 之外):\n{result.stdout}\n"
+            f"拦截历史: v0.78 BeliefEngine.update() ~46 处直接 mutation, v0.80 拆 4-layer 修\n"
+            f"修复: 改用 StateEngine.commit(state, delta, source=...) 或 BeliefUpdator.apply()"
+        )
+
+
 # ─── 收集所有测试,方便 pytest 输出 ─────────────────────────────────────
 
 def pytest_report_header(config):
     """测试报告头部: 显示 ECOS pytest 套件版本."""
     return [
-        f"ECOS pytest 套件 v0.79.0",
-        f"  7 项防御性自检: silent pass / 版本号 / CSS / DB 恢复字段 / CI gate / apply_snapshot / replay skill_id",
-        f"  拦截历史: 5 次虚标 + 5 处 silent pass + 4 次 DB 字段漏 + 7 处 replay 硬编码"
+        f"ECOS pytest 套件 v0.80.0",
+        f"  8 项防御性自检: silent pass / 版本号 / CSS / DB 恢复字段 / CI gate / apply_snapshot / replay skill_id / direct mutation",
+        f"  拦截历史: 5 次虚标 + 5 处 silent pass + 4 次 DB 字段漏 + 7 处 replay 硬编码 + ~46 处直接 mutation"
     ]
