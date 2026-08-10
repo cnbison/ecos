@@ -472,6 +472,18 @@ class BeliefState:
         from .state_engine import _default_engine
         _default_engine.commit(self, snapshot, source="db_restore")
 
+    def append_trajectory_snapshot(self, snap: Any) -> None:
+        """v0.81.0-d: DB restore path - append trajectory snapshot via allowlisted method.
+
+        Replaces direct `state.trajectory.snapshots.append(snap)` mutation in
+        web/api/belief.py:175. Routes through TrajectoryState.append (which is
+        the canonical way to add a snapshot, also used by BeliefUpdator.apply step 9).
+
+        Allowlisted in check_no_direct_state_mutation.py FUNC_ALLOWLIST
+        (method name match: "append_trajectory_snapshot").
+        """
+        self.trajectory.append(snap)
+
     def _apply_delta_fields(self, snapshot: Dict[str, Any]) -> None:
         """v0.80.0: extracted from apply_snapshot body. Field application logic.
 

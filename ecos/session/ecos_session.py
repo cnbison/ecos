@@ -188,13 +188,19 @@ class ECOSSession:
         import json
         import numpy as np
 
+        # v0.81.0-d: route through apply_snapshot (StateEngine.commit)
+        # (was direct state.theta_mean/theta_cov/overall_confidence = ..., in LINE_ALLOWLIST)
+        delta = {}
         if saved.get("current_state_5d"):
             theta_list = json.loads(saved["current_state_5d"])
-            state.theta_mean = np.array(theta_list)
-            state.theta_cov = np.eye(5)
+            delta["theta_mean"] = theta_list
+            delta["theta_cov"] = np.eye(5).tolist()
 
         # 恢复 confidence
         if saved.get("confidence"):
-            state.overall_confidence = saved["confidence"]
+            delta["overall_confidence"] = saved["confidence"]
+
+        if delta:
+            state.apply_snapshot(delta)
 
         return state

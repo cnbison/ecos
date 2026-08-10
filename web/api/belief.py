@@ -172,7 +172,9 @@ def _get_or_create_student(student_id: str) -> dict:
                         )
                         if "misc_history" in snap_data:
                             snap.misc_history = list(snap_data["misc_history"])
-                        state.trajectory.snapshots.append(snap)
+                        # v0.81.0-d: route through BeliefState.append_trajectory_snapshot
+                        # (was direct state.trajectory.snapshots.append, in LINE_ALLOWLIST)
+                        state.append_trajectory_snapshot(snap)
                 except Exception:
                     _log.warning(
                         "_get_or_create_student DB 恢复 trajectory 失败(student=%s)",
@@ -300,16 +302,20 @@ def _get_or_create_student(student_id: str) -> dict:
             # 关键: 必须放在"重算每维度"**之后**,否则 mean 时 dim.confidence 还是 0
             try:
                 import numpy as _np
-                state.overall_confidence = float(_np.mean([
-                    state.K.confidence, state.P.confidence, state.S.confidence,
-                    state.C.confidence, state.X.confidence,
-                ]))
+                # v0.81.0-d: route through apply_snapshot (StateEngine.commit)
+                # (was direct state.overall_confidence = ..., in LINE_ALLOWLIST)
+                state.apply_snapshot({
+                    "overall_confidence": float(_np.mean([
+                        state.K.confidence, state.P.confidence, state.S.confidence,
+                        state.C.confidence, state.X.confidence,
+                    ]))
+                })
             except Exception:
                 _log.warning(
                     "_get_or_create_student 重算 overall_confidence 失败(student=%s), 走 0.0 兜底",
                     student_id, exc_info=True,
                 )
-                state.overall_confidence = 0.0
+                state.apply_snapshot({"overall_confidence": 0.0})
         else:
             # DB 中无记录--创建全新状态并写入 DB
             mirt_config = MIRTConfig(

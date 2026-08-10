@@ -4,6 +4,7 @@
 # v0.77.1:   加 [6] DB 恢复必须走 apply_snapshot (拦截 6 处直接 state.X = value mutation)
 # v0.79.0:   加 [7] replay 脚本不能含字面量 skill_id 硬编码 (AST 检测)
 # v0.80.0:   加 [8] 直接 state.X = value mutation AST 扫描 (soft warning, v0.81 hard block)
+# v0.81.0:   [8] 改 hard block (exit 1), TODO mutations 迁移完成 (web/api/belief.py + ecos_session.py)
 #
 # 拦截历史 (Bisen 2026-07-19 反馈后新增):
 # - 5 次虚标: 5D badge / LearningDNA / URL hash / hardcoded 版本号 / misconception 库 ID 错配
@@ -195,12 +196,13 @@ fi
 
 # ── 8) 直接 state.X = value mutation AST 扫描 ──────────────────────
 echo ""
-echo "▶ [8/8] 直接 state.X = value mutation AST 扫描 (soft warning, v0.81 hard block)"
-# v0.80: 拦截 ecos/cta/ + ecos/dual_agent/ + web/api/ 中 state.X = value 直接赋值
+echo "▶ [8/8] 直接 state.X = value mutation AST 扫描 (v0.81 hard block)"
+# v0.81: 拦截 ecos/cta/ + ecos/dual_agent/ + web/api/ 中 state.X = value 直接赋值
 # 拦截历史: v0.78 BeliefEngine.update() 含 ~46 处直接 mutation, v0.80 拆 4-layer 修
-# allowlist: BeliefState.{__init__,to_dict,from_dict,apply_snapshot,validate,bump_version} +
+#           v0.81 TODO mutations 迁移完成 (web/api/belief.py:175/303/312 + ecos_session.py:193-198)
+# allowlist: BeliefState.{__init__,to_dict,from_dict,apply_snapshot,validate,bump_version,append_trajectory_snapshot} +
 #            StateEngine.commit + BeliefUpdator.apply + create_initial_state
-# v0.80: soft warning (exit 0), v0.81 改 hard block (exit 1)
+# v0.81: hard block (exit 1) - 任何 allowlist 之外的直接 mutation 都 fail
 python scripts/check_no_direct_state_mutation.py
 if [ $? -ne 0 ]; then
     exit 1
