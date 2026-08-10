@@ -42,9 +42,11 @@ from .belief_state import (
     TrajectoryState,
 )
 from .belief_updater import BeliefUpdator
+from .feature_extractor import FeatureExtractor
 from .inference_engine import InferenceEngine, ObservationContext
 from .l1_evolution import BKTEvolutionLayer, EvolutionConfig
 from .l2_mirt import BiFactorMIRT5D, MIRTConfig, MIRTItemParams
+from .observation_engine import ObservationEngine
 from .state_engine import StateEngine, get_default_engine
 from .tc_detector import TCStateDetector
 
@@ -157,21 +159,12 @@ class BeliefEngine:
         self.l1 = BKTEvolutionLayer(self.config.evolution_config)
         self.l2 = BiFactorMIRT5D(self.config.mirt_config)
         self.tc_detector = TCStateDetector()
-        self._response_history: Dict[str, List[Dict[str, Any]]] = {}  # v0.49.2: 3-tuple -> dict（user_answer/timestamp）
 
-        # ── W1 warm-up 状态（W1 2026-07-17 落地）──
-        # _warmup_count[student_id] = 已答题数（前 warmup_questions 题为 warm-up 期）
-        self._warmup_count: Dict[str, int] = {}
-        # _warmup_pool_cursor[student_id] = warm-up 覆盖性选题的轮询游标
-        self._warmup_pool_cursor: Dict[str, int] = {}
-
-        # ── W3 探针题状态机（2026-07-17 落地）──
-        # _probe_due_in[student_id] = 距下一次探针题还剩几题
-        #   - warm-up 期间探针题禁用（避免冷启动干扰）
-        #   - 答完 warm-up 期后,初始化为 probe_interval（即再答 N 题才触发）
-        #   - 触发后重置为 probe_interval
-        self._probe_due_in: Dict[str, int] = {}
-        self._probe_count: Dict[str, int] = {}  # 已插入的探针题数
+        # v0.80.0-c: 4-layer split - ObservationEngine (warmup/probe) + FeatureExtractor (history)
+        # Own _warmup_count / _warmup_pool_cursor / _probe_due_in / _probe_count / _response_history
+        # moved out of BeliefEngine. __getattr__ forwards direct access for web/api/belief.py:189-191 compat.
+        self._observation_engine = ObservationEngine()
+        self._feature_extractor = FeatureExtractor()
 
         # v0.80.0-b: 4-layer split - InferenceEngine (pure) + BeliefUpdator (sole mutator)
         self._state_engine = get_default_engine()
@@ -189,75 +182,63 @@ class BeliefEngine:
         self._perception_critic: Optional["PerceptionCritic"] = None
         self._misc_detector: Optional["MisconceptionDetector"] = None
 
-    # ── W1 warm-up 状态机（W1 2026-07-17 新增）──
+    # v0.80.0-c: __getattr__ forwarding for web/api/belief.py:189-191 + 224 direct dict writes.
+    # When engine._warmup_count[sid] = X is called, __getattr__ returns the ObservationEngine's
+    # _warmup_count dict, then __setitem__ mutates it in place (same object).
+    # BeliefEngine itself no longer owns these dicts (moved to ObservationEngine / FeatureExtractor).
+    _FORWARDED_INTERNAL_DICTS = {
+        "_warmup_count", "_warmup_pool_cursor", "_probe_due_in", "_probe_count",
+        "_response_history",
+    }
+
+    def __getattr__(self, name: str) -> Any:
+        """Forward internal dict access to owning layer.
+
+        Triggered only when normal attribute lookup fails (i.e. the attr is not
+        in self.__dict__). We forward _warmup_count etc to _observation_engine,
+        and _response_history to _feature_extractor.
+        """
+        if name in BeliefEngine._FORWARDED_INTERNAL_DICTS:
+            # _observation_engine / _feature_extractor are set in __init__ before any
+            # external code can touch the forwarded dicts. If they're missing, it means
+            # __init__ hasn't completed yet - raise AttributeError to avoid infinite recursion.
+            oe = self.__dict__.get("_observation_engine")
+            fe = self.__dict__.get("_feature_extractor")
+            if name == "_response_history":
+                if fe is not None:
+                    return fe._response_history
+            else:
+                if oe is not None:
+                    return getattr(oe, name)
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+
+    # ── W1 warm-up 状态机（W1 2026-07-17 新增, v0.80.0-c delegate to ObservationEngine）──
 
     def is_warmup(self, student_id: str) -> bool:
         """是否处于 warm-up 期（前 N 题）。"""
-        return self._warmup_count.get(student_id, 0) < self.config.warmup_questions
+        return self._observation_engine.is_warmup(student_id, self.config)
 
     def warmup_remaining(self, student_id: str) -> int:
         """距离 warm-up 结束还剩几题。0 表示刚刚结束。"""
-        n = self._warmup_count.get(student_id, 0)
-        return max(0, self.config.warmup_questions - n)
+        return self._observation_engine.warmup_remaining(student_id, self.config)
 
     def warmup_progress(self, student_id: str) -> dict:
-        """返回 warm-up 状态完整信息（供 API 层使用）。
+        """返回 warm-up 状态完整信息（供 API 层使用）。"""
+        return self._observation_engine.warmup_progress(student_id, self.config)
 
-        Returns:
-            {
-                "is_warmup": bool,
-                "warmup_remaining": int,
-                "warmup_total": int,
-                "warmup_count": int,
-            }
-        """
-        count = self._warmup_count.get(student_id, 0)
-        return {
-            "is_warmup": count < self.config.warmup_questions,
-            "warmup_remaining": max(0, self.config.warmup_questions - count),
-            "warmup_total": self.config.warmup_questions,
-            "warmup_count": count,
-        }
-
-    # ── W3 探针题状态机 API（W3 2026-07-17 新增）──
+    # ── W3 探针题状态机 API（W3 2026-07-17 新增, v0.80.0-c delegate to ObservationEngine）──
 
     def should_probe_now(self, student_id: str) -> bool:
-        """下次选题是否应插入探针题。
-
-        条件:
-          - 不在 warm-up 期
-          - _probe_due_in[student_id] == 0（已经答了 N 题,下次该插入探针）
-        """
-        if self.is_warmup(student_id):
-            return False
-        return self._probe_due_in.get(student_id, 0) == 0
+        """下次选题是否应插入探针题。"""
+        return self._observation_engine.should_probe_now(student_id, self.config)
 
     def consume_probe(self, student_id: str) -> None:
-        """标记"已插入探针题",重置 _probe_due_in 为 probe_interval。
-
-        调用时机：API 层在 /api/question 中检测 should_probe_now=True 后,
-        走 _select_probe_question 路径,然后调用本方法重置状态机。
-        """
-        self._probe_count[student_id] = self._probe_count.get(student_id, 0) + 1
-        self._probe_due_in[student_id] = self.config.probe_interval
+        """标记"已插入探针题",重置 _probe_due_in 为 probe_interval。"""
+        self._observation_engine.consume_probe(student_id, self.config)
 
     def probe_progress(self, student_id: str) -> dict:
-        """返回探针题状态完整信息（供 API 层使用）。
-
-        Returns:
-            {
-                "should_probe": bool,
-                "probe_due_in": int,
-                "probe_interval": int,
-                "probe_count": int,
-            }
-        """
-        return {
-            "should_probe": self.should_probe_now(student_id),
-            "probe_due_in": self._probe_due_in.get(student_id, self.config.probe_interval),
-            "probe_interval": self.config.probe_interval,
-            "probe_count": self._probe_count.get(student_id, 0),
-        }
+        """返回探针题状态完整信息（供 API 层使用）。"""
+        return self._observation_engine.probe_progress(student_id, self.config)
 
     @property
     def perception_critic(self) -> "PerceptionCritic":
@@ -293,10 +274,11 @@ class BeliefEngine:
     ) -> BeliefState:
         """主更新入口--每次新观测后调用.
 
-        v0.80.0-b: 4-layer split
-          - warmup/probe state machine + response_history accumulation: inline (extract v0.80.0-c)
-          - InferenceEngine.run() produces InferenceResult (NO state mutation)
-          - BeliefUpdator.apply() is sole mutation site (calls StateEngine.commit)
+        v0.80.0-c: 4-layer split complete
+          - ObservationEngine.run() -> ObservationContext (warmup/probe state + score/correct/bloom_step)
+          - FeatureExtractor.extract() -> {history, history_entry}
+          - InferenceEngine.run() -> InferenceResult (NO state mutation)
+          - BeliefUpdator.apply() -> event_id (sole mutation site, calls StateEngine.commit)
 
         Args:
             state: 当前 BeliefState
@@ -307,84 +289,18 @@ class BeliefEngine:
             更新后的 BeliefState
         """
         student_id = state.student_id
-        skill_id = observation.skill_id
-        problem_id = observation.problem_id
-        # v0.54.0-d: partial credit score 派生 correct
-        #   优先级: observation.score >= 0.6 > observation.correct (老调用兼容)
-        #   老调用方只传 correct=True -> score=0.0 -> 派生 correct=False (强制用新 score)
-        #   老代码改造: 应同时传 correct=True + score=1.0, 或只传 score=0.7
-        score = observation.score if observation.score > 0 else (1.0 if observation.correct else 0.0)
-        correct = score >= 0.6
-        bloom_level = observation.bloom_level
 
-        # ── W1 warm-up 计数累加（W1 2026-07-17 新增，在 Step 1 之前）──
-        self._warmup_count[student_id] = self._warmup_count.get(student_id, 0) + 1
-        in_warmup = self.is_warmup(student_id)
+        # Layer 1: ObservationEngine (warmup/probe state machine + score/correct/bloom_step derivation)
+        ctx = self._observation_engine.run(student_id, observation, self.config)
 
-        # ── W3 探针题状态机触发（W3 2026-07-17 新增）──
-        #   - warm-up 期间不触发探针（避免冷启动干扰）
-        #   - 刚出 warm-up 期时初始化 _probe_due_in = probe_interval
-        #   - 每次 update() 后 _probe_due_in -= 1
-        #   - 当 _probe_due_in == 0 时,下次选题应插入探针题
-        was_warmup = (
-            self._warmup_count[student_id] - 1 < self.config.warmup_questions
-        )  # 上一题是否还在 warm-up
-        just_exited_warmup = was_warmup and not in_warmup
-        if just_exited_warmup and self.config.probe_first_after_warmup:
-            # 刚出 warm-up 期,初始化 _probe_due_in
-            self._probe_due_in[student_id] = self.config.probe_interval
-        elif student_id not in self._probe_due_in and not in_warmup:
-            # 异常情况:不在 warm-up 但 _probe_due_in 未初始化（DB 恢复场景）
-            self._probe_due_in[student_id] = self.config.probe_interval
+        # Layer 2: FeatureExtractor (response_history accumulation, maxlen=100)
+        feat = self._feature_extractor.extract(student_id, observation, ctx)
 
-        if student_id in self._probe_due_in:
-            self._probe_due_in[student_id] = max(0, self._probe_due_in[student_id] - 1)
+        # Layer 3: InferenceEngine (BKT + MIRT + Bloom + LLM critic + TC -> InferenceResult, NO mutation)
+        result = self._inference_engine.run(state, observation, ctx, feat["history"])
 
-        # ── W1 warm-up 期 Bloom 步长切换（更大，让学生感到"在进步"）──
-        step = self.config.warmup_step if in_warmup else self.config.bloom_update_step
-
-        # Step 2: 累积响应历史（用于 MIRT 估计 + 答题历史详情页 v0.49.2）
-        #   v0.49.2: 改 append dict（之前是 3-tuple,缺 user_answer/timestamp）
-        #   v0.52.2: 加 ai_reasoning (Bisen 反馈 partial credit 缺失, 短期先存 AI reasoning
-        #     留 Phase 5 partial credit 训练用历史数据)
-        #   v0.54.0: 加 score 字段 (partial credit)
-        #   向后兼容老数据: load 时 _get_or_create_student 会把 3-tuple 迁移成 dict
-        #                  老 dict 没 score 字段, Step 3 MIRT 用 h.get("score", h.get("correct", 0)) 兜底
-        history = self._response_history.setdefault(student_id, [])
-        history.append({
-            "problem_id": problem_id,
-            "correct": int(correct),  # 派生自 score >= 0.6, 保留兼容
-            "score": float(score),  # v0.54.0 partial credit
-            "bloom_level": str(bloom_level.name if hasattr(bloom_level, "name") else bloom_level),
-            "user_answer": observation.user_answer,
-            "correct_answer": observation.correct_answer,
-            "ai_reasoning": observation.ai_reasoning,
-            "timestamp": observation.timestamp.isoformat() if observation.timestamp else None,
-        })
-        if len(history) > 100:
-            self._response_history[student_id] = history[-100:]
-            history = self._response_history[student_id]
-
-        # v0.80.0-b: 4-layer split - build ObservationContext, run InferenceEngine, apply BeliefUpdator
-        # InferenceEngine.run() produces InferenceResult (NO state mutation, pure inference)
-        # BeliefUpdator.apply() is sole mutation site (calls StateEngine.commit for versioning)
-        # Step 1 BKT + Step 3 MIRT + Step 4 Bloom + Step 5 LLM perception + Step 6 LLM misconception
-        # + Step 7 TC + Step 8 overall_confidence + Step 9 trajectory + Step 10 last_updated
-        # all move to InferenceEngine.run() + BeliefUpdator.apply()
-        ctx = ObservationContext(
-            student_id=student_id,
-            skill_id=skill_id,
-            problem_id=problem_id,
-            score=score,
-            correct=correct,
-            bloom_level=bloom_level,
-            in_warmup=in_warmup,
-            just_exited_warmup=just_exited_warmup,
-            bloom_step=step,
-            observation=observation,
-        )
-        result = self._inference_engine.run(state, observation, ctx, history)
-        self._belief_updater.apply(state, result, observation, history[-1] if history else None)
+        # Layer 4: BeliefUpdator (sole mutation site, calls StateEngine.commit for versioning + event_id)
+        self._belief_updater.apply(state, result, observation, feat["history_entry"])
 
         return state
 
@@ -402,11 +318,5 @@ class BeliefEngine:
 
     def reset_student(self, student_id: str) -> None:
         """重置某学生的累积历史."""
-        if student_id in self._response_history:
-            del self._response_history[student_id]
-        # W1 warm-up 状态一并重置
-        self._warmup_count.pop(student_id, None)
-        self._warmup_pool_cursor.pop(student_id, None)
-        # W3 探针题状态一并重置
-        self._probe_due_in.pop(student_id, None)
-        self._probe_count.pop(student_id, None)
+        self._feature_extractor.reset_student(student_id)
+        self._observation_engine.reset_student(student_id)

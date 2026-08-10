@@ -177,6 +177,84 @@ warmup/probe state machine + response_history accumulation 仍 inline (v0.80.0-c
 - v0.80.0 final: defensive check [8] AST scan direct state mutation (soft warning)
 
 
+### feat: v0.80.0-c ObservationEngine + FeatureExtractor extracted (CTA 4-layer split 第 3 阶段)
+
+> **范围**: 提取 ObservationEngine (warmup/probe state machine + ObservationContext 构建) + FeatureExtractor (response_history 累积). BeliefEngine 不再 own `_warmup_count` / `_probe_due_in` / `_probe_count` / `_warmup_pool_cursor` / `_response_history` 内部 dict, 改由 ObservationEngine + FeatureExtractor 持有.
+> **`__getattr__` forwarding (关键兼容性设计)**: web/api/belief.py:189-191, 224 直接写 `engine._warmup_count[sid] = X` / `engine._response_history[sid] = history`. 不能改 14 production callers (per plan), 故 BeliefEngine 加 `__getattr__` 把这 5 个内部 dict 访问转发到对应 layer 的 dict (同对象引用, 写操作可见).
+> **向后兼容**: 14 production files + 431 tests + H3-c4 regression canary 全部 0 改动通过. 新增 60 tests (ObservationEngine 22 + FeatureExtractor 14 + BeliefEngine facade 24). 553 pytest 全绿.
+> **架构变化**: BeliefEngine.update() 从 100 行 inline 代码变为 30 行 pure orchestration: `observation_engine.run() -> feature_extractor.extract() -> inference_engine.run() -> belief_updater.apply()`. belief_engine.py 从 412 行降到 322 行.
+
+#### 新增文件
+
+- `ecos/cta/observation_engine.py`: ObservationEngine 类 (run/is_warmup/warmup_remaining/warmup_progress/should_probe_now/consume_probe/probe_progress/reset_student)
+- `ecos/cta/feature_extractor.py`: FeatureExtractor 类 (extract/get_history/set_history/reset_student)
+- `tests/test_observation_engine.py`: 22 测试 (warmup/probe 状态机 + ObservationContext 构建)
+- `tests/test_feature_extractor.py`: 14 测试 (history 累积 + maxlen=100 + 多学生隔离 + DB restore 接口)
+- `tests/test_belief_engine_facade.py`: 24 测试 (含 `__getattr__` forwarding critical tests + 4-layer orchestration + 不变量: BeliefEngine 不 own 内部 dict)
+
+#### __getattr__ forwarding 设计
+
+```python
+class BeliefEngine:
+    _FORWARDED_INTERNAL_DICTS = {
+        "_warmup_count", "_warmup_pool_cursor", "_probe_due_in", "_probe_count",
+        "_response_history",
+    }
+
+    def __getattr__(self, name: str) -> Any:
+        """Forward internal dict access to owning layer.
+
+        Triggered only when normal attribute lookup fails (i.e. the attr is not
+        in self.__dict__). We forward _warmup_count etc to _observation_engine,
+        and _response_history to _feature_extractor.
+        """
+        if name in BeliefEngine._FORWARDED_INTERNAL_DICTS:
+            oe = self.__dict__.get("_observation_engine")
+            fe = self.__dict__.get("_feature_extractor")
+            if name == "_response_history":
+                if fe is not None:
+                    return fe._response_history
+            else:
+                if oe is not None:
+                    return getattr(oe, name)
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+```
+
+效果: `engine._warmup_count[sid] = X` 触发 `__getattr__`, 返回 ObservationEngine 的 `_warmup_count` dict, 然后 `[sid] = X` 直接 mutate 该 dict (同对象). ObservationEngine 立即可见.
+
+#### BeliefEngine.update() 改 pure orchestration
+
+```python
+# v0.80.0-b (~100 行 inline warmup/probe + history):
+self._warmup_count[student_id] = self._warmup_count.get(student_id, 0) + 1
+in_warmup = self.is_warmup(student_id)
+# ... 30 行 warmup/probe 状态机
+history = self._response_history.setdefault(student_id, [])
+history.append({...})
+# ... 15 行 history 累积
+
+# v0.80.0-c (30 行 pure orchestration):
+ctx = self._observation_engine.run(student_id, observation, self.config)
+feat = self._feature_extractor.extract(student_id, observation, ctx)
+result = self._inference_engine.run(state, observation, ctx, feat["history"])
+self._belief_updater.apply(state, result, observation, feat["history_entry"])
+return state
+```
+
+#### H3-c4 回归 canary
+
+`scripts/v078_h3c4_inflection_response_replay.py` 全 3 学生 PASS (无数值漂移).
+
+#### 7 项防御性自检全绿
+
+[1] silent pass / [2] version sync / [3] library_str / [4] CSS / [5] DB 字段 / [6] apply_snapshot / [7] replay skill_id
+
+#### 后续 (v0.80.0-d + final)
+
+- v0.80.0-d: InferenceEngine 行数评估 (当前 365 行, 略超 350 阈值), 决定是否 sub-split to `ecos/cta/inference/`
+- v0.80.0 final: defensive check [8] AST scan direct state mutation (soft warning)
+
+
 ## [0.79.0] 2026-08-10
 
 ### feat: 防御性自检 [7] replay 脚本字面量 skill_id 治理

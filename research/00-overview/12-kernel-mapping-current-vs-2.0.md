@@ -46,7 +46,8 @@
 **演进建议**：
 - **v0.80.0** ✅: StateEngine + validate + snapshot + diff 落地 (4/6 职责). apply_snapshot 改 shim 委托 StateEngine.commit
 - **v0.80.0-b** ✅: InferenceEngine (pure) + BeliefUpdator (sole mutator) 提取, `update()` 改 facade. 5 个 critical 不变量 test 验证 InferenceEngine.run() 不 mutate state. 4-layer 拆分完成度 30% -> 60%
-- **v0.80.0-c/d**: ObservationEngine + FeatureExtractor 提取, `__getattr__` forwarding, 4-layer 拆分完成度 -> 80%
+- **v0.80.0-c** ✅: ObservationEngine + FeatureExtractor 提取, `__getattr__` forwarding 兼容 web/api/belief.py:189-191 直写. `update()` 改 pure orchestration (30 行). 4-layer 拆分完成度 60% -> 80%
+- **v0.80.0-d**: InferenceEngine 行数评估 (当前 365 行, 略超 350 阈值), 决定是否 sub-split
 - **v0.81.0**：Replay/Simulation (依赖 Event Engine)
 
 ### 1.2 Event Engine
