@@ -67,6 +67,66 @@ NEW: `tests/test_evidence.py` (15 tests, 0.21s)
 | 维度 | v0.82.0-d | v0.83.0-a | Δ |
 |---|---|---|---|
 | Evidence Engine | 0% (5+ 来源散落) | 100% (统一 schema + 6 来源 + 跨 3 表 CRUD) | +100% |
+
+#### v0.83.0-b: Belief-Evidence 关联
+
+MODIFY: `ecos/cta/belief_state.py` (+80 lines, 新增 3 个方法 + TCState.evidence_ids 字段)
+- `import logging` + 模块级 `_log` (新加)
+- `TCState.evidence_ids: List[int]` 新字段 (v0.83.0-b 引入, default factory 空 list)
+- `BeliefState.add_evidence(dim, evidence_id) -> None`:
+  - 支持 dim: "K" / "P" / "S" / "C" / "X" (5D DimensionState) / "bloom" / "tc_<id>"
+  - evidence_id 必须是 int (防御性检查)
+  - 未知 dim / 不存在的 TC id: `_log.warning` + 跳过, 不 raise
+  - **v0.83.0-b 关键**: 这是防御性自检 [8] 扩展的 allowlist 入口, 跟 append_trajectory_snapshot 模式一致
+- `BeliefState.evidence_for(dim) -> List[int]`:
+  - 返 list 副本 (改副本不影响原 state)
+  - 未知 dim: 返空 list, 不 raise
+- `BeliefState.evidence_summary() -> Dict[str, int]`:
+  - 返 7 维概览: K/P/S/C/X/bloom/tc (TC 总数, 跨多个 TC)
+  - 用途: 调试面板 / Runtime API evidence_summary 端点 / Twin 一致性校验 (Phase 6+ 接入)
+
+MODIFY: `ecos/cta/belief_updater.py` (+50 lines, EvidenceEngine 集成)
+- `__init__(state_engine, event_log=None, evidence_engine=None)`:
+  - 新增 `evidence_engine: Optional[Any]` 参数 (v0.83.0-b 引入)
+  - `self.evidence_engine = evidence_engine` 注入
+- `apply()` dim updates 循环:
+  - **当 `self.evidence_engine` 注入**: 走 `_register_evidence(dim, evidence_id, observation, state)` 路径
+  - **否则 fallback**: 原 `dim_state.evidence_ids.append(updates["evidence_id"])` 行为 (向后兼容 16 LCA tests + 122 4-layer tests)
+- `_register_evidence(dim, evidence_id, observation, state) -> None`:
+  - 通过 `self.evidence_engine.add(Evidence(...))` 创建 evidence 记录
+  - 然后 `state.add_evidence(dim, new_evidence_id)` 关联到 Twin
+  - 失败兜底: `_log.warning` + 跳过 (不影响主流程)
+
+MODIFY: `scripts/check_no_direct_state_mutation.py` (+2 lines)
+- `FUNC_ALLOWLIST` 加 `"add_evidence"` (v0.83.0-b 注释)
+- 错误信息 print 加 `add_evidence` (跟其他 allowlist 方法并列)
+
+NEW: `tests/test_belief_evidence_link.py` (14 tests, 0.35s)
+- 7 add_evidence 维度 (K/P/S/C/X/bloom/tc_<id>)
+- 2 evidence_for (list 副本 + 未知 dim 返空)
+- 1 evidence_summary (7 维默认 0)
+- 1 evidence_summary (加 evidence 后)
+- 2 BeliefUpdator 集成 (有/无 evidence_engine 注入)
+- 1 防御性自检 (add_evidence 在 FUNC_ALLOWLIST)
+
+向后兼容:
+- 67 LCA + 122 4-layer + 15 Evidence + 14 关联 = 218 tests 全过
+- `dim_state.evidence_ids.append(updates["evidence_id"])` fallback 路径保留
+  (无 evidence_engine 注入时, v0.81/v0.82 行为完全一致)
+- TCState 新增 `evidence_ids: List[int]` 字段, 不破坏现有 to_dict/from_dict
+  (List[int] 自动 default factory, 序列化时跟 List[str] 一样处理)
+- H3-c4 canary PASS (Belief-Evidence 关联不影响 LCA 行为)
+- 防御性自检 [8] 仍 hard block (add_evidence 在 allowlist, 其他 mutation 仍被拦截)
+
+#### Architecture outcomes (cumulative after a+b)
+
+| 维度 | v0.82.0-d | v0.83.0-a | v0.83.0-b | Δ (cumulative) |
+|---|---|---|---|---|
+| Evidence Engine | 0% | 100% (统一 schema + 6 来源 + 跨 3 表 CRUD) | 100% (含 Belief 关联) | +100% |
+| Belief-Evidence 关联 | 0% (evidence_ids 散落) | 50% (Evidence Engine) | 100% (add_evidence / evidence_for / evidence_summary) | +100% |
+| pytest 总数 | 673 | 688 | 702 | +29 tests (+4.3%) |
+| 防御性自检 [8] | hard block | hard block | hard block (add_evidence 扩展 allowlist) | 保持 |
+| H3-c4 canary | PASS | PASS | PASS | 保持 |
 | pytest 总数 | 673 | 688 | +15 tests (+2.2%) |
 | 防御性自检 [8] | hard block | hard block | 保持 |
 | H3-c4 canary | PASS | PASS | 保持 |
@@ -332,11 +392,12 @@ NEW: `tests/test_policy_learner.py` (15 tests, 0.35s)
 - ✅ v0.82.0-d: PolicyLearner 提取 (LCAPolicyLearner 包装 + dump/load 委托) + LCAEngine facade finalization
 - 未来 v0.82.x 内 (但独立 commit, 不在 LCA split PR): LearningEvent unification / Event Bus / EventLog retention
 - ✅ v0.83.0-a: Evidence Engine 提取 (Evidence 统一 schema + 6 来源枚举 + 跨 3 表 CRUD)
-- 📋 v0.83.0-b: Belief-Evidence 关联 (BeliefState.add_evidence + 反查)
+- ✅ v0.83.0-a: Evidence Engine 提取 (Evidence 统一 schema + 6 来源 + 跨 3 表 CRUD)
+- ✅ v0.83.0-b: Belief-Evidence 关联 (BeliefState.add_evidence / evidence_for / evidence_summary)
 - 📋 v0.83.0-c: Evaluation Engine (Twin attribution + Policy AB + Goal completion)
 - 📋 v0.83.0-d: Runtime API (6 核心纯函数 + kwargs)
 
-#### Verify (v0.83.0-a)
+#### Verify (v0.83.0-a+b)
 
 ```bash
 # 1. Full pytest suite (688 tests after v0.83.0-a)

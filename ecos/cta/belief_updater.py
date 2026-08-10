@@ -49,9 +49,12 @@ class BeliefUpdator:
         self,
         state_engine: StateEngine,
         event_log: Optional[EventLog] = None,
+        evidence_engine: Optional[Any] = None,  # v0.83.0-b: optional Evidence Engine
     ) -> None:
         self.state_engine = state_engine
         self.event_log = event_log  # v0.81.0-b: optional event persistence
+        # v0.83.0-b: 注入 Evidence Engine (optional, 不传则 fallback 到原 evidence_ids.append)
+        self.evidence_engine = evidence_engine
 
     def apply(
         self,
@@ -87,7 +90,15 @@ class BeliefUpdator:
             dim_state.mastery_prob = updates["mastery_prob"]
             dim_state.mastered = updates["mastered"]
             dim_state.confidence = updates["confidence"]
-            dim_state.evidence_ids.append(updates["evidence_id"])
+            # v0.83.0-b: 如果 evidence_engine 注入, 走 Evidence Engine 路径
+            #   (Evidence Engine.add 创建新 evidence, state.add_evidence 关联)
+            #   否则 fallback 到原 evidence_ids.append(updates["evidence_id"])
+            if self.evidence_engine is not None:
+                self._register_evidence(
+                    dim_char, updates["evidence_id"], observation, state,
+                )
+            else:
+                dim_state.evidence_ids.append(updates["evidence_id"])
             dim_state.last_updated = updates["last_updated"]
 
         # Step 4: BloomProfile update
@@ -191,3 +202,57 @@ class BeliefUpdator:
             )
 
         return event_id
+
+    # ---------------------------------------------------------------
+    # v0.83.0-b: Evidence Engine 集成 helper
+    # ---------------------------------------------------------------
+
+    def _register_evidence(
+        self,
+        dim: str,
+        evidence_id: int,
+        observation: Any,
+        state: "BeliefState",
+    ) -> None:
+        """v0.83.0-b: 把 evidence_id 走 Evidence Engine 注册, 并关联到 state.
+
+        调用流程:
+          1. 通过 EvidenceEngine.add 创建 Evidence 记录 (跨 3 表持久化)
+          2. 调用 state.add_evidence(dim, evidence_id) 关联到 Twin
+
+        如果 Evidence Engine 调用失败, _log.warning + 跳过 (不影响主流程).
+        """
+        if self.evidence_engine is None:
+            return  # fallback: 不调 (跟 v0.81 行为一致)
+        try:
+            from datetime import datetime
+            from ..evidence import Evidence, EvidenceSource
+
+            # 从 observation 派生 payload (沿用 v0.81 observation.to_dict)
+            if hasattr(observation, "to_dict"):
+                payload = observation.to_dict()
+            elif isinstance(observation, dict):
+                payload = observation
+            else:
+                payload = {"_raw": str(observation)}
+
+            # confidence 从 history_entry 派生 (mastery_prob 或 score)
+            confidence = float(payload.get("score", 0.5) or 0.5)
+
+            ev = Evidence(
+                source=EvidenceSource.RESPONSE_HISTORY,
+                student_id=state.student_id,
+                timestamp=datetime.now(),
+                payload=payload,
+                confidence=confidence,
+                problem_id=payload.get("problem_id"),
+            )
+            new_evidence_id = self.evidence_engine.add(ev)
+            # v0.83.0-b: state.add_evidence 是 allowlist 入口 (跟 append_trajectory_snapshot 模式一致)
+            state.add_evidence(dim, new_evidence_id)
+        except Exception as e:
+            import logging as _logging
+            _logging.getLogger(__name__).warning(
+                "BeliefUpdator._register_evidence 失败 (dim=%s, evidence_id=%s): %s",
+                dim, evidence_id, e, exc_info=True,
+            )

@@ -39,6 +39,7 @@ FUNC_ALLOWLIST = {
     "bump_version",  # BeliefState.bump_version (StateEngine.commit 调)
     "snapshot",  # BeliefState.snapshot
     "append_trajectory_snapshot",  # v0.81.0-d: BeliefState.append_trajectory_snapshot (DB restore path)
+    "add_evidence",  # v0.83.0-b: BeliefState.add_evidence (Belief-Evidence 关联, Evidence Engine 注入)
     "_apply_delta_fields",  # BeliefState._apply_delta_fields (StateEngine 调)
     "_copy_state_fields",  # StateEngine._copy_state_fields
     "commit",  # StateEngine.commit
@@ -135,7 +136,7 @@ def main():
         print()
         print("修复: 改用 StateEngine.commit(state, delta, source=...) 或 BeliefUpdator.apply()")
         print("拦截历史: v0.78 BeliefEngine.update() 含 ~46 处直接 mutation, v0.80 拆 4-layer 收口")
-        print("allowlist: BeliefState.{__init__,to_dict,from_dict,apply_snapshot,validate,bump_version,append_trajectory_snapshot} + StateEngine.commit + BeliefUpdator.apply")
+        print("allowlist: BeliefState.{__init__,to_dict,from_dict,apply_snapshot,validate,bump_version,append_trajectory_snapshot,add_evidence} + StateEngine.commit + BeliefUpdator.apply")
         # v0.81: hard block (exit 1)
         sys.exit(1)
 

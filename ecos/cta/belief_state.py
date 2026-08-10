@@ -8,6 +8,10 @@ M2 W1 范围：基础 dataclass + 序列化（不实现网络/磁盘持久化，
 
 from __future__ import annotations
 
+import logging
+
+_log = logging.getLogger(__name__)
+
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -247,6 +251,7 @@ class TCState:
         post_liminal_jump_detected: 是否检测到质变
         irreversible: TC 不可逆性
         timestamp: 状态更新时间
+        evidence_ids: v0.83.0-b 新增, 关联 Evidence Engine 的 evidence_id 列表
     """
 
     tc_id: str
@@ -257,6 +262,8 @@ class TCState:
     post_liminal_jump_detected: bool = False
     irreversible: bool = False
     timestamp: datetime = field(default_factory=datetime.now)
+    # v0.83.0-b: 新增 evidence_ids 字段 (关联 Evidence Engine)
+    evidence_ids: List[int] = field(default_factory=list)
 
 
 @dataclass
@@ -483,6 +490,78 @@ class BeliefState:
         (method name match: "append_trajectory_snapshot").
         """
         self.trajectory.append(snap)
+
+    # ---------------------------------------------------------------
+    # v0.83.0-b: Belief-Evidence 关联方法 (3 个)
+    # ---------------------------------------------------------------
+
+    def add_evidence(self, dim: str, evidence_id: int) -> None:
+        """v0.83.0-b: 把 evidence_id 附加到指定维度的 evidence_ids 列表.
+
+        支持维度 (跟 kernel-mapping §2.2.1 一致):
+          - "K" / "P" / "S" / "C" / "X" (5D DimensionState)
+          - "bloom" (BloomProfileState)
+          - "tc_<id>" (TCState, e.g. "tc_python_variables")
+
+        防御性自检 [8] 仍 hard block: 这是允许的 state mutation (BeliefState.add_evidence
+        在 allowlist 扩展里, 跟 append_trajectory_snapshot 模式一致).
+        """
+        if not isinstance(evidence_id, int):
+            _log.warning(
+                "BeliefState.add_evidence: evidence_id 应为 int, 实际=%s, skip",
+                type(evidence_id).__name__,
+            )
+            return
+
+        if dim in ("K", "P", "S", "C", "X"):
+            getattr(self, dim).evidence_ids.append(evidence_id)
+        elif dim == "bloom":
+            self.bloom_profile.evidence_ids.append(evidence_id)
+        elif dim.startswith("tc_"):
+            tc_id = dim[3:]
+            if tc_id in self.C.tc_states:
+                self.C.tc_states[tc_id].evidence_ids.append(evidence_id)
+            else:
+                _log.warning(
+                    "BeliefState.add_evidence: TC id=%s 不在 C.tc_states 中, skip",
+                    tc_id,
+                )
+        else:
+            _log.warning("BeliefState.add_evidence: unknown dim=%s, skip", dim)
+
+    def evidence_for(self, dim: str) -> List[int]:
+        """v0.83.0-b: 反查 dim 关联的 evidence_ids 列表 (副本).
+
+        支持维度同 add_evidence. 未知 dim 返空 list (不 raise).
+        """
+        if dim in ("K", "P", "S", "C", "X"):
+            return list(getattr(self, dim).evidence_ids)
+        elif dim == "bloom":
+            return list(self.bloom_profile.evidence_ids)
+        elif dim.startswith("tc_"):
+            tc_id = dim[3:]
+            if tc_id in self.C.tc_states:
+                return list(self.C.tc_states[tc_id].evidence_ids)
+        return []
+
+    def evidence_summary(self) -> Dict[str, int]:
+        """v0.83.0-b: 返回每维度的 evidence_ids 数量 (Twin 概览).
+
+        返回示例:
+          {"K": 5, "P": 3, "S": 2, "C": 1, "X": 0, "bloom": 7, "tc": 12}
+
+        用途: 调试面板 / Runtime API evidence_summary 端点 / Twin 一致性校验
+              (Phase 6+ 接入, v0.83.0-b 仅做概览).
+        """
+        return {
+            "K": len(self.K.evidence_ids),
+            "P": len(self.P.evidence_ids),
+            "S": len(self.S.evidence_ids),
+            "C": len(self.C.evidence_ids),
+            "X": len(self.X.evidence_ids),
+            "bloom": len(self.bloom_profile.evidence_ids),
+            "tc": sum(len(tc.evidence_ids) for tc in self.C.tc_states.values()),
+        }
 
     def _apply_delta_fields(self, snapshot: Dict[str, Any]) -> None:
         """v0.80.0: extracted from apply_snapshot body. Field application logic.
