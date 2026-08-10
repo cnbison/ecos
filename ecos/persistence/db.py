@@ -181,6 +181,18 @@ CREATE TABLE IF NOT EXISTS trajectory_snapshots (
 
 CREATE INDEX IF NOT EXISTS idx_trajectory_student ON trajectory_snapshots(student_id, timestamp);
 CREATE INDEX IF NOT EXISTS idx_trajectory_type ON trajectory_snapshots(snapshot_type);
+
+CREATE TABLE IF NOT EXISTS event_log (
+    event_id TEXT PRIMARY KEY,
+    student_id TEXT NOT NULL,
+    timestamp TEXT NOT NULL,
+    source TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    FOREIGN KEY (student_id) REFERENCES students(student_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_event_log_student ON event_log(student_id, timestamp);
 """
 
 
@@ -731,6 +743,75 @@ class Database:
                 student_id, calibration_round, exc_info=True,
             )
             raise
+
+    # ─── Event Log (v0.81.0-a) ──────────────────────────────────────────────────
+
+    def save_event(
+        self,
+        event_id: str,
+        student_id: str,
+        timestamp: str,
+        source: str,
+        event_type: str,
+        payload_json: str,
+    ) -> None:
+        """v0.81.0-a: 持久化 LearningEvent 到 event_log 表.
+
+        Mirror calibration_log save pattern. INSERT OR IGNORE dedups by event_id PRIMARY KEY.
+        Callers normally use EventLog.log_event() (ecos/cta/event_log.py) which wraps this.
+        This method is exposed on Database for direct DB-level integration tests.
+        """
+        with self.tx() as _:
+            self.conn.execute(
+                """
+                INSERT OR IGNORE INTO event_log (
+                    event_id, student_id, timestamp, source, event_type, payload_json
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (event_id, student_id, timestamp, source, event_type, payload_json),
+            )
+
+    def load_event_history(
+        self,
+        student_id: str,
+        since: Optional[str] = None,
+        until: Optional[str] = None,
+        limit: Optional[int] = None,
+    ) -> list[dict]:
+        """v0.81.0-a: 加载学生的 event_log 历史 (按时间升序, 用于 replay).
+
+        Args:
+            student_id: 学生 ID
+            since: ISO timestamp, 包含
+            until: ISO timestamp, 包含
+            limit: 最多返回 N 条 (None = 不限)
+
+        Returns:
+            list of dict (event_id, student_id, timestamp, source, event_type, payload_json)
+            按时间升序排, 直接喂给 StateEngine.replay / BeliefEngine.replay.
+        """
+        query = "SELECT * FROM event_log WHERE student_id = ?"
+        params: list[Any] = [student_id]
+        if since is not None:
+            query += " AND timestamp >= ?"
+            params.append(since)
+        if until is not None:
+            query += " AND timestamp <= ?"
+            params.append(until)
+        query += " ORDER BY timestamp ASC"
+        if limit is not None:
+            query += " LIMIT ?"
+            params.append(limit)
+        rows = self.conn.execute(query, params).fetchall()
+        return [dict(r) for r in rows]
+
+    def count_events(self, student_id: str) -> int:
+        """v0.81.0-a: 统计学生 event_log 条数 (用于测试 / debug)."""
+        row = self.conn.execute(
+            "SELECT COUNT(*) FROM event_log WHERE student_id = ?",
+            (student_id,),
+        ).fetchone()
+        return int(row[0]) if row else 0
 
     # ─── Bloom Goals ───────────────────────────────────────────────────────────
 
