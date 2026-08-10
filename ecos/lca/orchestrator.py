@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from ..cta.belief_state import BeliefState, BloomLevel, LearningDNAState
 from ..llm_client import ECOSLLMClient
@@ -23,23 +23,18 @@ from .intervention import (
     CLTLevel,
     Intervention,
     InterventionType,
-    select_bloom_target,
 )
 from .l3_selection import (
-    AdaptiveCLTPresender,
-    BjorkSpacingEffect,
-    BjorkTestingEffect,
     CAConfig,
     CLTConfig,
-    CAScaffoldingDecay,
 )
 from .l4_optimization import (
     BanditConfig,
-    CAStateMachine,
     CTA_L4_Backend,
     LCAAttribution,
     LCAPolicyLearner,
 )
+from .planner import PlanDecision, Planner, PlannerConfig
 from .rationale import RationaleGenerator
 
 _log = logging.getLogger(__name__)
@@ -228,6 +223,8 @@ class LCAEngineConfig:
     clt_config: CLTConfig = field(default_factory=CLTConfig)
     ca_config: CAConfig = field(default_factory=CAConfig)
     bandit_config: BanditConfig = field(default_factory=BanditConfig)
+    # v0.82.0-a: Planner 子 config (LCA 4-layer 第 1 层)
+    planner_config: PlannerConfig = field(default_factory=PlannerConfig)
     use_llm_rationale: bool = True
     rationale_audience: str = "student"  # 默认 student
     expected_gain_scale: float = 0.3    # expected_gain = scale × (1 - mastery)
@@ -250,14 +247,12 @@ class LCAEngine:
     ):
         self.config = config or LCAEngineConfig()
 
-        # L3 组件
-        self.clt = AdaptiveCLTPresender(self.config.clt_config)
-        self.bjork_testing = BjorkTestingEffect()
-        self.bjork_spacing = BjorkSpacingEffect()
-        self.ca_scaffolding = CAScaffoldingDecay(self.config.ca_config)
+        # v0.82.0-a: Planner 决策层 (LCA 4-layer split 第 1 层)
+        #   内部组合 L3 组件 (CLT/Bjork/CA scaffolding) + CAStateMachine
+        #   LCAEngine 通过 __getattr__ 转发访问 self.clt / self.bjork_testing 等
+        self.planner = Planner(self.config.planner_config)
 
-        # L4 组件
-        self.ca_state_machine = CAStateMachine()
+        # L4 组件 (v0.82.0-d 抽到 PolicyLearner, 当前 LCAEngine 直接持有)
         # v0.57.0: per-student bandit 改造 (修复 v0.56.0 单 bandit 多学生数据冲突 BUG)
         #   之前 self.bandit 是单 bandit 全局共享, lbc001 + lbc002 答题会互相污染 LinUCB 状态
         #   现在 self.bandits[student_id] 隔离 per-student
@@ -277,6 +272,30 @@ class LCAEngine:
         # v0.57.0: per-student last_intervention (持久化)
         self._last_intervention: Dict[str, Intervention] = {}
 
+    # v0.82.0-a: __getattr__ forwarding for Planner 子组件 (向后兼容)
+    #   旧代码 / 测试可能访问 engine.clt / engine.bjork_testing 等
+    #   转发到 self.planner.clt / self.planner.bjork_testing 等
+    #   跟 v0.80 CTA BeliefEngine.__getattr__ 同模式
+    _FORWARDED_PLANNER_ATTRS = {
+        "clt", "bjork_testing", "bjork_spacing",
+        "ca_scaffolding", "ca_state_machine",
+    }
+
+    def __getattr__(self, name: str) -> Any:
+        """Forward Planner sub-component access to self.planner.
+
+        Triggered only when normal attribute lookup fails. Used for
+        self.clt / self.bjork_testing / etc. that were direct attributes
+        in v0.81 LCAEngine. v0.82.0-a moved them to Planner.
+        """
+        if name in LCAEngine._FORWARDED_PLANNER_ATTRS:
+            planner = self.__dict__.get("planner")
+            if planner is not None and hasattr(planner, name):
+                return getattr(planner, name)
+        raise AttributeError(
+            f"'{type(self).__name__}' object has no attribute '{name}'"
+        )
+
     # ---------------------------------------------------------------
     # 主入口
     # ---------------------------------------------------------------
@@ -289,14 +308,11 @@ class LCAEngine:
         """LCA 主选择流程.
 
         Steps（02-lca §6）：
-          1. 选 Bloom 目标层（select_bloom_target）
-          2. 确定 CA 阶段（CAStateMachine）
-          3. 确定 CLT 4 级呈现（AdaptiveCLTPresender）
-          4. 检查 Bjork 触发条件
-          5. 生成候选 + LinUCB 选择
-          6. 生成 rationale
-          7. 记录干预 + 归因
-          8. 输出 LCAResult
+          1-4. Planner 决策层 (v0.82.0-a: 委托 self.planner.plan())
+          5.   生成候选 + LinUCB 选择
+          6.   生成 rationale
+          7.   记录干预 + 归因
+          8.   输出 LCAResult
 
         Args:
             cta_input: CTA 输入（含 BeliefState）
@@ -308,28 +324,14 @@ class LCAEngine:
         belief_state = cta_input.belief_state
         student_id = cta_input.student_id
         audience = audience or self.config.rationale_audience
-        candidates_bloom = cta_input.bloom_target_candidates or list(BloomLevel)
 
-        # Step 1: Bloom 目标层
-        bloom_target = select_bloom_target(
-            belief_state,
-            candidates_bloom,
-            belief_state.learning_dna,
-        )
-
-        # Step 2: CA 阶段
+        # v0.82.0-a: Step 1-4 委托 Planner (决策层 4 步合一)
         history = self.intervention_history.get(student_id, [])
-        ca_stage = self.ca_state_machine.transition(student_id, belief_state, history)
-
-        # Step 3: CLT 4 级
-        clt_level = self.clt.determine_level(student_id, belief_state)
-
-        # Step 4: Bjork 触发
-        bjork_triggers: List[str] = []
-        if self.bjork_testing.should_insert_test(belief_state):
-            bjork_triggers.append("test")
-        if self._should_review_spaced(belief_state):
-            bjork_triggers.append("space")
+        plan: PlanDecision = self.planner.plan(cta_input, intervention_history=history)
+        bloom_target = plan.bloom_target
+        ca_stage = plan.ca_stage
+        clt_level = plan.clt_level
+        bjork_triggers = plan.bjork_triggers
 
         # Step 5: 生成候选 + LinUCB 选择
         candidates = _generate_candidates(
@@ -580,13 +582,8 @@ class LCAEngine:
     # 内部工具
     # ---------------------------------------------------------------
 
-    def _should_review_spaced(self, belief_state: BeliefState) -> bool:
-        """判断是否应触发间隔复习."""
-        # 规则：K mastery_prob > 0.5 + 距上次轨迹 ≥ 5 步
-        if belief_state.K.mastery_prob > 0.5:
-            if len(belief_state.trajectory.snapshots) >= 5:
-                return True
-        return False
+    # v0.82.0-a: _should_review_spaced 迁移到 Planner._should_review_spaced
+    # 旧逻辑保留在 PlannerConfig.mastery_threshold / trajectory_min_len 配置中
 
     def _estimate_gain(
         self,

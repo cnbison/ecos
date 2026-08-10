@@ -348,7 +348,7 @@ def test_no_direct_state_mutation_outside_allowlist(ecos_dir: Path):
 def pytest_report_header(config):
     """测试报告头部: 显示 ECOS pytest 套件版本."""
     return [
-        f"ECOS pytest 套件 v0.81.0",
+        f"ECOS pytest 套件 v0.82.0",
         f"  8 项防御性自检: silent pass / 版本号 / CSS / DB 恢复字段 / CI gate / apply_snapshot / replay skill_id / direct mutation (hard block)",
         f"  拦截历史: 5 次虚标 + 5 处 silent pass + 4 次 DB 字段漏 + 7 处 replay 硬编码 + ~46 处直接 mutation (v0.81 hard block)"
     ]

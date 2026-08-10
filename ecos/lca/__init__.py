@@ -48,6 +48,7 @@ from .orchestrator import (
     LCAEngineConfig,
     LCAResult,
 )
+from .planner import PlanDecision, Planner, PlannerConfig
 from .rationale import PROMPT_TEMPLATES, RationaleGenerator
 
 __status__ = "m2-w2-skeleton"
@@ -77,6 +78,10 @@ __all__ = [
     "LCAAttribution",
     "LCAPolicyLearner",
     "LinUCB",
+    # v0.82.0-a: LCA 4-layer 第 1 层 Planner
+    "Planner",
+    "PlannerConfig",
+    "PlanDecision",
     # Orchestrator
     "CTAInput",
     "LCAEngine",

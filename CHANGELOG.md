@@ -12,6 +12,132 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.82.0] 2026-08-10
+
+### feat: LCA 4-Layer Split — Planner 提取 (4 子版本第 1 个, v0.82.0-a)
+
+> **背景**: v0.80.0 完成 CTA 4-layer split (ObservationEngine + FeatureExtractor + InferenceEngine + BeliefUpdator), v0.81.0 落地 StateEngine 6/6 职责 + EventLog + Replay/Simulation. LCA 仍是单类 632 行 `LCAEngine` (orchestrator.py), 把 4 个独立职责 (决策/候选生成/评估/策略学习) 糅在 8 步 `select_intervention` + `update` 里.
+> **Bisen 2026-08-06 拍板 Kernel-first**: v0.82 是 4 kernel-deepening 版本的第 3 个 (per 12-kernel-mapping §8.3). 教师/家长/跨学科 extension 推迟到 Phase 7+.
+> **v0.82.0 目标**: LCA 拆 4 层 (Planner → Experiment Designer → Evaluator → Policy Learner), 对应 2.0 §2.2.1 / kernel-mapping §4. LCAEngine 从 632 行缩到 ~250 行 facade. 4 个子版本 (a/b/c/d) 渐进拆, 每版独立可测可回滚.
+> **v0.82.0-a 范围**: Planner 决策层提取. LCAEngine.select_intervention step 1-4 (Bloom/CA/CLT/Bjork) 委托 `self.planner.plan()`. 防御性自检 [8] 仍 hard block (LCAEngine 不引入新 mutation site). 632 → 632 + 16 = 648 tests.
+
+#### v0.82.0-a: Planner 提取
+
+NEW: `ecos/lca/planner.py` (~190 lines)
+- `PlannerConfig` dataclass: clt_config / ca_config / mastery_threshold=0.5 / trajectory_min_len=5
+  - 显式配置化旧 LCAEngine._should_review_spaced 内联阈值 (跟 v0.81 行为一致)
+- `PlanDecision` frozen dataclass: bloom_target / ca_stage / clt_level / bjork_triggers
+  - 不可变值对象, 防止下游 (ExperimentDesigner / PolicyLearner / Evaluator) 误改
+- `Planner` 类: 持有 L3 组件 (AdaptiveCLTPresender + BjorkTestingEffect + BjorkSpacingEffect + CAScaffoldingDecay) + CAStateMachine
+  - `plan(cta_input, intervention_history=None) -> PlanDecision`: 4 步合一
+  - Step 1: `select_bloom_target()` 选 Bloom 目标
+  - Step 2: `ca_state_machine.transition()` 传 history (由 LCAEngine 注入, 避免双向依赖)
+  - Step 3: `clt.determine_level()` 选 CLT 4 级
+  - Step 4: `bjork_testing.should_insert_test()` + `_should_review_spaced()` 触发 Bjork 标签
+
+MODIFY: `ecos/lca/orchestrator.py` (-30 lines net, refactored to use Planner)
+- `LCAEngineConfig` 新增 `planner_config: PlannerConfig` 字段
+- `LCAEngine.__init__`: 构造 `self.planner = Planner(self.config.planner_config)`, 移除 L3 直接属性
+- `LCAEngine.__getattr__` forwarding (`_FORWARDED_PLANNER_ATTRS`): `clt` / `bjork_testing` / `bjork_spacing` / `ca_scaffolding` / `ca_state_machine` 转发到 `self.planner.{name}`
+  - 跟 v0.80 CTA BeliefEngine.__getattr__ 同模式 (CTA 4-layer 拆分时引入)
+- `LCAEngine.select_intervention` step 1-4 替换为 `plan = self.planner.plan(cta_input, intervention_history=history)`
+  - 4 字段从 plan 解构到本地变量 (后续 step 5-8 不变)
+- `_should_review_spaced` 方法删除 (迁到 Planner 内部, 阈值通过 PlannerConfig 暴露)
+- 清理未用 imports (select_bloom_target / AdaptiveCLTPresender / BjorkTestingEffect / BjorkSpacingEffect / CAScaffoldingDecay / CAStateMachine)
+
+MODIFY: `ecos/lca/__init__.py` (+5 lines)
+- 导出 `Planner` / `PlannerConfig` / `PlanDecision` (v0.82.0-a 4-layer 第 1 层公开 API)
+
+MODIFY: `ecos/__init__.py` (+1 line)
+- `__version__ = "0.82.0"` (a/b/c/d 4 个 commit 同步 bump)
+
+NEW: `tests/test_planner.py` (16 tests, 0.38s)
+- 5 L3 组件集成 (Planner 构造, 自定义 config, CLT/CA 状态独立, 默认值跟 v0.81 一致)
+- 5 `Planner.plan()` interface (返回 PlanDecision, frozen 不可变, 空 candidates, history 注入, history=None fallback)
+- 3 LCAEngine 集成 (默认 planner, select_intervention 委托, planner_config 自定义)
+- 2 backward compat (`engine.clt` 等通过 `__getattr__` 仍可访问)
+- 1 防御性自检 (silent pass 扫描)
+
+向后兼容:
+- 65 LCA tests + 14 production callers 不变
+- 5 LCAEngine 接口 (`select_intervention` / `update` / `dump_state` / `load_state` / `_is_linucb_cold_start`) 签名保持
+- `engine.clt` / `engine.bjork_testing` 等 5 个 L3 字段通过 `__getattr__` 转发
+- dual_agent 独立 LCAEngine 实例保持 (v0.62.0-A 隔离原则)
+- H3-c4 canary PASS (lbc001/lbc002/lbc003 拐点后 arm 切换延迟中位数 < 3 题, 跟 v0.81 一致)
+
+#### Architecture outcomes
+
+| 维度 | v0.81.0 | v0.82.0-a | Δ |
+|---|---|---|---|
+| LCA 4-layer 拆分 | 0% (LCAEngine 单类 632 行) | 25% (Planner 抽出, ~190 行) | +25% |
+| LCAEngine 行数 | 632 | ~590 (移除 L3 重复 + 加 __getattr__) | -42 行 |
+| pytest 总数 | 616 | 632 (+16) | +2.6% |
+| 防御性自检 [8] | hard block (exit 1) | hard block (exit 1) | 保持 |
+| H3-c4 canary | PASS | PASS | 保持 |
+
+#### Risks addressed
+
+1. **MEDIUM**: Planner 持有 CAStateMachine 后, CA 阶段状态从 LCAEngine 隔离 → 进程重启后 CA 状态丢失
+   - Mitigation: 跟 v0.57 LCAEngine 同原则, CA 状态本质是 per-student in-memory, 持久化是 Phase 5+ 任务. a 阶段不破坏行为
+2. **MEDIUM**: Planner.plan(cta_input, intervention_history=None) 默认 None → 空 history 可能影响 CAStage 判定
+   - Mitigation: LCAEngine 显式传 `self.intervention_history.get(student_id, [])`, Planner 内部不感知 history 来源
+3. **LOW**: 移除 LCAEngine 旧 L3 字段 → 任何 `engine.clt` 直写代码会断
+   - Mitigation: `__getattr__` 5 字段转发, + 16 tests 覆盖
+
+#### Out of Scope (deferred to v0.82.0-b/c/d)
+
+- v0.82.0-b: ExperimentDesigner 提取 (`_generate_candidates` orchestrator.py:134-217 迁移)
+- v0.82.0-c: Evaluator 提取 (`_estimate_gain` / `_estimate_risk` + LCAAttribution 包装)
+- v0.82.0-d: PolicyLearner 提取 (LCAPolicyLearner 包装 + dump/load 委托) + LCAEngine facade finalization (632 → ~250)
+- 未来 v0.82.x 内 (但独立 commit, 不在 LCA split PR): LearningEvent unification / Event Bus / EventLog retention
+
+#### Verify
+
+```bash
+# 1. Full pytest suite (632 tests after v0.82.0-a)
+python -m pytest tests/ -q
+# Expected: 632 passed
+
+# 2. v0.78 H3-c4 LCA canary (Planner 拆分不能破坏 H3-c4)
+python scripts/v078_h3c4_inflection_response_replay.py
+# Expected: H3-c4 PASS (lbc001/lbc002/lbc003 拐点后 arm 切换延迟中位数 < 3 题)
+
+# 3. NEW: v0.82.0-a Planner tests
+python -m pytest tests/test_planner.py -v
+# Expected: 16 passed
+
+# 4. Defensive checks (8 items, [8] still hard block)
+bash scripts/check_defensive.sh
+# Expected: all 8 pass
+
+# 5. LCA backward compat
+python -m pytest tests/test_lca_wired.py tests/test_lca_persistence.py -v
+# Expected: 16 + 11 = 27 passed
+
+# 6. Version bump
+grep '__version__' ecos/__init__.py
+# Expected: __version__ = "0.82.0"
+
+# 7. LCAEngine 接口契约保持
+python -c "
+from ecos.lca import LCAEngine
+e = LCAEngine()
+# 5 接口方法应存在
+assert hasattr(e, 'select_intervention')
+assert hasattr(e, 'update')
+assert hasattr(e, 'dump_state')
+assert hasattr(e, 'load_state')
+assert hasattr(e, '_is_linucb_cold_start')
+# __getattr__ 转发 5 字段
+assert e.clt is not None
+assert e.bjork_testing is not None
+assert e.bjork_spacing is not None
+assert e.ca_scaffolding is not None
+assert e.ca_state_machine is not None
+print('LCAEngine 接口契约 + __getattr__ 转发 OK')
+"
+```
+
 ## [0.81.0] 2026-08-10
 
 ### feat: Event Engine (Replay + Simulation) + TODO mutations 迁移 + check [8] hard block
