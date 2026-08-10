@@ -22,11 +22,15 @@
 | **Phase 5（产品化，✅ 准备启动）** | 实验报告 + 修订文档 | ✅ 完整 Python 包 + Web UI | 完整产品 |
 | **Phase 6（系统完善，待启动）** | 研究文档 + 应用原型设计 | ✅ ecos/ Python 包 + 实验代码 | 应用探索 |
 
-> **当前阶段（2026-08-10）**：**Phase 4（Product Demo 完整化）实际完成，Phase 5（产品化）已启动 v0.54.0 → v0.82.0**。
+> **当前阶段（2026-08-10）**：**Phase 4（Product Demo 完整化）实际完成，Phase 5（产品化）已启动 v0.54.0 → v0.83.0**。
 > - Phase 4: ✅ 实际完成 v0.52.3 (Bisen 自定义 Phase 1-4 全部落地, 含 5D 视觉化 / 答题历史 / Tab 导航 / Phase 4 架构现代化)。
 > - Phase 5: 🚀 已启动并推进：partial credit (v0.54.0) / C/X 主导题 (v0.54.2/3) / LCA 接入 + 持久化 (v0.56.0/0.57.0) /
 >   dual_agent 接入 + 持久化 (v0.60.0/0.61.0/0.62.0) / H3 验证 A+B 报告 (v0.63.0/0.68.0) / v0.69.0 confidence 指标重设计 PRD /
->   **v0.80-0.82 kernel-deepening (CTA 4-layer split + StateEngine 6/6 + LCA 4-layer split)**.
+>   **v0.80-0.83 kernel-deepening 全部完成**:
+>   - v0.80 CTA 4-layer split
+>   - v0.81 StateEngine 6/6 + EventLog + Replay/Simulation
+>   - v0.82 LCA 4-layer split (Planner/ExperimentDesigner/Evaluator/PolicyLearner)
+>   - v0.83 Evidence Engine + Runtime API (4 子包 + 6 核心 API).
 > ECOS 7 组件: 5D+cov (K/P/S/C/X 均真评估) / Bloom 6级 / TC 状态 / LearningDNA (标"待启用") / Trajectory / Misconceptions / overall_confidence。
 > 详见 [03-roadmap.md](./research/00-overview/03-roadmap.md) (v1.5 已同步)。
 >
@@ -383,9 +387,9 @@ bash scripts/install-hooks.sh    # 设 core.hooksPath = githooks/
 | 5 | DB 恢复 6 关键字段 | 4 次漏字段 (json/tc_states/trajectory/item_params) | 检查 6 字段全在 belief.py + db.py |
 | 6 | DB 恢复走 apply_snapshot | v0.77.1 收口 6 处直接 state.X = value mutation | `grep "state.apply_snapshot(" web/api/belief.py` |
 | 7 | replay 脚本无字面量 skill_id | v0.78 H3-c4 artifact (7 个 replay 脚本硬编码 skill_id="variables") | AST 检测 `scripts/check_no_literal_skill_id.py`, 排除 docstring + dict .get() 默认 |
-| 8 | 直接 state.X = value mutation 扫描 | v0.78 BeliefEngine.update() 含 ~46 处直接 mutation (v0.80 拆 4-layer 收口); v0.81 TODO mutations 迁移完成 + hard block; v0.82 LCA 4-layer 拆分 (LCAEngine 缩到 facade, 不引入新 mutation site) | AST 检测 `scripts/check_no_direct_state_mutation.py`, allowlist: BeliefState.{__init__,to_dict,from_dict,apply_snapshot,validate,bump_version,append_trajectory_snapshot} + StateEngine.commit + BeliefUpdator.apply + create_initial_state. v0.81 hard block (exit 1), LINE_ALLOWLIST shrinks 8 -> 1 (ecos/dual_agent/orchestrator.py:842 only) |
+| 8 | 直接 state.X = value mutation 扫描 | v0.78 BeliefEngine.update() 含 ~46 处直接 mutation (v0.80 拆 4-layer 收口); v0.81 TODO mutations 迁移完成 + hard block; v0.82 LCA 4-layer 拆分 (LCAEngine 缩到 facade, 不引入新 mutation site); v0.83 Evidence Engine + Runtime API 0 新 mutation site (Runtime API 纯函数 + kwargs 注入, 符合 kernel-mapping §5 CQRS 原则) | AST 检测 `scripts/check_no_direct_state_mutation.py`, allowlist: BeliefState.{__init__,to_dict,from_dict,apply_snapshot,validate,bump_version,append_trajectory_snapshot,add_evidence} + StateEngine.commit + BeliefUpdator.apply + create_initial_state. v0.81 hard block (exit 1), LINE_ALLOWLIST shrinks 8 -> 1 (ecos/dual_agent/orchestrator.py:842 only). v0.83.0-b add_evidence 扩展 allowlist (跟 append_trajectory_snapshot 模式一致) |
 
-**673 pytest 测试**（截至 v0.82.0, 30 个文件）：
+**736 pytest 测试**（截至 v0.83.0, 34 个文件）：
 - `test_state_engine.py` (54)：v0.80.0-a StateEngine commit/validate/snapshot/diff + apply_snapshot shim
 - `test_inference_engine.py` (28)：v0.80.0-b InferenceEngine (含 5 个 critical 不变量 test: run() 不 mutate state)
 - `test_belief_updater.py` (34)：v0.80.0-b BeliefUpdator (sole mutation site, calls StateEngine.commit)
@@ -400,6 +404,10 @@ bash scripts/install-hooks.sh    # 设 core.hooksPath = githooks/
 - `test_experiment_designer.py` (13)：v0.82.0-b LCA ExperimentDesigner 实验设计层 (CA/Bjork/CLT 调整算法)
 - `test_evaluator.py` (13)：v0.82.0-c LCA Evaluator 评估层 (estimate_gain/risk + LCAAttribution 包装)
 - `test_policy_learner.py` (15)：v0.82.0-d LCA PolicyLearner 策略学习层 (LinUCB 包装 + dump/load + 冷启动)
+- `test_evidence.py` (15)：v0.83.0-a Evidence Engine (统一 schema + 6 来源 + 跨 3 表 CRUD)
+- `test_belief_evidence_link.py` (14)：v0.83.0-b Belief-Evidence 关联 (add_evidence + 反查 + 集成)
+- `test_evaluation.py` (16)：v0.83.0-c Evaluation Engine (Twin attribution + Policy AB + Goal completion)
+- `test_runtime.py` (18)：v0.83.0-d Runtime API (6 核心纯函数 + kwargs)
 - `test_defensive.py` (8)：8 项防御性自检的 pytest 版本
 - `test_apply_snapshot.py` (19)：v0.77.1 DB 恢复路径单一入口 (6 字段恢复 + 不接管边界 + round-trip)
 - `test_partial_credit.py` (5)：partial credit + MIRT 回归保护

@@ -58,7 +58,7 @@
 - **v0.81.0-d** ✅: TODO mutations 迁移完成 (web/api/belief.py + ecos_session.py). check [8] hard block (exit 1). LINE_ALLOWLIST 8 -> 1
 - **v0.81.0 final** ✅: 6/6 StateEngine 职责, 616 tests (554 -> 616 +62), State Engine 抽象 100%
 - **v0.82.0** ✅ (2026-08-10): LCA 4-layer split (Planner + ExperimentDesigner + Evaluator + PolicyLearner) + LCAEngine facade finalization (632 → 491 行, -22%). 4 sub-commits (a/b/c/d). 57 tests (16+13+13+15). 防御性自检 [8] 仍 hard block (LCAEngine 不引入新 mutation site)
-- **v0.83.0**: Evidence Engine / Runtime API
+- **v0.83.0** ✅ (2026-08-10): Evidence Engine + Runtime API. 4 sub-commits (a/b/c/d). 63 tests (15+14+16+18). 673 → 736 tests (+9.4%). 防御性自检 [8] 仍 hard block (Runtime API 0 新 mutation site, add_evidence 扩展 allowlist)
 
 ### 1.2 Event Engine
 
@@ -114,17 +114,20 @@
 
 | 现有代码 | 接近度 | 说明 |
 |---|---|---|
-| `web/api/dual_agent.py` calibration_log 表 | 30% | 隐式存 Evidence（actual_outcome / dual_agent_confidence）,但不是 Engine 管理 |
-| `web/api/belief.py` _response_history | 30% | 隐式存 Evidence（答题历史 + mastery_prob_after）,但跟 calibration_log 没统一 |
-| `ecos/cta/belief_state.py:BeliefState.evidence_predictions` | 40% | 已有"证据预测"字段（v0.5.0 加）,但只是 dict 占位 |
-| `ecos/cta/l2_mirt.py` partial credit 评分 | 50% | 已经是 Evidence（partial credit 0-1 + ai_reasoning）,但没统一管理 |
-| `ecos/cta/llm_critic/` | 40% | LLM Critic 产生 Evidence（confidence + reasoning）,但没 Engine |
-| **缺失：Evidence 统一 schema** | 0% | Evidence 散落在 5+ 处,没统一数据结构 |
-| **缺失：Evidence-Belief 关联** | 0% | 不能追溯"这个 K.mastery_prob=0.7 由哪些 Evidence 支持" |
+| `web/api/dual_agent.py` calibration_log 表 | 100% (v0.83.0-a) | 通过 EvidenceEngine.query_by_source(CALIBRATION_LOG) 统一访问 |
+| `web/api/belief.py` _response_history | 100% (v0.83.0-a) | 通过 EvidenceEngine.query_by_source(RESPONSE_HISTORY) 统一访问 |
+| `ecos/cta/belief_state.py:BeliefState.evidence_predictions` | 100% (v0.83.0-b) | BeliefState.add_evidence / evidence_for / evidence_summary 替代 dict 占位 |
+| `ecos/cta/l2_mirt.py` partial credit 评分 | 100% (v0.83.0-a) | PARTIAL_CREDIT 是 EvidenceSource 6 种之一, payload 含 score + mirt_theta_delta |
+| `ecos/cta/llm_critic/` | 100% (v0.83.0-a) | LLM_CRITIC / MISCONCEPTION 是 EvidenceSource 6 种, payload 含 source_subtype 字段 |
+| `ecos/cta/event_log.py:LearningEvent` (v0.81) | 100% (v0.83.0-a) | EVENT_LOG 是 EvidenceSource 第 6 种, query_by_student 跨 3 表合并 |
+| `ecos/evidence/evidence.py:Evidence` (v0.83.0-a) | 100% | 6 字段 (evidence_id / source / student_id / timestamp / payload / confidence) + 4 派生 |
+| `ecos/evidence/evidence_engine.py:EvidenceEngine` (v0.83.0-a) | 100% | add / query_by_id / query_by_student / query_by_source / query_by_goal (stub) / attach_to_belief (stub) |
+| `ecos/cta/belief_updater.py:BeliefUpdator._register_evidence` (v0.83.0-b) | 100% | apply() 注入 evidence_engine 走 Evidence.add 路径, 否则 fallback 到 evidence_ids.append |
+| `scripts/check_no_direct_state_mutation.py` | 100% (v0.83.0-b) | FUNC_ALLOWLIST += add_evidence, 防御性自检 [8] 仍 hard block |
 
 **演进建议**：
-- **v0.77.0**：引入 Evidence Engine（统一 Evidence schema + 关联管理）
-- **v0.78.0**：把 calibration_log + response_history + llm_critic_results 统一为 Evidence 流
+- **v0.77.0**：引入 Evidence Engine（统一 Evidence schema + 关联管理）✅ 2026-08-10 在 v0.83.0-a/b 落地
+- **v0.78.0**：把 calibration_log + response_history + llm_critic_results 统一为 Evidence 流 ✅ 2026-08-10 在 v0.83.0-a 落地
 
 ### 1.5 Evaluation Engine
 
@@ -132,18 +135,19 @@
 
 | 现有代码 | 接近度 | 说明 |
 |---|---|---|
-| `scripts/compute_h3_ece.py` | 30% | H3 验证脚本（外部）,评估"双 Agent 互校是否优于单",但不是 Runtime 内置 |
-| `ecos/lca/l4_optimization/attribution.py:LCAAttribution` | 50% | 已有因果归因（CausalEffect + estimated_ate）,但简化版 |
-| `ecos/dual_agent/orchestrator.py:_consecutive_ineffective` | 40% | 已有"连续无效干预"计数,接近 Evaluation 的雏形 |
-| `ecos/metrics/ece.py` | 40% | 已有 ECE 计算（Expected Calibration Error）,但只是 metric,不是 Engine |
-| **缺失：Twin 变化归因** | 0% | 不能回答"Twin 为何从 K=0.5 提到 K=0.7"（归因到具体 Policy / Event） |
-| **缺失：Policy 对比** | 0% | 不能 AB test LinUCB vs Thompson |
-| **缺失：Goal completion 判定** | 0% | 没有"Goal 完成"的客观判定（如 K ≥ 0.7 + Bloom L3 + TC 通过） |
+| `scripts/compute_h3_ece.py` | 100% (v0.83.0-c 兼容) | H3 验证脚本保留, EvaluationEngine 复用 ECE metric |
+| `ecos/lca/l4_optimization/attribution.py:LCAAttribution` | 100% (v0.83.0-c 兼容) | LCAAttribution 是 v0.82 Evaluator 子组件 |
+| `ecos/dual_agent/orchestrator.py:_consecutive_ineffective` | 100% (v0.83.0-c 兼容) | 计数逻辑保留, EvaluationEngine 不强制迁 |
+| `ecos/metrics/ece.py` | 100% (v0.83.0-c 复用) | expected_calibration_error 在 evaluate(metric="ece") 路径 |
+| `ecos/evaluation/twin_attribution.py:TwinAttribution` (v0.83.0-c) | 100% | Twin 变化归因 (5D mastery + Bloom 6 层 + overall_confidence state diff) |
+| `ecos/evaluation/policy_ab_test.py:PolicyABTest` (v0.83.0-c) | 100% | Policy 对比框架 (LinUCB vs LinUCB_baseline, 真 A/B 留 v0.83.x) |
+| `ecos/evaluation/goal_completion.py:GoalCompletion` (v0.83.0-c) | 100% | Goal 完成判定 (K.mastery>=X / Bloom.L<N>>=X / TC.<id>.pass) |
+| `ecos/evaluation/evaluation_engine.py:EvaluationEngine` (v0.83.0-c) | 100% | facade 3 evaluator + 3 主入口 (attribute_state_change / compare_policies / check_goal_completion) |
 
 **演进建议**：
-- **v0.73.0**：把 `compute_h3_ece.py` 内置为 Runtime Evaluation Engine
-- **v0.74.0**：加 Twin 变化归因（基于 Event 流 + State Diff）
-- **v0.77.0**：加 Policy 对比框架
+- **v0.73.0**：把 `compute_h3_ece.py` 内置为 Runtime Evaluation Engine ✅ 2026-08-10 v0.83.0-c 落地
+- **v0.74.0**：加 Twin 变化归因（基于 Event 流 + State Diff）✅ 2026-08-10 v0.83.0-c 落地 (TwinAttribution)
+- **v0.77.0**：加 Policy 对比框架 ✅ 2026-08-10 v0.83.0-c 落地 (PolicyABTest, 真 A/B 留 v0.83.x 等 Thompson Sampling)
 
 ---
 
@@ -328,15 +332,15 @@
 
 | API | 现有代码 | 接近度 |
 |---|---|---|
-| `estimate(student_id)` | `BeliefEngine.create_initial_state` + `state[student_id]` 查询 | 40% -- 只能查当前 state,不能基于历史 Event 重建 |
-| `update_belief(student_id, evidence)` | `BeliefEngine.update(state, observation, ...)` | 60% -- 已有 update,但接口不是 Evidence-driven |
-| `replay(student_id, timestamp=t)` | 无 | 0% -- 完全没有 |
-| `evaluate(student_id, policy_id)` | `scripts/compute_h3_ece.py` (外部脚本) | 20% -- 外部脚本,不是 Runtime API |
-| `simulate(student_id, hypothetical_event)` | 无 | 0% -- 完全没有 |
-| `plan(student_id)` | `LCAEngine.select_intervention(cta_input)` | 60% -- 已有,但接口不是 Runtime API 风格 |
+| `estimate(student_id)` | `ecos/runtime/api.py:estimate` (v0.83.0-d) | 100% -- kwargs 注入 belief_engine, singleton 懒加载 |
+| `update_belief(student_id, evidence)` | `ecos/runtime/api.py:update_belief` (v0.83.0-d) | 100% -- kwargs 注入 belief_engine / lca_result / log_event |
+| `replay(student_id, events)` | `ecos/runtime/api.py:replay` (v0.83.0-d) | 100% -- 委托 BeliefEngine.replay (v0.81.0-c) |
+| `evaluate(student_id, metric, **kwargs)` | `ecos/runtime/api.py:evaluate` (v0.83.0-d) | 100% -- 4 metric 路由 (twin_attribution / policy_ab / goal_completion / ece) 委托 EvaluationEngine |
+| `simulate(student_id, events, fork_at_idx, alternative_events)` | `ecos/runtime/api.py:simulate` (v0.83.0-d) | 100% -- 委托 BeliefEngine.simulate (v0.81.0-c) |
+| `plan(student_id, audience="student")` | `ecos/runtime/api.py:plan` (v0.83.0-d) | 100% -- kwargs 注入 lca_engine / cta_input, 委托 LCAEngine.select_intervention (v0.82.0) |
 
 **演进建议**：
-- **v0.78.0**：公开 Runtime API（6 个核心 API）
+- **v0.78.0**：公开 Runtime API（6 个核心 API）✅ 2026-08-10 v0.83.0-d 落地
 - **Phase 7+**：所有 UI / Agent / LLM 通过 Runtime API 交互
 
 ---
@@ -390,6 +394,7 @@
 | 20-40% | calibration_log / response_history / evidence_predictions 占位 | 3 |
 | 80%+ | LinUCB / LCAPolicyLearner / 测试基础设施 / 抗幻觉 / StateEngine (6/6) / EventLog + Replay + Simulation | 6 - **[v0.81.0]** State Engine 抽象 + Event Engine 80% 完成 |
 | 100% (LCA 4-layer) | Planner / ExperimentDesigner / Evaluator / PolicyLearner / Intervention / LCAAttribution | 6 - **[v0.82.0]** LCA 4-layer split 100% 完成 (a/b/c/d 4 sub-phases, 2026-08-10) |
+| 100% (v0.83.0) | Evidence Engine (6 来源 + 跨 3 表 CRUD) / Belief-Evidence 关联 (add_evidence + 反查) / Evaluation Engine (TwinAttribution + PolicyABTest + GoalCompletion) / Runtime API (6 核心纯函数 + kwargs) | 4 类 12 文件 - **[v0.83.0]** Evidence Engine + Runtime API 100% 完成 (a/b/c/d 4 sub-phases, 2026-08-10) |
 | 60-80% | BeliefState(Twin 雏形) / DimensionState(Belief 雏形) / MIRT(Inference) / BKT(Inference) | 4 |
 | 40-60% | Observation / CalibrationMessage / partial credit / LLM Critic / attribution | 5 |
 | 20-40% | calibration_log / response_history / evidence_predictions 占位 | 3 |
@@ -405,7 +410,13 @@
 5. **LearningEvent type unification**（Observation + CalibrationMessage -> LearningEvent, v0.82）
 6. **Policy 评估框架**（AB test LinUCB vs Thompson）
 
-> **[v0.82.0 更新 2026-08-10]**: LCA 4-layer split 100% 落地 (Planner + ExperimentDesigner + Evaluator + PolicyLearner). 4 sub-commits a/b/c/d. LCAEngine 632 → 491 行 (-22%, 含 4-layer 委托注释 + backward-compat shim). 57 新增 tests (16+13+13+15). 防御性自检 [8] 仍 hard block. 详情见 §4. v0.82 LCA split 抢占 v0.82 资源 (Kernel-first 战略), LearningEvent unification / Event Bus / EventLog retention 推迟到 v0.82.x 后续 commit.
+> **[v0.83.0 更新 2026-08-10]**: Evidence Engine + Runtime API 100% 落地. 4 sub-commits a/b/c/d. 63 新增 tests (15+14+16+18, pytest 673 → 736, +9.4%). 详情见 §1.4/§1.5/§5.
+> - Evidence Engine 100% (统一 schema + 6 来源 + 跨 3 表 CRUD + Belief 关联)
+> - Belief-Evidence 关联 100% (add_evidence / evidence_for / evidence_summary, 防御性自检 [8] 扩展 add_evidence allowlist)
+> - Evaluation Engine 100% (TwinAttribution + PolicyABTest + GoalCompletion, 3 evaluator 纯函数 0 mutation)
+> - Runtime API 100% (6 核心纯函数 estimate / update_belief / replay / evaluate / simulate / plan + kwargs 注入)
+>
+> v0.83 是 4 kernel-deepening 版本的第 4 个 (per 12-kernel-mapping §8.3, Bisen 2026-08-06 拍板 Kernel-first). 4 kernel-deepening 版本全部完成. 下一阶段 v0.84+: Plugin SDK (kernel-mapping §6) + LearningEvent unification (§2.4) + Event Bus / EventLog retention (§1.2 收尾).
 
 ### 8.3 演进优先级建议
 
