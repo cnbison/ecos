@@ -127,6 +127,69 @@ NEW: `tests/test_belief_evidence_link.py` (14 tests, 0.35s)
 | pytest 总数 | 673 | 688 | 702 | +29 tests (+4.3%) |
 | 防御性自检 [8] | hard block | hard block | hard block (add_evidence 扩展 allowlist) | 保持 |
 | H3-c4 canary | PASS | PASS | PASS | 保持 |
+
+#### v0.83.0-c: Evaluation Engine 落地
+
+NEW: `ecos/evaluation/__init__.py` (导出 3 个 evaluator + facade + result dataclass)
+
+NEW: `ecos/evaluation/goal_completion.py` (~150 lines)
+- `GoalStatus` dataclass: goal_id / completed / current_value / target_value / missing_dimensions
+- `GoalCompletion` 类 (regex 解析 goal_id):
+  - `K.mastery>=<threshold>`: K 维度 mastery_prob 阈值判定
+  - `Bloom.L<level>>=<threshold>`: Bloom L<level>+ 平均 mastery 判定 (e.g. L3 = apply+analyze+evaluate+create 平均)
+  - `TC.<tc_id>.pass`: TC status == "post_liminal" 判定
+  - 未知格式: 警告 + missing_dimensions 标注 "unknown_goal_format"
+
+NEW: `ecos/evaluation/policy_ab_test.py` (~150 lines)
+- `ABTestResult` dataclass: student_id / policy_a / policy_b / mean_reward_a/b / n_a/b / winner
+- `PolicyABTest` 类 (LCAEngine optional 注入):
+  - `compare(student_id, policy_a, policy_b) -> ABTestResult`
+  - v0.83.0-c 限制: 仅支持 ("linucb", "linucb_baseline", "thompson"), 真 A/B 留 v0.83.x (Thompson Sampling 接入)
+  - policy_a == policy_b / 不支持 policy / lca_engine 未注入 -> 返 winner=None 兜底
+  - 防御性: compare 失败 _log.warning + 返 winner=None
+
+NEW: `ecos/evaluation/twin_attribution.py` (~180 lines)
+- `TwinAttributionResult` dataclass: student_id / since / state_diff / evidence_attribution / dominant_factor
+- `TwinAttribution` 类:
+  - `attribute(student_id, before, after, since) -> TwinAttributionResult`
+  - state_diff 覆盖 5D mastery_prob (K/P/S/C/X) + Bloom 6 层 + overall_confidence
+  - dominant_factor = |delta| 最大的字段 (按字段路径, 格式 "field: old -> new (+delta)")
+  - evidence_engine optional: 注入时 evidence_attribution 含 source_dist (按 source 分布)
+  - before == after -> state_diff={}, dominant_factor="(无变化)"
+
+NEW: `ecos/evaluation/evaluation_engine.py` (~140 lines)
+- `EvaluationConfig` dataclass: enable_twin_attribution / enable_policy_ab_test / enable_goal_completion (默认全 True)
+- `EvaluationEngine` facade:
+  - 3 子组件: attributor (TwinAttribution) / ab_tester (PolicyABTest) / goal_checker (GoalCompletion)
+  - `attribute_state_change(student_id, before, after, since)` -> TwinAttributionResult
+  - `compare_policies(student_id, policy_a, policy_b, events=None)` -> ABTestResult
+  - `check_goal_completion(state, goal_id)` -> GoalStatus
+  - disable 某 evaluator -> 返对应空 result (defensive)
+
+NEW: `tests/test_evaluation.py` (16 tests, 0.21s)
+- 4 TwinAttribution (state diff / dominant_factor / 无变化 / evidence_engine 集成)
+- 3 PolicyABTest (same policy / 无 lca_engine / 不支持 policy)
+- 5 GoalCompletion (K mastery>=above/below / Bloom L3+ / TC pass / 未知 goal)
+- 3 EvaluationEngine facade (3 方法委托 / disable / evidence+lca 注入)
+- 1 防御性自检 (silent pass 扫描 4 个 evaluation/ 文件)
+
+向后兼容:
+- 67 LCA + 122 4-layer + 15 Evidence + 14 关联 + 16 Evaluation = 234 tests 全过
+- Evaluation Engine 0 新 mutation site (3 个 evaluator 都是纯函数 + read-only, 符合 kernel-mapping §1.5 CQRS 原则)
+- H3-c4 canary PASS (Evaluation 改动不影响 LCA 行为)
+- 防御性自检 [8] 仍 hard block
+- `scripts/compute_h3_ece.py` 外部脚本保留 (Evaluation Engine 不强制迁)
+
+#### Architecture outcomes (cumulative after a+b+c)
+
+| 维度 | v0.82.0-d | v0.83.0-a | v0.83.0-b | v0.83.0-c | Δ (cumulative) |
+|---|---|---|---|---|---|
+| Evidence Engine | 0% | 100% (统一 schema + 6 来源 + 跨 3 表 CRUD) | 100% (含 Belief 关联) | 100% (含 Eval 集成) | +100% |
+| Belief-Evidence 关联 | 0% | 50% | 100% (add_evidence / evidence_for / summary) | 100% (TwinAttribution 用) | +100% |
+| Evaluation Engine | 0% (散落外部脚本) | 0% | 0% | 100% (Twin attribution + Policy AB + Goal completion) | +100% |
+| pytest 总数 | 673 | 688 | 702 | 718 | +45 tests (+6.7%) |
+| 防御性自检 [8] | hard block | hard block | hard block | hard block | 保持 |
+| H3-c4 canary | PASS | PASS | PASS | PASS | 保持 |
 | pytest 总数 | 673 | 688 | +15 tests (+2.2%) |
 | 防御性自检 [8] | hard block | hard block | 保持 |
 | H3-c4 canary | PASS | PASS | 保持 |
@@ -394,10 +457,10 @@ NEW: `tests/test_policy_learner.py` (15 tests, 0.35s)
 - ✅ v0.83.0-a: Evidence Engine 提取 (Evidence 统一 schema + 6 来源枚举 + 跨 3 表 CRUD)
 - ✅ v0.83.0-a: Evidence Engine 提取 (Evidence 统一 schema + 6 来源 + 跨 3 表 CRUD)
 - ✅ v0.83.0-b: Belief-Evidence 关联 (BeliefState.add_evidence / evidence_for / evidence_summary)
-- 📋 v0.83.0-c: Evaluation Engine (Twin attribution + Policy AB + Goal completion)
+- ✅ v0.83.0-c: Evaluation Engine (Twin attribution + Policy AB + Goal completion)
 - 📋 v0.83.0-d: Runtime API (6 核心纯函数 + kwargs)
 
-#### Verify (v0.83.0-a+b)
+#### Verify (v0.83.0-a+b+c)
 
 ```bash
 # 1. Full pytest suite (688 tests after v0.83.0-a)
