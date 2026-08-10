@@ -112,6 +112,63 @@ NEW: `tests/test_experiment_designer.py` (13 tests, 0.37s)
 - H3-c4 canary PASS (lbc001/lbc002/lbc003 拐点后 arm 切换延迟中位数 < 3 题, 跟 v0.81 / v0.82.0-a 一致)
 - 防御性自检 [8] 仍 hard block (LCAEngine 不引入新 mutation site)
 
+#### v0.82.0-c: Evaluator 提取
+
+NEW: `ecos/lca/evaluator.py` (~190 lines)
+- `EvaluatorConfig` dataclass:
+  - `gain_scale: float = 0.3` (从 LCAEngineConfig.expected_gain_scale 迁过来)
+  - `risk_gap_coef: float = 0.5` (旧 _estimate_risk 写死 0.5 显式化)
+  - `scaffolding_factor_base: float = 0.5` / `scaffolding_factor_range: float = 0.5` (gain 乘子拆参数)
+- `Evaluator` 类:
+  - `estimate_gain(intervention, belief_state) -> float` (迁移自 LCAEngine._estimate_gain v0.81)
+    - 算法: `gain_scale × (1 - bloom_mastery) × (scaffolding_factor_base + scaffolding_factor_range × scaffolding_level)`
+  - `estimate_risk(intervention, belief_state) -> float` (迁移自 LCAEngine._estimate_risk v0.81)
+    - 算法: `max(0, difficulty - K_mastery) × risk_gap_coef × (1 - scaffolding_level)`
+  - `record_intervention(intervention, student_id) -> None` (委托 self.attribution)
+  - `attribute_effect(intervention, student_id, state_delta) -> CausalEffect` (委托 self.attribution, 不传 is_control)
+  - 持有 `self.attribution: LCAAttribution` (默认构造 CTA_L4_Backend, 可注入)
+
+MODIFY: `ecos/lca/orchestrator.py` (-50 lines net)
+- `LCAEngineConfig` 新增 `evaluator_config: EvaluatorConfig` 字段
+- `LCAEngineConfig.expected_gain_scale` 字段删除 (迁到 EvaluatorConfig.gain_scale, 没外部代码访问)
+- `LCAEngine.__init__` 构造 `self.evaluator = Evaluator(self.config.evaluator_config)`
+- `self.attribution = self.evaluator.attribution` (shared reference, 后向兼容 tests/test_lca_update_reward_actual_outcome.py:196 monkey-patch)
+- `select_intervention` 估算 expected_gain/risk 委托 `self.evaluator.estimate_gain/risk`
+- `select_intervention` step 7 `self.attribution.record_intervention(...)` → `self.evaluator.record_intervention(...)`
+- `update()` `self.attribution.attribute_effect(...)` → `self.evaluator.attribute_effect(...)`
+- `_estimate_gain` 方法保留为 backward-compat shim (dual_agent/orchestrator.py:579 调 `self.lca_engine._estimate_gain(...)`)
+- `_estimate_risk` 方法删除 (没外部代码依赖, 跟 _estimate_gain 不同)
+- 清理未用 imports (LCAAttribution, CTA_L4_Backend)
+
+MODIFY: `ecos/lca/__init__.py` (+2 lines)
+- 导出 `Evaluator` / `EvaluatorConfig` (LCA 4-layer 第 3 层公开 API)
+
+NEW: `tests/test_evaluator.py` (13 tests, 0.30s)
+- 2 构造 (默认 config, 自定义 attribution 注入)
+- 4 estimate_gain/risk 边界 (mastery=0/1, k_gap 正/负)
+- 2 归因 (record_intervention / attribute_effect 委托)
+- 4 LCAEngine 集成 (默认 evaluator, attribution 引用共享, _estimate_gain shim, select 委托)
+- 1 防御性自检 (silent pass 扫描)
+
+向后兼容:
+- 65 LCA tests + 16 Planner + 13 Designer + 13 Evaluator = 107 LCA 系列 tests 全过
+- LCAEngine `select_intervention` 8 步行为保持 (估算/归因步骤内部委托)
+- LCAEngine `_estimate_gain` 保留 shim (dual_agent 路径)
+- LCAEngine `attribution` 引用 = `evaluator.attribution` (monkey-patchable, 跟 v0.81 一致)
+- dual_agent 独立 LCAEngine 实例保持 (v0.62.0-A)
+- H3-c4 canary PASS (lbc001/lbc002/lbc003 拐点后 arm 切换延迟中位数 < 3 题, 跟 v0.81 / v0.82.0-a/b 一致)
+- 防御性自检 [8] 仍 hard block (LCAEngine 不引入新 mutation site)
+
+#### Architecture outcomes (cumulative after a+b+c)
+
+| 维度 | v0.81.0 | v0.82.0-a | v0.82.0-b | v0.82.0-c | Δ (cumulative) |
+|---|---|---|---|---|---|
+| LCA 4-layer 拆分 | 0% | 25% (Planner) | 50% (+ ExperimentDesigner) | 75% (+ Evaluator) | +75% |
+| LCAEngine 行数 | 632 | ~590 | ~480 | ~430 | -202 行 (-32%) |
+| pytest 总数 | 616 | 632 | 645 | 658 | +42 tests (+6.8%) |
+| 防御性自检 [8] | hard block | hard block | hard block | hard block | 保持 |
+| H3-c4 canary | PASS | PASS | PASS | PASS | 保持 |
+
 #### Architecture outcomes (cumulative after a+b)
 
 | 维度 | v0.81.0 | v0.82.0-a | v0.82.0-b | Δ (cumulative) |
@@ -134,42 +191,51 @@ NEW: `tests/test_experiment_designer.py` (13 tests, 0.37s)
    - Mitigation: CTAInput 抽到独立文件 `ecos/lca/cta_input.py`, `__init__.py` 仍导出 CTAInput
 5. **LOW** (b): `_generate_candidates` 迁移后算法行为偏差风险
    - Mitigation: 13 tests 覆盖 (CA 阶段 / Bjork / CLT 全部路径), H3-c4 canary 兜底, + LCA 65 tests 行为保持
+6. **MEDIUM** (c): Evaluator.attribute_effect 加 is_control 参数破坏 tests/test_lca_update_reward_actual_outcome.py:199 mock 签名
+   - Mitigation: LCAEngine.update() 不显式传 is_control, Evaluator.attribute_effect 也不传 (跟 v0.81 行为一致), mock 仍 3 参
+7. **MEDIUM** (c): `engine.attribution` 必须保持可访问 (monkey-patch 路径)
+   - Mitigation: `self.attribution = self.evaluator.attribution` shared reference, + 2 tests 验证 (attribution 一致性 + _estimate_gain shim)
 
-#### Out of Scope (deferred to v0.82.0-c/d)
+#### Out of Scope (deferred to v0.82.0-d)
 
-- ✅ v0.82.0-b: ExperimentDesigner 提取 (本 commit 完成, `_generate_candidates` 全部迁移)
-- 📋 v0.82.0-c: Evaluator 提取 (`_estimate_gain` / `_estimate_risk` + LCAAttribution 包装)
+- ✅ v0.82.0-a: Planner 提取 (Planner.plan() + PlanDecision + PlannerConfig)
+- ✅ v0.82.0-b: ExperimentDesigner 提取 (experiment_designer.design() + 打破循环 import cta_input.py)
+- ✅ v0.82.0-c: Evaluator 提取 (estimate_gain/risk + record_intervention/attribute_effect, wrap LCAAttribution)
 - 📋 v0.82.0-d: PolicyLearner 提取 (LCAPolicyLearner 包装 + dump/load 委托) + LCAEngine facade finalization (632 → ~250)
 - 未来 v0.82.x 内 (但独立 commit, 不在 LCA split PR): LearningEvent unification / Event Bus / EventLog retention
 
-#### Verify (a+b)
+#### Verify (a+b+c)
 
 ```bash
-# 1. Full pytest suite (645 tests after v0.82.0-b)
+# 1. Full pytest suite (658 tests after v0.82.0-c)
 python -m pytest tests/ -q
-# Expected: 645 passed (was 632 after a, +13 ExperimentDesigner tests)
+# Expected: 658 passed (was 645 after b, +13 Evaluator tests)
 
-# 2. v0.78 H3-c4 LCA canary (a+b 拆分不能破坏 H3-c4)
+# 2. v0.78 H3-c4 LCA canary (a+b+c 拆分不能破坏 H3-c4)
 python scripts/v078_h3c4_inflection_response_replay.py
 # Expected: H3-c4 PASS (lbc001/lbc002/lbc003 拐点后 arm 切换延迟中位数 < 3 题)
 
-# 3. NEW: v0.82.0-b ExperimentDesigner tests
+# 3. NEW: v0.82.0-c Evaluator tests
+python -m pytest tests/test_evaluator.py -v
+# Expected: 13 passed
+
+# 4. NEW: v0.82.0-b ExperimentDesigner tests (回归)
 python -m pytest tests/test_experiment_designer.py -v
 # Expected: 13 passed
 
-# 4. NEW: v0.82.0-a Planner tests (回归)
+# 5. NEW: v0.82.0-a Planner tests (回归)
 python -m pytest tests/test_planner.py -v
 # Expected: 16 passed
 
-# 5. Defensive checks (8 items, [8] still hard block)
+# 6. Defensive checks (8 items, [8] still hard block)
 bash scripts/check_defensive.sh
 # Expected: all 8 pass
 
-# 6. LCA backward compat
+# 7. LCA backward compat
 python -m pytest tests/test_lca_wired.py tests/test_lca_persistence.py -v
 # Expected: 16 + 11 = 27 passed
 
-# 7. Version bump (a+b 同步)
+# 8. Version bump (a+b+c 同步)
 grep '__version__' ecos/__init__.py
 # Expected: __version__ = "0.82.0"
 

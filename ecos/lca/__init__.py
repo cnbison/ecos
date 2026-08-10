@@ -16,6 +16,7 @@ M2 W2 实现（LCA 策略引擎骨架）：
 """
 
 from .cta_input import CTAInput
+from .evaluator import Evaluator, EvaluatorConfig
 from .experiment_designer import (
     DEFAULT_CANDIDATE_DIFFICULTIES,
     DEFAULT_CANDIDATE_TYPES,
@@ -94,6 +95,9 @@ __all__ = [
     "ExperimentDesignerConfig",
     "DEFAULT_CANDIDATE_TYPES",
     "DEFAULT_CANDIDATE_DIFFICULTIES",
+    # v0.82.0-c: LCA 4-layer 第 3 层 Evaluator
+    "Evaluator",
+    "EvaluatorConfig",
     # Orchestrator
     "LCAEngine",
     "LCAEngineConfig",

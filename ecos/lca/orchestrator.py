@@ -30,14 +30,13 @@ from .l3_selection import (
 )
 from .l4_optimization import (
     BanditConfig,
-    CTA_L4_Backend,
-    LCAAttribution,
     LCAPolicyLearner,
 )
 from .experiment_designer import (
     ExperimentDesigner,
     ExperimentDesignerConfig,
 )
+from .evaluator import Evaluator, EvaluatorConfig
 from .planner import PlanDecision, Planner, PlannerConfig
 from .rationale import RationaleGenerator
 
@@ -123,9 +122,11 @@ class LCAEngineConfig:
     experiment_designer_config: ExperimentDesignerConfig = field(
         default_factory=ExperimentDesignerConfig
     )
+    # v0.82.0-c: Evaluator 子 config (LCA 4-layer 第 3 层)
+    evaluator_config: EvaluatorConfig = field(default_factory=EvaluatorConfig)
     use_llm_rationale: bool = True
     rationale_audience: str = "student"  # 默认 student
-    expected_gain_scale: float = 0.3    # expected_gain = scale × (1 - mastery)
+    # v0.82.0-c: expected_gain_scale 迁到 EvaluatorConfig.gain_scale (从 LCAEngineConfig 移除)
 
 
 class LCAEngine:
@@ -156,12 +157,21 @@ class LCAEngine:
             self.config.experiment_designer_config
         )
 
+        # v0.82.0-c: Evaluator 评估层 (LCA 4-layer split 第 3 层)
+        #   估算 expected_gain/risk + 因果归因 (wrap LCAAttribution)
+        self.evaluator = Evaluator(self.config.evaluator_config)
+        # 向后兼容: tests/test_lca_update_reward_actual_outcome.py:196 monkey-patch
+        #   `lca_engine.attribution.attribute_effect`, 必须保持 self.attribution 可访问
+        #   这里把 evaluator.attribution 引用暴露为 self.attribution (共享同一对象)
+        self.attribution = self.evaluator.attribution
+
         # L4 组件 (v0.82.0-d 抽到 PolicyLearner, 当前 LCAEngine 直接持有)
         # v0.57.0: per-student bandit 改造 (修复 v0.56.0 单 bandit 多学生数据冲突 BUG)
         #   之前 self.bandit 是单 bandit 全局共享, lbc001 + lbc002 答题会互相污染 LinUCB 状态
         #   现在 self.bandits[student_id] 隔离 per-student
         self.bandits: Dict[str, "LCAPolicyLearner"] = {}
-        self.attribution = LCAAttribution(CTA_L4_Backend())
+        # v0.82.0-c: self.attribution 移到 self.evaluator.attribution (上面 __init__)
+        #   保持 self.attribution 引用 = self.evaluator.attribution (向后兼容 tests/test_lca_update_reward_actual_outcome.py monkey-patch)
 
         # Rationale（按 config 决定是否接 LLM）
         rationale_client = llm_client if self.config.use_llm_rationale else None
@@ -254,15 +264,16 @@ class LCAEngine:
         rationale = self.rationale_gen.generate(chosen, belief_state, audience=audience)
         chosen.rationale = rationale
 
-        # 估算 expected_gain / risk
-        expected_gain = self._estimate_gain(chosen, belief_state)
-        expected_risk = self._estimate_risk(chosen, belief_state)
+        # 估算 expected_gain / risk (v0.82.0-c 委托 Evaluator)
+        expected_gain = self.evaluator.estimate_gain(chosen, belief_state)
+        expected_risk = self.evaluator.estimate_risk(chosen, belief_state)
         chosen.expected_gain = expected_gain
         chosen.expected_risk = expected_risk
 
         # Step 7: 记录干预
         self.intervention_history.setdefault(student_id, []).append(chosen)
-        self.attribution.record_intervention(chosen, student_id)
+        # v0.82.0-c: 委托 Evaluator.record_intervention (wrap self.attribution)
+        self.evaluator.record_intervention(chosen, student_id)
         # v0.57.0: per-student 计数 + last_intervention 跟踪 (持久化用)
         self._last_intervention[student_id] = chosen
         self._select_count[student_id] = self._select_count.get(student_id, 0) + 1
@@ -309,8 +320,9 @@ class LCAEngine:
         else:
             linucb_reward = max(0.0, min(1.0, reward))
 
-        # 因果归因 (仍用 state_delta, 不用 reward, 因为 attribution 测的是状态变化)
-        self.attribution.attribute_effect(
+        # 因果归因 (v0.82.0-c 委托 Evaluator.attribute_effect, wrap self.attribution)
+        #   仍用 state_delta, 不用 reward, 因为 attribution 测的是状态变化
+        self.evaluator.attribute_effect(
             intervention,
             student_id,
             state_delta=state_delta,
@@ -486,45 +498,24 @@ class LCAEngine:
     # v0.82.0-a: _should_review_spaced 迁移到 Planner._should_review_spaced
     # 旧逻辑保留在 PlannerConfig.mastery_threshold / trajectory_min_len 配置中
 
+    # v0.82.0-c: _estimate_gain / _estimate_risk 实现迁到 Evaluator (LCA 4-layer 第 3 层)
+    # 这里只保留 _estimate_gain 作为 backward-compat shim (dual_agent/orchestrator.py:579
+    # 仍调 `self.lca_engine._estimate_gain(intervention, belief_state)`, 必须保持签名)
     def _estimate_gain(
         self,
         intervention: Intervention,
         belief_state: BeliefState,
     ) -> float:
-        """估算 expected_gain = scale × (1 - K_mastery).
+        """估算 expected_gain (v0.82.0-c 委托 Evaluator).
 
-        gain_potential × scaffolding 比例。
+        跟 v0.81 LCAEngine._estimate_gain 行为完全一致, 但实际逻辑在 self.evaluator.
+        保留方法是因为 dual_agent/orchestrator.py:579 调 `self.lca_engine._estimate_gain(...)`.
         """
-        bp_mastery = {
-            BloomLevel.REMEMBER: belief_state.bloom_profile.remember,
-            BloomLevel.UNDERSTAND: belief_state.bloom_profile.understand,
-            BloomLevel.APPLY: belief_state.bloom_profile.apply,
-            BloomLevel.ANALYZE: belief_state.bloom_profile.analyze,
-            BloomLevel.EVALUATE: belief_state.bloom_profile.evaluate,
-            BloomLevel.CREATE: belief_state.bloom_profile.create,
-        }[intervention.bloom_target]
-        gain = self.config.expected_gain_scale * (1.0 - bp_mastery)
-        # scaffolding 提升 gain
-        gain *= (0.5 + 0.5 * intervention.scaffolding_level)
-        return max(0.0, min(1.0, gain))
+        return self.evaluator.estimate_gain(intervention, belief_state)
 
-    def _estimate_risk(
-        self,
-        intervention: Intervention,
-        belief_state: BeliefState,
-    ) -> float:
-        """估算 expected_risk——Frustration / Cheating 概率.
 
-        规则：
-        - 高难度 + 低 K mastery → 高 frustration 风险
-        - 低 scaffolding + 错误率历史 → 中风险
-        """
-        # 难度 - K mastery gap
-        k_gap = intervention.difficulty - belief_state.K.mastery_prob
-        risk = max(0.0, k_gap) * 0.5
-        # scaffolding 缓解
-        risk *= (1.0 - intervention.scaffolding_level)
-        return max(0.0, min(1.0, risk))
-
+# v0.82.0-c: _estimate_risk 实现迁到 Evaluator.estimate_risk (LCA 4-layer 第 3 层)
+#   LCAEngine.select_intervention 内部调 self.evaluator.estimate_risk
+#   旧方法已删除 (没外部代码依赖, 跟 _estimate_gain 不同)
 
 __all__ = ["LCAEngine", "LCAEngineConfig", "LCAResult", "CTAInput"]
