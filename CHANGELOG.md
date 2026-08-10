@@ -190,6 +190,62 @@ NEW: `tests/test_evaluation.py` (16 tests, 0.21s)
 | pytest 总数 | 673 | 688 | 702 | 718 | +45 tests (+6.7%) |
 | 防御性自检 [8] | hard block | hard block | hard block | hard block | 保持 |
 | H3-c4 canary | PASS | PASS | PASS | PASS | 保持 |
+
+#### v0.83.0-d: Runtime API 公开
+
+NEW: `ecos/runtime/__init__.py` (导出 6 核心 API)
+
+NEW: `ecos/runtime/api.py` (~220 lines)
+- 6 纯函数 (kwargs 风格, 跟 StateEngine.replay/simulate 现有 v0.81 模式一致):
+  - `estimate(student_id, **kwargs) -> BeliefState`
+    创建/恢复学生信念状态. kwargs: belief_engine (默认 singleton)
+  - `update_belief(student_id, evidence, **kwargs) -> BeliefState`
+    写入新观测, 更新信念. kwargs: belief_engine / lca_result / log_event
+  - `replay(student_id, events, **kwargs) -> BeliefState`
+    重放历史事件重建状态. kwargs: belief_engine
+  - `evaluate(student_id, metric="ece", **kwargs) -> Dict`
+    计算校准度指标. metric: "twin_attribution" / "policy_ab" /
+    "goal_completion" / "ece". kwargs: evaluator / metric-specific
+  - `simulate(student_id, events, fork_at_idx, alternative_events, **kwargs) -> BeliefState`
+    反事实模拟. kwargs: belief_engine
+  - `plan(student_id, audience="student", **kwargs) -> LCAResult`
+    生成干预计划. kwargs: lca_engine / cta_input (默认自动 estimate)
+- 模块级 singleton 默认 instance (懒加载):
+  - `_default_belief_engine` / `_default_lca_engine` / `_default_evaluator`
+  - 懒加载避免启动时构造 (跟 web/api/belief.py 一样延迟到首次调用)
+  - kwargs 注入时 singleton 不构造 (测试可验证)
+- Runtime API 是旁路, web/api/belief.py 仍是主入口 (向后兼容)
+- 防御性: 3 个 except 块全部 _log.warning (无 silent pass)
+
+NEW: `tests/test_runtime.py` (18 tests, 0.24s)
+- 4 RuntimeAPIBasic (estimate / update_belief / replay / simulate 各自 1 test)
+- 4 RuntimeEvaluate (4 metric 路由 + 1 unknown metric ValueError)
+- 2 RuntimePlan (kwargs lca_engine + 自动 estimate)
+- 3 RuntimeKwargsInjection (belief_engine / lca_engine / evaluator)
+- 2 RuntimeSingleton (kwargs 注入后 singleton 不构造)
+- 1 RuntimeEndToEnd (estimate -> update_belief -> plan -> evaluate -> simulate 完整 lifecycle)
+- 1 RuntimeDefensiveChecks (silent pass 扫描)
+- 1 RuntimeBackwardCompat (web/api/belief.py 主入口仍 work, Runtime API 旁路)
+
+向后兼容:
+- 67 LCA + 122 4-layer + 15 Evidence + 14 关联 + 16 Evaluation + 18 Runtime = 252 tests 全过
+- Runtime API 0 新 mutation site (纯函数 + kwargs 注入, 跟 StateEngine 一致)
+- H3-c4 canary PASS (Runtime 不影响 LCA 行为)
+- 防御性自检 [8] 仍 hard block
+- v0.81 replay/simulate canary 仍 PASS (`tests/test_v081_regression_h3c4.py` 3 tests)
+
+#### Architecture outcomes (cumulative after a+b+c+d) — v0.83 final
+
+| 维度 | v0.82.0-d | v0.83.0-a | v0.83.0-b | v0.83.0-c | v0.83.0-d | Δ (cumulative) |
+|---|---|---|---|---|---|---|
+| Evidence Engine | 0% | 100% | 100% | 100% | 100% | +100% |
+| Belief-Evidence 关联 | 0% | 50% | 100% | 100% | 100% (Runtime 用) | +100% |
+| Evaluation Engine | 0% | 0% | 0% | 100% | 100% (Runtime evaluate 用) | +100% |
+| Runtime API | 0% (散落 web/api) | 0% | 0% | 0% | 100% (6 核心纯函数) | +100% |
+| pytest 总数 | 673 | 688 | 702 | 718 | 736 | +63 tests (+9.4%) |
+| 防御性自检 [8] | hard block | hard block | hard block | hard block | hard block | 保持 |
+| H3-c4 canary | PASS | PASS | PASS | PASS | PASS | 保持 |
+| v0.81 replay/simulate canary | PASS | PASS | PASS | PASS | PASS | 保持 |
 | pytest 总数 | 673 | 688 | +15 tests (+2.2%) |
 | 防御性自检 [8] | hard block | hard block | 保持 |
 | H3-c4 canary | PASS | PASS | 保持 |
@@ -458,9 +514,9 @@ NEW: `tests/test_policy_learner.py` (15 tests, 0.35s)
 - ✅ v0.83.0-a: Evidence Engine 提取 (Evidence 统一 schema + 6 来源 + 跨 3 表 CRUD)
 - ✅ v0.83.0-b: Belief-Evidence 关联 (BeliefState.add_evidence / evidence_for / evidence_summary)
 - ✅ v0.83.0-c: Evaluation Engine (Twin attribution + Policy AB + Goal completion)
-- 📋 v0.83.0-d: Runtime API (6 核心纯函数 + kwargs)
+- ✅ v0.83.0-d: Runtime API (6 核心纯函数 + kwargs)
 
-#### Verify (v0.83.0-a+b+c)
+#### Verify (v0.83.0-a+b+c+d) — v0.83 final
 
 ```bash
 # 1. Full pytest suite (688 tests after v0.83.0-a)
