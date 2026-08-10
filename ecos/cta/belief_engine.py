@@ -42,6 +42,7 @@ from .belief_state import (
     TrajectoryState,
 )
 from .belief_updater import BeliefUpdator
+from .event_log import EventLog
 from .feature_extractor import FeatureExtractor
 from .inference_engine import InferenceEngine, ObservationContext
 from .l1_evolution import BKTEvolutionLayer, EvolutionConfig
@@ -86,6 +87,57 @@ class Observation:
     ai_reasoning: str = ""
     timestamp: datetime = field(default_factory=datetime.now)
     response_time_sec: float = 0.0
+
+    # v0.81.0-b: EventLog payload serialization (mirrors BeliefState.to_dict pattern)
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize to dict for EventLog payload. BloomLevel -> name, datetime -> ISO."""
+        return {
+            "skill_id": self.skill_id,
+            "problem_id": self.problem_id,
+            "correct": self.correct,
+            "score": float(self.score),
+            "bloom_level": self.bloom_level.name,
+            "explanation_text": self.explanation_text,
+            "problem_text": self.problem_text,
+            "correct_answer": self.correct_answer,
+            "user_answer": self.user_answer,
+            "ai_reasoning": self.ai_reasoning,
+            "timestamp": self.timestamp.isoformat(),
+            "response_time_sec": float(self.response_time_sec),
+        }
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "Observation":
+        """Deserialize from dict (EventLog payload -> Observation). Mirrors to_dict."""
+        # BloomLevel by name (e.g. "APPLY" -> BloomLevel.APPLY); default APPLY if missing/invalid
+        bloom_name = d.get("bloom_level", "APPLY")
+        try:
+            bloom_level = BloomLevel[bloom_name]
+        except (KeyError, ValueError):
+            bloom_level = BloomLevel.APPLY
+        # Timestamp parse with fallback to now()
+        ts_str = d.get("timestamp")
+        if ts_str:
+            try:
+                timestamp = datetime.fromisoformat(ts_str)
+            except ValueError:
+                timestamp = datetime.now()
+        else:
+            timestamp = datetime.now()
+        return cls(
+            skill_id=d.get("skill_id", ""),
+            problem_id=d.get("problem_id", ""),
+            correct=bool(d.get("correct", False)),
+            score=float(d.get("score", 0.0)),
+            bloom_level=bloom_level,
+            explanation_text=d.get("explanation_text", ""),
+            problem_text=d.get("problem_text", ""),
+            correct_answer=d.get("correct_answer", ""),
+            user_answer=d.get("user_answer", ""),
+            ai_reasoning=d.get("ai_reasoning", ""),
+            timestamp=timestamp,
+            response_time_sec=float(d.get("response_time_sec", 0.0)),
+        )
 
 
 @dataclass
@@ -152,6 +204,10 @@ class BeliefEngine:
         #   修复: BeliefEngine 接受 library_str, 内部 detector 调时传它
         #         belief.py 构造 engine 时传 PYTHON_BASICS_MISCONCEPTION_LIBRARY_STR
         misconception_library_str: Optional[str] = None,
+        # v0.81.0-b: EventLog injection (optional, for replay/simulation)
+        #   production: web/api/belief.py attaches EventLog.from_sqlite(DB_PATH)
+        #   tests: None (default) or EventLog.in_memory()
+        event_log: Optional[EventLog] = None,
     ) -> None:
         self.config = config or BeliefEngineConfig()
         self.llm_client = llm_client
@@ -176,7 +232,9 @@ class BeliefEngine:
             llm_client=llm_client,
             misconception_library_str=misconception_library_str,
         )
-        self._belief_updater = BeliefUpdator(self._state_engine)
+        # v0.81.0-b: BeliefUpdator now owns event_log (sole logging site)
+        self._belief_updater = BeliefUpdator(self._state_engine, event_log)
+        self._event_log = event_log  # keep ref for replay() / simulate() introspection
 
         # LLM Critic（M2 W3，延迟初始化）- kept on facade for backward compat (perception_critic / misc_detector properties)
         self._perception_critic: Optional["PerceptionCritic"] = None
@@ -271,6 +329,7 @@ class BeliefEngine:
         state: BeliefState,
         observation: Observation,
         lca_result: Optional[LCAResult] = None,
+        log_event: bool = True,
     ) -> BeliefState:
         """主更新入口--每次新观测后调用.
 
@@ -280,10 +339,16 @@ class BeliefEngine:
           - InferenceEngine.run() -> InferenceResult (NO state mutation)
           - BeliefUpdator.apply() -> event_id (sole mutation site, calls StateEngine.commit)
 
+        v0.81.0-b: log_event param propagated to BeliefUpdator.apply
+          - Default True: all production callers + tests unchanged
+          - replay()/simulate() pass log_event=False to avoid polluting event log
+
         Args:
             state: 当前 BeliefState
             observation: 结构化观测
             lca_result: LCA 干预结果（Phase 4+ 使用）
+            log_event: v0.81.0-b - if True AND event_log attached, persist LearningEvent.
+                       replay()/simulate() pass False.
 
         Returns:
             更新后的 BeliefState
@@ -300,7 +365,9 @@ class BeliefEngine:
         result = self._inference_engine.run(state, observation, ctx, feat["history"])
 
         # Layer 4: BeliefUpdator (sole mutation site, calls StateEngine.commit for versioning + event_id)
-        self._belief_updater.apply(state, result, observation, feat["history_entry"])
+        self._belief_updater.apply(
+            state, result, observation, feat["history_entry"], log_event=log_event
+        )
 
         return state
 

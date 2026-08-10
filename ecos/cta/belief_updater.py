@@ -5,15 +5,21 @@ Converts InferenceResult to state mutations. Sole mutation site (via StateEngine
 Replaces belief_engine.py:359-373, 385-388, 408, 418, 442-444, 447 + _llm_critic_perception
 mutations (481-489) + _llm_critic_misconception mutations (521-533).
 
+v0.81.0-b: + sole event logging site
+  - apply(..., log_event: bool = True) param
+  - When event_log is attached AND log_event=True, persists LearningEvent after commit
+  - replay() / simulate() pass log_event=False to avoid polluting the log
+
 Design:
     BeliefUpdator.apply(state, result, observation, history_entry) -> event_id
     - Applies dim_updates / bloom / llm_perception / llm_misconception / tc / overall to state
     - Appends trajectory snapshot
     - Calls StateEngine.commit(state, None, source='belief_updater') for versioning + event_id
+    - v0.81.0-b: If event_log attached AND log_event=True, persists LearningEvent
     - Returns event_id
 
-Critical invariant: BeliefUpdator is the SOLE mutation site for BeliefState.
-InferenceEngine.run() produces InferenceResult (no mutation).
+Critical invariant: BeliefUpdator is the SOLE mutation site AND sole event logging site.
+InferenceEngine.run() produces InferenceResult (no mutation, no logging).
 """
 from __future__ import annotations
 
@@ -24,6 +30,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 
 from .belief_state import BeliefState
+from .event_log import EventLog, LearningEvent
 from .inference_engine import InferenceResult
 from .state_engine import StateEngine
 
@@ -35,10 +42,16 @@ class BeliefUpdator:
 
     Converts InferenceResult to StateEngine.commit calls.
     Sole mutation site for BeliefState (via StateEngine).
+    v0.81.0-b: Also sole event logging site (when event_log attached).
     """
 
-    def __init__(self, state_engine: StateEngine) -> None:
+    def __init__(
+        self,
+        state_engine: StateEngine,
+        event_log: Optional[EventLog] = None,
+    ) -> None:
         self.state_engine = state_engine
+        self.event_log = event_log  # v0.81.0-b: optional event persistence
 
     def apply(
         self,
@@ -46,14 +59,17 @@ class BeliefUpdator:
         result: InferenceResult,
         observation: Any,
         history_entry: Dict[str, Any],
+        log_event: bool = True,
     ) -> str:
         """Apply InferenceResult to state via StateEngine.commit.
 
         Args:
             state: target BeliefState (mutated in place)
             result: InferenceResult from InferenceEngine.run()
-            observation: original Observation (for timestamp fallback)
+            observation: original Observation (for timestamp fallback + event payload)
             history_entry: response history entry dict (for mastery_prob_after backfill)
+            log_event: v0.81.0-b - if True AND event_log attached, persist LearningEvent.
+                       replay()/simulate() pass False to avoid polluting log.
 
         Returns:
             event_id (str)
@@ -142,5 +158,36 @@ class BeliefUpdator:
 
         if result.last_updated is not None:
             state.last_updated = result.last_updated
+
+        # v0.81.0-b: persist LearningEvent (sole logging site, mirrors "sole mutation site")
+        # log_event=False suppresses (used by replay()/simulate() to avoid polluting log)
+        if self.event_log is not None and log_event:
+            try:
+                payload = (
+                    observation.to_dict()
+                    if hasattr(observation, "to_dict")
+                    else {"_raw": str(observation)}
+                )
+            except Exception:
+                logger.warning(
+                    "BeliefUpdator: observation.to_dict() failed, logging partial payload",
+                    exc_info=True,
+                )
+                payload = {"_error": "to_dict_failed"}
+
+            self.event_log.log_event(
+                LearningEvent(
+                    event_id=event_id,
+                    student_id=state.student_id,
+                    timestamp=(
+                        observation.timestamp
+                        if hasattr(observation, "timestamp")
+                        else datetime.now()
+                    ),
+                    source="belief_updater",
+                    event_type="observation",
+                    payload=payload,
+                )
+            )
 
         return event_id
