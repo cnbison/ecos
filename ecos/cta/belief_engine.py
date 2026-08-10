@@ -220,7 +220,8 @@ class BeliefEngine:
         # Own _warmup_count / _warmup_pool_cursor / _probe_due_in / _probe_count / _response_history
         # moved out of BeliefEngine. __getattr__ forwards direct access for web/api/belief.py:189-191 compat.
         self._observation_engine = ObservationEngine()
-        self._feature_extractor = FeatureExtractor()
+        # v0.84.0-a: FeatureExtractor 接受 optional event_log (response_submitted 双写)
+        self._feature_extractor = FeatureExtractor(event_log=event_log)
 
         # v0.80.0-b: 4-layer split - InferenceEngine (pure) + BeliefUpdator (sole mutator)
         self._state_engine = get_default_engine()

@@ -84,12 +84,19 @@ class DualAgentOrchestrator:
         cta_engine: Optional[BeliefEngine] = None,
         lca_engine: Optional[LCAEngine] = None,
         llm_client=None,
+        # v0.84.0-a: optional event_log for dual-write (calibration_log + event_log)
+        # 防御性自检 [1]: emit 失败不能阻断主流程 (calibration_log 已落盘)
+        event_log: Optional[Any] = None,
     ):
         self.config = config or DualAgentConfig()
 
         # CTA + LCA 引擎（支持外部注入）
         self.cta_engine = cta_engine or BeliefEngine(self.config.cta_config)
         self.lca_engine = lca_engine or self._build_lca_engine(llm_client)
+
+        # v0.84.0-a: event_log 注入 (供 web/api/dual_agent.py:_write_calibration_log
+        # 双写 LearningEvent 到 event_log). 跟 BeliefEngine._event_log 同源 (单例).
+        self.event_log = event_log
 
         # 状态机
         self.state_machine = CalibrationStateMachine()

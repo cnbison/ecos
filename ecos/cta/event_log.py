@@ -22,17 +22,82 @@ Schema (sqlite, mirrors calibration_log per db.py:119-138):
 Forward-compat (Option D):
 - v0.81: only event_type="observation" (Observation payload via to_dict/from_dict)
 - v0.82+: event_type="calibration" etc added without breaking v0.81 schema
+- v0.84.0-a: LearningEventType enum (7 值) + factory methods (from_observation
+  /from_calibration_message/from_response_submitted). event_type 字段仍是
+  string (backward compat), enum 只是 type hint + factory 辅助.
 """
 from __future__ import annotations
 
 import json
 import logging
 import sqlite3
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import Enum
 from typing import Any, Dict, List, Optional
 
 _log = logging.getLogger(__name__)
+
+
+class LearningEventType(Enum):
+    """v0.84.0-a: LearningEvent 类型枚举 (kernel-mapping §2.4 Event 统一输入).
+
+    Forward-compat with v0.81.0-a schema (event_type 字段是 TEXT, 兼容任意 string).
+    7 个值:
+      - OBSERVATION: v0.81 老值, BeliefUpdator commit 后 emit
+      - CALIBRATION: v0.84.0-a 新增, dual_agent orchestrator 互校完成后 emit
+      - RESPONSE_SUBMITTED: v0.84.0-a 新增, FeatureExtractor 学生提交答案时 emit
+      - HINT_REQUESTED: v0.84.0-a 占位, frontend v0.85+ 接
+      - IDLE_DETECTED: v0.84.0-a 占位, frontend v0.85+ 接
+      - GOAL_CHANGED: v0.84.0-a 占位, frontend v0.85+ 接
+      - REFLECTION_COMPLETED: v0.84.0-a 占位, frontend v0.85+ 接
+
+    老调用方传 string ("observation") 仍 work, 枚举值是 .value.
+    """
+
+    OBSERVATION = "observation"
+    CALIBRATION = "calibration"
+    RESPONSE_SUBMITTED = "response_submitted"
+    HINT_REQUESTED = "hint_requested"
+    IDLE_DETECTED = "idle_detected"
+    GOAL_CHANGED = "goal_changed"
+    REFLECTION_COMPLETED = "reflection_completed"
+
+    @classmethod
+    def from_value(cls, value: Any) -> "LearningEventType":
+        """Accept both string ("observation") and enum (LearningEventType.OBSERVATION).
+
+        Unknown string -> defaults to OBSERVATION (backward compat for old data).
+        Unknown type -> _log.warning + defaults to OBSERVATION (defensive).
+        """
+        if isinstance(value, cls):
+            return value
+        if isinstance(value, str):
+            try:
+                return cls(value)
+            except ValueError:
+                _log.warning(
+                    "LearningEventType.from_value: unknown event_type %r, "
+                    "defaulting to OBSERVATION",
+                    value,
+                )
+                return cls.OBSERVATION
+        _log.warning(
+            "LearningEventType.from_value: non-str/non-enum %r, "
+            "defaulting to OBSERVATION",
+            value,
+        )
+        return cls.OBSERVATION
+
+
+def _make_event_id() -> str:
+    """v0.84.0-a: 统一的 event_id 生成器 (跟 StateEngine.commit 同模式).
+
+    Returns:
+        "evt_xxxxxxxxxxxx" (12 hex chars)
+    """
+    return f"evt_{uuid.uuid4().hex[:12]}"
 
 
 @dataclass
@@ -47,8 +112,12 @@ class LearningEvent:
         student_id: which student this event belongs to
         timestamp: when the event occurred (observation.timestamp for "observation" type)
         source: who committed (e.g. "belief_updater", "db_restore", "replay")
-        event_type: "observation" for v0.81; future: "calibration", "llm_critic"
+        event_type: "observation" for v0.81; v0.84+ uses LearningEventType enum values
+                   (observation/calibration/response_submitted/hint_requested/...)
         payload: dict serialization of the event body (Observation.to_dict() for "observation")
+
+    v0.84.0-a: factory methods (from_observation / from_calibration_message /
+    from_response_submitted) wrap construction with appropriate event_type.
     """
 
     event_id: str
@@ -57,6 +126,117 @@ class LearningEvent:
     source: str
     event_type: str = "observation"
     payload: Dict[str, Any] = field(default_factory=dict)
+
+    # ── v0.84.0-a: factory methods ────────────────────────────────────────────
+
+    @classmethod
+    def from_observation(
+        cls,
+        observation: Any,
+        source: str = "belief_updater",
+        event_type: Any = LearningEventType.OBSERVATION,
+        event_id: Optional[str] = None,
+    ) -> "LearningEvent":
+        """Construct LearningEvent from an Observation (v0.84.0-a factory).
+
+        Args:
+            observation: Observation dataclass (must have to_dict + .timestamp
+                         + .skill_id for student_id fallback). For duck-typed
+                         compat, accepts any object with .to_dict() / .timestamp
+                         / .student_id.
+            source: who produced the event (default "belief_updater").
+            event_type: LearningEventType enum or string. Default OBSERVATION.
+                        Pass RESPONSE_SUBMITTED to mark a "pre-judge" submission.
+            event_id: optional pre-generated event_id (matches StateEngine.commit).
+
+        Returns:
+            LearningEvent with payload=observation.to_dict().
+        """
+        # Resolve event_type (accept both enum and string)
+        evt_type = LearningEventType.from_value(event_type).value
+        # student_id: try .student_id, fall back to .skill_id (some legacy callers)
+        student_id = getattr(observation, "student_id", None) or getattr(observation, "skill_id", "")
+        return cls(
+            event_id=event_id or _make_event_id(),
+            student_id=str(student_id),
+            timestamp=observation.timestamp,
+            source=source,
+            event_type=evt_type,
+            payload=observation.to_dict(),
+        )
+
+    @classmethod
+    def from_calibration_message(
+        cls,
+        calibration_message: Any,
+        source: str = "dual_agent_orchestrator",
+        student_id: Optional[str] = None,
+        event_id: Optional[str] = None,
+    ) -> "LearningEvent":
+        """Construct LearningEvent from a CalibrationMessage (v0.84.0-a factory).
+
+        Dual-write use case: orchestrator writes calibration_log (db.py:638) +
+        event_log (this LearningEvent, event_type="calibration"). The two writes
+        preserve H3 ECE validation (calibration_log) + unified LearningEvent
+        stream (event_log).
+
+        Args:
+            calibration_message: CalibrationMessage dataclass (must have
+                                 .student_id / .timestamp / .to_dict()).
+            source: who produced (default "dual_agent_orchestrator").
+            student_id: override student_id (default from message).
+            event_id: optional pre-generated event_id.
+
+        Returns:
+            LearningEvent with payload=calibration_message.to_dict() and
+            event_type="calibration".
+        """
+        # Convert timestamp (unix time float) -> datetime
+        ts_raw = calibration_message.timestamp
+        if isinstance(ts_raw, (int, float)):
+            timestamp = datetime.fromtimestamp(ts_raw)
+        elif isinstance(ts_raw, datetime):
+            timestamp = ts_raw
+        else:
+            timestamp = datetime.now()
+        sid = student_id or calibration_message.student_id
+        return cls(
+            event_id=event_id or _make_event_id(),
+            student_id=str(sid),
+            timestamp=timestamp,
+            source=source,
+            event_type=LearningEventType.CALIBRATION.value,
+            payload=calibration_message.to_dict(),
+        )
+
+    @classmethod
+    def from_response_submitted(
+        cls,
+        observation: Any,
+        source: str = "feature_extractor",
+        event_id: Optional[str] = None,
+    ) -> "LearningEvent":
+        """Construct LearningEvent for response_submitted (v0.84.0-a factory).
+
+        Distinct from from_observation (event_type="observation"): emitted by
+        FeatureExtractor when student first submits (pre-judge), so that
+        response_history has both an in-memory hot cache (FeatureExtractor
+        _response_history cap 100) AND a persistent event_log entry.
+
+        Args:
+            observation: Observation dataclass.
+            source: who produced (default "feature_extractor").
+            event_id: optional pre-generated event_id.
+
+        Returns:
+            LearningEvent with event_type="response_submitted".
+        """
+        return cls.from_observation(
+            observation,
+            source=source,
+            event_type=LearningEventType.RESPONSE_SUBMITTED,
+            event_id=event_id,
+        )
 
 
 class EventLog:

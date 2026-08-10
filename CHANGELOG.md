@@ -12,6 +12,82 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.84.0] 2026-08-11
+
+### feat: Event Engine 100% + Plugin SDK 雏形 — LearningEvent unification (4 子版本第 1 个, v0.84.0-a)
+
+> **背景**: v0.80-v0.83 完成 4 个 kernel-deepening 版本 (CTA 4-layer + StateEngine 6/6 + LCA 4-layer + Evidence/Runtime). 下一个瓶颈: Event 散落 4 处 (Observation 只在 event_log + CalibrationMessage 在 calibration_log + response_history 在 engine 内存 + MessageType 10 种散落) + Plugin SDK 0%. kernel-mapping §1.2/§2.4/§6 标 0-80% 进度.
+> **Bisen 2026-08-06 拍板 Kernel-first**: v0.84 是 5 kernel-deepening 版本的第 1 个 (per 12-kernel-mapping §8.3 + Bisen 2026-08-11 v0.84 design). 教师/家长/跨学科 extension 推迟到 Phase 7+.
+> **v0.84.0 目标**: Event Engine 100% 收尾 (LearningEvent unification + Event Bus + retention policy) + Plugin SDK 雏形 (1 endpoint 改造验证 "Plugin 只产生 Event" 原则). 4 sub-commits a/b/c/d.
+> **v0.84.0-a 范围**: LearningEvent unification. event_type 扩展到 7 值 (OBSERVATION/CALIBRATION/RESPONSE_SUBMITTED/HINT_REQUESTED/IDLE_DETECTED/GOAL_CHANGED/REFLECTION_COMPLETED). CalibrationMessage + response_history 双写到 event_log (calibration_log 保留, 向后兼容 H3 ECE). DualAgentOrchestrator 接受 optional event_log 注入. 防御性自检 [8] 仍 hard block. 736 → 755 tests (+19).
+
+#### v0.84.0-a: LearningEvent unification
+
+NEW: `ecos/cta/event_log.py` — LearningEventType 枚举 (7 值) + 3 factory methods
+- `LearningEventType` enum: OBSERVATION / CALIBRATION / RESPONSE_SUBMITTED / HINT_REQUESTED / IDLE_DETECTED / GOAL_CHANGED / REFLECTION_COMPLETED. event_type 字段仍是 string (backward compat), 枚举值 = .value
+- `LearningEventType.from_value(value)`: 接受 string ("observation") + enum + 未知值兜底 OBSERVATION + _log.warning
+- `_make_event_id()` helper: 统一 event_id 生成 (跟 StateEngine.commit 同模式 evt_xxx)
+- `LearningEvent.from_observation(obs, source, event_type=OBSERVATION, event_id=None)`: Observation → LearningEvent
+- `LearningEvent.from_calibration_message(msg, source, student_id=None, event_id=None)`: CalibrationMessage → LearningEvent (event_type="calibration" 硬编码)
+- `LearningEvent.from_response_submitted(obs, source, event_id=None)`: 便捷 factory, event_type="response_submitted"
+
+NEW: `ecos/dual_agent/protocol/messages.py` — CalibrationMessage.to_learning_event
+- `CalibrationMessage.to_learning_event(student_id=None, source="dual_agent_orchestrator", event_id=None)`: 双写 calibration_log + event_log 用. payload=to_dict(), event_type="calibration", timestamp 自动从 unix float 转换 datetime
+- 防御性自检 [1]: import + timestamp 转换都兜底 (datetime.fromtimestamp 失败 → datetime.now())
+
+MODIFY: `ecos/cta/feature_extractor.py` — 接受 optional event_log 注入
+- `FeatureExtractor.__init__(event_log=None)`: v0.84.0-a 新增 event_log 参数
+- `extract()`: append _response_history 后, 如果 event_log 不为 None, emit `LearningEvent.from_response_submitted(obs, source="feature_extractor")` 到 event_log
+- 防御性自检 [1]: emit 失败 _log.warning 不 raise (response_history 已 in-memory)
+- in-memory cap 100 保留 (hot cache), event_log 是 persistent source of truth
+
+MODIFY: `ecos/cta/belief_engine.py` (+1 line)
+- `self._feature_extractor = FeatureExtractor(event_log=event_log)`: 透传 event_log 给 FeatureExtractor
+- 防御性自检 [8] FUNC_ALLOWLIST 仍只 BeliefUpdator.apply (FeatureExtractor 不允许 mutate state)
+
+MODIFY: `ecos/dual_agent/orchestrator.py` — 接受 optional event_log 注入
+- `DualAgentOrchestrator.__init__(..., event_log=None)`: v0.84.0-a 新增 event_log 参数
+- `self.event_log = event_log`: 保存引用 (供 web/api/dual_agent.py 后续接)
+
+MODIFY: `web/api/dual_agent.py:_write_calibration_log` — 双写 calibration_log + event_log
+- 在 `db.save_calibration(student_id, data)` 之后, emit `result.to_learning_event(student_id, source="dual_agent_orchestrator")` 到 `orch.event_log` (如注入)
+- 防御性自检 [1]: emit 失败 _log.warning 不 raise (calibration_log 已落盘, 主流程不受影响)
+- backward compat: event_log=None 时不 emit (production 当前默认 None, 留 v0.84.0-d 激活)
+
+MODIFY: `ecos/__init__.py` (+1 line)
+- `__version__ = "0.84.0"` (a/b/c/d 4 commit 同步 bump)
+
+NEW: `tests/test_learning_event_unification.py` (19 tests, 0.35s)
+- 3 LearningEventType (enum_values / from_value_string_roundtrip / from_value_unknown_defaults_to_observation)
+- 4 LearningEvent factory (from_observation_default / with_enum_event_type / from_calibration_message / from_response_submitted)
+- 2 CalibrationMessage.to_learning_event (basic / student_id_override)
+- 3 FeatureExtractor double-write (no_event_log_in_memory_only / with_event_log_double_writes / emit_failure_does_not_break_extraction)
+- 2 DualAgentOrchestrator (accepts_event_log / default_none)
+- 2 Backward compat (old_string_event_type_works / existing_event_log_data_unaffected)
+- 2 Defensive checks (no_silent_pass_in_new_code / check_8_state_mutation_scan)
+- 1 H3-c4 canary (lca_event_log_unchanged)
+
+向后兼容:
+- 736 现有 tests + 19 新增 = 755 全过 (replay/simulate/H3-c4 canary PASS)
+- event_log schema **不破坏** (event_type 字段是 TEXT, 兼容任意 string)
+- calibration_log 表 **保留** (向后兼容 H3 ECE + update_calibration_actual_outcome v0.64.0)
+- response_history in-memory cap 100 **保留** (hot cache, belief.py 读侧仍走 in-memory)
+- 防御性自检 [8] **仍 hard block** (双写是 emit factory, 不是新 mutation site)
+- 老 LearningEvent 创建路径 (event_type="observation" 直接传) **仍 work** (event_type 是 str 字段)
+
+#### Architecture outcomes (a only)
+
+| 维度 | v0.83.0-d | v0.84.0-a | Δ |
+|---|---|---|---|
+| Event Engine §1.2 | 80% (缺 Bus + retention) | 80% (unification, 缺 Bus/retention) | 保持 |
+| Event (统一输入) §2.4 | 40% (Observation only) | 90% (6+ event_type + CalibrationMessage + response_history 双写) | +50% |
+| Plugin SDK §6 | 0% | 0% (v0.84.0-d 改造) | 保持 |
+| pytest 总数 | 736 | 755 | +19 tests (+2.6%) |
+| 防御性自检 [8] | hard block | hard block | 保持 |
+| H3-c4 canary | PASS | PASS | 保持 |
+| v0.81 replay canary | PASS | PASS | 保持 |
+
+
 ## [0.83.0] 2026-08-10
 
 ### feat: Evidence Engine + Runtime API — Evidence Engine 提取 (4 子版本第 1 个, v0.83.0-a)

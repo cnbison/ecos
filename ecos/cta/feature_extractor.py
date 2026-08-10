@@ -10,15 +10,21 @@ Design:
     - Appends to _response_history (maxlen=100)
     - Returns full history (for MIRT) + last entry (for mastery_prob_after backfill)
 
+v0.84.0-a: response_history 双写到 event_log (kernel-mapping §2.4 Event 统一输入).
+    - _response_history[sid] 保留 (in-memory hot cache cap 100)
+    - 同时 emit LearningEvent(event_type="response_submitted") 到 event_log
+    - FeatureExtractor 接受 optional event_log 注入 (None = 不 emit)
+
 Critical invariant: FeatureExtractor does NOT touch BeliefState.
 """
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .belief_engine import Observation
+    from .event_log import EventLog
     from .inference_engine import ObservationContext
 
 logger = logging.getLogger(__name__)
@@ -29,10 +35,15 @@ class FeatureExtractor:
 
     Owns response_history. Produces history list (for MIRT) + history_entry (for backfill).
     Does NOT mutate BeliefState.
+
+    v0.84.0-a: optional event_log injection for response_submitted LearningEvent emit.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, event_log: Optional["EventLog"] = None) -> None:
         self._response_history: Dict[str, List[Dict[str, Any]]] = {}
+        # v0.84.0-a: optional event_log for double-write persistence.
+        # None = in-memory only (legacy behavior, tests use this).
+        self._event_log = event_log
 
     def extract(
         self,
@@ -74,6 +85,24 @@ class FeatureExtractor:
         if len(history) > 100:
             self._response_history[student_id] = history[-100:]
             history = self._response_history[student_id]
+
+        # v0.84.0-a: response_history 双写到 event_log (event_type="response_submitted")
+        # 防御性自检 [1]: emit 失败不能阻断主流程 (response_history 已 in-memory)
+        if self._event_log is not None:
+            try:
+                # Lazy import to avoid circular dep at module load
+                from .event_log import LearningEvent
+                event = LearningEvent.from_response_submitted(
+                    observation,
+                    source="feature_extractor",
+                )
+                self._event_log.log_event(event)
+            except Exception:
+                logger.warning(
+                    "FeatureExtractor.emit response_submitted 失败 (sid=%s), "
+                    "走 in-memory only 兜底",
+                    student_id, exc_info=True,
+                )
 
         return {
             "history": history,

@@ -17,6 +17,7 @@ from __future__ import annotations
 import time
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -288,6 +289,53 @@ class CalibrationMessage:
             priority=d.get("priority", 0),
             timeout_sec=d.get("timeout_sec", 30),
             metadata=d.get("metadata", {}),
+        )
+
+    # ── v0.84.0-a: LearningEvent 集成 (双写 event_log 用) ───────────────────────
+
+    def to_learning_event(
+        self,
+        student_id: Optional[str] = None,
+        source: str = "dual_agent_orchestrator",
+        event_id: Optional[str] = None,
+    ) -> "LearningEvent":
+        """Convert CalibrationMessage -> LearningEvent (event_type="calibration").
+
+        v0.84.0-a dual-write use case: orchestrator writes calibration_log
+        (db.py:638, full detail) + event_log (this LearningEvent, unified stream).
+        Both writes preserve H3 ECE validation (calibration_log) + unified
+        LearningEvent stream (event_log).
+
+        Args:
+            student_id: override student_id (default from CalibrationMessage).
+            source: who produced (default "dual_agent_orchestrator").
+            event_id: optional pre-generated event_id (matches StateEngine.commit).
+
+        Returns:
+            LearningEvent with payload=self.to_dict() and event_type="calibration".
+        """
+        # Lazy import to avoid circular import at module load
+        from ...cta.event_log import LearningEvent
+
+        # Convert timestamp (unix time float) -> datetime
+        ts_raw = self.timestamp
+        if isinstance(ts_raw, datetime):
+            timestamp = ts_raw
+        else:
+            # float (unix time) or fallback to now()
+            try:
+                timestamp = datetime.fromtimestamp(float(ts_raw))
+            except (TypeError, ValueError, OSError):
+                timestamp = datetime.now()
+
+        sid = student_id or self.student_id
+        return LearningEvent(
+            event_id=event_id or f"evt_{uuid.uuid4().hex[:12]}",
+            student_id=str(sid),
+            timestamp=timestamp,
+            source=source,
+            event_type="calibration",
+            payload=self.to_dict(),
         )
 
 

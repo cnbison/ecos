@@ -562,7 +562,27 @@ def _write_calibration_log(
             "fallback_to_single_agent": 1 if result.degraded_mode else 0,
             "duration_ms": duration_ms,
         }
-        return db.save_calibration(student_id, data)
+        calibration_id = db.save_calibration(student_id, data)
+
+        # v0.84.0-a: 双写 LearningEvent (event_type="calibration") 到 event_log
+        # 保留 calibration_log 全字段 (向后兼容 H3 ECE) + event_log 统一流
+        # 防御性自检 [1]: emit 失败不能阻断主流程 (calibration_log 已落盘)
+        event_log = getattr(orch, "event_log", None)
+        if event_log is not None:
+            try:
+                from ecos.cta.event_log import LearningEvent
+                event = result.to_learning_event(
+                    student_id=student_id,
+                    source="dual_agent_orchestrator",
+                )
+                event_log.log_event(event)
+            except Exception:
+                _log.warning(
+                    "_write_calibration_log emit calibration event 失败 (sid=%s), "
+                    "event_log 不写 (calibration_log 已落盘)",
+                    student_id, exc_info=True,
+                )
+        return calibration_id
     except Exception:
         _log.warning(
             "_write_calibration_log 失败 (student=%s), 互校结果未持久化",
