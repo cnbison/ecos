@@ -18,11 +18,11 @@ from typing import Any, Dict, List, Optional
 
 from ..cta.belief_state import BeliefState, BloomLevel, LearningDNAState
 from ..llm_client import ECOSLLMClient
+from .cta_input import CTAInput
 from .intervention import (
     CAStage,
     CLTLevel,
     Intervention,
-    InterventionType,
 )
 from .l3_selection import (
     CAConfig,
@@ -34,6 +34,10 @@ from .l4_optimization import (
     LCAAttribution,
     LCAPolicyLearner,
 )
+from .experiment_designer import (
+    ExperimentDesigner,
+    ExperimentDesignerConfig,
+)
 from .planner import PlanDecision, Planner, PlannerConfig
 from .rationale import RationaleGenerator
 
@@ -44,23 +48,10 @@ _log = logging.getLogger(__name__)
 # LCA Input / Output 数据结构
 # ---------------------------------------------------------------------------
 
-@dataclass
-class CTAInput:
-    """LCA 接收的 CTA 输出（M2 W2 简化版）.
-
-    Attributes:
-        student_id:              学生 ID
-        belief_state:            CTA 估计的 BeliefState
-        bloom_target_candidates: 候选 Bloom 层（默认全 6 层）
-        skill_filter:            可选——只针对特定技能列表
-        timestamp:               时间戳
-    """
-
-    student_id: str
-    belief_state: BeliefState
-    bloom_target_candidates: Optional[List[BloomLevel]] = None
-    skill_filter: Optional[List[str]] = None
-    timestamp: datetime = field(default_factory=datetime.now)
+# v0.82.0-b: CTAInput 迁到独立文件 cta_input.py (打破 orchestrator <-> experiment_designer 循环 import)
+# 旧位置: ecos.lca.orchestrator.CTAInput
+# 新位置: ecos.lca.cta_input.CTAInput
+# __init__.py 仍导出 CTAInput (向后兼容)
 
 
 @dataclass
@@ -107,110 +98,13 @@ class LCAResult:
 
 
 # ---------------------------------------------------------------------------
-# 候选干预生成（02-lca §6 step 5）
+# 候选干预生成已迁移到 ecos.lca.experiment_designer (v0.82.0-b)
 # ---------------------------------------------------------------------------
 
-# 默认候选池（5 类型 × 2 难度 = 10 arm，对应 default n_arms=10）
-DEFAULT_CANDIDATE_TYPES = [
-    InterventionType.EXPLANATORY,
-    InterventionType.EXPLANATORY,
-    InterventionType.PRACTICE,
-    InterventionType.PRACTICE,
-    InterventionType.INQUIRY,
-    InterventionType.FEEDBACK,
-    InterventionType.METACOGNITIVE,
-    InterventionType.EXPLANATORY,
-    InterventionType.PRACTICE,
-    InterventionType.INQUIRY,
-]
-DEFAULT_CANDIDATE_DIFFICULTIES = [0.3, 0.5, 0.4, 0.6, 0.5, 0.4, 0.5, 0.7, 0.7, 0.7]
-
-
-def _generate_candidates(
-    bloom_target: BloomLevel,
-    clt_level: CLTLevel,
-    ca_stage: CAStage,
-    bjork_triggers: List[str],
-    cta_input: CTAInput,
-    skill_filter: Optional[List[str]] = None,
-    n_candidates: int = 10,
-) -> List[Intervention]:
-    """生成 LCA 候选干预池.
-
-    根据 bloom_target / clt_level / ca_stage / bjork_triggers 自动调整参数：
-    - bjork trigger "test" → 倾向于 INQUIRY（Teach-back / self-explanation）
-    - bjork trigger "space" → 间隔复习模式（lower quantity + spacing）
-    - ca_stage = MODELING → EXPLANATORY 主导（演示）
-    - ca_stage = COACHING → PRACTICE 主导
-    - ca_stage = SCAFFOLDING → EXPLANATORY + 高 scaffolding
-    """
-    candidates: List[Intervention] = []
-    target_skills = skill_filter or []
-    # 取 bloom 标签作为 target_tcs 占位（Phase 4+ 接 Q-Matrix）
-    target_tcs = [bloom_target.name.lower()]
-
-    for i in range(n_candidates):
-        itype = DEFAULT_CANDIDATE_TYPES[i % len(DEFAULT_CANDIDATE_TYPES)]
-        difficulty = DEFAULT_CANDIDATE_DIFFICULTIES[i % len(DEFAULT_CANDIDATE_DIFFICULTIES)]
-
-        # CA 阶段调整干预类型
-        if ca_stage == CAStage.MODELING and i % 3 != 0:
-            itype = InterventionType.EXPLANATORY
-        elif ca_stage == CAStage.COACHING:
-            if itype not in (InterventionType.PRACTICE, InterventionType.FEEDBACK):
-                itype = InterventionType.PRACTICE
-        elif ca_stage == CAStage.SCAFFOLDING:
-            if itype not in (InterventionType.EXPLANATORY, InterventionType.METACOGNITIVE):
-                itype = InterventionType.EXPLANATORY
-
-        # Bjork 触发调整
-        bjork = list(bjork_triggers)
-        if "test" in bjork and itype == InterventionType.INQUIRY:
-            # 强化测试效应
-            bjork.append("retrieval")
-        if "space" in bjork:
-            # 间隔模式：更低难度 + 更高 feedback
-            difficulty = min(difficulty, 0.5)
-
-        # scaffolding_level 与 CLTLevel 对齐
-        scaffolding = {
-            CLTLevel.NOVICE: 0.9,
-            CLTLevel.DEVELOPING: 0.6,
-            CLTLevel.PROFICIENT: 0.3,
-            CLTLevel.EXPERT: 0.1,
-        }[clt_level]
-
-        # quantity 调整
-        quantity = {
-            InterventionType.EXPLANATORY: 3,
-            InterventionType.PRACTICE: 8,
-            InterventionType.INQUIRY: 5,
-            InterventionType.FEEDBACK: 4,
-            InterventionType.METACOGNITIVE: 3,
-        }[itype]
-
-        feedback_density = 0.8 if clt_level != CLTLevel.EXPERT else 0.4
-
-        intervention = Intervention(
-            intervention_type=itype,
-            bloom_target=bloom_target,
-            target_skills=target_skills[:3],
-            # Phase 5+ 接 TC 容器：当前用空 list（M2 W2 不阻塞）
-            target_misconceptions=[],
-            target_tcs=target_tcs,
-            difficulty=difficulty,
-            quantity=quantity,
-            feedback_density=feedback_density,
-            scaffolding_level=scaffolding,
-            clt_level=clt_level,
-            ca_stage=ca_stage,
-            bjork_triggers=bjork,
-            expected_gain=0.0,  # 由 LCA 在 select 阶段补全
-            expected_risk=0.0,
-        )
-        candidates.append(intervention)
-    return candidates
-
+# v0.82.0-b: 旧 _generate_candidates + DEFAULT_CANDIDATE_* 模块级常量
+#   全部迁到 ExperimentDesigner (LCA 4-layer 第 2 层)
+#   LCAEngine.select_intervention step 5 委托 self.experiment_designer.design(plan, cta_input, n_candidates)
+#   行为完全保持一致 (跟 v0.81 LCAEngine._generate_candidates 算法一致)
 
 # ---------------------------------------------------------------------------
 # LCA Engine 主类
@@ -225,6 +119,10 @@ class LCAEngineConfig:
     bandit_config: BanditConfig = field(default_factory=BanditConfig)
     # v0.82.0-a: Planner 子 config (LCA 4-layer 第 1 层)
     planner_config: PlannerConfig = field(default_factory=PlannerConfig)
+    # v0.82.0-b: Experiment Designer 子 config (LCA 4-layer 第 2 层)
+    experiment_designer_config: ExperimentDesignerConfig = field(
+        default_factory=ExperimentDesignerConfig
+    )
     use_llm_rationale: bool = True
     rationale_audience: str = "student"  # 默认 student
     expected_gain_scale: float = 0.3    # expected_gain = scale × (1 - mastery)
@@ -251,6 +149,12 @@ class LCAEngine:
         #   内部组合 L3 组件 (CLT/Bjork/CA scaffolding) + CAStateMachine
         #   LCAEngine 通过 __getattr__ 转发访问 self.clt / self.bjork_testing 等
         self.planner = Planner(self.config.planner_config)
+
+        # v0.82.0-b: Experiment Designer 实验设计层 (LCA 4-layer split 第 2 层)
+        #   消费 Planner.plan() 输出 PlanDecision, 生成候选干预池
+        self.experiment_designer = ExperimentDesigner(
+            self.config.experiment_designer_config
+        )
 
         # L4 组件 (v0.82.0-d 抽到 PolicyLearner, 当前 LCAEngine 直接持有)
         # v0.57.0: per-student bandit 改造 (修复 v0.56.0 单 bandit 多学生数据冲突 BUG)
@@ -334,13 +238,10 @@ class LCAEngine:
         bjork_triggers = plan.bjork_triggers
 
         # Step 5: 生成候选 + LinUCB 选择
-        candidates = _generate_candidates(
-            bloom_target=bloom_target,
-            clt_level=clt_level,
-            ca_stage=ca_stage,
-            bjork_triggers=bjork_triggers,
-            cta_input=cta_input,
-            skill_filter=cta_input.skill_filter,
+        # v0.82.0-b: 候选生成委托 ExperimentDesigner (LCA 4-layer 第 2 层)
+        candidates = self.experiment_designer.design(
+            plan,
+            cta_input,
             n_candidates=self.config.bandit_config.n_arms,
         )
         # v0.57.0: per-student bandit (修复 v0.56.0 多学生数据冲突)

@@ -65,60 +65,115 @@ NEW: `tests/test_planner.py` (16 tests, 0.38s)
 - dual_agent 独立 LCAEngine 实例保持 (v0.62.0-A 隔离原则)
 - H3-c4 canary PASS (lbc001/lbc002/lbc003 拐点后 arm 切换延迟中位数 < 3 题, 跟 v0.81 一致)
 
-#### Architecture outcomes
+#### v0.82.0-b: ExperimentDesigner 提取
 
-| 维度 | v0.81.0 | v0.82.0-a | Δ |
-|---|---|---|---|
-| LCA 4-layer 拆分 | 0% (LCAEngine 单类 632 行) | 25% (Planner 抽出, ~190 行) | +25% |
-| LCAEngine 行数 | 632 | ~590 (移除 L3 重复 + 加 __getattr__) | -42 行 |
-| pytest 总数 | 616 | 632 (+16) | +2.6% |
-| 防御性自检 [8] | hard block (exit 1) | hard block (exit 1) | 保持 |
-| H3-c4 canary | PASS | PASS | 保持 |
+NEW: `ecos/lca/experiment_designer.py` (~220 lines)
+- `ExperimentDesignerConfig` dataclass: n_candidates=10 / default_types / default_difficulties / quantity_by_type / scaffolding_by_clt / feedback_density_default=0.8 / feedback_density_expert=0.4
+  - 显式配置化 v0.81 LCAEngine._generate_candidates 内联参数 (5 类 quantity / 4 级 scaffolding 全部可注入)
+- `ExperimentDesigner` 类:
+  - `design(plan: PlanDecision, cta_input: CTAInput, n_candidates=None) -> List[Intervention]`
+  - 调整规则跟 v0.81 _generate_candidates 完全一致:
+    - CA 阶段 (MODELING/COACHING/SCAFFOLDING) → 调整 itype
+    - Bjork trigger "test" + INQUIRY → 加 "retrieval" 标签
+    - Bjork trigger "space" → difficulty ≤ 0.5
+    - CLT level → scaffolding_level (NOVICE 0.9 / DEVELOPING 0.6 / PROFICIENT 0.3 / EXPERT 0.1)
+    - InterventionType → quantity (3/8/5/4/3)
+  - `_adjust_for_ca_stage(itype, ca_stage, idx) -> InterventionType` 静态方法 (纯函数, 易测)
+- `DEFAULT_CANDIDATE_TYPES` / `DEFAULT_CANDIDATE_DIFFICULTIES` 迁移到本模块顶层 (从 orchestrator 移出)
 
-#### Risks addressed
+NEW: `ecos/lca/cta_input.py` (~30 lines)
+- `CTAInput` dataclass 从 `orchestrator.py` 抽出 (打破 orchestrator ↔ experiment_designer 循环 import)
+- 字段不变: student_id / belief_state / bloom_target_candidates / skill_filter / timestamp
+- `__init__.py` 仍导出 `CTAInput` (向后兼容: 旧 `from ecos.lca.orchestrator import CTAInput` 路径失效, 但 `from ecos.lca import CTAInput` 仍 work)
 
-1. **MEDIUM**: Planner 持有 CAStateMachine 后, CA 阶段状态从 LCAEngine 隔离 → 进程重启后 CA 状态丢失
+MODIFY: `ecos/lca/orchestrator.py` (-110 lines net)
+- `LCAEngineConfig` 新增 `experiment_designer_config: ExperimentDesignerConfig` 字段
+- `LCAEngine.__init__` 构造 `self.experiment_designer = ExperimentDesigner(self.config.experiment_designer_config)`
+- `LCAEngine.select_intervention` step 5 委托 `self.experiment_designer.design(plan, cta_input, n_candidates=self.config.bandit_config.n_arms)`
+- 删除模块级常量 `DEFAULT_CANDIDATE_TYPES` / `DEFAULT_CANDIDATE_DIFFICULTIES` (已迁到 experiment_designer)
+- 删除内部函数 `_generate_candidates` (83 行, 全部逻辑迁到 ExperimentDesigner.design)
+- 删除未用 import `InterventionType` (不再直用)
+
+MODIFY: `ecos/lca/__init__.py` (+5 lines)
+- 导出 `ExperimentDesigner` / `ExperimentDesignerConfig` / `DEFAULT_CANDIDATE_TYPES` / `DEFAULT_CANDIDATE_DIFFICULTIES`
+- `CTAInput` 来源改成 `from .cta_input import CTAInput` (旧 `from .orchestrator import CTAInput` 移除, 跟新文件位置对齐)
+
+NEW: `tests/test_experiment_designer.py` (13 tests, 0.37s)
+- 3 构造 + 默认行为 (默认 config, 自定义 config, n_candidates 产出)
+- 3 CA 阶段调整 (MODELING/COACHING/SCAFFOLDING 调整 itype 跟 v0.81 一致)
+- 3 Bjork + CLT 调整 (test + INQUIRY → retrieval, space → difficulty ≤ 0.5, CLT 4 级 → scaffolding 0.9/0.6/0.3/0.1)
+- 3 LCAEngine 集成 (默认 designer, select_intervention 委托, designer_config 自定义)
+- 1 防御性自检 (silent pass 扫描)
+
+向后兼容:
+- 65 LCA tests + 16 Planner tests + 13 Designer tests = 81 LCA 系列 tests 全过
+- LCAEngine `select_intervention` 8 步行为保持 (step 5 内部委托, 对外接口不变)
+- dual_agent 独立 LCAEngine 实例保持 (v0.62.0-A)
+- H3-c4 canary PASS (lbc001/lbc002/lbc003 拐点后 arm 切换延迟中位数 < 3 题, 跟 v0.81 / v0.82.0-a 一致)
+- 防御性自检 [8] 仍 hard block (LCAEngine 不引入新 mutation site)
+
+#### Architecture outcomes (cumulative after a+b)
+
+| 维度 | v0.81.0 | v0.82.0-a | v0.82.0-b | Δ (cumulative) |
+|---|---|---|---|---|
+| LCA 4-layer 拆分 | 0% (LCAEngine 单类 632 行) | 25% (Planner 抽出) | 50% (+ ExperimentDesigner) | +50% |
+| LCAEngine 行数 | 632 | ~590 | ~480 | -152 行 (LCAEngine 缩 24%) |
+| pytest 总数 | 616 | 632 | 645 | +29 tests (+4.7%) |
+| 防御性自检 [8] | hard block (exit 1) | hard block | hard block | 保持 |
+| H3-c4 canary | PASS | PASS | PASS | 保持 |
+
+#### Risks addressed (a+b cumulative)
+
+1. **MEDIUM** (a): Planner 持有 CAStateMachine 后, CA 阶段状态从 LCAEngine 隔离 → 进程重启后 CA 状态丢失
    - Mitigation: 跟 v0.57 LCAEngine 同原则, CA 状态本质是 per-student in-memory, 持久化是 Phase 5+ 任务. a 阶段不破坏行为
-2. **MEDIUM**: Planner.plan(cta_input, intervention_history=None) 默认 None → 空 history 可能影响 CAStage 判定
+2. **MEDIUM** (a): Planner.plan(cta_input, intervention_history=None) 默认 None → 空 history 可能影响 CAStage 判定
    - Mitigation: LCAEngine 显式传 `self.intervention_history.get(student_id, [])`, Planner 内部不感知 history 来源
-3. **LOW**: 移除 LCAEngine 旧 L3 字段 → 任何 `engine.clt` 直写代码会断
+3. **LOW** (a): 移除 LCAEngine 旧 L3 字段 → 任何 `engine.clt` 直写代码会断
    - Mitigation: `__getattr__` 5 字段转发, + 16 tests 覆盖
+4. **MEDIUM** (b): ExperimentDesigner 与 orchestrator 循环 import
+   - Mitigation: CTAInput 抽到独立文件 `ecos/lca/cta_input.py`, `__init__.py` 仍导出 CTAInput
+5. **LOW** (b): `_generate_candidates` 迁移后算法行为偏差风险
+   - Mitigation: 13 tests 覆盖 (CA 阶段 / Bjork / CLT 全部路径), H3-c4 canary 兜底, + LCA 65 tests 行为保持
 
-#### Out of Scope (deferred to v0.82.0-b/c/d)
+#### Out of Scope (deferred to v0.82.0-c/d)
 
-- v0.82.0-b: ExperimentDesigner 提取 (`_generate_candidates` orchestrator.py:134-217 迁移)
-- v0.82.0-c: Evaluator 提取 (`_estimate_gain` / `_estimate_risk` + LCAAttribution 包装)
-- v0.82.0-d: PolicyLearner 提取 (LCAPolicyLearner 包装 + dump/load 委托) + LCAEngine facade finalization (632 → ~250)
+- ✅ v0.82.0-b: ExperimentDesigner 提取 (本 commit 完成, `_generate_candidates` 全部迁移)
+- 📋 v0.82.0-c: Evaluator 提取 (`_estimate_gain` / `_estimate_risk` + LCAAttribution 包装)
+- 📋 v0.82.0-d: PolicyLearner 提取 (LCAPolicyLearner 包装 + dump/load 委托) + LCAEngine facade finalization (632 → ~250)
 - 未来 v0.82.x 内 (但独立 commit, 不在 LCA split PR): LearningEvent unification / Event Bus / EventLog retention
 
-#### Verify
+#### Verify (a+b)
 
 ```bash
-# 1. Full pytest suite (632 tests after v0.82.0-a)
+# 1. Full pytest suite (645 tests after v0.82.0-b)
 python -m pytest tests/ -q
-# Expected: 632 passed
+# Expected: 645 passed (was 632 after a, +13 ExperimentDesigner tests)
 
-# 2. v0.78 H3-c4 LCA canary (Planner 拆分不能破坏 H3-c4)
+# 2. v0.78 H3-c4 LCA canary (a+b 拆分不能破坏 H3-c4)
 python scripts/v078_h3c4_inflection_response_replay.py
 # Expected: H3-c4 PASS (lbc001/lbc002/lbc003 拐点后 arm 切换延迟中位数 < 3 题)
 
-# 3. NEW: v0.82.0-a Planner tests
+# 3. NEW: v0.82.0-b ExperimentDesigner tests
+python -m pytest tests/test_experiment_designer.py -v
+# Expected: 13 passed
+
+# 4. NEW: v0.82.0-a Planner tests (回归)
 python -m pytest tests/test_planner.py -v
 # Expected: 16 passed
 
-# 4. Defensive checks (8 items, [8] still hard block)
+# 5. Defensive checks (8 items, [8] still hard block)
 bash scripts/check_defensive.sh
 # Expected: all 8 pass
 
-# 5. LCA backward compat
+# 6. LCA backward compat
 python -m pytest tests/test_lca_wired.py tests/test_lca_persistence.py -v
 # Expected: 16 + 11 = 27 passed
 
-# 6. Version bump
+# 7. Version bump (a+b 同步)
 grep '__version__' ecos/__init__.py
 # Expected: __version__ = "0.82.0"
 
-# 7. LCAEngine 接口契约保持
+# 8. LCAEngine 接口契约保持
 python -c "
 from ecos.lca import LCAEngine
 e = LCAEngine()

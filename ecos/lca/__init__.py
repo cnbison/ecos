@@ -15,6 +15,13 @@ M2 W2 实现（LCA 策略引擎骨架）：
 工程文档：research/10-engineering/02-lca-policy-engine.md v1.0
 """
 
+from .cta_input import CTAInput
+from .experiment_designer import (
+    DEFAULT_CANDIDATE_DIFFICULTIES,
+    DEFAULT_CANDIDATE_TYPES,
+    ExperimentDesigner,
+    ExperimentDesignerConfig,
+)
 from .intervention import (
     CAStage,
     CLTLevel,
@@ -43,7 +50,6 @@ from .l4_optimization import (
     LinUCB,
 )
 from .orchestrator import (
-    CTAInput,
     LCAEngine,
     LCAEngineConfig,
     LCAResult,
@@ -60,6 +66,7 @@ __all__ = [
     "CAStage",
     "Intervention",
     "select_bloom_target",
+    "CTAInput",  # v0.82.0-b: 迁到 cta_input.py
     # L3
     "AdaptiveCLTPresender",
     "BjorkSpacingConfig",
@@ -82,8 +89,12 @@ __all__ = [
     "Planner",
     "PlannerConfig",
     "PlanDecision",
+    # v0.82.0-b: LCA 4-layer 第 2 层 ExperimentDesigner
+    "ExperimentDesigner",
+    "ExperimentDesignerConfig",
+    "DEFAULT_CANDIDATE_TYPES",
+    "DEFAULT_CANDIDATE_DIFFICULTIES",
     # Orchestrator
-    "CTAInput",
     "LCAEngine",
     "LCAEngineConfig",
     "LCAResult",
