@@ -38,6 +38,7 @@ from .experiment_designer import (
 )
 from .evaluator import Evaluator, EvaluatorConfig
 from .planner import PlanDecision, Planner, PlannerConfig
+from .policy_learner import PolicyLearner, PolicyLearnerConfig
 from .rationale import RationaleGenerator
 
 _log = logging.getLogger(__name__)
@@ -124,6 +125,9 @@ class LCAEngineConfig:
     )
     # v0.82.0-c: Evaluator 子 config (LCA 4-layer 第 3 层)
     evaluator_config: EvaluatorConfig = field(default_factory=EvaluatorConfig)
+    # v0.82.0-d: PolicyLearner 子 config (LCA 4-layer 第 4 层)
+    #   None = LCAEngine.__init__ 从 self.bandit_config 派生 (cold_start_threshold 透传)
+    policy_learner_config: Optional[PolicyLearnerConfig] = None
     use_llm_rationale: bool = True
     rationale_audience: str = "student"  # 默认 student
     # v0.82.0-c: expected_gain_scale 迁到 EvaluatorConfig.gain_scale (从 LCAEngineConfig 移除)
@@ -165,12 +169,27 @@ class LCAEngine:
         #   这里把 evaluator.attribution 引用暴露为 self.attribution (共享同一对象)
         self.attribution = self.evaluator.attribution
 
-        # L4 组件 (v0.82.0-d 抽到 PolicyLearner, 当前 LCAEngine 直接持有)
-        # v0.57.0: per-student bandit 改造 (修复 v0.56.0 单 bandit 多学生数据冲突 BUG)
-        #   之前 self.bandit 是单 bandit 全局共享, lbc001 + lbc002 答题会互相污染 LinUCB 状态
-        #   现在 self.bandits[student_id] 隔离 per-student
-        self.bandits: Dict[str, "LCAPolicyLearner"] = {}
-        # v0.82.0-c: self.attribution 移到 self.evaluator.attribution (上面 __init__)
+        # v0.82.0-d: PolicyLearner 策略学习层 (LCA 4-layer split 第 4 层)
+        #   LinUCB 包装 (per-student lazy init) + 冷启动判定 + dump/load
+        #   如果 self.config.policy_learner_config 是 None, 从 self.config.bandit_config 派生
+        #   (保持 cold_start_threshold 跟 BanditConfig.cold_start_threshold 同步)
+        pl_config = self.config.policy_learner_config
+        if pl_config is None:
+            pl_config = PolicyLearnerConfig(
+                bandit_config=self.config.bandit_config,
+                cold_start_threshold=self.config.bandit_config.cold_start_threshold,
+            )
+        self.policy_learner = PolicyLearner(pl_config)
+        # 向后兼容: dual_agent/orchestrator.py:569 / tests/test_lca_*.py 大量访问
+        #   `lca_engine.bandits[student_id]` / `lca_engine.bandits.get(sid)` /
+        #   `lca_engine._get_bandit(student_id)`.
+        #   这里把 policy_learner._learners 引用暴露为 self.bandits (共享同一 dict)
+        self.bandits: Dict[str, "LCAPolicyLearner"] = self.policy_learner._learners
+
+        # v0.82.0-d: self.bandits 引用 = self.policy_learner._learners (共享同一 dict)
+        #   任何 self.bandits[student_id] = X 都会同步到 self.policy_learner._learners
+        #   任何 self.policy_learner._get_learner(student_id) 也会从同一 dict 拿
+        #   v0.82.0-d: self.attribution 移到 self.evaluator.attribution (上面 __init__)
         #   保持 self.attribution 引用 = self.evaluator.attribution (向后兼容 tests/test_lca_update_reward_actual_outcome.py monkey-patch)
 
         # Rationale（按 config 决定是否接 LLM）
@@ -254,9 +273,9 @@ class LCAEngine:
             cta_input,
             n_candidates=self.config.bandit_config.n_arms,
         )
-        # v0.57.0: per-student bandit (修复 v0.56.0 多学生数据冲突)
-        bandit = self._get_bandit(student_id)
-        chosen = bandit.select_intervention(belief_state, candidates)
+        # v0.82.0-d: LinUCB 选择委托 PolicyLearner.select (LCA 4-layer 第 4 层)
+        #   内部 lazy init per-student LCAPolicyLearner (v0.57.0 per-student 隔离)
+        chosen = self.policy_learner.select(student_id, belief_state, candidates)
         # 触发标签回填
         chosen.bjork_triggers = bjork_triggers
 
@@ -328,11 +347,11 @@ class LCAEngine:
             state_delta=state_delta,
         )
 
-        # v0.57.0: per-student bandit (修复 v0.56.0 多学生数据冲突)
-        bandit = self._get_bandit(student_id)
-        bandit.update(
-            intervention=intervention,
-            belief_state=new_state,
+        # v0.82.0-d: LinUCB update 委托 PolicyLearner.update (LCA 4-layer 第 4 层)
+        self.policy_learner.update(
+            student_id,
+            intervention,
+            new_state,
             reward=linucb_reward,
         )
         # v0.57.0: per-student update 计数
@@ -343,87 +362,73 @@ class LCAEngine:
     # ---------------------------------------------------------------
 
     def _is_linucb_cold_start(self, student_id: str) -> bool:
-        """判定 LinUCB 是否处于冷启动期.
+        """判定 LinUCB 是否处于冷启动期 (v0.82.0-d 委托 PolicyLearner.is_cold_start).
 
         v0.69.0: 用于决定 dual_agent_confidence 来源
           - 冷启动期: 走 _estimate_gain 简化估算 (source="estimate_gain_fallback")
           - 非冷启动期: 走 LinUCB θ@x 预测 (source="linucb")
 
-        判定规则: arm_pull_counts.sum() < cold_start_threshold (默认 10)
-
-        Args:
-            student_id: 学生 ID
-
-        Returns:
-            True 如果 LinUCB 处于冷启动期 (应该走 fallback)
-            False 如果 LinUCB 已积累足够数据, θ@x 预测可信
-
-        防御性自检 [1]: 失败兜底返回 True (保守, 走简化估算)
+        旧逻辑 (v0.81) 直接读 self.bandits.get(student_id) + arm_pull_counts.sum(),
+        v0.82.0-d 抽到 PolicyLearner.is_cold_start (LCA 4-layer 第 4 层).
+        backward compat: 保留方法, 因为 dual_agent/orchestrator.py:575 调.
         """
-        try:
-            bandit = self.bandits.get(student_id)
-            if bandit is None:
-                # bandit 未初始化 -> 冷启动
-                return True
-            total_pulls = int(bandit.bandit.arm_pull_counts.sum())
-            threshold = self.config.bandit_config.cold_start_threshold
-            return total_pulls < threshold
-        except Exception:
-            _log.warning(
-                "LinUCB 冷启动判定失败 (student=%s), 兜底返回 True (走 fallback)",
-                student_id,
-                exc_info=True,
-            )
-            return True
+        return self.policy_learner.is_cold_start(student_id)
 
     # ---------------------------------------------------------------
-    # v0.57.0: per-student bandit 隔离 + 持久化接口
+    # v0.57.0: per-student bandit 隔离 (保留为 backward-compat shim)
+    # v0.82.0-d: 委托 PolicyLearner._get_learner
     # ---------------------------------------------------------------
 
     def _get_bandit(self, student_id: str) -> "LCAPolicyLearner":
-        """获取 per-student bandit (lazy init).
+        """获取 per-student bandit (lazy init, v0.82.0-d 委托 PolicyLearner).
 
         v0.57.0: 修复 v0.56.0 单 bandit 多学生数据冲突 BUG.
                   每个学生独立 LCAPolicyLearner 实例, LinUCB A/b 矩阵隔离.
+
+        v0.82.0-d: 实现迁到 PolicyLearner._get_learner, 这里只做委托.
+        backward compat: 保留方法, 因为 web/api/lca.py:300 / tests/test_lca_*.py 大量访问.
         """
-        if student_id not in self.bandits:
-            self.bandits[student_id] = LCAPolicyLearner(self.config.bandit_config)
-        return self.bandits[student_id]
+        return self.policy_learner._get_learner(student_id)
 
     def dump_state(self, student_id: str) -> dict:
         """导出 per-student LCA 状态 (7 字段 + 内部辅助字段).
 
+        v0.82.0-d: 拆 LCAEngine 跟 PolicyLearner 边界
+          - LCAEngine 维护: intervention_history, last_intervention, update_count, select_count
+          - PolicyLearner 维护: bandit_a, bandit_b, arm_pull_counts, arm_fingerprints, last_arm
+
         Returns:
             dict 含 7 关键字段 (CLAUDE.md [5]):
               1. intervention_history  (List[Intervention.to_dict()])
-              2. bandit_a              (List[List[List[float]]])
-              3. bandit_b              (List[List[float]])
-              4. arm_pull_counts       (List[int])
+              2. bandit_a              (List[List[List[float]]])  <- 来自 PolicyLearner.dump
+              3. bandit_b              (List[List[float]])        <- 来自 PolicyLearner.dump
+              4. arm_pull_counts       (List[int])                <- 来自 PolicyLearner.dump
               5. last_intervention     (Intervention.to_dict() | None)
               6. update_count          (int)
               7. select_count          (int)
             + 内部字段:
-              - arm_fingerprints       (Dict[str, str])  arm_idx → intervention_id
-              - last_arm               (int)
+              - arm_fingerprints       (Dict[str, str])  arm_idx → intervention_id  <- PolicyLearner.dump
+              - last_arm               (int)                                        <- PolicyLearner.dump
         """
-        import numpy as np
-
-        bandit = self._get_bandit(student_id)
-        linucb = bandit.bandit  # LinUCB 实例
+        # v0.82.0-d: LinUCB 部分委托 PolicyLearner.dump
+        policy_state = self.policy_learner.dump(student_id)
 
         last_iv = self._last_intervention.get(student_id)
         return {
-            # 7 关键字段
+            # 1. intervention_history (LCAEngine 维护)
             "intervention_history": [iv.to_dict() for iv in self.intervention_history.get(student_id, [])],
-            "bandit_a": [a.tolist() for a in linucb.A],
-            "bandit_b": [b.tolist() for b in linucb.b],
-            "arm_pull_counts": linucb.arm_pull_counts.tolist(),
+            # 2-4. LinUCB 核心 (PolicyLearner 维护)
+            "bandit_a": policy_state["bandit_a"],
+            "bandit_b": policy_state["bandit_b"],
+            "arm_pull_counts": policy_state["arm_pull_counts"],
+            # 5. last_intervention (LCAEngine 维护)
             "last_intervention": last_iv.to_dict() if last_iv else None,
+            # 6-7. 计数 (LCAEngine 维护)
             "update_count": self._update_count.get(student_id, 0),
             "select_count": self._select_count.get(student_id, 0),
-            # 内部辅助 (LinUCB select arm 需要)
-            "arm_fingerprints": {str(k): v for k, v in bandit._arm_fingerprints.items()},
-            "last_arm": bandit._last_arm,
+            # 内部辅助 (LinUCB select arm 需要, PolicyLearner 维护)
+            "arm_fingerprints": policy_state["arm_fingerprints"],
+            "last_arm": policy_state["last_arm"],
         }
 
     def load_state(self, student_id: str, snapshot: dict) -> None:
@@ -434,62 +439,27 @@ class LCAEngine:
             snapshot: dump_state() 导出的 dict
 
         防御性自检 [5]: 7 关键字段必须全恢复, 缺一不可 (否则 LinUCB 学错位).
-
-        注: context_dim 永远是 LCAPolicyLearner.CONTEXT_DIM=16 (常量),
-             不从 snapshot 推断 (避免 schema 漂移导致 LinUCB 维度错位).
+        v0.82.0-d: LinUCB 部分委托 PolicyLearner.load (含维度校验).
         """
-        import numpy as np
         from .intervention import Intervention as _IV
 
-        # 7 关键字段恢复
-        # 1. intervention_history
+        # 1. intervention_history (LCAEngine 维护)
         history = snapshot.get("intervention_history", []) or []
         self.intervention_history[student_id] = [_IV.from_dict(d) for d in history]
 
-        # 2-4. LinUCB A/b 矩阵 + arm_pull_counts
-        bandit = self._get_bandit(student_id)
-        linucb = bandit.bandit
+        # 2-4. LinUCB 核心 + 内部辅助 (PolicyLearner 维护, 含维度校验)
+        self.policy_learner.load(student_id, snapshot)
 
-        bandit_a = snapshot.get("bandit_a", []) or []
-        bandit_b = snapshot.get("bandit_b", []) or []
-        arm_pull_counts = snapshot.get("arm_pull_counts", []) or []
-
-        # 防御性: 维度校验 (防止 schema 漂移, 错位数据会污染 LinUCB)
-        if bandit_a:
-            expected_n_arms = linucb.n_arms
-            expected_d = linucb.context_dim
-            actual_n_arms = len(bandit_a)
-            actual_d = len(bandit_a[0][0]) if bandit_a[0] and bandit_a[0][0] else 0
-
-            if actual_n_arms != expected_n_arms or actual_d != expected_d:
-                # 维度不匹配, 拒绝加载 (不污染 LinUCB)
-                raise ValueError(
-                    f"LinUCB state 维度不匹配 (student={student_id}): "
-                    f"expected n_arms={expected_n_arms}, d={expected_d}, "
-                    f"got n_arms={actual_n_arms}, d={actual_d}. "
-                    f"可能 schema 漂移, 需手动清理 student_lca_state 行."
-                )
-
-            linucb.A = [np.array(a, dtype=float) for a in bandit_a]
-            linucb.b = [np.array(b, dtype=float) for b in bandit_b]
-            linucb.arm_pull_counts = np.array(arm_pull_counts, dtype=int)
-        # 如果 snapshot 是空 (新学生), 保持默认 A=I, b=0 (LinUCB 冷启动)
-
-        # 5. last_intervention
+        # 5. last_intervention (LCAEngine 维护)
         last_iv_dict = snapshot.get("last_intervention")
         if last_iv_dict:
             self._last_intervention[student_id] = _IV.from_dict(last_iv_dict)
         else:
             self._last_intervention.pop(student_id, None)
 
-        # 6-7. 计数
+        # 6-7. 计数 (LCAEngine 维护)
         self._update_count[student_id] = int(snapshot.get("update_count", 0))
         self._select_count[student_id] = int(snapshot.get("select_count", 0))
-
-        # 内部辅助 (arm → intervention_id 映射, LinUCB select arm 需要)
-        af_dict = snapshot.get("arm_fingerprints", {}) or {}
-        bandit._arm_fingerprints = {int(k): v for k, v in af_dict.items()}
-        bandit._last_arm = int(snapshot.get("last_arm", -1))
 
     # ---------------------------------------------------------------
     # 内部工具

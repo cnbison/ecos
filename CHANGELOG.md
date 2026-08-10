@@ -156,8 +156,76 @@ NEW: `tests/test_evaluator.py` (13 tests, 0.30s)
 - LCAEngine `_estimate_gain` 保留 shim (dual_agent 路径)
 - LCAEngine `attribution` 引用 = `evaluator.attribution` (monkey-patchable, 跟 v0.81 一致)
 - dual_agent 独立 LCAEngine 实例保持 (v0.62.0-A)
-- H3-c4 canary PASS (lbc001/lbc002/lbc003 拐点后 arm 切换延迟中位数 < 3 题, 跟 v0.81 / v0.82.0-a/b 一致)
+- H3-c4 canary PASS (lbc001/lbc002/lbc003 拐点后 arm 切换延迟中位数 < 3 题, 跟 v0.81 / v0.82.0-a/b/c 一致)
 - 防御性自检 [8] 仍 hard block (LCAEngine 不引入新 mutation site)
+
+#### v0.82.0-d: PolicyLearner 提取 + LCAEngine facade finalization
+
+NEW: `ecos/lca/policy_learner.py` (~270 lines)
+- `PolicyLearnerConfig` dataclass: bandit_config + cold_start_threshold=10
+- `PolicyLearner` 类:
+  - 持有 `_learners: Dict[str, LCAPolicyLearner]` (v0.57.0 per-student 隔离)
+  - `_get_learner(student_id) -> LCAPolicyLearner` lazy init
+  - `select(student_id, state, candidates) -> Intervention` 委托 LCAPolicyLearner.select_intervention
+  - `update(student_id, intervention, new_state, reward) -> None` 委托 LCAPolicyLearner.update
+  - `is_cold_start(student_id) -> bool` 冷启动判定 (v0.69.0 引入, 迁移自 LCAEngine._is_linucb_cold_start)
+    - 判定规则: arm_pull_counts.sum() < cold_start_threshold
+    - 防御性: 异常时 _log.warning + 返回 True (走 fallback)
+  - `dump(student_id) -> dict` LinUCB 4 字段 + 2 内部 (bandit_a/b/arm_pull_counts/arm_fingerprints/last_arm)
+  - `load(student_id, snapshot) -> None` 维度校验 (防御性自检 [5])
+
+MODIFY: `ecos/lca/orchestrator.py` (LCAEngine 缩到 facade, 632 → 491 行, -22%)
+- `LCAEngineConfig` 新增 `policy_learner_config: Optional[PolicyLearnerConfig] = None`
+  - LCAEngine.__init__ 派生: `policy_learner_config=None` 时从 `bandit_config.cold_start_threshold` 派生
+- `LCAEngine.__init__` 构造 `self.policy_learner = PolicyLearner(pl_config)`
+- `self.bandits = self.policy_learner._learners` (shared reference, 向后兼容 tests/test_lca_*.py:209 monkey-patch + dual_agent/orchestrator.py:569 `lca_engine.bandits.get(sid)`)
+- `select_intervention` step 5 委托 `self.policy_learner.select(...)` (替代 `self._get_bandit(...).select_intervention(...)`)
+- `update()` 委托 `self.policy_learner.update(...)` (替代 `bandit.update(...)`)
+- `_is_linucb_cold_start` 保留方法 (backward compat shim, 委托 `self.policy_learner.is_cold_start(...)`)
+- `_get_bandit` 保留方法 (backward compat shim, 委托 `self.policy_learner._get_learner(...)`)
+- `dump_state` 拆: LCAEngine 维护 4 字段 (intervention_history/last_intervention/update_count/select_count) + PolicyLearner.dump 提供 4 字段 (bandit_a/b/arm_pull_counts/arm_fingerprints/last_arm)
+- `load_state` 拆: LCAEngine 维护 3 字段恢复 + `self.policy_learner.load(...)` 委托 LinUCB 部分 (含维度校验)
+- 清理: 旧 `self.bandits: Dict[str, "LCAPolicyLearner"] = {}` 删除 (改为 shared reference)
+- 清理: `_is_linucb_cold_start` 实现删除 (~25 行, 改为 shim)
+- 清理: `_get_bandit` 实现删除 (~10 行, 改为 shim)
+
+MODIFY: `ecos/lca/__init__.py` (+2 lines)
+- 导出 `PolicyLearner` / `PolicyLearnerConfig` (LCA 4-layer 第 4 层公开 API)
+
+MODIFY: `tests/test_linucb_cold_start.py` (2 tests 路径更新)
+- `test_returns_true_when_bandit_lookup_fails` + `test_logs_warning_on_failure` 改用新 path:
+  - 旧: `object.__setattr__(lca_engine, "bandits", FailingDict())` + logger `ecos.lca.orchestrator`
+  - 新: `object.__setattr__(lca_engine.policy_learner, "_learners", FailingDict())` + logger `ecos.lca.policy_learner`
+  - 原因: v0.82.0-d 后 `_is_linucb_cold_start` 委托 PolicyLearner.is_cold_start, 后者读 `self._learners`
+  - 行为一致: 仍验证 (1) 失败兜底返回 True, (2) 失败有 warning log
+
+NEW: `tests/test_policy_learner.py` (15 tests, 0.35s)
+- 3 构造 + per-student 隔离 (默认 config, lazy init, 重复 get 同一实例)
+- 2 select/update 委托 (select 调 LCAPolicyLearner, update 增加 arm_pull_counts)
+- 3 is_cold_start 边界 (新学生 True, warm 学生 False, 异常时 fallback + warning)
+- 3 dump/load 持久化 (round-trip, 维度校验 raise, 空 snapshot 保持默认)
+- 4 LCAEngine 集成 (bandits 引用, select 委托, update 委托, cold_start_threshold 派生)
+
+向后兼容:
+- 65 LCA tests + 16 Planner + 13 Designer + 13 Evaluator + 15 PolicyLearner = 122 LCA 系列 tests 全过
+- LCAEngine 5 接口方法 (select_intervention/update/dump_state/load_state/_is_linucb_cold_start) 签名保持
+- LCAEngine.bandits 引用 = self.policy_learner._learners (共享, 旧 `lca_engine.bandits[student_id]` 仍 work)
+- LCAEngine._get_bandit / _estimate_gain 保留 shim (dual_agent 路径)
+- LCAEngine.attribution 引用 = self.evaluator.attribution (共享, monkey-patchable)
+- dual_agent 独立 LCAEngine 实例保持 (v0.62.0-A)
+- H3-c4 canary PASS (lbc001/lbc002/lbc003 拐点后 arm 切换延迟中位数 < 3 题, 跟 v0.81 / v0.82.0-a/b/c 一致)
+- 防御性自检 [8] 仍 hard block (LCAEngine 不引入新 mutation site)
+
+#### Architecture outcomes (cumulative after a+b+c+d) — v0.82 final
+
+| 维度 | v0.81.0 | v0.82.0-a | v0.82.0-b | v0.82.0-c | v0.82.0-d | Δ (cumulative) |
+|---|---|---|---|---|---|---|
+| LCA 4-layer 拆分 | 0% | 25% (Planner) | 50% (+ ExperimentDesigner) | 75% (+ Evaluator) | 100% (+ PolicyLearner) | +100% |
+| LCAEngine 行数 | 632 | ~590 | ~480 | ~430 | ~491 (含 4-layer 委托注释 + backward-compat shim) | -141 行 (-22%) 净 |
+| 4-layer 文件总行数 | 0 (跟 LCAEngine 耦合) | 205 (planner.py) | 260 (+ experiment_designer.py) | 194 (+ evaluator.py) | 266 (+ policy_learner.py) | 925 行 4-layer 净增 |
+| pytest 总数 | 616 | 632 | 645 | 658 | 673 | +57 tests (+9.3%) |
+| 防御性自检 [8] | hard block | hard block | hard block | hard block | hard block | 保持 |
+| H3-c4 canary | PASS | PASS | PASS | PASS | PASS | 保持 |
 
 #### Architecture outcomes (cumulative after a+b+c)
 
@@ -196,66 +264,72 @@ NEW: `tests/test_evaluator.py` (13 tests, 0.30s)
 7. **MEDIUM** (c): `engine.attribution` 必须保持可访问 (monkey-patch 路径)
    - Mitigation: `self.attribution = self.evaluator.attribution` shared reference, + 2 tests 验证 (attribution 一致性 + _estimate_gain shim)
 
-#### Out of Scope (deferred to v0.82.0-d)
+#### Out of Scope (deferred to v0.83+)
 
 - ✅ v0.82.0-a: Planner 提取 (Planner.plan() + PlanDecision + PlannerConfig)
 - ✅ v0.82.0-b: ExperimentDesigner 提取 (experiment_designer.design() + 打破循环 import cta_input.py)
 - ✅ v0.82.0-c: Evaluator 提取 (estimate_gain/risk + record_intervention/attribute_effect, wrap LCAAttribution)
-- 📋 v0.82.0-d: PolicyLearner 提取 (LCAPolicyLearner 包装 + dump/load 委托) + LCAEngine facade finalization (632 → ~250)
+- ✅ v0.82.0-d: PolicyLearner 提取 (LCAPolicyLearner 包装 + dump/load 委托) + LCAEngine facade finalization
 - 未来 v0.82.x 内 (但独立 commit, 不在 LCA split PR): LearningEvent unification / Event Bus / EventLog retention
+- 未来 v0.83+: Evidence Engine / Runtime API (Kernel-mapping §1.4 + §5)
 
-#### Verify (a+b+c)
+#### Verify (a+b+c+d) — v0.82 final
 
 ```bash
-# 1. Full pytest suite (658 tests after v0.82.0-c)
+# 1. Full pytest suite (673 tests after v0.82.0-d)
 python -m pytest tests/ -q
-# Expected: 658 passed (was 645 after b, +13 Evaluator tests)
+# Expected: 673 passed (was 658 after c, +15 PolicyLearner tests)
 
-# 2. v0.78 H3-c4 LCA canary (a+b+c 拆分不能破坏 H3-c4)
+# 2. v0.78 H3-c4 LCA canary (a+b+c+d 拆分不能破坏 H3-c4)
 python scripts/v078_h3c4_inflection_response_replay.py
 # Expected: H3-c4 PASS (lbc001/lbc002/lbc003 拐点后 arm 切换延迟中位数 < 3 题)
 
-# 3. NEW: v0.82.0-c Evaluator tests
-python -m pytest tests/test_evaluator.py -v
-# Expected: 13 passed
+# 3. NEW: v0.82.0-d PolicyLearner tests
+python -m pytest tests/test_policy_learner.py -v
+# Expected: 15 passed
 
-# 4. NEW: v0.82.0-b ExperimentDesigner tests (回归)
-python -m pytest tests/test_experiment_designer.py -v
-# Expected: 13 passed
+# 4-6. 其他 4-layer 子测试 (回归)
+python -m pytest tests/test_evaluator.py -v         # Expected: 13 passed
+python -m pytest tests/test_experiment_designer.py -v  # Expected: 13 passed
+python -m pytest tests/test_planner.py -v           # Expected: 16 passed
 
-# 5. NEW: v0.82.0-a Planner tests (回归)
-python -m pytest tests/test_planner.py -v
-# Expected: 16 passed
-
-# 6. Defensive checks (8 items, [8] still hard block)
+# 7. Defensive checks (8 items, [8] still hard block)
 bash scripts/check_defensive.sh
 # Expected: all 8 pass
 
-# 7. LCA backward compat
-python -m pytest tests/test_lca_wired.py tests/test_lca_persistence.py -v
-# Expected: 16 + 11 = 27 passed
+# 8. LCA 4-layer 4 类同时测 (122 tests)
+python -m pytest tests/test_lca_wired.py tests/test_lca_persistence.py tests/test_linucb_cold_start.py tests/test_lca_update_reward_actual_outcome.py tests/test_linucb_penalty_limit.py tests/test_v0753_linucb_decay.py tests/test_dual_agent_lca_isolation.py tests/test_planner.py tests/test_experiment_designer.py tests/test_evaluator.py tests/test_dual_agent_confidence_computation.py tests/test_dual_agent_strategy_challenge_path.py tests/test_policy_learner.py -v
+# Expected: 122 passed
 
-# 8. Version bump (a+b+c 同步)
+# 9. Version bump
 grep '__version__' ecos/__init__.py
 # Expected: __version__ = "0.82.0"
 
-# 8. LCAEngine 接口契约保持
+# 10. LCAEngine 4-layer facade 验证
 python -c "
 from ecos.lca import LCAEngine
 e = LCAEngine()
-# 5 接口方法应存在
+# 4 layer 子对象
+assert e.planner is not None
+assert e.experiment_designer is not None
+assert e.evaluator is not None
+assert e.policy_learner is not None
+# backward-compat 引用
+assert e.bandits is e.policy_learner._learners
+assert e.attribution is e.evaluator.attribution
+# 5 接口方法
 assert hasattr(e, 'select_intervention')
 assert hasattr(e, 'update')
 assert hasattr(e, 'dump_state')
 assert hasattr(e, 'load_state')
 assert hasattr(e, '_is_linucb_cold_start')
-# __getattr__ 转发 5 字段
+# __getattr__ 5 字段转发
 assert e.clt is not None
 assert e.bjork_testing is not None
 assert e.bjork_spacing is not None
 assert e.ca_scaffolding is not None
 assert e.ca_state_machine is not None
-print('LCAEngine 接口契约 + __getattr__ 转发 OK')
+print('LCA 4-layer facade OK')
 "
 ```
 

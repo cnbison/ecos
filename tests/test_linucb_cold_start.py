@@ -207,38 +207,47 @@ class TestLinUCBColdStartDefensive:
     """v0.69.0-a: 防御性自检 [1], 失败兜底返回 True (保守, 走 fallback)."""
 
     def test_returns_true_when_bandit_lookup_fails(self, lca_engine):
-        """bandits 字典读失败 -> 兜底返回 True (保守)."""
+        """learners 字典读失败 -> 兜底返回 True (保守).
+
+        v0.82.0-d: 旧测试 path 是 `lca_engine.bandits = FailingDict()` (直接替换 LCAEngine 旧字段).
+                   新 path 是 `lca_engine.policy_learner._learners = FailingDict()` (替换 PolicyLearner 内部 dict,
+                   因为 _is_linucb_cold_start 现在委托给 policy_learner.is_cold_start, 后者读 self._learners).
+        """
         class FailingDict(dict):
             def get(self, key, default=None):
-                raise RuntimeError("模拟 bandit lookup 失败")
+                raise RuntimeError("模拟 learner lookup 失败")
 
-        original = lca_engine.bandits
+        original = lca_engine.policy_learner._learners
         try:
-            object.__setattr__(lca_engine, "bandits", FailingDict())
+            object.__setattr__(lca_engine.policy_learner, "_learners", FailingDict())
             # 失败应兜底返回 True, 不应 raise
             assert lca_engine._is_linucb_cold_start("test_cold_start") is True
         finally:
-            object.__setattr__(lca_engine, "bandits", original)
+            object.__setattr__(lca_engine.policy_learner, "_learners", original)
 
     def test_logs_warning_on_failure(self, lca_engine, caplog):
-        """失败时 _log.warning, 不 silent pass (防御性自检 [1])."""
+        """失败时 _log.warning, 不 silent pass (防御性自检 [1]).
+
+        v0.82.0-d: 警告从 `ecos.lca.policy_learner` logger 发出 (不是 `ecos.lca.orchestrator`),
+                   因为失败发生在 PolicyLearner.is_cold_start (LCA 4-layer 第 4 层).
+        """
         class FailingDict(dict):
             def get(self, key, default=None):
                 raise RuntimeError("模拟失败")
 
-        original = lca_engine.bandits
+        original = lca_engine.policy_learner._learners
         try:
-            object.__setattr__(lca_engine, "bandits", FailingDict())
-            with caplog.at_level(logging.WARNING, logger="ecos.lca.orchestrator"):
+            object.__setattr__(lca_engine.policy_learner, "_learners", FailingDict())
+            with caplog.at_level(logging.WARNING, logger="ecos.lca.policy_learner"):
                 result = lca_engine._is_linucb_cold_start("test_cold_start")
             assert result is True
-            # 应该有 warning log
+            # 应该有 warning log (来自 PolicyLearner.is_cold_start)
             assert any(
                 "LinUCB 冷启动判定失败" in rec.message
                 for rec in caplog.records
             ), "失败时应该 _log.warning, 不能 silent pass"
         finally:
-            object.__setattr__(lca_engine, "bandits", original)
+            object.__setattr__(lca_engine.policy_learner, "_learners", original)
 
 
 # ──────────────────────────────────────────────────────────────────────

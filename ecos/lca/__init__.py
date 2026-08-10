@@ -30,6 +30,7 @@ from .intervention import (
     InterventionType,
     select_bloom_target,
 )
+from .policy_learner import PolicyLearner, PolicyLearnerConfig
 from .l3_selection import (
     AdaptiveCLTPresender,
     BjorkSpacingConfig,
@@ -98,6 +99,9 @@ __all__ = [
     # v0.82.0-c: LCA 4-layer 第 3 层 Evaluator
     "Evaluator",
     "EvaluatorConfig",
+    # v0.82.0-d: LCA 4-layer 第 4 层 PolicyLearner
+    "PolicyLearner",
+    "PolicyLearnerConfig",
     # Orchestrator
     "LCAEngine",
     "LCAEngineConfig",
