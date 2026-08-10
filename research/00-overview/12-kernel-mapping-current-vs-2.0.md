@@ -34,18 +34,19 @@
 
 | 现有代码 | 接近度 | 说明 |
 |---|---|---|
-| `ecos/cta/belief_engine.py:BeliefEngine.update` | 60% | 已有 state mutation（K/P/S/C/X mastery_prob 更新）,但**既是 State Estimator 又是 State Mutator**（CQRS 缺失） |
+| `ecos/cta/state_engine.py:StateEngine` (v0.80.0) | 70% | 4/6 职责已实现: commit/validate/snapshot/diff. Replay/Simulation 推迟到 v0.81 Event Engine |
+| `ecos/cta/belief_engine.py:BeliefEngine.update` | 60% | 已有 state mutation（K/P/S/C/X mastery_prob 更新）,但**既是 State Estimator 又是 State Mutator**（CQRS 缺失）. v0.80.0-b 起走 BeliefUpdator 委托 StateEngine.commit |
 | `ecos/cta/belief_engine.py:BeliefEngine.create_initial_state` | 80% | 已有冷启动 state init,接近 State Engine 的 create_snapshot |
 | `ecos/cta/belief_state.py:StateSnapshot` | 60% | 已有快照概念,但不是 State Engine 管理的,而是 BeliefState 内嵌的 trajectory |
 | `ecos/cta/belief_state.py:TrajectoryState` | 70% | 已有 state trajectory（100 个 snapshot 限长）,接近 Replay 能力 |
-| **缺失：State Validation** | 0% | 没有 state schema 校验（如 K.mastery_prob 超 [0,1] 范围） |
-| **缺失：State Versioning** | 0% | BeliefState 有 `version='v1.0'` 但不是 State Engine 管理的版本链 |
-| **缺失：State Diff** | 0% | 没有 state diff 工具（只有 `state_delta` 标量） |
+| `ecos/cta/belief_state.py:BeliefState.validate` (v0.80.0) | 100% | Schema + range 校验 (5D / bloom / C / TC / overall / theta shape) |
+| `ecos/cta/belief_state.py:BeliefState.bump_version` (v0.80.0) | 100% | version = f'v1.0+{event_id}', last_updated = now() |
+| `ecos/cta/state_engine.py:StateEngine.diff` (v0.80.0) | 100% | 结构化 diff (changed_fields / old_values / new_values / delta_magnitudes) |
 
 **演进建议**：
-- **v0.71.0**：把 `belief_engine.py` 拆为 `state_engine.py`（mutation 唯一入口）+ `belief_state.py`（数据结构）
-- **v0.72.0**：加 state validation（mastery_prob 范围校验）
-- **v0.73.0**：加 state diff（用于 Evaluation Engine 评估 Twin 变化）
+- **v0.80.0** ✅: StateEngine + validate + snapshot + diff 落地 (4/6 职责). apply_snapshot 改 shim 委托 StateEngine.commit
+- **v0.80.0-b/c/d**: BeliefUpdator + ObservationEngine + FeatureExtractor + InferenceEngine 拆分, update() 走 StateEngine.commit
+- **v0.81.0**：Replay/Simulation (依赖 Event Engine)
 
 ### 1.2 Event Engine
 

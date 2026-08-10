@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 
@@ -341,6 +341,72 @@ class BeliefState:
             confidence=self.overall_confidence,
         )
 
+    # ── v0.80.0: StateEngine integration ────────────────────────────────
+
+    def validate(self) -> Tuple[bool, List[str]]:
+        """v0.80.0: Schema + range validation.
+
+        Rules:
+            - K/P/S/C/X.mastery_prob ∈ [0, 1]
+            - K/P/S/C/X.confidence ∈ [0, 1]
+            - bloom_profile 6 fields ∈ [0, 1]
+            - bloom_profile.confidence ∈ [0, 1]
+            - C.discount_factor ∈ [0, 1]
+            - C.tc_states[*].progress ∈ [0, 1]
+            - C.tc_states[*].confidence ∈ [0, 1]
+            - overall_confidence ∈ [0, 1]
+            - theta_mean.shape == (5,)
+            - theta_cov.shape == (5, 5)
+
+        Returns:
+            (is_valid: bool, issues: List[str]) - soft, does NOT raise.
+        """
+        issues: List[str] = []
+
+        # 5D dim fields
+        for dim_name in ("K", "P", "S", "C", "X"):
+            dim = getattr(self, dim_name)
+            if not (0.0 <= float(dim.mastery_prob) <= 1.0):
+                issues.append(f"{dim_name}.mastery_prob={dim.mastery_prob} out of [0,1]")
+            if not (0.0 <= float(dim.confidence) <= 1.0):
+                issues.append(f"{dim_name}.confidence={dim.confidence} out of [0,1]")
+
+        # C-specific
+        if not (0.0 <= float(self.C.discount_factor) <= 1.0):
+            issues.append(f"C.discount_factor={self.C.discount_factor} out of [0,1]")
+        for tc_id, tc in self.C.tc_states.items():
+            if not (0.0 <= float(tc.progress) <= 1.0):
+                issues.append(f"C.tc_states[{tc_id}].progress={tc.progress} out of [0,1]")
+            if not (0.0 <= float(tc.confidence) <= 1.0):
+                issues.append(f"C.tc_states[{tc_id}].confidence={tc.confidence} out of [0,1]")
+
+        # bloom_profile
+        for field_name in ("remember", "understand", "apply", "analyze", "evaluate", "create", "confidence"):
+            v = getattr(self.bloom_profile, field_name)
+            if not (0.0 <= float(v) <= 1.0):
+                issues.append(f"bloom_profile.{field_name}={v} out of [0,1]")
+
+        # overall_confidence
+        if not (0.0 <= float(self.overall_confidence) <= 1.0):
+            issues.append(f"overall_confidence={self.overall_confidence} out of [0,1]")
+
+        # shape constraints
+        if self.theta_mean.shape != (5,):
+            issues.append(f"theta_mean.shape={self.theta_mean.shape} != (5,)")
+        if self.theta_cov.shape != (5, 5):
+            issues.append(f"theta_cov.shape={self.theta_cov.shape} != (5,5)")
+
+        return (len(issues) == 0, issues)
+
+    def bump_version(self, event_id: str) -> None:
+        """v0.80.0: Update version field with event_id binding.
+
+        Called by StateEngine.commit after applying delta.
+        Format: 'v1.0+<event_id>' (e.g. 'v1.0+evt_abc123def456').
+        """
+        self.version = f"v1.0+{event_id}"
+        self.last_updated = datetime.now()
+
     # ── 序列化（v0.61.0 dual_agent 持久化用）───────────────────────────
 
     def to_dict(self) -> Dict[str, Any]:
@@ -394,9 +460,20 @@ class BeliefState:
         )
 
     def apply_snapshot(self, snapshot: Dict[str, Any]) -> None:
-        """从 dict 应用快照到 self（DB 恢复路径单一入口，v0.77.1）.
+        """v0.77.1 DB restore entry. v0.80.0 delegates to StateEngine.commit.
 
-        替代 web/api/belief.py 直接 state.X = value 的字段 mutation.
+        Kept for backward compat:
+            - web/api/belief.py:152 calls state.apply_snapshot(snapshot)
+            - test_apply_snapshot.py 19 tests call this directly
+
+        v0.80.0: routes through StateEngine._default_engine.commit(state, snapshot, source='db_restore')
+        Field application logic lives in _apply_delta_fields (extracted from v0.77.1 body).
+        """
+        from .state_engine import _default_engine
+        _default_engine.commit(self, snapshot, source="db_restore")
+
+    def _apply_delta_fields(self, snapshot: Dict[str, Any]) -> None:
+        """v0.80.0: extracted from apply_snapshot body. Field application logic.
 
         接管字段（选择性, snapshot 含哪个就更新哪个, 缺失保留原值）:
             - theta_mean (np.ndarray 5 元素)
@@ -407,12 +484,9 @@ class BeliefState:
             - C.tc_states (Dict[str, TCState dict])
 
         不接管（保留 caller 单独处理）:
-            - trajectory: 涉及 snap.bloom_profile 共享当前 state.bloom_profile, from_dict 会用 default 退化 dominant_layer
-            - K/P/S/C/X 的 dim 派生字段 (theta/se/mastery_prob/confidence/mastered): caller 后续重算
-            - student_id: caller 控制 sid 兜底 (dual_agent.py:206 已有此模式)
-
-        Args:
-            snapshot: dict 格式, 字段跟 to_dict 部分对应 (caller 选择性传字段)
+            - trajectory: 涉及 snap.bloom_profile 共享当前 state.bloom_profile
+            - K/P/S/C/X 的 dim 派生字段: caller 后续重算
+            - student_id: caller 控制 sid 兜底
         """
         if "theta_mean" in snapshot:
             self.theta_mean = np.array(snapshot["theta_mean"], dtype=float)

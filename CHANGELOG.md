@@ -12,6 +12,73 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.80.0] 2026-08-10
+
+### feat: v0.80.0-a StateEngine + validation + snapshot (CTA 4-layer split 第 1 阶段)
+
+> **背景**: v0.78 H3-c4 暴露 3-artifact root cause (replay skill_id 硬编码 + bloom_update_step cap + 浮点精度). v0.79 收口 replay 数据治理. 但结构债仍在: `BeliefEngine.update()` 含 ~46 处 `state.X = value` 直接 mutation, 散落 3 方法, 无中央 validation/snapshot 边界. 2.0 §2.2.1 要求 StateEngine 作为唯一 mutation 入口.
+> **Bisen 2026-08-06 拍板**: Kernel/ Runtime 底座优先, 应用层 (教师/家长/跨学科) 推迟到 Phase 7+. v0.80-0.83 为 4 个 kernel-deepening 版本 (per 12-kernel-mapping §8.3).
+> **v0.80.0-a 范围**: StateEngine 类 (commit/validate/snapshot/diff) + BeliefState.validate() + bump_version() + apply_snapshot 改 shim 委托 StateEngine.commit. 4 个 2.0 StateEngine 职责落地 (Transition/Validation/Snapshot/Diff). Replay/Simulation 推迟到 v0.81 Event Engine.
+> **向后兼容**: 14 production files + 230 tests + 19 apply_snapshot tests 全部 0 改动通过 (facade 保证). `web/api/belief.py:152` 调 `state.apply_snapshot(snapshot)` 走 shim 委托 `_default_engine.commit(state, snapshot, source='db_restore')`, 字段恢复逻辑迁移到 `_apply_delta_fields` 私有方法.
+
+#### 新增文件
+
+- `ecos/cta/state_engine.py`: StateEngine 类 + StateDelta + StateDiff + _default_engine + get_default_engine()
+- `tests/test_state_engine.py`: 54 测试覆盖 commit/validate/snapshot/diff/apply_snapshot shim/singleton
+
+#### StateEngine API
+
+```python
+class StateEngine:
+    def commit(self, state, new_state_or_delta, source: str, validate: bool = False) -> str:
+        """Apply mutation, return event_id. Routes to _apply_delta_fields for delta dicts.
+        Bumps version with event_id. If validate=True, raises ValueError on invalid state."""
+    def validate(self, state) -> Tuple[bool, List[str]]:
+        """Delegates to BeliefState.validate(). Soft, does NOT raise."""
+    def snapshot(self, state, source_event_id: str) -> str:
+        """Take snapshot, bind to event_id. Ring buffer (max 1000)."""
+    def diff(self, s1, s2) -> StateDiff:
+        """Structured diff: changed_fields, old/new values, delta magnitudes."""
+```
+
+#### BeliefState 扩展
+
+- `validate()`: Schema + range 校验 (5D mastery_prob/confidence ∈ [0,1], bloom 6 字段 + confidence ∈ [0,1], C.discount_factor ∈ [0,1], TC progress/confidence ∈ [0,1], overall_confidence ∈ [0,1], theta_mean shape (5,), theta_cov shape (5,5))
+- `bump_version(event_id)`: version = `f'v1.0+{event_id}'`, last_updated = now()
+- `apply_snapshot(snapshot)`: 改为 shim, 委托 `_default_engine.commit(self, snapshot, source='db_restore')`
+- `_apply_delta_fields(snapshot)`: 私有方法, 字段应用逻辑 (从 v0.77.1 apply_snapshot body 提取)
+
+#### 431 pytest 测试 (v0.79 377 + v0.80.0-a 54)
+
+新增 54 测试: `tests/test_state_engine.py`
+- commit (10): full state replacement / delta partial / StateDelta / validate True/False / no-op / bad type
+- validate (16): all 5D / bloom / C.discount / TC progress+confidence / overall_confidence / theta shape / multi issues / boundaries
+- snapshot (7): returns id / stores dict / increments / ring buffer / timestamp / independence / clear
+- diff (10): no changes / mastery / magnitude / overall / bloom / theta_mean / discount / instance / multi fields
+- apply_snapshot shim (3): delegates / preserves field logic / no student_id touch
+- _default_engine singleton (2) + bump_version (2) + report header
+
+#### v0.78 H3-c4 回归 canary
+
+`python scripts/v078_h3c4_inflection_response_replay.py` 结果不变:
+- lbc001: skill_switch median=0.0, p90=1.0, PASS
+- lbc002: skill_switch median=0.0, p90=2.7, PASS
+- lbc003: skill_switch median=0.0, p90=2.9, PASS
+
+无数值漂移, 证明 StateEngine + apply_snapshot shim 路径保持 v0.77.1 字段恢复语义.
+
+#### 7 项防御性自检全绿
+
+[1] silent pass / [2] version sync / [3] library_str / [4] CSS / [5] DB 字段 / [6] apply_snapshot / [7] replay skill_id
+
+#### 后续 (v0.80.0-b + c + d)
+
+- v0.80.0-b: BeliefUpdator extracted, `update()` 内部调 `belief_updater.apply()` 替代 inline mutation
+- v0.80.0-c: ObservationEngine + FeatureExtractor extracted, `__getattr__` forwarding
+- v0.80.0-d: InferenceEngine fully extracted, `update()` pure orchestration
+- v0.80.0 final: defensive check [8] AST scan direct state mutation (soft warning)
+
+
 ## [0.79.0] 2026-08-10
 
 ### feat: 防御性自检 [7] replay 脚本字面量 skill_id 治理

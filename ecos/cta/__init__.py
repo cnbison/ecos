@@ -37,6 +37,12 @@ from .belief_state import (
     TCState,
     TrajectoryState,
 )
+from .state_engine import (
+    StateDelta,
+    StateDiff,
+    StateEngine,
+    get_default_engine,
+)
 from .content import (
     MisconceptionEntry,
     MisconceptionLibrary,
@@ -81,6 +87,11 @@ __all__ = [
     "StateSnapshot",
     "TCState",
     "TrajectoryState",
+    # State Engine (v0.80.0)
+    "StateDelta",
+    "StateDiff",
+    "StateEngine",
+    "get_default_engine",
     # Content Libraries
     "MisconceptionEntry",
     "MisconceptionLibrary",
