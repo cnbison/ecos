@@ -387,3 +387,61 @@ class BeliefEngine:
         """重置某学生的累积历史."""
         self._feature_extractor.reset_student(student_id)
         self._observation_engine.reset_student(student_id)
+
+    # ── v0.81.0-c: Replay + Simulation ────────────────────────────────────────
+
+    def replay(
+        self,
+        events: List["LearningEvent"],
+        student_id: str,
+    ) -> BeliefState:
+        """Replay events to rebuild state from scratch.
+
+        Pure: passes log_event=False to update() so event_log is not polluted.
+
+        Args:
+            events: list of LearningEvent (chronological order, oldest first).
+                    Use EventLog.load_events() to get them sorted.
+            student_id: which student to rebuild state for.
+
+        Returns:
+            Fresh BeliefState after applying all events.
+        """
+        return self._state_engine.replay(
+            events,
+            student_id=student_id,
+            update_fn=lambda s, o: self.update(s, o, log_event=False),
+            create_state_fn=self.create_initial_state,
+        )
+
+    def simulate(
+        self,
+        events: List["LearningEvent"],
+        student_id: str,
+        fork_at_idx: int,
+        alternative_events: List["LearningEvent"],
+    ) -> BeliefState:
+        """Replay events[0:fork_at_idx] then apply alternative_events.
+
+        Used for counterfactual exploration: "what if the student had answered
+        these different questions after question N?"
+
+        Pure: passes log_event=False to update() so event_log is not polluted.
+
+        Args:
+            events: original event list (chronological order)
+            student_id: student to simulate
+            fork_at_idx: index in events to fork at (events[0:fork_at_idx] replayed)
+            alternative_events: alternative future events to apply after fork
+
+        Returns:
+            Simulated BeliefState.
+        """
+        return self._state_engine.simulate(
+            events,
+            student_id=student_id,
+            fork_at_idx=fork_at_idx,
+            alternative_events=alternative_events,
+            update_fn=lambda s, o: self.update(s, o, log_event=False),
+            create_state_fn=self.create_initial_state,
+        )

@@ -8,6 +8,10 @@ Scope (v0.80):
   - Replay: ❌ (deferred to v0.81 Event Engine)
   - Versioning: ✅ (event_id + version field)
 
+v0.81.0-c: Replay + Simulation added
+  - replay(events, student_id, update_fn, create_state_fn) -> BeliefState (pure)
+  - simulate(events, student_id, fork_at_idx, alternative_events, update_fn, create_state_fn) -> BeliefState
+
 TODO v0.82: promote to ecos/state_engine.py when scope expands beyond BeliefState.
 
 Usage:
@@ -16,6 +20,10 @@ Usage:
     is_valid, issues = engine.validate(state)
     snapshot_id = engine.snapshot(state, source_event_id=event_id)
     diff = engine.diff(state_before, state_after)
+
+    # v0.81.0-c: replay
+    state = engine.replay(events, student_id="s1",
+                          update_fn=my_update_fn, create_state_fn=my_create_fn)
 """
 from __future__ import annotations
 
@@ -23,7 +31,7 @@ import logging
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -216,6 +224,84 @@ class StateEngine:
         """Clear snapshot ring (for test isolation)."""
         self._snapshots.clear()
 
+    # ── v0.81.0-c: Replay + Simulation ────────────────────────────────────────
+
+    def replay(
+        self,
+        events: List[Any],
+        student_id: str,
+        update_fn: Callable[[BeliefState, Any], BeliefState],
+        create_state_fn: Callable[[str], BeliefState],
+    ) -> BeliefState:
+        """Apply events in chronological order to fresh state.
+
+        Pure: no DB, no event_log writes (caller's update_fn should pass log_event=False
+        if it has an event_log attached).
+
+        Args:
+            events: list of LearningEvent (or any object with .payload attribute)
+                    - payload is dict that update_fn deserializes (typically Observation.from_dict)
+            student_id: which student to replay
+            update_fn: callback (state, observation) -> state, called per event.
+                       BeliefEngine.replay passes `lambda s, o: self.update(s, o, log_event=False)`.
+            create_state_fn: callback (student_id) -> fresh BeliefState.
+                             BeliefEngine.replay passes `self.create_initial_state`.
+
+        Returns:
+            Rebuilt BeliefState after all events applied.
+
+        Note: events should already be in chronological order (oldest first).
+              EventLog.load_events returns them sorted by timestamp ASC.
+        """
+        state = create_state_fn(student_id)
+        for event in events:
+            observation = _event_to_observation(event)
+            state = update_fn(state, observation)
+        return state
+
+    def simulate(
+        self,
+        events: List[Any],
+        student_id: str,
+        fork_at_idx: int,
+        alternative_events: List[Any],
+        update_fn: Callable[[BeliefState, Any], BeliefState],
+        create_state_fn: Callable[[str], BeliefState],
+    ) -> BeliefState:
+        """Replay events[0:fork_at_idx], then apply alternative_events.
+
+        Used to answer "what if the student had answered these alternative questions?" -
+        replay the original history up to a fork point, then explore a different future.
+
+        Pure: no DB, no event_log writes.
+
+        Args:
+            events: original event list (chronological order)
+            student_id: student to simulate
+            fork_at_idx: index in events where to fork (events[0:fork_at_idx] are replayed)
+            alternative_events: events to apply after the fork point
+            update_fn: same as replay()
+            create_state_fn: same as replay()
+
+        Returns:
+            Simulated BeliefState after original prefix + alternative_events.
+        """
+        if fork_at_idx < 0 or fork_at_idx > len(events):
+            raise ValueError(
+                f"fork_at_idx {fork_at_idx} out of range [0, {len(events)}]"
+            )
+
+        state = create_state_fn(student_id)
+        # Replay original prefix
+        for event in events[:fork_at_idx]:
+            observation = _event_to_observation(event)
+            state = update_fn(state, observation)
+        # Apply alternative future
+        for event in alternative_events:
+            observation = _event_to_observation(event)
+            state = update_fn(state, observation)
+        return state
+
     def _copy_state_fields(self, target: BeliefState, source: BeliefState) -> None:
         """Copy all fields from source to target (full replacement).
 
@@ -242,3 +328,44 @@ _default_engine = StateEngine()
 def get_default_engine() -> StateEngine:
     """Get the module-level default StateEngine (used by BeliefState.apply_snapshot shim)."""
     return _default_engine
+
+
+# v0.81.0-c: Helper to extract Observation from a LearningEvent
+# We avoid hard import of Observation (would create circular: state_engine <- belief_engine <- state_engine)
+# Instead, do a duck-typed extraction via from_dict if available, else return payload dict.
+
+
+def _event_to_observation(event: Any) -> Any:
+    """Extract Observation from a LearningEvent.
+
+    Tries event.payload -> Observation.from_dict if available; else returns payload dict.
+
+    Args:
+        event: LearningEvent or any object with .payload attribute, or a dict itself.
+
+    Returns:
+        Observation object (if Observation.from_dict is available), else payload dict.
+        The update_fn passed to StateEngine.replay should handle either form.
+    """
+    # Get payload from event
+    if hasattr(event, "payload"):
+        payload = event.payload
+    elif isinstance(event, dict):
+        payload = event.get("payload", event)
+    else:
+        payload = event
+
+    # Try Observation.from_dict (lazy import to avoid circular dep at module load)
+    try:
+        from .belief_engine import Observation
+        if hasattr(Observation, "from_dict"):
+            return Observation.from_dict(payload)
+    except (ImportError, AttributeError) as e:
+        # Graceful degradation: if Observation can't be imported (circular dep at module load),
+        # return payload dict - update_fn should handle either form.
+        _log.warning(
+            "EventLog -> Observation from_dict failed (%s); returning raw payload dict",
+            e,
+        )
+
+    return payload
