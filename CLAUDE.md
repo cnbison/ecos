@@ -382,15 +382,19 @@ bash scripts/install-hooks.sh    # 设 core.hooksPath = githooks/
 | 5 | DB 恢复 6 关键字段 | 4 次漏字段 (json/tc_states/trajectory/item_params) | 检查 6 字段全在 belief.py + db.py |
 | 6 | DB 恢复走 apply_snapshot | v0.77.1 收口 6 处直接 state.X = value mutation | `grep "state.apply_snapshot(" web/api/belief.py` |
 | 7 | replay 脚本无字面量 skill_id | v0.78 H3-c4 artifact (7 个 replay 脚本硬编码 skill_id="variables") | AST 检测 `scripts/check_no_literal_skill_id.py`, 排除 docstring + dict .get() 默认 |
-| 8 | 直接 state.X = value mutation 扫描 | v0.78 BeliefEngine.update() 含 ~46 处直接 mutation (v0.80 拆 4-layer 收口) | AST 检测 `scripts/check_no_direct_state_mutation.py`, allowlist: BeliefState.{__init__,to_dict,from_dict,apply_snapshot,validate,bump_version} + StateEngine.commit + BeliefUpdator.apply + create_initial_state. v0.80 soft warning (exit 0), v0.81 改 hard block |
+| 8 | 直接 state.X = value mutation 扫描 | v0.78 BeliefEngine.update() 含 ~46 处直接 mutation (v0.80 拆 4-layer 收口); v0.81 TODO mutations 迁移完成 + hard block | AST 检测 `scripts/check_no_direct_state_mutation.py`, allowlist: BeliefState.{__init__,to_dict,from_dict,apply_snapshot,validate,bump_version,append_trajectory_snapshot} + StateEngine.commit + BeliefUpdator.apply + create_initial_state. v0.81 hard block (exit 1), LINE_ALLOWLIST shrinks 8 -> 1 (orchestrator.py:842 only) |
 
-**554 pytest 测试**（截至 v0.80.0, 23 个文件）：
+**616 pytest 测试**（截至 v0.81.0, 26 个文件）：
 - `test_state_engine.py` (54)：v0.80.0-a StateEngine commit/validate/snapshot/diff + apply_snapshot shim
 - `test_inference_engine.py` (28)：v0.80.0-b InferenceEngine (含 5 个 critical 不变量 test: run() 不 mutate state)
 - `test_belief_updater.py` (34)：v0.80.0-b BeliefUpdator (sole mutation site, calls StateEngine.commit)
 - `test_observation_engine.py` (22)：v0.80.0-c ObservationEngine (warmup/probe state machine)
 - `test_feature_extractor.py` (14)：v0.80.0-c FeatureExtractor (response_history maxlen=100)
 - `test_belief_engine_facade.py` (24)：v0.80.0-c BeliefEngine facade (__getattr__ forwarding + 4-layer orchestration)
+- `test_event_log.py` (32)：v0.81.0-a EventLog + LearningEvent (in_memory + sqlite, schema, multi-student isolation)
+- `test_belief_updater_event_log.py` (13)：v0.81.0-b BeliefUpdator event logging + Observation to_dict/from_dict round-trip
+- `test_state_engine_replay.py` (14)：v0.81.0-c StateEngine.replay/simulate API + critical replay equivalence test
+- `test_v081_regression_h3c4.py` (3)：v0.81.0-c H3-c4 canary (replay path == inline path, deterministic, simulate diverges)
 - `test_defensive.py` (8)：8 项防御性自检的 pytest 版本
 - `test_apply_snapshot.py` (19)：v0.77.1 DB 恢复路径单一入口 (6 字段恢复 + 不接管边界 + round-trip)
 - `test_partial_credit.py` (5)：partial credit + MIRT 回归保护

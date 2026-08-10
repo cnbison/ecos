@@ -12,6 +12,181 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.81.0] 2026-08-10
+
+### feat: Event Engine (Replay + Simulation) + TODO mutations 迁移 + check [8] hard block
+
+> **背景**: v0.80.0 完成 CTA 4-layer split + StateEngine (4/6 职责: Transition/Validation/Snapshot/Diff). StateEngine.commit 生成 event_id 但只持久化到 state.version (in-memory ring). 2 个缺失职责 Replay + Simulation (2.0 §2.2.1, kernel-mapping §1.1 标 0% 缺失).
+> **v0.81.0 目标**: 加 EventLog 层 + Replay/Simulation APIs, 完成 StateEngine 6/6 职责. 同时迁移 v0.80 留下的 TODO direct mutations (web/api/belief.py:175/303/312 + ecos_session.py:193-198) 到 StateEngine.commit, 防御性自检 [8] 从 soft warning (exit 0) 升级为 hard block (exit 1).
+> **战略对齐** (Bisen 2026-08-06 拍板 Kernel-first): v0.81 是 4 个 kernel-deepening 版本的第 2 个 (per 12-kernel-mapping §8.3). 教师/家长/跨学科 extension 推迟到 Phase 7+.
+
+#### v0.81.0-a: EventLog + LearningEvent + db schema
+
+NEW: `ecos/cta/event_log.py` (~250 lines)
+- `LearningEvent` dataclass: event_id/student_id/timestamp/source/event_type/payload
+  - Forward-compat: v0.82+ 加 event_type="calibration" 不破坏 v0.81 schema
+- `EventLog` 类 dual-mode:
+  - `in_memory()`: list backed (tests / mock)
+  - `from_sqlite(db_path)`: sqlite3 connection backed (production)
+- API: `log_event(event)`, `load_events(student_id, since, until, limit)`, `count_events(student_id)`, `close()`
+- INSERT OR IGNORE dedup by event_id PRIMARY KEY (mirrors sqlite PRIMARY KEY)
+- JSON payload serialize/deserialize with numpy + datetime fallback
+
+MODIFY: `ecos/persistence/db.py` (+81 lines)
+- SCHEMA_SQL: +event_log table (event_id PK + student_id/timestamp/source/event_type/payload_json)
+- +idx_event_log_student ON (student_id, timestamp) for fast replay queries (mirror calibration_log)
+- Database.save_event / load_event_history / count_events 方法
+
+NEW: `tests/test_event_log.py` (32 tests, 0.49s)
+- 4 LearningEvent dataclass tests (defaults, forward-compat calibration type)
+- 11 in_memory tests (factory, log/load, dedup, chronological, multi-student isolation, filters, count, close)
+- 13 sqlite tests (factory, idempotent table creation, round-trip payload, dedup, chronological, multi-student isolation, since/until filter, limit, count, nonexistent student, close, numpy payload, schema)
+- 4 Database integration tests (init_schema creates event_log, save_event, load_event_history, index exists)
+
+#### v0.81.0-b: BeliefUpdator + BeliefEngine wire EventLog
+
+MODIFY: `ecos/cta/belief_updater.py` (+45 lines)
+- `__init__(state_engine, event_log=None)`: 接受可选 EventLog 注入
+- `apply(..., log_event: bool = True)`: log_event=False 抑制 logging (replay path)
+- Sole event logging site (mirrors "sole mutation site" principle)
+- 当 event_log attached AND log_event=True, 在 StateEngine.commit 后持久化 LearningEvent
+- payload = observation.to_dict()
+
+MODIFY: `ecos/cta/belief_engine.py` (+80 lines)
+- `__init__(..., event_log=None)`: 传给 BeliefUpdator
+- `update(state, observation, lca_result=None, log_event=True)`: 传 log_event 给 BeliefUpdator.apply
+- 新增 `Observation.to_dict()` / `from_dict()` (mirrors BeliefState.to_dict pattern):
+  - BloomLevel -> name, datetime -> ISO, score/correct/response_time_sec -> float
+  - from_dict: BloomLevel[bloom_name] with APPLY fallback, timestamp ISO parse with now() fallback
+
+NEW: `tests/test_belief_updater_event_log.py` (13 tests, 0.34s)
+- 6 BeliefUpdator direct tests (init, apply no log, apply with log, log_event=False, payload shape)
+- 4 BeliefEngine facade tests (init default, init accepts, update logs, update suppresses)
+- 3 Observation to_dict/from_dict round-trip tests (serialize, round-trip, invalid bloom fallback)
+
+向后兼容:
+- 14 production callers + 586 prior tests 不变 (log_event defaults True)
+
+#### v0.81.0-c: replay() + simulate() APIs + H3-c4 canary
+
+MODIFY: `ecos/cta/state_engine.py` (+85 lines)
+- `replay(events, student_id, update_fn, create_state_fn) -> BeliefState` (pure)
+- `simulate(events, student_id, fork_at_idx, alternative_events, update_fn, create_state_fn) -> BeliefState`
+- `simulate` 验证 fork_at_idx in [0, len(events)], 越界 raise ValueError
+- `update_fn` / `create_state_fn` 作为参数 (避免 StateEngine -> BeliefEngine circular dep)
+- 模块级 `_event_to_observation` helper: lazy-imports Observation, ImportError 时 graceful fallback 到 payload dict (with logger.warning, not silent pass)
+
+MODIFY: `ecos/cta/belief_engine.py` (+50 lines)
+- `replay(events, student_id) -> BeliefState` (facade over StateEngine.replay)
+- `simulate(events, student_id, fork_at_idx, alternative_events) -> BeliefState`
+- 两者都传 log_event=False 给 update() 以避免污染 event log
+- 两者都传 create_state_fn=self.create_initial_state, update_fn=lambda s,o: self.update(s, o, log_event=False)
+
+NEW: `tests/test_state_engine_replay.py` (14 tests, 0.39s)
+- 4 replay basic (empty, single, multiple, no event_log pollution)
+- 1 CRITICAL: `test_replay_equivalence_with_inline_update` (deep-compares theta/dim/bloom/overall
+  between inline update path and replay path; NOT version/event_id - those are run-specific)
+- 5 simulate tests (fork_at_idx=0/midpoint/len/out-of-range, no event_log pollution)
+- 1 multi-student isolation
+- 2 update_fn / create_state_fn callback shape
+- 1 pure function property (input events not mutated)
+
+NEW: `tests/test_v081_regression_h3c4.py` (3 tests, 0.45s)
+- `test_replay_equivalence_multi_event` (10 events, deep-compare)
+- `test_replay_is_deterministic` (calling replay twice -> identical state)
+- `test_simulate_fork_produces_divergent_state` (counterfactual works)
+
+#### v0.81.0-d: TODO mutations 迁移 + check [8] hard block (exit 1)
+
+MODIFY: `web/api/belief.py` (3 sites migrated)
+- Line 175: `state.trajectory.snapshots.append(snap)` -> `state.append_trajectory_snapshot(snap)`
+  (NEW BeliefState.append_trajectory_snapshot method delegates to TrajectoryState.append)
+- Line 303: `state.overall_confidence = float(_np.mean([...]))` -> `state.apply_snapshot({"overall_confidence": ...})`
+- Line 312: `state.overall_confidence = 0.0` -> `state.apply_snapshot({"overall_confidence": 0.0})`
+
+MODIFY: `ecos/session/ecos_session.py` (3 sites migrated)
+- Lines 193/194: `state.theta_mean/theta_cov = ...` -> `state.apply_snapshot({"theta_mean": ..., "theta_cov": ...})`
+- Line 198: `state.overall_confidence = saved["confidence"]` -> `state.apply_snapshot({"overall_confidence": ...})`
+- 单次 `state.apply_snapshot(delta)` 替代 3 处直接 mutation
+
+MODIFY: `ecos/cta/belief_state.py` (+15 lines)
+- NEW `BeliefState.append_trajectory_snapshot(snap)` method (allowlisted)
+- Delegates to `TrajectoryState.append` (canonical way to add snapshot)
+
+MODIFY: `scripts/check_no_direct_state_mutation.py`
+- `sys.exit(0)` -> `sys.exit(1)` (v0.81 hard block)
+- LINE_ALLOWLIST shrinks 8 -> 1 (only orchestrator.py:842 factory exception remains)
+- FUNC_ALLOWLIST adds `append_trajectory_snapshot`
+
+MODIFY: `scripts/check_defensive.sh`
+- [8/8] 描述更新: "v0.81 hard block"
+
+MODIFY: `tests/test_defensive.py`
+- `test_no_direct_state_mutation` 期望更新 (exit 1 = fail)
+- `pytest_report_header` 更新到 v0.81.0
+
+#### Architecture outcomes
+
+| 维度 | v0.80.0 | v0.81.0 | Δ |
+|---|---|---|---|
+| StateEngine 职责 | 4/6 (Transition/Validation/Snapshot/Diff) | 6/6 (+ Replay + Simulation) | +2 职责 |
+| Event Engine | 0% | 80% (EventLog + Sole logging + Replay + Simulation; Event Bus deferred) | +80% |
+| Defensive check [8] | soft warning (exit 0) | hard block (exit 1) | 升级 |
+| LINE_ALLOWLIST | 8 entries | 1 entry (orchestrator.py:842 only) | -7 entries |
+| pytest 总数 | 554 | 616 (+62) | +11% |
+
+#### Risks addressed
+
+1. **HIGH**: replay path 可能与 inline path 不一致
+   - Mitigation: `test_replay_equivalence_with_inline_update` + `test_replay_equivalence_multi_event`
+     deep-compare theta/dim/bloom/overall (NOT version/event_id - those are run-specific)
+   - Critical canary: replay events -> state 必须等于 inline update state
+
+2. **MEDIUM**: sqlite EventLog 写入可能拖慢 production `update()` 调用
+   - Mitigation: EventLog opt-in (`event_log=None` default). Production 显式 attach, tests 用 in-memory 或 None
+
+3. **MEDIUM**: TODO mutations 迁移可能破坏 web/api/belief.py DB 恢复路径
+   - Mitigation: 走 `StateEngine.commit(state, delta, source="db_restore")` 复用 `_apply_delta_fields` 路径
+   - 19 apply_snapshot tests + 6 DB 字段 tests 保护回归
+
+#### Out of Scope (deferred to v0.82+)
+
+- LearningEvent type unification (Observation + CalibrationMessage -> LearningEvent): v0.82
+- Event Bus (in-process pub/sub): v0.82+
+- EventLog retention policy (auto-prune old events): v0.82
+- Replay step()/step_back()/jump_to() (granular replay): v0.82+
+- 迁移已有 replay scripts (v078_h3c4_*, v0753_*) 到 StateEngine.replay: v0.82 (cleanup, not correctness)
+- LCA 4-layer split: v0.82 (next kernel-deepening version)
+- Evidence Engine / Runtime API: v0.83
+
+#### Verify
+
+```bash
+# 1. Full pytest suite (616 tests after v0.81.0)
+python -m pytest tests/ -q
+# Expected: 616 passed
+
+# 2. v0.78 H3-c4 replay regression canary (numerical drift, unchanged)
+python scripts/v078_h3c4_inflection_response_replay.py
+# Expected: H3-c4 PASS (all students 拐点后 arm 切换延迟中位数 < 3 题)
+
+# 3. NEW: v0.81 replay equivalence canary
+python -m pytest tests/test_v081_regression_h3c4.py -v
+# Expected: 3 passed (replay path == inline path for theta/dim/bloom/overall)
+
+# 4. Defensive checks (8 items, [8] now hard block)
+bash scripts/check_defensive.sh
+# Expected: all 8 pass, [8] exits 1 on violation
+
+# 5. EventLog sqlite round-trip
+python -m pytest tests/test_event_log.py -v
+# Expected: 32 passed
+
+# 6. Version bump
+grep '__version__' ecos/__init__.py
+# Expected: __version__ = "0.81.0"
+```
+
 ## [0.80.0] 2026-08-10
 
 ### feat: v0.80.0-a StateEngine + validation + snapshot (CTA 4-layer split 第 1 阶段)

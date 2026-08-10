@@ -34,14 +34,17 @@
 
 | 现有代码 | 接近度 | 说明 |
 |---|---|---|
-| `ecos/cta/state_engine.py:StateEngine` (v0.80.0) | 70% | 4/6 职责已实现: commit/validate/snapshot/diff. Replay/Simulation 推迟到 v0.81 Event Engine |
-| `ecos/cta/belief_engine.py:BeliefEngine.update` | 60% | 已有 state mutation（K/P/S/C/X mastery_prob 更新）,但**既是 State Estimator 又是 State Mutator**（CQRS 缺失）. v0.80.0-b 起走 BeliefUpdator 委托 StateEngine.commit |
+| `ecos/cta/state_engine.py:StateEngine` (v0.80.0+v0.81.0) | 100% | 6/6 职责已实现: commit/validate/snapshot/diff (v0.80) + replay/simulate (v0.81.0-c). Hard block 保证 sole mutation invariant (v0.81.0-d) |
+| `ecos/cta/belief_engine.py:BeliefEngine.update` | 80% | v0.80.0-c 走 4-layer facade (ObservationEngine + FeatureExtractor + InferenceEngine + BeliefUpdator). v0.81.0-b 加 log_event param. update() is 30-line pure orchestration |
 | `ecos/cta/belief_engine.py:BeliefEngine.create_initial_state` | 80% | 已有冷启动 state init,接近 State Engine 的 create_snapshot |
 | `ecos/cta/belief_state.py:StateSnapshot` | 60% | 已有快照概念,但不是 State Engine 管理的,而是 BeliefState 内嵌的 trajectory |
-| `ecos/cta/belief_state.py:TrajectoryState` | 70% | 已有 state trajectory（100 个 snapshot 限长）,接近 Replay 能力 |
+| `ecos/cta/belief_state.py:TrajectoryState` | 80% | 已有 state trajectory（500 个 snapshot 限长）,v0.81.0-c 起 StateEngine.replay 可从 events 重建 |
 | `ecos/cta/belief_state.py:BeliefState.validate` (v0.80.0) | 100% | Schema + range 校验 (5D / bloom / C / TC / overall / theta shape) |
 | `ecos/cta/belief_state.py:BeliefState.bump_version` (v0.80.0) | 100% | version = f'v1.0+{event_id}', last_updated = now() |
+| `ecos/cta/belief_state.py:BeliefState.append_trajectory_snapshot` (v0.81.0-d) | 100% | DB restore 路径 trajectory snapshot append, allowlisted in check [8] |
 | `ecos/cta/state_engine.py:StateEngine.diff` (v0.80.0) | 100% | 结构化 diff (changed_fields / old_values / new_values / delta_magnitudes) |
+| `ecos/cta/state_engine.py:StateEngine.replay` (v0.81.0-c) | 100% | Apply events in chronological order to fresh state (pure, no DB coupling) |
+| `ecos/cta/state_engine.py:StateEngine.simulate` (v0.81.0-c) | 100% | Fork+replay for counterfactual exploration (pure) |
 
 **演进建议**：
 - **v0.80.0** ✅: StateEngine + validate + snapshot + diff 落地 (4/6 职责). apply_snapshot 改 shim 委托 StateEngine.commit
@@ -49,7 +52,13 @@
 - **v0.80.0-c** ✅: ObservationEngine + FeatureExtractor 提取, `__getattr__` forwarding 兼容 web/api/belief.py:189-191 直写. `update()` 改 pure orchestration (30 行). 4-layer 拆分完成度 60% -> 80%
 - **v0.80.0 final** ✅: 防御性自检 [8] AST 扫描 direct state mutation (soft warning, v0.81 hard block). +177 tests (431 -> 554 pytest). H3-c4 全 3 学生 PASS
 - **v0.80.0-d 决策**: InferenceEngine 不 sub-split (365 行含 110 行 dataclass, 实际逻辑 185 行, 5 子组件已分文件)
-- **v0.81.0**：Replay/Simulation (依赖 Event Engine)
+- **v0.81.0-a** ✅: EventLog + LearningEvent + db schema (event_log table + idx_event_log_student). 32 tests
+- **v0.81.0-b** ✅: BeliefUpdator + BeliefEngine wire EventLog (sole event logging site). 13 tests. log_event param
+- **v0.81.0-c** ✅: StateEngine.replay/simulate APIs (pure). 14 tests + 3 H3-c4 canary (replay path == inline path)
+- **v0.81.0-d** ✅: TODO mutations 迁移完成 (web/api/belief.py + ecos_session.py). check [8] hard block (exit 1). LINE_ALLOWLIST 8 -> 1
+- **v0.81.0 final** ✅: 6/6 StateEngine 职责, 616 tests (554 -> 616 +62), State Engine 抽象 100%
+- **v0.82.0**: LCA 4-layer split (next kernel-deepening version)
+- **v0.83.0**: Evidence Engine / Runtime API
 
 ### 1.2 Event Engine
 
@@ -57,19 +66,27 @@
 
 | 现有代码 | 接近度 | 说明 |
 |---|---|---|
-| `ecos/cta/belief_engine.py:Observation` | 40% | 已有"观测"概念,但只是 dataclass,不是 Event Bus 上的消息 |
-| `ecos/dual_agent/protocol/messages.py:CalibrationMessage` | 30% | 已有 Message 类型枚举（OBSERVATION / CTA_LCA_CALIBRATED 等）,但没 Event Bus |
-| `ecos/dual_agent/protocol/messages.py:MessageType` | 50% | 已有 10 种 MessageType,接近 Event 类型分类 |
-| `web/api/belief.py` _response_history | 40% | 隐式 Event 流（按时间序的答题记录）,但不是统一 Event |
-| `web/api/dual_agent.py` calibration_log 表 | 30% | 隐式 Event 流（dual_agent 互校历史）,但跟 response_history 没统一 |
-| **缺失：Event Bus** | 0% | 没有 pub/sub 机制 |
-| **缺失：Event Replay** | 0% | 不能按 Event 序列重放重建 Twin |
-| **缺失：Event Simulation** | 0% | 不能在历史 Event 流上跑假设场景 |
+| `ecos/cta/event_log.py:LearningEvent` (v0.81.0-a) | 100% | dataclass: event_id/student_id/timestamp/source/event_type/payload. Forward-compat: v0.82+ 加 event_type="calibration" 不破坏 schema |
+| `ecos/cta/event_log.py:EventLog` (v0.81.0-a) | 100% | dual-mode (in_memory + sqlite). log_event/load_events/count_events API. INSERT OR IGNORE dedup by event_id PK |
+| `ecos/persistence/db.py:event_log table` (v0.81.0-a) | 100% | sqlite table + idx_event_log_student ON (student_id, timestamp). Mirror calibration_log precedent |
+| `ecos/cta/belief_updater.py:BeliefUpdator.apply` (v0.81.0-b) | 100% | Sole event logging site (when event_log attached AND log_event=True). Mirrors "sole mutation site" principle |
+| `ecos/cta/belief_engine.py:Observation.to_dict/from_dict` (v0.81.0-b) | 100% | Serialization for LearningEvent payload. BloomLevel -> name, datetime -> ISO |
+| `ecos/cta/state_engine.py:StateEngine.replay` (v0.81.0-c) | 100% | Apply events in chronological order to fresh state. Pure: no DB, no logging |
+| `ecos/cta/state_engine.py:StateEngine.simulate` (v0.81.0-c) | 100% | Fork+replay for counterfactual. Pure |
+| `ecos/cta/belief_engine.py:BeliefEngine.replay` (v0.81.0-c) | 100% | Facade over StateEngine.replay, passes log_event=False |
+| `ecos/cta/belief_engine.py:BeliefEngine.simulate` (v0.81.0-c) | 100% | Facade over StateEngine.simulate |
+| `ecos/cta/belief_engine.py:Observation` | 60% | v0.81.0-b 加 to_dict/from_dict. 仍是 dataclass, 不是 Event Bus 消息 |
+| `ecos/dual_agent/protocol/messages.py:CalibrationMessage` | 30% | 已有 Message 类型枚举, v0.82 统一到 LearningEvent (event_type="calibration") |
+| `ecos/dual_agent/protocol/messages.py:MessageType` | 50% | 已有 10 种 MessageType, 接近 Event 类型分类 |
+| `web/api/belief.py` _response_history | 40% | 隐式 Event 流（按时间序的答题记录）, v0.82+ 迁移到 EventLog |
+| `web/api/dual_agent.py` calibration_log 表 | 30% | 隐式 Event 流（dual_agent 互校历史）, v0.82+ 统一到 event_log |
+| **缺失：Event Bus** | 0% | 没有 pub/sub 机制 (deferred to v0.82+, YAGNI for now) |
+| **缺失：EventLog retention policy** | 0% | event_log table 无限增长, v0.82+ 加 auto-prune |
 
 **演进建议**：
-- **v0.72.0**：统一 `Observation` + `CalibrationMessage` 为 `LearningEvent`（Event Engine 入口）
-- **v0.73.0**：加 Event Bus（in-process pub/sub）
-- **Phase 6+**：加 Event Replay + Simulation
+- **v0.81.0** ✅: EventLog + LearningEvent + Replay/Simulation APIs (Option D direction, defer LearningEvent unification + Event Bus to v0.82+)
+- **v0.82.0**：统一 `Observation` + `CalibrationMessage` 为 `LearningEvent` (event_type 扩展); Event Bus (in-process pub/sub); EventLog retention policy
+- **v0.82+**：迁移已有 replay scripts (v078_h3c4_*, v0753_*) 到 StateEngine.replay (cleanup, not correctness)
 
 ### 1.3 Policy Engine
 
@@ -363,19 +380,23 @@
 | 60-80% | BeliefState(Twin 雏形) / DimensionState(Belief 雏形) / MIRT(Inference) / BKT(Inference) | 4 |
 | 40-60% | Observation / CalibrationMessage / partial credit / LLM Critic / attribution | 5 |
 | 20-40% | calibration_log / response_history / evidence_predictions 占位 | 3 |
-| 0-20% | State Engine 抽象 / Event Bus / Evidence Engine / Evaluation Engine / Goal Ontology / Replay / Simulation | 7 |
+| 80%+ | LinUCB / LCAPolicyLearner / 测试基础设施 / 抗幻觉 / StateEngine (6/6) / EventLog + Replay + Simulation | 6 - **[v0.81.0]** State Engine 抽象 + Event Engine 80% 完成 |
+| 60-80% | BeliefState(Twin 雏形) / DimensionState(Belief 雏形) / MIRT(Inference) / BKT(Inference) | 4 |
+| 40-60% | Observation / CalibrationMessage / partial credit / LLM Critic / attribution | 5 |
+| 20-40% | calibration_log / response_history / evidence_predictions 占位 | 3 |
+| 0-20% | Event Bus / Evidence Engine / Evaluation Engine / Goal Ontology / LearningEvent unification | 5 |
 
 ### 8.2 缺失核心组件清单
 
 完全缺失（接近度 ≤ 20%）：
-1. **State Engine 抽象**（CQRS 缺失）
-2. **Event Bus**（pub/sub 机制）
-3. **Evidence Engine**（Evidence 统一管理）
-4. **Evaluation Engine**（Twin 变化归因 / Policy 对比 / Goal completion）
-5. **Goal Ontology**（Capability / Objective / Metric / Evidence）
-6. **Event Replay**（按 Event 序列重建 Twin）
-7. **Event Simulation**（假设场景模拟）
-8. **Policy 评估框架**（AB test LinUCB vs Thompson）
+1. **Event Bus**（pub/sub 机制, deferred to v0.82+ YAGNI）
+2. **Evidence Engine**（Evidence 统一管理, v0.83）
+3. **Evaluation Engine**（Twin 变化归因 / Policy 对比 / Goal completion, v0.83+）
+4. **Goal Ontology**（Capability / Objective / Metric / Evidence, v0.83+）
+5. **LearningEvent type unification**（Observation + CalibrationMessage -> LearningEvent, v0.82）
+6. **Policy 评估框架**（AB test LinUCB vs Thompson）
+
+> **[v0.81.0 更新 2026-08-10]**: State Engine 抽象 + Event Replay + Event Simulation 已落地 (v0.80 + v0.81). 详情见 §1.1 + §1.2.
 
 ### 8.3 演进优先级建议
 
