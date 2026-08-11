@@ -97,11 +97,11 @@
 | `ecos/lca/l4_optimization/linucb.py:LinUCB` | 80% | LinUCB 已有,接口清晰（select_arm / update） |
 | `ecos/lca/l4_optimization/policy_learner.py:LCAPolicyLearner` | 80% | LinUCB 包装 + 上下文构建 + arm 候选映射 |
 | `ecos/lca/l4_optimization/thompson.py:ThompsonSampling` (v0.86.0-c) | 100% | Beta-Bernoulli Bandit, 接口同构 LinUCB (select_arm/update/dump_state/load_state) |
-| `ecos/lca/l4_optimization/pomdp.py:POMDPPolicy` (v0.87.0-c) | 100% | 4 状态 POMDP (Engaged/Frustrated/Bored/Confused) + Bayesian belief inference (b'(s') ∝ O[o|s'] * T^T @ b) |
+| `ecos/lca/l4_optimization/pomdp.py:POMDPPolicy` (v0.89.0-d) | 100% | 4 状态 POMDP (Engaged/Frustrated/Bored/Confused) + 依赖型 T(s'|s,a) + 固定 init R(s,a) + PBVI 默认 (α-vector 完整算法 + 收敛 + reachable belief points + lazy load + 持久化) |
 | `ecos/lca/orchestrator.py:LCAEngine._estimate_gain` | 60% | 简化估算策略（scale × (1-K) × scaffolding）,不是 LinUCB 但属于 Policy 库的一员 |
 | `ecos/dual_agent/orchestrator.py:_compute_dual_agent_confidence` (v0.69.0) | 50% | LinUCB θ@x 预测,属于 Policy Engine 的"预测接口",但不是独立 Engine |
 | **缺失：LLM-as-Policy** | 0% | LLM 只做 rationale / critic,不做策略推荐 |
-| `ecos/evaluation/policy_ab_test.py:PolicyABTest` (v0.87.0-d) | 100% | v0.83.0-c 占位 + v0.86.0-d 真 A/B Test + v0.87.0-d 4-policy 支持 (LinUCB/linucb_baseline/Thompson/POMDP 任意 2-way) |
+| `ecos/evaluation/policy_ab_test.py:PolicyABTest` (v0.89.0-d) | 100% | v0.83.0-c 占位 + v0.86.0-d 真 A/B Test + v0.87.0-d 4-policy 支持 (LinUCB/linucb_baseline/Thompson/POMDP+PBVI 任意 2-way, v0.89.0-d 工厂 use_pbvi=True) |
 
 **演进建议**：
 - **v0.76.0**：引入 Thompson Sampling（Policy Engine 第二个 Policy）✅ 2026-08-11 v0.86.0-c 落地 (Beta-Bernoulli Bandit, LinUCB 同接口, policy_type="thompson" 切换)
@@ -320,7 +320,11 @@
 - **v0.88.0-c** ✅ (2026-08-11): POMDP 完整 (依赖型 T+R). 3D transition (n_states x n_states x n_arms) + R(s, a) 固定 init + bayes_update(action, observation) + schema_version 校验. 16 新增 tests (pytest 1011 → 1027, +1.6%). 防御性自检 [8] 仍 hard block. POMDP Policy §1.3 80% → 100%. 老 snapshot 不兼容 (per design §4.3, schema_version="0.88.0-c" 校验).
 - **v0.88.0-d** ✅ (2026-08-11): POMDP 集成 Runtime + 真 A/B 3-way 升级. LCAEngine.select_intervention 前消费 observation (bayes_update(action, obs)) + LCAPolicyLearner.set_observation API + PolicyABTest 自动升级. 17 新增 tests (pytest 1027 → 1044, +1.7%). H3-c4 + v0.81 replay canary 全 PASS. 防御性自检 [8] 仍 hard block. POMDP Runtime 集成 + Multi-Domain 100%.
 - **v0.88.0 final** ✅ (2026-08-11): 文档同步收口. README.md (badge + 当前状态 + Kernel 深化进度表 + 累计产出更新) + CLAUDE.md (当前阶段追加 v0.86/v0.87/v0.88 摘要 + 防御性自检 [8] 追加 mutation 状态 + pytest 测试清单 836 → 1044) + memory 新增 `project-v088-completion-state.md`. 缺失清单 0 项剩.
-- **v0.89.0+** (Phase 7+ 抽象推演 #2+): Twin → Human Twin 抽象 + Plugin SDK 文档化 + Teacher/Parent Dashboard + 跨学科扩展
+- **v0.89.0-a** ✅ (2026-08-12): PBVI 雏形 + α-vector 数据结构. NEW `ecos/lca/l4_optimization/pomdp_solver.py` (AlphaVector frozen dataclass + PBVI class 单步 backup + alpha_value/best_action 雏形). 19 新增 tests (含 parametrize, pytest 1044 → 1063). 防御性自检 [8] 仍 hard block. POMDP Policy §1.3 PBVI 雏形落地.
+- **v0.89.0-b** ✅ (2026-08-12): PBVI 完整算法 + belief point sampling. update_alpha_vectors 收敛检测 + PBVI.solve 主算法 (iterative backup) + reachable_belief_points (随机采样) + uniform_belief_points (Dirichlet 均匀). 12 新增 tests (pytest 1063 → 1075). 经典 PBVI (Sondik 1971 简化): α-vector in state space, V(b) = α·b. 防御性自检 [8] 仍 hard block.
+- **v0.89.0-c** ✅ (2026-08-12): POMDPPolicy 集成 PBVI. use_pbvi=True 默认 + 懒加载 reachable belief points + solve_pbvi() 显式入口 + dump_state/load_state 持久化 (use_pbvi / pbvi_config / solver_state). schema_version 0.89.0-c, 老 snapshot 0.88.0-c / 0.87.0-c raise ValueError. 10 新增 tests (pytest 1075 → 1085).
+- **v0.89.0-d** ✅ (2026-08-12): Runtime + PolicyABTest 集成 PBVI. LCAPolicyLearner / LCAEngine.select_intervention POMDP 路径显式 solve_pbvi (双层防御) + PolicyABTest 工厂 use_pbvi=True + solve_pbvi 幂等 (α 缓存命中跳过) + PolicyLearnerConfig.pomdp_use_pbvi 透传. Runtime plan 签名稳定, opt-out kwargs 留 v0.90+. 11 新增 tests (pytest 1085 → 1096). 防御性自检 [8] 仍 hard block.
+- **v0.90.0+** (Phase 7+ 抽象推演 #2+): Twin → Human Twin 抽象 + Plugin SDK 文档化 + Teacher/Parent Dashboard + POMDP T(s'|s,a) / R(s,a) 在线学习
 
 **设计原则**:
 - **Domain-agnostic Kernel 1 套**: LinUCB / Thompson / POMDP / Evidence / Runtime / StateEngine 不引用 Domain
@@ -492,6 +496,37 @@ v0.84.0-d 在 LCA 4-layer 之外, 引入 Plugin Runtime 雏形 (kernel-mapping �
 > - POMDP Runtime 集成 + Multi-Domain 100% 全部完成.
 > - **v0.88.0 final 完成**: README.md / CLAUDE.md / 12-kernel-mapping §8.2 / memory (`project-v088-completion-state.md`) 全部同步. 缺失清单 0 项剩.
 > - 下一阶段 v0.89.0+: Phase 7+ 抽象推演 #2+ (Twin → Human Twin + Plugin SDK 文档化 + Teacher/Parent Dashboard + 跨学科扩展) + POMDP point-based solver (POMCP / DESPOT).
+
+> **[v0.89.0-a 更新 2026-08-12]**: Phase 7+ 抽象推演 #2 sub-version a 完成. POMDP point-based solver 雏形 (PBVI + α-vector). 19 新增 tests (pytest 1044 → 1063, +1.8%). 详情见 §1.3 + §3.1.
+> - NEW `ecos/lca/l4_optimization/pomdp_solver.py` (AlphaVector frozen dataclass + PBVI class + 单步 backup + alpha_value/best_action)
+> - 防御性自检 [8] 仍 hard block. H3-c4 + v0.81 replay canary 全 PASS.
+
+> **[v0.89.0-b 更新 2026-08-12]**: Phase 7+ 抽象推演 #2 sub-version b 完成. PBVI 完整算法 + belief point sampling. 12 新增 tests (pytest 1063 → 1075, +1.1%). 详情见 §1.3.
+> - MODIFY backup_step 算法: 经典 PBVI (Sondik 1971 简化) — 对每个 state s 算 V_a(δ_s), 输出 α.values shape (n_states,)
+> - NEW PBVI.update_alpha_vectors 收敛检测 (max abs diff < epsilon)
+> - NEW PBVI.solve 主算法 (iterative backup + 收敛)
+> - NEW reachable_belief_points (随机采样, 含 initial anchor) + uniform_belief_points (Dirichlet 均匀)
+> - 防御性自检 [8] 仍 hard block. H3-c4 + v0.81 replay canary 全 PASS.
+
+> **[v0.89.0-c 更新 2026-08-12]**: Phase 7+ 抽象推演 #2 sub-version c 完成. POMDPPolicy 集成 PBVI. 10 新增 tests (pytest 1075 → 1085, +0.9%). 详情见 §1.3.
+> - MODIFY POMDPPolicy: use_pbvi=True 默认 + pbvi_gamma/epsilon/n_iters/n_belief_points 配置 + lazy _init_pbvi_solver + solve_pbvi() 显式入口
+> - MODIFY POMDPPolicy.select_arm: PBVI 路径 (solver.best_action) + PBVI 失败 fallback QMDP
+> - MODIFY POMDPPolicy.dump_state: use_pbvi + pbvi_config + solver_state 持久化
+> - MODIFY POMDPPolicy.load_state: schema_version="0.89.0-c" 校验 + α-vector state-space 维度校验
+> - 防御性自检 [8] 仍 hard block. H3-c4 + v0.81 replay canary 全 PASS.
+
+> **[v0.89.0-d 更新 2026-08-12]**: Phase 7+ 抽象推演 #2 sub-version d 完成. Runtime + PolicyABTest 集成 PBVI. 11 新增 tests (pytest 1085 → 1096, +1.0%). 详情见 §1.3.
+> - MODIFY LCAPolicyLearner.__init__: pomdp_use_pbvi 形参 (默认 None → POMDPPolicy True)
+> - MODIFY LCAPolicyLearner.select_intervention POMDP 路径: 显式 solve_pbvi (try/except 兜底)
+> - MODIFY LCAEngine.select_intervention POMDP 路径: 显式 solve_pbvi (双层防御, dual_agent 直走也生效)
+> - MODIFY PolicyABTest._create_fresh_bandit: POMDP 工厂 use_pbvi=True
+> - MODIFY POMDPPolicy.solve_pbvi: 幂等 (α 缓存命中跳过重复 backup)
+> - MODIFY PolicyLearnerConfig: pomdp_use_pbvi 透传
+> - Runtime.plan 签名稳定, opt-out kwargs 留 v0.90+
+> - 防御性自检 [8] 仍 hard block. H3-c4 + v0.81 replay canary 全 PASS.
+
+> **[v0.89.0 final 完成 2026-08-12]**: README.md / CLAUDE.md / 12-kernel-mapping §1.3 + §8.2 / memory (`project-v089-completion-state.md`) 全部同步. 缺失清单 0 项剩.
+> - 下一阶段 v0.90+: Phase 7+ 抽象推演 #2+ (Twin → Human Twin + Plugin SDK 文档化 + Teacher/Parent Dashboard + 跨学科扩展) + POMDP T(s'|s,a) / R(s,a) 在线学习.
 
 > **[v0.87.0 完成 2026-08-11]**: 缺失清单 3→1 (Motivation Profile / POMDP Policy 全部落地). Phase 6+ Kernel 扩展第 2 个版本 4 sub-commit 全部完成 (a=Motivation schema/b=Motivation Runtime+c=POMDP 雏形/d=POMDP 集成 3-way A/B). pytest 898 → 958 (+60, +6.7%).
 

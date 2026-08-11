@@ -298,6 +298,38 @@
 - 缺失清单: 0 项剩
 
 
+## [0.89.0 final] 2026-08-12
+
+### feat: Phase 7+ 抽象推演 #2 收口 — POMDP point-based solver 100%
+
+> v0.89.0 final 收口文档同步：README.md 当前状态 + CLAUDE.md 当前阶段 v0.89 摘要 + 12-kernel-mapping §1.3 + §8.2 更新 + memory `project-v089-completion-state.md` 替换 v0.88 completion state.
+
+#### NEW: 文档同步
+
+- `README.md`:
+  - 状态 badge: v0.88.0-d → v0.89.0-d
+  - 当前状态: v0.88.0-d → v0.89.0-d (Phase 7+ 抽象推演 #2 完成)
+  - Kernel 深化进度表追加 PBVI 100% 摘要
+  - 累计产出: 958 → 1096 (+138), v0.86/v0.87/v0.88/v0.89 累计 20 sub-commit
+  - 下一步: v0.90+ 启动
+- `CLAUDE.md`:
+  - 当前阶段追加 v0.89.0-a/b/c/d 摘要 + 12-kernel-mapping 引用 §8.2 v0.89.0 更新
+  - 防御性自检 [8] 追加 v0.89.0-a/b/c/d 同样 0 新 mutation site
+  - pytest 测试清单 1044 → 1096 (+52), 50 个文件 (含 test_pbvi_solver / test_pomdp_pbvi_integration / test_runtime_pbvi)
+- `research/00-overview/12-kernel-mapping-current-vs-2.0.md`:
+  - §1.3 POMDPPolicy 描述升级到 v0.89.0-d (PBVI 默认 + 完整)
+  - §3.1 末尾追加 v0.89.0-a/b/c/d + final 更新块
+  - PolicyABTest 描述追加 v0.89.0-d 工厂 use_pbvi=True
+- `memory/project-v089-completion-state.md` (NEW): 替换 v0.88 completion state
+
+#### 累计进度 (v0.88.0-d → v0.89.0 final)
+
+- pytest: 1044 → **1096** (+52, +5.0%)
+- POMDP Policy: 80% (依赖型 T+R) → **100%** (PBVI 完整集成 Runtime)
+- 缺失清单: 0 项剩
+- 下一阶段 v0.90+: Twin → Human Twin 抽象 + Plugin SDK 文档化 + Teacher/Parent Dashboard + POMDP T/R 在线学习
+
+
 ## [0.89.0-d] 2026-08-12
 
 ### feat: Phase 7+ 抽象推演 #2 (sub d) — Runtime + PolicyABTest 集成 PBVI
