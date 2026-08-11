@@ -47,13 +47,16 @@ class PolicyLearnerConfig:
         cold_start_threshold:  总 arm_pull 阈值 (< threshold 视为冷启动, 走 fallback)
                               默认 10, 跟 v0.69.0 LCAEngine._is_linucb_cold_start 一致
         policy_type:           v0.86.0-c: "linucb" (默认) / "thompson"
+                              v0.87.0-d: 扩展到 "pomdp"
         thompson_seed:         v0.86.0-c: Thompson Sampling PRNG seed (testing 用)
+        pomdp_seed:            v0.87.0-d: POMDP Policy PRNG seed (testing 用)
     """
 
     bandit_config: BanditConfig = field(default_factory=BanditConfig)
     cold_start_threshold: int = 10
     policy_type: str = "linucb"
     thompson_seed: Optional[int] = None
+    pomdp_seed: Optional[int] = None
 
 
 # ---------------------------------------------------------------------------
@@ -106,12 +109,14 @@ class PolicyLearner:
         v0.57.0: 修复 v0.56.0 单 bandit 多学生数据冲突 BUG.
                   每个学生独立 LCAPolicyLearner 实例, LinUCB A/b 矩阵隔离.
         v0.86.0-c: 透传 policy_type + thompson_seed 到 LCAPolicyLearner
+        v0.87.0-d: 透传 pomdp_seed
         """
         if student_id not in self._learners:
             self._learners[student_id] = LCAPolicyLearner(
                 self.config.bandit_config,
                 policy_type=self.config.policy_type,
                 thompson_seed=self.config.thompson_seed,
+                pomdp_seed=self.config.pomdp_seed,
             )
         return self._learners[student_id]
 

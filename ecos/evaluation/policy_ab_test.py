@@ -93,7 +93,7 @@ class PolicyABTest:
         # -> replay 同 event 序列, 真实计算 mean_reward
     """
 
-    SUPPORTED_POLICIES: tuple = ("linucb", "linucb_baseline", "thompson")
+    SUPPORTED_POLICIES: tuple = ("linucb", "linucb_baseline", "thompson", "pomdp")
 
     def __init__(self, lca_engine: Optional["LCAEngine"] = None):
         # lca_engine optional, 不传则 ab test 只能跑 baseline (返 winner=None)
@@ -334,7 +334,8 @@ class PolicyABTest:
             ValueError: 未知 policy_id
         """
         # v0.86.0-d: lazy import 避免循环
-        from ..lca.l4_optimization import LinUCB, ThompsonSampling
+        # v0.87.0-d: 扩展到 POMDPPolicy
+        from ..lca.l4_optimization import LinUCB, POMDPPolicy, ThompsonSampling
 
         if policy_id in ("linucb", "linucb_baseline"):
             # LinUCB: 16 维 context, alpha=1.0, decay=1.0 (跟 v0.75.3 默认一致)
@@ -342,6 +343,9 @@ class PolicyABTest:
         elif policy_id == "thompson":
             # Thompson: 10 arm, fixed seed (可重现)
             return ThompsonSampling(n_arms=10, seed=42)
+        elif policy_id == "pomdp":
+            # v0.87.0-d: POMDP: 10 arm, 4 状态, fixed seed (可重现)
+            return POMDPPolicy(n_arms=10, seed=42)
         else:
             raise ValueError(f"PolicyABTest: 未知 policy_id={policy_id!r}")
 

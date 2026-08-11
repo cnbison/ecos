@@ -1,14 +1,16 @@
-"""L4 LCAPolicyLearner——LinUCB + Thompson Sampling + Intervention 候选映射.
+"""L4 LCAPolicyLearner——LinUCB + Thompson Sampling + POMDP + Intervention 候选映射.
 
 对应：
   - research/10-engineering/02-lca-policy-engine.md §4.2 LCAPolicyLearner
   - v0.86.0-c: Thompson Sampling 扩展 (Policy Engine 第二个 Policy)
+  - v0.87.0-c/d: POMDP Policy 扩展 (Policy Engine 第三个 Policy)
 
 职责：
   - 把 BeliefState 编码成 LinUCB 上下文向量（16 维）
   - 维护 Intervention 候选池（arm 索引 → Intervention）
   - 提供 select_intervention(belief_state, candidates) 和 update(...)
   - v0.86.0-c: 根据 policy_type ("linucb" / "thompson") 委托不同 bandit
+  - v0.87.0-d: 根据 policy_type ("pomdp") 委托 POMDPPolicy
 """
 
 from __future__ import annotations
@@ -21,21 +23,24 @@ import numpy as np
 from ...cta.belief_state import BeliefState, BloomLevel
 from ..intervention import Intervention
 from .linucb import BanditConfig, LinUCB
+from .pomdp import POMDPPolicy
 from .thompson import ThompsonSampling
 
 _log = logging.getLogger(__name__)
 
 
-# v0.86.0-c: policy_type 合法值
-PolicyType = Literal["linucb", "thompson"]
+# v0.86.0-c: policy_type 合法值 (v0.87.0-d 扩展到 3 值)
+PolicyType = Literal["linucb", "thompson", "pomdp"]
 
 
 class LCAPolicyLearner:
-    """LCA 策略学习器——LinUCB / Thompson Sampling 包装 + 上下文构建.
+    """LCA 策略学习器——LinUCB / Thompson / POMDP 包装 + 上下文构建.
 
-    v0.86.0-c 起支持 2 种 policy (通过 policy_type 切换):
+    v0.86.0-c 起支持 2 种 policy, v0.87.0-d 扩展到 3 种 (通过 policy_type 切换):
       - "linucb" (默认): 上下文 Bandit, 16 维 context, UCB 算法
-      - "thompson": 贝叶斯 Bandit, Beta(α, β) 每 arm, Thompson Sampling
+      - "thompson" (v0.86.0-c): 贝叶斯 Bandit, Beta(α, β) 每 arm, Thompson Sampling
+      - "pomdp" (v0.87.0-d): 部分可观测 MDP, 4 状态 (Engaged/Frustrated/Bored/Confused),
+                              Bayesian belief inference (4 状态 Bayesian)
 
     用法：
         # 默认 LinUCB
@@ -43,6 +48,9 @@ class LCAPolicyLearner:
         # 或 Thompson Sampling
         learner = LCAPolicyLearner(BanditConfig(n_arms=10), policy_type="thompson",
                                     thompson_seed=42)
+        # 或 POMDP
+        learner = LCAPolicyLearner(BanditConfig(n_arms=10), policy_type="pomdp",
+                                    pomdp_seed=42)
         intervention = learner.select_intervention(belief_state, candidate_list)
         # 观测到 reward 后
         learner.update(intervention, belief_state, reward=state_delta)
@@ -58,11 +66,12 @@ class LCAPolicyLearner:
         config: BanditConfig | None = None,
         policy_type: str = "linucb",
         thompson_seed: Optional[int] = None,
+        pomdp_seed: Optional[int] = None,
     ):
-        # v0.86.0-c: 校验 policy_type
-        if policy_type not in ("linucb", "thompson"):
+        # v0.87.0-d: 校验 policy_type (3 值)
+        if policy_type not in ("linucb", "thompson", "pomdp"):
             raise ValueError(
-                f"LCAPolicyLearner: 未知 policy_type={policy_type!r}, 应为 'linucb' / 'thompson'"
+                f"LCAPolicyLearner: 未知 policy_type={policy_type!r}, 应为 'linucb' / 'thompson' / 'pomdp'"
             )
         self.policy_type: str = policy_type
         self.config = config or BanditConfig()
@@ -84,6 +93,13 @@ class LCAPolicyLearner:
             self.thompson = ThompsonSampling(
                 n_arms=self.config.n_arms,
                 seed=thompson_seed,
+            )
+        # v0.87.0-d: POMDP Policy 实例 (仅 policy_type=="pomdp" 时创建)
+        self.pomdp: Optional[POMDPPolicy] = None
+        if policy_type == "pomdp":
+            self.pomdp = POMDPPolicy(
+                n_arms=self.config.n_arms,
+                seed=pomdp_seed,
             )
         # Arm 索引 → 候选干预 hash（用于 update 时反查）
         self._arm_fingerprints: Dict[int, str] = {}
@@ -125,6 +141,16 @@ class LCAPolicyLearner:
         # v0.86.0-c: Thompson Sampling 路径 (non-contextual, 忽略 context)
         if self.policy_type == "thompson" and self.thompson is not None:
             arm = self.thompson.select_arm(context=None)
+            self._last_arm = arm
+            idx = arm % len(candidate_interventions)
+            chosen = candidate_interventions[idx]
+            self._arm_fingerprints[arm] = chosen.intervention_id
+            self._intervention_to_arm[chosen.intervention_id] = arm
+            return chosen
+
+        # v0.87.0-d: POMDP 路径 (non-contextual, 走 belief_state)
+        if self.policy_type == "pomdp" and self.pomdp is not None:
+            arm = self.pomdp.select_arm(context=None)
             self._last_arm = arm
             idx = arm % len(candidate_interventions)
             chosen = candidate_interventions[idx]
@@ -187,6 +213,18 @@ class LCAPolicyLearner:
             self.thompson.update(arm, context=None, reward=clamped)
             return
 
+        # v0.87.0-d: POMDP 路径 (non-contextual, 简化 update)
+        if self.policy_type == "pomdp" and self.pomdp is not None:
+            arm = self._lookup_arm(intervention)
+            if arm is None:
+                return
+            clamped = max(
+                self.config.min_reward,
+                min(self.config.max_reward, reward),
+            )
+            self.pomdp.update(arm, context=None, reward=clamped)
+            return
+
         # LinUCB 路径 (现有)
         # v0.75 P0-m: 重建跟 select 时一样的 context (含 intervention.difficulty)
         if self.config.use_arm_features:
@@ -238,11 +276,16 @@ class LCAPolicyLearner:
         Returns:
             True = 惩罚已应用; False = 已达上限, 跳过惩罚
 
-        防御性自检 [1]: arm 越界 / Thompson 路径 _log.warning, 不 raise
+        防御性自检 [1]: arm 越界 / Thompson / POMDP 路径 _log.warning, 不 raise
         """
         if self.policy_type == "thompson":
             _log.warning(
                 "apply_penalty: policy_type='thompson' 不支持 LinUCB A 矩阵惩罚, 跳过",
+            )
+            return False
+        if self.policy_type == "pomdp":
+            _log.warning(
+                "apply_penalty: policy_type='pomdp' 不支持 LinUCB A 矩阵惩罚, 跳过",
             )
             return False
         if arm < 0 or arm >= self.config.n_arms:
