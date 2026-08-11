@@ -208,6 +208,8 @@ class LCAEngine:
         self._update_count: Dict[str, int] = {}
         # v0.57.0: per-student last_intervention (持久化)
         self._last_intervention: Dict[str, Intervention] = {}
+        # v0.88.0-d: per-student last POMDP observation (下次 select 消费 bayes_update)
+        self._last_observation: Dict[str, int] = {}
 
     # v0.82.0-a: __getattr__ forwarding for Planner 子组件 (向后兼容)
     #   旧代码 / 测试可能访问 engine.clt / engine.bjork_testing 等
@@ -325,6 +327,16 @@ class LCAEngine:
         chosen.expected_gain = max(0.0, min(1.0, expected_gain))
         chosen.expected_risk = expected_risk
 
+        # v0.88.0-d: POMDP 路径 - 在 select 前消化上次 observation
+        #   LCAEngine 维护 _last_observation[student_id] (上次 update 产出),
+        #   select 前 set 到 LCAPolicyLearner, 内部 select 调 bayes_update
+        if self.policy_learner.config.policy_type == "pomdp":
+            obs = self._last_observation.get(student_id)
+            if obs is not None:
+                # 从 per-student LCAPolicyLearner 调 set_observation
+                learner = self.policy_learner._get_learner(student_id)
+                learner.set_observation(obs)
+
         # Step 7: 记录干预
         self.intervention_history.setdefault(student_id, []).append(chosen)
         # v0.82.0-c: 委托 Evaluator.record_intervention (wrap self.attribution)
@@ -392,6 +404,13 @@ class LCAEngine:
         )
         # v0.57.0: per-student update 计数
         self._update_count[student_id] = self._update_count.get(student_id, 0) + 1
+
+        # v0.88.0-d: POMDP observation 记录 (下次 select 消费)
+        #   linucb_reward ∈ [0, 1] → discretize 到 [0, n_observations)
+        if self.policy_learner.config.policy_type == "pomdp":
+            self._last_observation[student_id] = int(
+                min(3, int(linucb_reward * 4))  # 跟 LCAPolicyLearner._reward_to_observation 一致
+            )
 
     # ---------------------------------------------------------------
     # v0.69.0: LinUCB 冷启动判定 (B4 前置)

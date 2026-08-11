@@ -4,6 +4,8 @@
   - research/10-engineering/02-lca-policy-engine.md §4.2 LCAPolicyLearner
   - v0.86.0-c: Thompson Sampling 扩展 (Policy Engine 第二个 Policy)
   - v0.87.0-c/d: POMDP Policy 扩展 (Policy Engine 第三个 Policy)
+  - v0.88.0-c: POMDP 依赖型 T+R (T 真正 action-dependent)
+  - v0.88.0-d: POMDP action observation feedback 集成 Runtime
 
 职责：
   - 把 BeliefState 编码成 LinUCB 上下文向量（16 维）
@@ -11,6 +13,7 @@
   - 提供 select_intervention(belief_state, candidates) 和 update(...)
   - v0.86.0-c: 根据 policy_type ("linucb" / "thompson") 委托不同 bandit
   - v0.87.0-d: 根据 policy_type ("pomdp") 委托 POMDPPolicy
+  - v0.88.0-d: POMDP 路径接受 observation feedback (bayes_update(action, obs))
 """
 
 from __future__ import annotations
@@ -114,6 +117,10 @@ class LCAPolicyLearner:
         #   背景: lbc003 触发 50 次策略质疑 -> A 矩阵放大 1.6e+05 倍 -> θ ≈ 0 -> V3 预测永远 ~0.11
         #   修复: 限制每 arm 最多惩罚 penalty_max 次 (默认 3), 超过不再 *=10
         self._penalty_counts: List[int] = [0] * self.config.n_arms
+        # v0.88.0-d: POMDP observation feedback (from last update)
+        #   None = 首次 select 无 observation, 不调 bayes_update
+        #   int = 上次 update 产出的 observation, 下次 select 之前调 bayes_update(_last_arm, obs)
+        self._last_observation: Optional[int] = None
 
     def select_intervention(
         self,
@@ -149,7 +156,13 @@ class LCAPolicyLearner:
             return chosen
 
         # v0.87.0-d: POMDP 路径 (non-contextual, 走 belief_state)
+        # v0.88.0-d: POMDP 路径接受 action observation feedback (T(s'|s,a) 依赖 action)
         if self.policy_type == "pomdp" and self.pomdp is not None:
+            # v0.88.0-d: 在 select 前消化上次 observation (bayes_update 考虑 action)
+            # 这是 v0.88.0-c 依赖型 T+R 的关键集成点: action 影响 transition, observation 影响 posterior
+            if self._last_observation is not None and self._last_arm >= 0:
+                self.pomdp.bayes_update(self._last_arm, self._last_observation)
+                self._last_observation = None  # 消费后清空 (避免重复消费)
             arm = self.pomdp.select_arm(context=None)
             self._last_arm = arm
             idx = arm % len(candidate_interventions)
@@ -214,6 +227,7 @@ class LCAPolicyLearner:
             return
 
         # v0.87.0-d: POMDP 路径 (non-contextual, 简化 update)
+        # v0.88.0-d: POMDP update 同时存储 observation (下次 select 消费)
         if self.policy_type == "pomdp" and self.pomdp is not None:
             arm = self._lookup_arm(intervention)
             if arm is None:
@@ -223,6 +237,8 @@ class LCAPolicyLearner:
                 min(self.config.max_reward, reward),
             )
             self.pomdp.update(arm, context=None, reward=clamped)
+            # v0.88.0-d: reward → observation (discretize) → 下次 select 消费
+            self._last_observation = self._reward_to_observation(clamped)
             return
 
         # LinUCB 路径 (现有)
@@ -303,6 +319,49 @@ class LCAPolicyLearner:
     def get_penalty_counts(self) -> List[int]:
         """v0.71.0: 暴露每 arm 惩罚次数 (调试 + 测试用)."""
         return list(self._penalty_counts)
+
+    # ---------------------------------------------------------------
+    # v0.88.0-d: POMDP observation feedback 接口 (LCAEngine 集成用)
+    # ---------------------------------------------------------------
+
+    def set_observation(self, observation: int) -> None:
+        """v0.88.0-d: 外部设 observation (LCAEngine 计算 reward 后调用).
+
+        POMDP path: 下次 select_intervention() 时, 在 select_arm 之前
+        调 pomdp.bayes_update(_last_arm, observation) 消化该 observation.
+        其他 policy_type: 忽略 (LinUCB/Thompson 不需要).
+
+        Args:
+            observation: int [0, n_observations), POMDP observation
+
+        防御性: pomdp is None (非 POMDP 路径) 时静默忽略
+        """
+        if self.policy_type != "pomdp" or self.pomdp is None:
+            return
+        if not isinstance(observation, int) or not (0 <= observation < self.pomdp.n_observations):
+            _log.warning(
+                "LCAPolicyLearner.set_observation: obs 越界或非 int (obs=%s, n_obs=%s), 跳过",
+                observation, self.pomdp.n_observations if self.pomdp else "N/A",
+            )
+            return
+        self._last_observation = int(observation)
+
+    @staticmethod
+    def _reward_to_observation(reward: float) -> int:
+        """v0.88.0-d: reward ∈ [0, 1] → observation ∈ [0, 4) 离散化.
+
+        4 observation (跟 POMDP 4 状态一致):
+          - 0.0    → 0 (对应 Bored, 低反应)
+          - 0.25   → 1
+          - 0.5    → 2
+          - 0.75   → 3 (高反应)
+          - 1.0    → 3 (clip 到 n_obs - 1)
+
+        默认 n_observations = 4 (跟 POMDPPolicy 默认一致).
+        """
+        clamped = max(0.0, min(1.0, float(reward)))
+        n_obs = 4  # 跟 POMDPPolicy 默认 n_observations=4
+        return min(n_obs - 1, int(clamped * n_obs))
 
     # ---------------------------------------------------------------
     # 上下文构建（02-lca §4.2 _build_context）

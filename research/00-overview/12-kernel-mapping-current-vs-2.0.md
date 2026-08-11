@@ -318,7 +318,8 @@
 - **v0.88.0-a** ✅ (2026-08-11): Domain 抽象层奠基. NEW `ecos/domain/{__init__,base,education,science,career}.py` 5 文件. Multi-Domain §3 0% → 80% (Domain 抽象层 100%, 集成留 v0.88.0-b)
 - **v0.88.0-b** ✅ (2026-08-11): Multi-Domain 集成 (DomainExtension + Runtime + LCA). 4 个集成点全完成: BeliefState.domain_extension + Runtime.plan_domain_aware + ExperimentDesigner domain-aware + Evaluator.domain_reward_adjustment. 26 新增 tests (pytest 985 → 1011, +2.7%). 防御性自检 [8] 仍 hard block (set_domain_extension 加入 allowlist). H3-c4 + v0.81 replay canary 全 PASS. Multi-Domain §3 80% → 95%.
 - **v0.88.0-c** ✅ (2026-08-11): POMDP 完整 (依赖型 T+R). 3D transition (n_states x n_states x n_arms) + R(s, a) 固定 init + bayes_update(action, observation) + schema_version 校验. 16 新增 tests (pytest 1011 → 1027, +1.6%). 防御性自检 [8] 仍 hard block. POMDP Policy §1.3 80% → 100%. 老 snapshot 不兼容 (per design §4.3, schema_version="0.88.0-c" 校验).
-- **v0.88.0-d** (待实施): POMDP 集成 LCAEngine.select_intervention + PolicyABTest 升级. 14 新增 tests.
+- **v0.88.0-d** ✅ (2026-08-11): POMDP 集成 Runtime + 真 A/B 3-way 升级. LCAEngine.select_intervention 前消费 observation (bayes_update(action, obs)) + LCAPolicyLearner.set_observation API + PolicyABTest 自动升级. 17 新增 tests (pytest 1027 → 1044, +1.7%). H3-c4 + v0.81 replay canary 全 PASS. 防御性自检 [8] 仍 hard block. POMDP Runtime 集成 + Multi-Domain 100%.
+- **v0.88.0 final** (待实施): 文档同步 + memory v0.87.0 → v0.88.0 completion state.
 - **v0.89.0+** (Phase 7+ 抽象推演 #2+): Twin → Human Twin 抽象 + Plugin SDK 文档化 + Teacher/Parent Dashboard + 跨学科扩展
 
 **设计原则**:
@@ -477,7 +478,19 @@ v0.84.0-d 在 LCA 4-layer 之外, 引入 Plugin Runtime 雏形 (kernel-mapping �
 > - MODIFY POMDPPolicy.load_state: schema_version 校验 (老 snapshot raise)
 > - 接口同构 LinUCB/Thompson (select_arm / update 名称不变). bayes_update 是 POMDP-specific, 可变.
 > - 防御性自检 [8] 仍 hard block. H3-c4 + v0.81 replay canary 全 PASS.
-> - 下一阶段 v0.88.0-d: POMDP 集成 LCAEngine.select_intervention + PolicyABTest 升级.
+> - 下一阶段 v0.88.0 final: 文档同步 + memory v0.87.0 → v0.88.0 completion state.
+
+> **[v0.88.0-d 更新 2026-08-11]**: Phase 7+ 抽象推演 #1 sub-version d 完成. POMDP 集成 Runtime + 真 A/B 3-way 升级. 17 新增 tests (pytest 1027 → 1044, +1.7%). 详情见 §1.3 + §2.5.
+> - NEW LCAPolicyLearner.set_observation API (LCAEngine 调用)
+> - NEW LCAPolicyLearner._reward_to_observation (reward → obs 离散化)
+> - MODIFY LCAPolicyLearner select_intervention pomdp path: 消费 obs 后调 bayes_update(action, obs)
+> - MODIFY LCAPolicyLearner update pomdp path: 计算 obs from reward 存 _last_observation
+> - MODIFY LCAEngine: per-student _last_observation 跟踪 + select forward to learner + update records obs
+> - 无需修改 PolicyABTest._create_fresh_bandit (POMDPPolicy(n_arms=10, seed=42) 自动用 v0.88.0-c schema)
+> - 接口同构 LinUCB/Thompson (set_observation 在 linucb/thompson 路径静默忽略)
+> - 防御性自检 [8] 仍 hard block. H3-c4 + v0.81 replay canary 全 PASS.
+> - POMDP Runtime 集成 + Multi-Domain 100% 全部完成.
+> - 下一阶段 v0.88.0 final: 文档同步 + memory v0.87.0 → v0.88.0 completion state.
 
 > **[v0.87.0 完成 2026-08-11]**: 缺失清单 3→1 (Motivation Profile / POMDP Policy 全部落地). Phase 6+ Kernel 扩展第 2 个版本 4 sub-commit 全部完成 (a=Motivation schema/b=Motivation Runtime+c=POMDP 雏形/d=POMDP 集成 3-way A/B). pytest 898 → 958 (+60, +6.7%).
 

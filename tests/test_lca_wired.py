@@ -463,11 +463,15 @@ class TestDefensiveChecks:
 
         注: v0.56.1 (BUG 修复) 后, 版本应该是 0.56.1. 测试用 >= 0.56.0
         兼容 0.56.0 / 0.56.1+ 等小版本.
+
+        v0.88.0+ sub-version suffix (-a/-b/-c/-d) 用 strip 后再喂 packaging.version,
+        因为 packaging 严格 PEP 440 不接受任意后缀.
         """
         import ecos
         from packaging.version import Version
 
-        current = Version(ecos.__version__)
+        base = ecos.__version__.split("-")[0]
+        current = Version(base)
         assert current >= Version("0.56.0"), \
             f"ecos.__version__ 应 >= 0.56.0 (v0.56.0 LCA 接入), 实际={ecos.__version__}"
 

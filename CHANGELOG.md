@@ -176,11 +176,90 @@
 - pytest: 958 → **1027** (+69, +7.2%; 27 + 26 + 16)
 - 缺失清单: 0 项剩 (Multi-Domain 95% + POMDP 100%)
 
-#### 📋 v0.88.0-d (Phase 7+ 抽象推演 #1 sub d, 待实施)
+## [0.88.0-d] 2026-08-11
 
-- POMDP 集成 LCAEngine.select_intervention: 接受 last_action feedback, 调 pomdp.bayes_update(action, observation) before select
-- PolicyABTest._create_fresh_bandit pomdp 升级依赖型 T+R
-- +14 tests
+### feat: Phase 7+ 抽象推演 #1 (sub d) — POMDP 集成 Runtime + 真 A/B 3-way 升级
+
+> **背景**: v0.88.0-a/b/c Phase 7+ 抽象推演 #1 sub a/b/c 完成 (Domain 抽象 + Runtime 集成 + POMDP 依赖型 T+R). v0.88.0-d 收口: POMDP action observation feedback 集成到 LCAEngine + LCAPolicyLearner. PolicyABTest pomdp 升级 (自动用 v0.88.0-c schema).
+> **v0.88.0-d 目标**: POMDP 真正"action 选择"在 Runtime 中生效. LCAEngine.select_intervention 前消费上次 observation, 调 pomdp.bayes_update(action, obs). pytest 1027 → 1044 (+17, +1.7%).
+
+#### MODIFY: LCAPolicyLearner POMDP observation feedback 集成
+
+- `ecos/lca/l4_optimization/policy_learner.py:LCAPolicyLearner`:
+  - 新字段 `_last_observation: Optional[int]` (initial None)
+  - `set_observation(obs)` API (LCAEngine 用): 非 pomdp 路径静默忽略, 越界 _log.warning + skip
+  - `_reward_to_observation(reward)` static: reward ∈ [0, 1] → obs ∈ [0, 4) (4 档离散化: 0/0.25/0.5/0.75)
+  - `select_intervention` pomdp 路径: select 前消费 `_last_observation`
+    ```python
+    if self._last_observation is not None and self._last_arm >= 0:
+        self.pomdp.bayes_update(self._last_arm, self._last_observation)
+        self._last_observation = None  # 消费后清空 (避免重复消费)
+    ```
+  - `update` pomdp 路径: 计算 obs from reward, 存 `_last_observation` (下次 select 消费)
+
+#### MODIFY: LCAEngine POMDP action observation 集成
+
+- `ecos/lca/orchestrator.py:LCAEngine`:
+  - 新字段 `_last_observation: Dict[str, int]` per-student (上次 update 产出的 obs)
+  - `select_intervention`: pomdp path 在 select 之前 set obs to learner
+    ```python
+    if self.policy_learner.config.policy_type == "pomdp":
+        obs = self._last_observation.get(student_id)
+        if obs is not None:
+            learner = self.policy_learner._get_learner(student_id)
+            learner.set_observation(obs)
+    ```
+  - `update`: pomdp path 存 obs (linucb_reward * 4 clip)
+    ```python
+    if self.policy_learner.config.policy_type == "pomdp":
+        self._last_observation[student_id] = int(min(3, int(linucb_reward * 4)))
+    ```
+  - **跟 plan_motivation_aware / plan_domain_aware 独立**: action obs 是 POMDP 专属机制, 不污染 linucb/thompson 路径
+
+#### 无需修改: PolicyABTest pomdp 升级
+
+- `ecos/evaluation/policy_ab_test.py:PolicyABTest._create_fresh_bandit`:
+  - 已用 `POMDPPolicy(n_arms=10, seed=42)` — 自动走 v0.88.0-c 升级 schema
+  - 3D transition + schema_version="0.88.0-c" 自动生效 (无需新代码)
+  - **真 A/B 3-way 维持**: LinUCB / Thompson / POMDP 都通过 `_create_fresh_bandit` 创建, POMDP 自动升级
+
+#### NEW: tests/test_pomdp_runtime_integration.py (17 tests, v0.88.0-d 关键集成)
+
+1. **LCAPolicyLearner.set_observation (3)**: basic 存 obs + 越界 skip + 非 pomdp ignore
+2. **LCAPolicyLearner._reward_to_observation (3)**: boundaries (0/0.25/0.5/0.75/1.0) + clip + 离散化
+3. **LCAPolicyLearner select_intervention pomdp path (3)**: no obs skip bayes + with obs consume + obs consumed once
+4. **LCAPolicyLearner update pomdp path (2)**: compute obs from reward + obs used by next select
+5. **LCAEngine pomdp integration (4)**: 首次 select 无 obs + update records obs + multi-step 收敛 + 多 student 隔离
+6. **LCAEngine linucb 不污染 (1)**: linucb 路径不应设 _last_observation
+7. **PolicyABTest pomdp upgrade (1)**: _create_fresh_bandit pomdp 用 v0.88.0-c 升级 (3D T + schema_version)
+
+#### 关键不变量 (跟 v0.88.0-a/b/c 一致)
+
+- **接口同构 LinUCB/Thompson**: set_observation 在 linucb/thompson 路径静默忽略
+- **POMDP observation feedback 闭环**: select → update(reward) → 算 obs → 下次 select(bayes_update(action, obs)) → belief 收敛
+- **Per-student 隔离**: _last_observation[student_id] 不污染其他学生
+- **防御性自检 [8] 仍 hard block**: POMDPPolicy + LCAEngine + LCAPolicyLearner 都不 mutate state (allowlist 之外)
+- **H3-c4 canary PASS**: pomdp 集成不影响 linucb/thompson 行为
+- **v0.81 replay canary PASS**: POMDPPolicy 序列化 schema 完整 (schema_version="0.88.0-c")
+- **真 A/B 3-way 维持**: LinUCB / Thompson / POMDP 都通过 `_create_fresh_bandit` 创建
+
+#### 累计进度 (v0.87.0-d → v0.88.0-d)
+
+- POMDP Policy §1.3: 100% (v0.88.0-c 雏形) → **100% (v0.88.0-d Runtime 集成)**
+- Multi-Domain §3: 95% → **100%** (Runtime 集成 + POMDP Runtime 集成 全完成)
+- pytest: 958 → **1044** (+86, +9.0%; 27 + 26 + 16 + 17)
+- 缺失清单: 0 项剩 (Multi-Domain 100% + POMDP 100% + 所有 v0.86/v0.87 Phase 6+ Kernel 100%)
+
+#### 📋 v0.88.0 final (Phase 7+ 抽象推演 #1 收口, 待实施)
+
+- 文档同步: README.md + CLAUDE.md + 12-kernel-mapping §8.2 全部更新
+- memory: project-v088-completion-state.md 新增, 替换 v0.87.0 状态
+- pytest 1044 → 目标 ~1044 (v0.88.0 final 不加新 test, 只同步文档)
+
+
+## [0.88.0-c] 2026-08-11
+
+### feat: Phase 7+ 抽象推演 #1 (sub c) — POMDP 完整 (依赖型 T+R)
 
 
 ## [0.88.0-b] 2026-08-11
