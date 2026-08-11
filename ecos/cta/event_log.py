@@ -101,6 +101,25 @@ def _make_event_id() -> str:
 
 
 @dataclass
+class EventLogConfig:
+    """v0.84.0-c: EventLog retention policy configuration.
+
+    Attributes:
+        max_per_student: hard cap per student (default 10000). When exceeded,
+                        prune() deletes oldest events until count <= max_per_student.
+                        Set to 0 = unlimited (legacy behavior).
+        retention_days: delete events older than N days via purge_before().
+                       0 = unlimited (no time-based retention).
+        auto_prune_on_log: if True, prune() runs after every log_event().
+                          Default False (lazy prune, manual control via cron / scheduler).
+    """
+
+    max_per_student: int = 10000
+    retention_days: int = 0
+    auto_prune_on_log: bool = False
+
+
+@dataclass
 class LearningEvent:
     """v0.81 EventLog record.
 
@@ -254,34 +273,48 @@ class EventLog:
         events = log.load_events("student_001", since=datetime(2026, 8, 1))
         log.close()
 
+        # v0.84.0-c: retention policy
+        config = EventLogConfig(max_per_student=5000, retention_days=90, auto_prune_on_log=True)
+        log = EventLog.from_sqlite("ecos.db", config=config)
+
     Forward-compat: v0.82+ adds event_type="calibration" without schema change.
+    v0.84.0-c: retention policy via EventLogConfig (max_per_student / retention_days /
+               auto_prune_on_log) without schema change.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, config: Optional["EventLogConfig"] = None) -> None:
         # Common state; _events only used by in_memory mode
         self._events: Optional[List[LearningEvent]] = None
         self._conn: Optional[sqlite3.Connection] = None
         self._mode: str = "uninitialized"
+        # v0.84.0-c: retention policy config (lazy default = EventLogConfig())
+        self._config = config if config is not None else EventLogConfig()
 
     # ── Constructors ────────────────────────────────────────────────────────
 
     @classmethod
-    def in_memory(cls) -> "EventLog":
+    def in_memory(cls, config: Optional["EventLogConfig"] = None) -> "EventLog":
         """In-memory list-backed EventLog (for tests / mock)."""
-        log = cls()
+        log = cls(config=config)
         log._events = []
         log._mode = "in_memory"
         return log
 
     @classmethod
-    def from_sqlite(cls, db_path: str) -> "EventLog":
+    def from_sqlite(
+        cls,
+        db_path: str,
+        config: Optional["EventLogConfig"] = None,
+    ) -> "EventLog":
         """sqlite-backed EventLog (production).
 
         Opens own connection. Table DDL is in ecos/persistence/db.py SCHEMA_SQL
         (event_log table). If db_path doesn't exist, sqlite3.connect creates it.
         If event_log table doesn't exist yet (old DB), create it idempotently.
+
+        v0.84.0-c: accepts EventLogConfig for retention policy.
         """
-        log = cls()
+        log = cls(config=config)
         log._conn = sqlite3.connect(
             db_path,
             check_same_thread=False,  # v0.51.1: same as Database.conn
@@ -297,7 +330,12 @@ class EventLog:
     # ── API ─────────────────────────────────────────────────────────────────
 
     def log_event(self, event: LearningEvent) -> None:
-        """Persist a LearningEvent. Idempotent on event_id (PRIMARY KEY)."""
+        """Persist a LearningEvent. Idempotent on event_id (PRIMARY KEY).
+
+        v0.84.0-c: if config.auto_prune_on_log=True, prune() runs after every
+        log_event() (per-student, on the student_id just logged). Failures are
+        logged and don't propagate.
+        """
         if self._mode == "in_memory":
             assert self._events is not None
             # Dedup by event_id (mirrors sqlite PRIMARY KEY semantics)
@@ -305,6 +343,15 @@ class EventLog:
                 if existing.event_id == event.event_id:
                     return
             self._events.append(event)
+            # v0.84.0-c: auto_prune_on_log
+            if self._config.auto_prune_on_log:
+                try:
+                    self.prune(student_id=event.student_id)
+                except Exception:
+                    _log.warning(
+                        "EventLog.auto_prune 失败 (sid=%s), log_event 已完成, prune 跳过",
+                        event.student_id, exc_info=True,
+                    )
             return
 
         if self._mode == "sqlite":
@@ -325,6 +372,15 @@ class EventLog:
                 ),
             )
             self._conn.commit()
+            # v0.84.0-c: auto_prune_on_log
+            if self._config.auto_prune_on_log:
+                try:
+                    self.prune(student_id=event.student_id)
+                except Exception:
+                    _log.warning(
+                        "EventLog.auto_prune 失败 (sid=%s), log_event 已完成, prune 跳过",
+                        event.student_id, exc_info=True,
+                    )
             return
 
         raise RuntimeError(f"EventLog not initialized (mode={self._mode})")
@@ -384,6 +440,131 @@ class EventLog:
             ).fetchone()
             return int(row[0]) if row else 0
         raise RuntimeError(f"EventLog not initialized (mode={self._mode})")
+
+    # ── v0.84.0-c: retention policy ──────────────────────────────────────────
+
+    def prune(self, student_id: Optional[str] = None) -> int:
+        """Prune old events to satisfy config.max_per_student cap.
+
+        v0.84.0-c retention policy: prevents event_log from growing unboundedly.
+        Default config.max_per_student=10000; older events deleted when count exceeds cap.
+
+        Args:
+            student_id: prune specific student (per-student cap). None = prune all students.
+
+        Returns:
+            Number of events deleted. 0 if no pruning needed or unlimited (max=0).
+
+        Defensive:
+            prune is background optimization; failures are logged and don't propagate.
+            log_event callers don't need to handle prune failures.
+
+        Notes:
+            - Sort by timestamp ASC; keep the most recent N events per student.
+            - Uses PRIMARY KEY (event_id) for safe deletion in sqlite.
+            - In in_memory mode, mutates self._events in place.
+        """
+        if self._config.max_per_student <= 0:
+            return 0  # unlimited, skip
+
+        if self._mode == "in_memory":
+            return self._prune_in_memory(student_id)
+        if self._mode == "sqlite":
+            return self._prune_sqlite(student_id)
+        return 0
+
+    def _prune_in_memory(self, student_id: Optional[str]) -> int:
+        assert self._events is not None
+        deleted = 0
+        # Decide which students to prune
+        if student_id is not None:
+            students_to_prune = [student_id]
+        else:
+            students_to_prune = list({e.student_id for e in self._events})
+        for sid in students_to_prune:
+            sid_events = [e for e in self._events if e.student_id == sid]
+            if len(sid_events) <= self._config.max_per_student:
+                continue
+            # Sort by timestamp ASC (oldest first); keep most recent N
+            sid_events.sort(key=lambda e: e.timestamp)
+            to_remove_count = len(sid_events) - self._config.max_per_student
+            event_ids_to_remove = {e.event_id for e in sid_events[:to_remove_count]}
+            self._events = [e for e in self._events if e.event_id not in event_ids_to_remove]
+            deleted += to_remove_count
+        return deleted
+
+    def _prune_sqlite(self, student_id: Optional[str]) -> int:
+        assert self._conn is not None
+        deleted = 0
+        if student_id is not None:
+            students_to_prune = [student_id]
+        else:
+            rows = self._conn.execute(
+                "SELECT DISTINCT student_id FROM event_log"
+            ).fetchall()
+            students_to_prune = [r["student_id"] for r in rows]
+
+        for sid in students_to_prune:
+            count_row = self._conn.execute(
+                "SELECT COUNT(*) FROM event_log WHERE student_id = ?",
+                (sid,),
+            ).fetchone()
+            count = int(count_row[0]) if count_row else 0
+            if count <= self._config.max_per_student:
+                continue
+            # Keep most recent N; delete the rest
+            to_delete = count - self._config.max_per_student
+            cursor = self._conn.execute(
+                """
+                DELETE FROM event_log
+                WHERE event_id IN (
+                    SELECT event_id FROM event_log
+                    WHERE student_id = ?
+                    ORDER BY timestamp ASC
+                    LIMIT ?
+                )
+                """,
+                (sid, to_delete),
+            )
+            deleted += cursor.rowcount if cursor.rowcount > 0 else to_delete
+        self._conn.commit()
+        return deleted
+
+    def purge_before(self, cutoff: datetime) -> int:
+        """Delete events with timestamp < cutoff.
+
+        v0.84.0-c retention policy: time-based purging. Use for retention_days=N
+        via cron / scheduler: `purge_before(datetime.now() - timedelta(days=N))`.
+
+        Args:
+            cutoff: events strictly before this datetime are deleted.
+
+        Returns:
+            Number of events deleted.
+
+        Defensive:
+            purge is background optimization; failures are logged and don't propagate.
+        """
+        if self._mode == "in_memory":
+            return self._purge_in_memory(cutoff)
+        if self._mode == "sqlite":
+            return self._purge_sqlite(cutoff)
+        return 0
+
+    def _purge_in_memory(self, cutoff: datetime) -> int:
+        assert self._events is not None
+        before_count = len(self._events)
+        self._events = [e for e in self._events if e.timestamp >= cutoff]
+        return before_count - len(self._events)
+
+    def _purge_sqlite(self, cutoff: datetime) -> int:
+        assert self._conn is not None
+        cursor = self._conn.execute(
+            "DELETE FROM event_log WHERE timestamp < ?",
+            (cutoff.isoformat(),),
+        )
+        self._conn.commit()
+        return cursor.rowcount if cursor.rowcount > 0 else 0
 
     def close(self) -> None:
         """Close sqlite connection (no-op for in_memory)."""

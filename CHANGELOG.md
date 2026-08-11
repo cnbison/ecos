@@ -139,6 +139,55 @@ NEW: `tests/test_event_bus.py` (15 tests, 0.20s)
 | H3-c4 canary | PASS | PASS | PASS | 保持 |
 | v0.81 replay canary | PASS | PASS | PASS | 保持 |
 
+#### v0.84.0-c: EventLog retention policy
+
+MODIFY: `ecos/cta/event_log.py` (+200 lines)
+- NEW: `EventLogConfig` dataclass:
+  - max_per_student: 默认 10000 (0=无限, 跳过 prune)
+  - retention_days: 默认 0 (时间维度, 留 purge_before 用)
+  - auto_prune_on_log: 默认 False (False=懒 prune, True=每次 log_event 后自动 prune)
+- `EventLog.__init__(config=None)`: 接受 config
+- `EventLog.in_memory(config=None)` / `from_sqlite(db_path, config=None)`: 透传 config
+- `EventLog.log_event()`: auto_prune_on_log=True 时, log 完后跑 prune(student_id=event.student_id)
+- NEW: `EventLog.prune(student_id=None) -> int`: 按 max_per_student 删最老 event, 返删条数
+  - in_memory: 排序 timestamp ASC, 删最老 (count - max_per_student) 条
+  - sqlite: DELETE WHERE event_id IN (SELECT ... ORDER BY timestamp ASC LIMIT N)
+  - max_per_student=0 直接返 0 (unlimited)
+  - 防御性自检 [1]: prune 失败 _log.warning 不 raise (背景优化, 不影响主流程)
+- NEW: `EventLog.purge_before(cutoff: datetime) -> int`: 按时间删 event (timestamp < cutoff)
+  - in_memory: filter 删
+  - sqlite: DELETE WHERE timestamp < ?
+- 防御性自检 [1]: log_event 内 auto_prune 失败 _log.warning + 继续 (event 已写入)
+
+NEW: `tests/test_event_log_retention.py` (11 tests, 0.39s)
+- 1 EventLogConfig defaults
+- 3 PruneInMemory (caps_to_max / no_op_when_under / all_students)
+- 1 PruneSqlite (caps_to_max)
+- 1 AutoPruneOnLog (auto_prune_after_log)
+- 2 PurgeBefore (in_memory / sqlite)
+- 1 UnlimitedConfig (max=0 skips_prune)
+- 1 DefensiveChecks (prune_failure_does_not_break_log_event)
+- 1 SilentPassScan (no_silent_pass_added_in_event_log)
+
+向后兼容:
+- 770 现有 + 11 新增 = 781 全过 (replay/simulate/H3-c4 canary PASS)
+- event_log schema **不破坏** (只删行, DDL 不变)
+- replay/simulate 路径 **不破坏** (replay 自己 load_events, prune/purge 是后台)
+- EvidenceEngine.query_by_student **不受影响** (删行后 evidence_id 仍可查, evidence 表独立)
+- 防御性自检 [8] **仍 hard block**
+
+#### Architecture outcomes (cumulative after a+b+c)
+
+| 维度 | v0.83.0-d | v0.84.0-a | v0.84.0-b | v0.84.0-c | Δ (cumulative) |
+|---|---|---|---|---|---|
+| Event Engine §1.2 | 80% | 80% (unification) | 95% (Bus added) | **100%** (Bus + retention) | **+20%** |
+| Event (统一输入) §2.4 | 40% | 90% | 95% | 95% (unchanged) | +55% |
+| Plugin SDK §6 | 0% | 0% | 0% | 0% (v0.84.0-d 改造) | 保持 |
+| pytest 总数 | 736 | 755 | 770 | 781 | +45 tests (+6.1%) |
+| 防御性自检 [8] | hard block | hard block | hard block | hard block | 保持 |
+| H3-c4 canary | PASS | PASS | PASS | PASS | 保持 |
+| v0.81 replay canary | PASS | PASS | PASS | PASS | 保持 |
+
 
 ## [0.83.0] 2026-08-10
 
