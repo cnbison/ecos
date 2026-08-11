@@ -56,13 +56,18 @@ class PluginRuntime:
         bus: Optional[Any] = None,
         state_factory: Optional[Callable[[str], Tuple[Any, Any]]] = None,
         dual_orchestrator_factory: Optional[Callable[[], Any]] = None,
+        lca_engine_factory: Optional[Callable[[], Any]] = None,
     ) -> None:
         self._bus = bus
         self._state_factory = state_factory or _default_state_factory
         # v0.85.0-b: dual_agent orchestrator factory (lazy import 避免循环)
         self._dual_orchestrator_factory = dual_orchestrator_factory or _default_dual_orchestrator_factory
+        # v0.85.0-c: LCAEngine factory (lazy import 避免循环)
+        self._lca_engine_factory = lca_engine_factory or _default_lca_engine_factory
         # v0.85.0-b: per-student calibration result dict (plugin 读 result 用)
         self._calibration_results: Dict[str, Any] = {}
+        # v0.85.0-c: per-student intervention result dict
+        self._intervention_results: Dict[str, Any] = {}
         self._subscription_ids: List[str] = []
         self._started = False
 
@@ -71,6 +76,7 @@ class PluginRuntime:
 
         v0.84.0-d: 注册 response_submitted.
         v0.85.0-b: 加注册 request_calibration.
+        v0.85.0-c: 加注册 request_intervention.
         """
         if self._started:
             _log.warning("PluginRuntime.start: 已启动, 跳过重复 start")
@@ -82,6 +88,9 @@ class PluginRuntime:
         self._subscription_ids.append(sub_id)
         # v0.85.0-b: request_calibration
         sub_id = bus.subscribe("request_calibration", self._handle_request_calibration)
+        self._subscription_ids.append(sub_id)
+        # v0.85.0-c: request_intervention
+        sub_id = bus.subscribe("request_intervention", self._handle_request_intervention)
         self._subscription_ids.append(sub_id)
         self._started = True
         _log.info(
@@ -96,6 +105,7 @@ class PluginRuntime:
             bus.unsubscribe(sub_id)
         self._subscription_ids.clear()
         self._calibration_results.clear()
+        self._intervention_results.clear()
         self._started = False
         _log.info("PluginRuntime 停止")
 
@@ -190,6 +200,59 @@ class PluginRuntime:
         self._calibration_results[student_id] = result
         return result
 
+    def _handle_request_intervention(self, event: Any) -> Any:
+        """v0.85.0-c: Handle request_intervention event: delegate to Runtime.plan.
+
+        Subscriber reconstructs CTAInput from state_factory (跟 belief.py 共享
+        _STUDENT_STATES dict), calls Runtime.plan(student_id, audience, cta_input,
+        lca_engine), and stores LCAResult in _intervention_results[student_id]
+        for plugin (select_intervention) to read after publish() returns.
+
+        Args:
+            event: LearningEvent (event_type="request_intervention", payload={audience})
+
+        Returns:
+            LCAResult. Also stored in self._intervention_results[student_id].
+        """
+        # Lazy imports to avoid circular deps at module load
+        from ecos.lca.cta_input import CTAInput
+        from ecos.runtime.api import plan as runtime_plan
+
+        student_id = event.student_id
+        payload = event.payload
+        audience = payload.get("audience", "student")
+
+        # Get state via state_factory (shares _STUDENT_STATES dict with belief.py)
+        _, state = self._state_factory(student_id)
+
+        # Construct CTAInput (跟 web/api/lca.py:select_intervention 一致)
+        cta_input = CTAInput(student_id=student_id, belief_state=state)
+
+        # Get LCAEngine + Runtime.plan
+        lca_engine = self._lca_engine_factory()
+        result = runtime_plan(
+            student_id=student_id,
+            audience=audience,
+            cta_input=cta_input,
+            lca_engine=lca_engine,
+        )
+
+        # v0.57.0: save LCA state after select (跟 web/api/lca.py:select_intervention 一致)
+        # lazy load + save 在 Runtime.plan 内部调用 (Runtime.plan → lca.select_intervention → lca._save_lca_state)
+        # 这里额外 save 一次保证 Plugin 路径跟 legacy 路径行为一致
+        try:
+            from web.api.lca import _save_lca_state
+            _save_lca_state(student_id)
+        except Exception:
+            _log.warning(
+                "_save_lca_state 失败 (sid=%s), Plugin 路径不影响主响应",
+                student_id, exc_info=True,
+            )
+
+        # Store for plugin to read
+        self._intervention_results[student_id] = result
+        return result
+
     def get_last_calibration_result(self, student_id: str) -> Optional[Any]:
         """v0.85.0-b: Get last calibration result for student (called by plugin after publish).
 
@@ -197,6 +260,14 @@ class PluginRuntime:
             CalibratedLCAResult or None (no calibration ran yet).
         """
         return self._calibration_results.get(student_id)
+
+    def get_last_intervention_result(self, student_id: str) -> Optional[Any]:
+        """v0.85.0-c: Get last intervention result for student (called by plugin after publish).
+
+        Returns:
+            LCAResult or None (no intervention ran yet).
+        """
+        return self._intervention_results.get(student_id)
 
     @property
     def is_started(self) -> bool:
@@ -230,6 +301,16 @@ def _default_dual_orchestrator_factory() -> Any:
     """
     from web.api.dual_agent import get_dual_orchestrator
     return get_dual_orchestrator()
+
+
+def _default_lca_engine_factory() -> Any:
+    """v0.85.0-c: Default LCAEngine factory.
+
+    Lazy import to avoid circular dep at module load.
+    Returns LCAEngine singleton instance.
+    """
+    from web.api.lca import get_lca_engine
+    return get_lca_engine()
 
 
 # v0.85.0-b: Module-level PluginRuntime singleton (lazy init).

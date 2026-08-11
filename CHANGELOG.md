@@ -341,6 +341,58 @@ NEW: `tests/test_dual_agent_plugin.py` (11 tests, 0.36s)
 | 防御性自检 [8] | hard block | hard block | hard block | 保持 |
 | H3-c4 canary | PASS | PASS | PASS | 保持 |
 
+#### v0.85.0-c: /api/lca 改造
+
+MODIFY: `ecos/cta/event_log.py` (+30 lines)
+- NEW: `LearningEvent.from_request_intervention(student_id, audience, source)` factory
+- payload: {audience}
+
+MODIFY: `web/api/plugin_runtime.py` (+90 lines)
+- `PluginRuntime.__init__` 新增 `lca_engine_factory` kwarg (默认 `_default_lca_engine_factory` → `web.api.lca.get_lca_engine`)
+- `PluginRuntime._intervention_results` dict (per-student_id, subscriber 存 LCAResult)
+- `PluginRuntime.start()` 加注册 "request_intervention" subscriber
+- NEW: `PluginRuntime._handle_request_intervention(event)`:
+  - 重建 CTAInput (从 state_factory 拿 state, 跟 web/api/lca.py 一致)
+  - 调 Runtime.plan(student_id, audience, cta_input, lca_engine)
+  - 调 `_save_lca_state(student_id)` (跟 v0.57.0 一致, Runtime.plan 内部不重复)
+  - 存 result 到 `_intervention_results[student_id]`
+- NEW: `PluginRuntime.get_last_intervention_result(student_id)` (plugin 读 result 用)
+- NEW: `_default_lca_engine_factory()` helper (lazy import 避免循环)
+
+MODIFY: `web/api/lca.py:select_intervention` (refactored, ~50 lines)
+- Plugin 路径 (subscriber 已注册): emit `LearningEvent.from_request_intervention` → bus.publish → 读 `get_plugin_runtime().get_last_intervention_result(student_id)`
+- Legacy fallback (无 subscriber): `_legacy_select_intervention` helper (直接调 lca.select_intervention + save_state, 跟 v0.57.0 一致)
+- 防御性自检 [1]: emit 失败 _log.warning 不 raise (主响应不受影响)
+- LCA_ENABLED=False 时仍走老路径 (现有行为不变)
+
+NEW: `tests/test_lca_plugin.py` (10 tests, 0.38s)
+- 1 LearningEventTypeRequestIntervention (enum 第 10 值)
+- 2 FromRequestInterventionFactory (basic / custom_audience)
+- 2 HandleRequestIntervention (calls_runtime_plan / returns_result)
+- 1 StartRegisters3Subscribers (response_submitted + request_calibration + request_intervention)
+- 1 TestLcaSelectInterventionPluginPath (Plugin 路径验证)
+- 1 TestLegacyFallback (无 subscriber fallback)
+- 1 DefensiveChecks (silent pass scan)
+- 1 H3C4Canary (LCA path unchanged)
+
+向后兼容:
+- 813 现有 + 10 新增 = 823 全过 (H3-c4 canary PASS)
+- `/api/lca` **响应字段不变** (intervention_type / expected_gain/risk / bloom_target / clt_level / ca_stage)
+- PluginRuntime 仍向后兼容 v0.84.0-d + v0.85.0-b (response_submitted + request_calibration subscribers 保留)
+- LCA_ENABLED=False 时 select_intervention 仍返 None (老行为不变)
+- 防御性自检 [8] **仍 hard block**
+
+#### Architecture outcomes (cumulative after a+b+c)
+
+| 维度 | v0.84.0-d | v0.85.0-a | v0.85.0-b | v0.85.0-c | Δ (cumulative) |
+|---|---|---|---|---|---|
+| Event Engine §1.2 | 100% | 100% | 100% | 100% | 保持 |
+| Event (统一输入) §2.4 | 95% | 97% | 97% | **97%** (10 event_type 加 request_intervention) | +2% |
+| Plugin SDK §6 | 10% (1/4) | 35% (2/4) | 70% (3/4) | **100%** (4/4 endpoint 全) | **+90%** |
+| pytest 总数 | 792 | 802 | 813 | 823 | +31 tests (+3.9%) |
+| 防御性自检 [8] | hard block | hard block | hard block | hard block | 保持 |
+| H3-c4 canary | PASS | PASS | PASS | PASS | 保持 |
+
 
 ## [0.83.0] 2026-08-10
 

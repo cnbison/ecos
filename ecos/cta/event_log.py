@@ -361,6 +361,43 @@ class LearningEvent:
             },
         )
 
+    # ── v0.85.0-c: request_intervention factory ─────────────────────────────
+
+    @classmethod
+    def from_request_intervention(
+        cls,
+        student_id: str,
+        audience: str = "student",
+        source: str = "lca_select_intervention",
+        event_id: Optional[str] = None,
+    ) -> "LearningEvent":
+        """Construct LearningEvent for request_intervention (v0.85.0-c factory).
+
+        Emitted by /api/lca (or LCA call site) to trigger intervention selection
+        via PluginRuntime subscriber. Subscriber reconstructs CTAInput from
+        state_factory, calls Runtime.plan, and stores LCAResult in
+        PluginRuntime._intervention_results dict for the caller to read.
+
+        Args:
+            student_id: which student this intervention is for.
+            audience: rationale audience ("student" / "teacher" / "parent").
+            source: who produced (default "lca_select_intervention").
+            event_id: optional pre-generated event_id.
+
+        Returns:
+            LearningEvent with event_type="request_intervention" and structured payload.
+        """
+        return cls(
+            event_id=event_id or _make_event_id(),
+            student_id=str(student_id),
+            timestamp=datetime.now(),
+            source=source,
+            event_type=LearningEventType.REQUEST_INTERVENTION.value,
+            payload={
+                "audience": str(audience),
+            },
+        )
+
 
 class EventLog:
     """Persists LearningEvents. Dual-mode: in-memory (tests) + sqlite (production).

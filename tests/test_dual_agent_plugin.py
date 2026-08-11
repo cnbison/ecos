@@ -192,17 +192,19 @@ class TestStartRegisters2Subscribers:
     """PluginRuntime.start() registers response_submitted + request_calibration."""
 
     def test_start_registers_both_subscribers(self):
-        """start() adds 2 subscribers (response_submitted + request_calibration)."""
+        """start() adds 3 subscribers (response_submitted + request_calibration + request_intervention in v0.85.0-c)."""
         bus = EventBus()
         runtime = PluginRuntime(
             bus=bus,
             state_factory=lambda sid: (None, None),
             dual_orchestrator_factory=lambda: None,
+            lca_engine_factory=lambda: None,
         )
         runtime.start()
-        assert runtime.subscription_count == 2
+        assert runtime.subscription_count == 3
         assert bus.get_topic_count("response_submitted") == 1
         assert bus.get_topic_count("request_calibration") == 1
+        assert bus.get_topic_count("request_intervention") == 1
 
 
 # ── dual_agent.process_observation_for_student Plugin path (1 test) ───────

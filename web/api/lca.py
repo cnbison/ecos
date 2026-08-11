@@ -198,8 +198,60 @@ def select_intervention(
       - 调用后 _save_lca_state (持久化新状态)
       - 失败时不污染 LCA state (LinUCB 状态保持)
 
+    v0.85.0-c: Plugin 路径 - emit "request_intervention" event → PluginRuntime
+    subscriber → Runtime.plan(student_id, audience="student"). subscriber
+    重建 CTAInput (从 state_factory), 调 Runtime.plan, 存 LCAResult 到
+    PluginRuntime._intervention_results[student_id], 本函数 publish 后读.
+
+    向后兼容: PluginRuntime 未启动或 bus 无 subscriber 时, 走 legacy 路径
+    (直接 lca.select_intervention), 不破坏现有 tests + lbc001/lbc002 数据.
+
     Returns:
         LCAResult 成功; 失败时 None (走 CTA 兜底).
+    """
+    # v0.85.0-c: Plugin 路径 - emit "request_intervention" event
+    try:
+        from ecos.cta.event_log import LearningEvent
+        from ecos.event import get_default_bus
+        from web.api.plugin_runtime import get_plugin_runtime
+
+        # 构造 event
+        event = LearningEvent.from_request_intervention(
+            student_id=student_id,
+            audience="student",  # 跟 lca_select 默认一致
+            source="lca_select_intervention",
+        )
+
+        # Publish (sync mode)
+        bus = get_default_bus()
+        success = bus.publish("request_intervention", event)
+
+        if success > 0:
+            # Plugin 路径: 读 subscriber 存储的 result
+            plugin_runtime = get_plugin_runtime()
+            result = plugin_runtime.get_last_intervention_result(student_id)
+            if result is not None:
+                return result
+    except Exception:
+        _log.warning(
+            "select_intervention: emit request_intervention 失败 (sid=%s), "
+            "走 legacy direct path",
+            student_id, exc_info=True,
+        )
+
+    # Legacy fallback: PluginRuntime 未启动或 bus 无 subscriber,
+    # 直接调 lca.select_intervention (老路径, 向后兼容)
+    return _legacy_select_intervention(student_id, belief_state)
+
+
+def _legacy_select_intervention(
+    student_id: str,
+    belief_state: BeliefState,
+) -> Optional[LCAResult]:
+    """v0.85.0-c: Legacy direct path (PluginRuntime 未启动 / bus 无 subscriber 用).
+
+    Mirrors v0.57.0 logic: 直接 engine.select_intervention + save_state.
+    向后兼容 tests + 老 production 数据.
     """
     # v0.57.0: 启动加载 (lazy, 只第一次)
     _get_or_create_lca_state(student_id)
