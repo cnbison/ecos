@@ -239,6 +239,14 @@ def process_observation_for_student(
 ) -> Optional[Dict[str, Any]]:
     """主入口: 处理一次答题观测 (在 submit_answer 末尾调).
 
+    v0.85.0-b: Plugin 路径 - emit "request_calibration" event → PluginRuntime
+    subscriber → orchestrator.process_observation. Subscriber 存储
+    CalibratedLCAResult 到 PluginRuntime._calibration_results[student_id],
+    本函数 publish 后读取 (sync mode 保证顺序).
+
+    向后兼容: PluginRuntime 未启动或 bus 无 subscriber 时, 走 legacy 路径
+    (直接 orch.process_observation), 不破坏现有 tests + lbc001/lbc002 数据.
+
     Args:
         student_id: 学生 ID
         problem_id: 题 ID
@@ -256,84 +264,52 @@ def process_observation_for_student(
 
     start = time.time()
     try:
-        from ecos.cta.belief_engine import Observation
-        from ecos.cta.belief_state import BloomLevel
+        # v0.85.0-b: Plugin 路径 - emit "request_calibration" event
+        # 不直接 orch.process_observation (Plugin 原则: web/api 不调 Engine)
+        from ecos.cta.event_log import LearningEvent
+        from ecos.event import get_default_bus
+        from web.api.plugin_runtime import get_plugin_runtime
 
-        # Bloom 层级字符串 → enum (L1-L6)
-        try:
-            bloom_enum = BloomLevel(int(bloom_layer.replace("L", "")))
-        except (ValueError, AttributeError):
-            bloom_enum = BloomLevel.APPLY  # fallback
-
-        obs = Observation(
+        # 构造 event
+        event = LearningEvent.from_request_calibration(
+            student_id=student_id,
             problem_id=problem_id,
             skill_id=skill_id,
             correct=correct,
             score=score,
-            bloom_level=bloom_enum,
-            response_time_sec=0.0,  # 暂无此数据
+            bloom_layer=bloom_layer,
+            source="dual_agent_process_observation_for_student",
         )
 
-        # v0.61.0: 启动 lazy load (确保 sid state 已加载, 避免冷启动覆盖 DB 状态)
-        _load_dual_state_if_needed(student_id)
+        # Publish (sync mode: 同步调 subscriber, 顺序保证)
+        bus = get_default_bus()
+        success = bus.publish("request_calibration", event)
 
-        orch = get_dual_orchestrator()
-        result = orch.process_observation(obs, student_id=student_id)
-
-        duration_ms = int((time.time() - start) * 1000)
-
-        # v0.61.0: 每次 process_observation 末尾 save_state (跟 LCA 同样"每次都落盘")
-        #   持久化失败不污染 in-memory (load 失败已经 try/except 兜底)
-        try:
-            _save_dual_state(student_id, orch)
-        except Exception:
-            _log.warning(
-                "save_dual_state 失败 (student=%s), 不影响本次响应, "
-                "下次重启前这部分 in-memory 改动没落盘",
-                student_id, exc_info=True,
-            )
-
-        # v0.64.0: 回写 prev calibration_log.actual_outcome
-        #   之前 (v0.60.4 留下的 BUG): prev_calibrated.actual_outcome 在
-        #   orch.process_observation 内部被填上 (基于本次 observation.score),
-        #   但**没回写 DB**. 所以 calibration_log 表里所有 prev 行的
-        #   actual_outcome 都是 None, H3 验证算不出 ECE.
-        #   修复: 写新 calibration_log 前, 先 UPDATE 上一轮 (round-1) 的
-        #   actual_outcome 到 DB. 失败 _log.warning + 兜底 (主流程不受影响).
-        prev_round = result.calibration_round - 1
-        if prev_round >= 1:
-            try:
-                _write_prev_actual_outcome(
-                    student_id=student_id,
-                    prev_round=prev_round,
-                    orch=orch,
-                )
-            except Exception:
-                _log.warning(
-                    "_write_prev_actual_outcome 失败 (student=%s, round=%s), "
-                    "prev calibration_log actual_outcome 留 None, H3 验证会回填",
-                    student_id, prev_round, exc_info=True,
+        if success > 0:
+            # Plugin 路径: 读 subscriber 存储的 result
+            plugin_runtime = get_plugin_runtime()
+            result = plugin_runtime.get_last_calibration_result(student_id)
+            if result is not None:
+                # 走 post-processing 路径 (save_state + write_calibration_log 等)
+                return _post_process_calibration(
+                    student_id, problem_id, result, start,
                 )
 
-        # 写 calibration_log
-        calibration_id = _write_calibration_log(
+        # Legacy fallback: PluginRuntime 未启动或 bus 无 subscriber,
+        # 直接调 orch.process_observation (老路径, 向后兼容)
+        _log.debug(
+            "process_observation_for_student: bus.publish request_calibration 返 %d "
+            "(无 subscriber), 走 legacy direct path",
+            success,
+        )
+        return _legacy_process_observation(
             student_id=student_id,
-            result=result,
-            orch=orch,
-            duration_ms=duration_ms,
+            problem_id=problem_id,
+            skill_id=skill_id,
+            correct=correct,
+            score=score,
+            bloom_layer=bloom_layer,
         )
-
-        return {
-            "round": result.calibration_round,
-            "intervention_type": result.intervention.intervention_type.value
-                if result.intervention else None,
-            "bloom_target": result.bloom_target.name
-                if result.bloom_target else None,
-            "warnings": orch.get_warnings(student_id),
-            "degraded_mode": result.degraded_mode,
-            "calibration_id": calibration_id,
-            "duration_ms": duration_ms,
-        }
 
     except Exception:
         # CLAUDE.md [6]: 失败不污染 state, 但必须有日志
@@ -343,6 +319,126 @@ def process_observation_for_student(
             student_id, problem_id, exc_info=True,
         )
         return None
+
+
+def _post_process_calibration(
+    student_id: str,
+    problem_id: str,
+    result: Any,
+    start: float,
+) -> Optional[Dict[str, Any]]:
+    """v0.85.0-b: post-processing for CalibratedLCAResult (save_state + write_calibration_log).
+
+    Called by process_observation_for_student after PluginRuntime subscriber
+    produced the result. Mirrors the legacy post-processing logic.
+
+    Args:
+        student_id: 学生 ID
+        problem_id: 题 ID (for log only)
+        result: CalibratedLCAResult (from subscriber)
+        start: time.time() start (for duration_ms)
+
+    Returns:
+        response dict {round, intervention_type, bloom_target, warnings, calibration_id, duration_ms} 或
+        None (失败兜底)
+    """
+    duration_ms = int((time.time() - start) * 1000)
+
+    # Get orchestrator (lazy, for save_state + write_calibration_log)
+    from web.api.dual_agent import get_dual_orchestrator
+    orch = get_dual_orchestrator()
+
+    # v0.61.0: 每次 process_observation 末尾 save_state (跟 LCA 同样"每次都落盘")
+    try:
+        _save_dual_state(student_id, orch)
+    except Exception:
+        _log.warning(
+            "save_dual_state 失败 (student=%s), 不影响本次响应, "
+            "下次重启前这部分 in-memory 改动没落盘",
+            student_id, exc_info=True,
+        )
+
+    # v0.64.0: 回写 prev calibration_log.actual_outcome
+    prev_round = result.calibration_round - 1
+    if prev_round >= 1:
+        try:
+            _write_prev_actual_outcome(
+                student_id=student_id,
+                prev_round=prev_round,
+                orch=orch,
+            )
+        except Exception:
+            _log.warning(
+                "_write_prev_actual_outcome 失败 (student=%s, round=%s), "
+                "prev calibration_log actual_outcome 留 None, H3 验证会回填",
+                student_id, prev_round, exc_info=True,
+            )
+
+    # 写 calibration_log (v0.84.0-a 加 event_log 双写, 仍保留)
+    calibration_id = _write_calibration_log(
+        student_id=student_id,
+        result=result,
+        orch=orch,
+        duration_ms=duration_ms,
+    )
+
+    return {
+        "round": result.calibration_round,
+        "intervention_type": result.intervention.intervention_type.value
+            if result.intervention else None,
+        "bloom_target": result.bloom_target.name
+            if result.bloom_target else None,
+        "warnings": orch.get_warnings(student_id),
+        "degraded_mode": result.degraded_mode,
+        "calibration_id": calibration_id,
+        "duration_ms": duration_ms,
+    }
+
+
+def _legacy_process_observation(
+    student_id: str,
+    problem_id: str,
+    skill_id: str,
+    correct: bool,
+    score: float,
+    bloom_layer: str,
+) -> Optional[Dict[str, Any]]:
+    """v0.85.0-b: Legacy direct path (PluginRuntime 未启动 / bus 无 subscriber 用).
+
+    Mirrors the v0.61.0-v0.84 logic: 直接 orch.process_observation + post-process.
+    向后兼容 tests + 老 production 数据.
+    """
+    from ecos.cta.belief_engine import Observation
+    from ecos.cta.belief_state import BloomLevel
+
+    # Bloom 层级字符串 → enum (L1-L6)
+    try:
+        bloom_enum = BloomLevel(int(bloom_layer.replace("L", "")))
+    except (ValueError, AttributeError):
+        bloom_enum = BloomLevel.APPLY  # fallback
+
+    obs = Observation(
+        problem_id=problem_id,
+        skill_id=skill_id,
+        correct=correct,
+        score=score,
+        bloom_level=bloom_enum,
+        response_time_sec=0.0,  # 暂无此数据
+    )
+
+    # v0.61.0: 启动 lazy load
+    _load_dual_state_if_needed(student_id)
+
+    start = time.time()
+    orch = get_dual_orchestrator()
+    result = orch.process_observation(obs, student_id=student_id)
+
+    return _post_process_calibration(
+        student_id=student_id,
+        problem_id=problem_id,
+        result=result,
+        start=start,
+    )
 
 
 # ─── v0.61.0 持久化 helpers ─────────────────────────────────────────────────

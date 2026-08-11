@@ -311,6 +311,56 @@ class LearningEvent:
             },
         )
 
+    # ── v0.85.0-b: request_calibration factory ───────────────────────────────
+
+    @classmethod
+    def from_request_calibration(
+        cls,
+        student_id: str,
+        problem_id: str,
+        skill_id: str,
+        correct: bool,
+        score: float,
+        bloom_layer: str = "L2",
+        source: str = "submit_answer",
+        event_id: Optional[str] = None,
+    ) -> "LearningEvent":
+        """Construct LearningEvent for request_calibration (v0.85.0-b factory).
+
+        Emitted by /api/answer (or dual_agent call site) to trigger dual_agent
+        calibration via PluginRuntime subscriber. Subscriber reconstructs
+        Observation from payload, calls orch.process_observation, and stores
+        the CalibratedLCAResult in PluginRuntime._calibration_results dict
+        for the caller to read.
+
+        Args:
+            student_id: which student this calibration request belongs to.
+            problem_id: which problem was answered.
+            skill_id: which skill the problem belongs to.
+            correct: derived from score (score >= 0.6).
+            score: partial credit score 0.0-1.0.
+            bloom_layer: Bloom level string ("L1"-"L6").
+            source: who produced (default "submit_answer").
+            event_id: optional pre-generated event_id.
+
+        Returns:
+            LearningEvent with event_type="request_calibration" and structured payload.
+        """
+        return cls(
+            event_id=event_id or _make_event_id(),
+            student_id=str(student_id),
+            timestamp=datetime.now(),
+            source=source,
+            event_type=LearningEventType.REQUEST_CALIBRATION.value,
+            payload={
+                "problem_id": str(problem_id),
+                "skill_id": str(skill_id),
+                "correct": bool(correct),
+                "score": float(score),
+                "bloom_layer": str(bloom_layer),
+            },
+        )
+
 
 class EventLog:
     """Persists LearningEvents. Dual-mode: in-memory (tests) + sqlite (production).

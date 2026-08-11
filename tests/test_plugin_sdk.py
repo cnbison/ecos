@@ -72,13 +72,13 @@ class TestPluginRuntimeBasic:
     """PluginRuntime: start/stop/subscription management."""
 
     def test_start_registers_response_submitted_subscriber(self):
-        """start() registers 1 subscriber (response_submitted)."""
+        """start() registers 2 subscribers (response_submitted + request_calibration in v0.85.0-b)."""
         bus = EventBus()
         runtime = PluginRuntime(bus=bus, state_factory=lambda sid: (None, None))
         assert not runtime.is_started
         runtime.start()
         assert runtime.is_started
-        assert runtime.subscription_count == 1
+        assert runtime.subscription_count == 2  # v0.85.0-b 加了 request_calibration
         assert bus.get_topic_count("response_submitted") == 1
 
     def test_stop_unregisters_subscribers(self):
@@ -99,7 +99,7 @@ class TestPluginRuntimeBasic:
         runtime.start()
         with caplog.at_level(logging.WARNING):
             runtime.start()  # should warn + skip
-        assert runtime.subscription_count == 1  # still 1
+        assert runtime.subscription_count == 2  # still 2 (response_submitted + request_calibration)
         assert any(
             "已启动" in r.message for r in caplog.records
         )
@@ -330,13 +330,19 @@ class TestH3C4Canary:
     """H3-c4 canary: LCA behavior unchanged after Plugin SDK refactor."""
 
     def test_lca_path_unaffected(self):
-        """LCA path not touched by v0.84.0-d Plugin SDK refactor."""
-        # Smoke test: PluginRuntime doesn't import LCA
+        """LCA path not touched by v0.84.0-d + v0.85.0-b Plugin SDK refactor.
+
+        v0.85.0-b 加了 dual_orchestrator_factory (引用 dual_agent, 间接用 LCA),
+        这是允许的 (Plugin SDK 全量 阶段, dual_agent + LCA 都纳入).
+        但 v0.84.0-d / v0.85.0-c / v0.85.0-d 不应再 import 新 LCA 模块.
+        """
+        # Smoke test: PluginRuntime doesn't directly import LCA module
         import web.api.plugin_runtime as pr
         source = open(pr.__file__).read()
-        assert "LCA" not in source or "lca" not in source.lower(), (
-            "PluginRuntime should not import LCA (Plugin SDK is for /api/answer only, "
-            "/api/dual_agent and /api/lca left for v0.85)"
+        # v0.85.0-b 允许通过 dual_agent 间接引用 LCA, 但不直接 import ecos.lca.*
+        # 防御性: 检查没有直接 import LCA
+        assert "from ecos.lca" not in source, (
+            "PluginRuntime should not directly import ecos.lca (use orchestrator pattern instead)"
         )
 
 

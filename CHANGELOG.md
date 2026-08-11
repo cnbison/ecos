@@ -287,6 +287,60 @@ NEW: `tests/test_judge_event.py` (10 tests, 0.25s)
 | H3-c4 canary | PASS | PASS | 保持 |
 | v0.81 replay canary | PASS | PASS | 保持 |
 
+#### v0.85.0-b: /api/dual_agent 改造
+
+MODIFY: `ecos/cta/event_log.py` (+45 lines)
+- NEW: `LearningEvent.from_request_calibration(student_id, problem_id, skill_id, correct, score, bloom_layer, source)` factory
+- payload: {problem_id, skill_id, correct, score, bloom_layer}
+
+MODIFY: `web/api/plugin_runtime.py` (+90 lines)
+- `PluginRuntime.__init__` 新增 `dual_orchestrator_factory` kwarg (默认 `_default_dual_orchestrator_factory` → `web.api.dual_agent.get_dual_orchestrator`)
+- `PluginRuntime._calibration_results` dict (per-student_id, subscriber 存储 CalibratedLCAResult)
+- `PluginRuntime.start()` 加注册 "request_calibration" subscriber
+- NEW: `PluginRuntime._handle_request_calibration(event)`:
+  - 重建 Observation (从 event.payload)
+  - 调 `_load_dual_state_if_needed(student_id)` (跟 v0.61.0 一致)
+  - 调 `orch.process_observation(obs, student_id=student_id)`
+  - 存储 result 到 `_calibration_results[student_id]`
+- NEW: `PluginRuntime.get_last_calibration_result(student_id)` (plugin 读 result 用)
+- NEW: module-level `_plugin_runtime_singleton` + `get_plugin_runtime()` / `reset_plugin_runtime()` (test isolation)
+- NEW: `_default_dual_orchestrator_factory()` helper
+
+MODIFY: `web/api/dual_agent.py:process_observation_for_student` (refactored, ~120 lines)
+- Plugin 路径 (subscriber 已注册): emit `LearningEvent.from_request_calibration` → bus.publish → 读 `get_plugin_runtime().get_last_calibration_result(student_id)`
+- Legacy fallback (无 subscriber): `_legacy_process_observation` helper (直接调 orch.process_observation)
+- 共用 post-processing `_post_process_calibration` helper (save_state + write_prev_actual_outcome + write_calibration_log + response dict)
+- backward compat: DUAL_AGENT_ENABLED=False 仍返 None (现有行为不变)
+- 防御性自检 [1]: emit 失败 _log.warning 不 raise (主响应不受影响)
+
+NEW: `tests/test_dual_agent_plugin.py` (11 tests, 0.36s)
+- 1 LearningEventTypeRequestCalibration (enum 第 9 值)
+- 3 FromRequestCalibrationFactory (basic / custom_source / payload_types)
+- 2 HandleRequestCalibration (calls_orchestrator / returns_result)
+- 1 StartRegisters2Subscribers (response_submitted + request_calibration)
+- 1 ProcessObservationForStudentPluginPath (Plugin 路径验证)
+- 1 TestLegacyFallback (无 subscriber fallback)
+- 1 DefensiveChecks (silent pass scan plugin_runtime.py + dual_agent.py)
+- 1 H3C4Canary (LCA path 不受影响)
+
+向后兼容:
+- 802 现有 + 11 新增 = 813 全过 (H3-c4 canary PASS)
+- /api/dual_agent **响应字段不变** (round / intervention_type / bloom_target / warnings / degraded_mode / calibration_id / duration_ms)
+- PluginRuntime 仍向后兼容 v0.84.0-d (response_submitted subscriber 保留)
+- DUAL_AGENT_ENABLED=False 时 process_observation_for_student 仍返 None (老行为不变)
+- 防御性自检 [8] **仍 hard block**
+
+#### Architecture outcomes (cumulative after a+b)
+
+| 维度 | v0.84.0-d | v0.85.0-a | v0.85.0-b | Δ |
+|---|---|---|---|---|
+| Event Engine §1.2 | 100% | 100% | 100% | 保持 |
+| Event (统一输入) §2.4 | 95% | 97% | **97%** (request_calibration 加) | +2% |
+| Plugin SDK §6 | 10% (1/4) | 35% (2/4) | **70%** (3/4 endpoint: answer / judge / dual_agent) | **+60%** |
+| pytest 总数 | 792 | 802 | 813 | +21 tests (+2.7%) |
+| 防御性自检 [8] | hard block | hard block | hard block | 保持 |
+| H3-c4 canary | PASS | PASS | PASS | 保持 |
+
 
 ## [0.83.0] 2026-08-10
 
