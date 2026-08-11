@@ -324,6 +324,18 @@
 - **v0.82.0-d** ✅ (2026-08-10): PolicyLearner 提取 (270 行 + 15 tests) + LCAEngine facade finalization (491 行, -22%) + `engine.bandits` = `policy_learner._learners` shared reference (向后兼容 dual_agent/orchestrator.py:569 `lca_engine.bandits.get(sid)`)
 - **v0.83+**: Thompson Sampling / POMDP 在 PolicyLearner 同接口扩展 (LCA 4-layer 第 4 层演进)
 
+### 4.5 Plugin Runtime 雏形 (v0.84.0-d)
+
+v0.84.0-d 在 LCA 4-layer 之外, 引入 Plugin Runtime 雏形 (kernel-mapping §6 Plugin SDK):
+
+| 现有代码 | 接近度 | 说明 |
+|---|---|---|
+| `web/api/plugin_runtime.py:PluginRuntime` (v0.84.0-d) | 100% | 包装 Runtime API 作为 EventBus subscriber, start() 注册 response_submitted, _handle_response_submitted 调 Runtime.update_belief(state=...) |
+| `ecos/runtime/api.py:update_belief` 新增 `state` kwarg (v0.84.0-d) | 100% | 复用已有 BeliefState (Plugin SDK 路径), 不传时 estimate 创建新 (向后兼容) |
+| `web/api/belief.py:_update_via_plugin_or_legacy` (v0.84.0-d) | 100% | submit_answer helper: bus.publish → PluginRuntime 处理, success=0 走 legacy fallback |
+| `web/api/belief.py:submit_answer` (v0.84.0-d 改造) | 50% | Plugin 路径生效需 PluginRuntime.start() 注册 (production 激活留 v0.85+) |
+| 缺失: /api/judge / /api/dual_agent / /api/lca Plugin 化 | 0% | 3 endpoint 直调 Engine.update / orchestrator.process_observation / LCA.select_intervention, 留 v0.85+ |
+
 ---
 
 ## 5. Runtime API 映射
@@ -395,20 +407,20 @@
 | 80%+ | LinUCB / LCAPolicyLearner / 测试基础设施 / 抗幻觉 / StateEngine (6/6) / EventLog + Replay + Simulation | 6 - **[v0.81.0]** State Engine 抽象 + Event Engine 80% 完成 |
 | 100% (LCA 4-layer) | Planner / ExperimentDesigner / Evaluator / PolicyLearner / Intervention / LCAAttribution | 6 - **[v0.82.0]** LCA 4-layer split 100% 完成 (a/b/c/d 4 sub-phases, 2026-08-10) |
 | 100% (v0.83.0) | Evidence Engine (6 来源 + 跨 3 表 CRUD) / Belief-Evidence 关联 (add_evidence + 反查) / Evaluation Engine (TwinAttribution + PolicyABTest + GoalCompletion) / Runtime API (6 核心纯函数 + kwargs) | 4 类 12 文件 - **[v0.83.0]** Evidence Engine + Runtime API 100% 完成 (a/b/c/d 4 sub-phases, 2026-08-10) |
+| 100% (v0.84.0) | LearningEventType enum (7 值) / LearningEvent factory methods (3) / CalibrationMessage.to_learning_event / FeatureExtractor event_log 注入 / DualAgentOrchestrator event_log 注入 / EventBus pub/sub / EventLog retention policy / PluginRuntime + /api/answer Plugin 路径 | 8 类 17 文件 - **[v0.84.0]** Event Engine 100% + Event 统一输入 95% + Plugin SDK 10% 完成 (a/b/c/d 4 sub-phases, 2026-08-11) |
 | 60-80% | BeliefState(Twin 雏形) / DimensionState(Belief 雏形) / MIRT(Inference) / BKT(Inference) | 4 |
 | 40-60% | Observation / CalibrationMessage / partial credit / LLM Critic / attribution | 5 |
 | 20-40% | calibration_log / response_history / evidence_predictions 占位 | 3 |
-| 0-20% | Event Bus / Evidence Engine / Evaluation Engine / Goal Ontology / LearningEvent unification | 5 |
+| 0-20% | Goal Ontology / Twin 一致性保证 / Motivation Profile / Thompson Sampling / POMDP Policy / Multi-Domain 扩展 | 6 |
 
 ### 8.2 缺失核心组件清单
 
 完全缺失（接近度 ≤ 20%）：
-1. **Event Bus**（pub/sub 机制, deferred to v0.82+ YAGNI）
-2. **Evidence Engine**（Evidence 统一管理, v0.83）
-3. **Evaluation Engine**（Twin 变化归因 / Policy 对比 / Goal completion, v0.83+）
-4. **Goal Ontology**（Capability / Objective / Metric / Evidence, v0.83+）
-5. **LearningEvent type unification**（Observation + CalibrationMessage -> LearningEvent, v0.82）
-6. **Policy 评估框架**（AB test LinUCB vs Thompson）
+1. **Goal Ontology**（Capability -> Objective -> Metric -> Evidence, Phase 6+ 引入）
+2. **Twin 一致性保证**（跨 Profile 一致性校验, v0.71.0 引入）
+3. **Motivation Profile 独立**（X 维度从 5D 抽出, Phase 7+）
+4. **Thompson Sampling / POMDP Policy**（Policy Engine 第 2-3 个 policy, Phase 6+）
+5. **Multi-Domain 扩展**（科研 / 职业 / 创意, Phase 7+）
 
 > **[v0.83.0 更新 2026-08-10]**: Evidence Engine + Runtime API 100% 落地. 4 sub-commits a/b/c/d. 63 新增 tests (15+14+16+18, pytest 673 → 736, +9.4%). 详情见 §1.4/§1.5/§5.
 > - Evidence Engine 100% (统一 schema + 6 来源 + 跨 3 表 CRUD + Belief 关联)
@@ -417,6 +429,15 @@
 > - Runtime API 100% (6 核心纯函数 estimate / update_belief / replay / evaluate / simulate / plan + kwargs 注入)
 >
 > v0.83 是 4 kernel-deepening 版本的第 4 个 (per 12-kernel-mapping §8.3, Bisen 2026-08-06 拍板 Kernel-first). 4 kernel-deepening 版本全部完成. 下一阶段 v0.84+: Plugin SDK (kernel-mapping §6) + LearningEvent unification (§2.4) + Event Bus / EventLog retention (§1.2 收尾).
+
+> **[v0.84.0 更新 2026-08-11]**: Event Engine 100% + Event 统一输入 95% + Plugin SDK 10% 落地. 4 sub-commits a/b/c/d. 56 新增 tests (19+15+11+11, pytest 736 → 792, +7.6%). 详情见 §1.2/§2.4/§4.5/§6.
+> - LearningEventType enum (7 值) + 3 factory methods (from_observation / from_calibration_message / from_response_submitted) + CalibrationMessage.to_learning_event
+> - FeatureExtractor / DualAgentOrchestrator 接受 optional event_log 注入 (双写 event_log)
+> - EventBus (in-process pub/sub, sync 模式, 默认 singleton) + retention policy (max_per_student cap + retention_days purge + auto_prune_on_log)
+> - PluginRuntime 包装 Runtime API 作为 EventBus subscriber, /api/answer 改造为 "produce event → bus → Runtime subscriber → Runtime.update_belief"
+> - 防御性自检 [8] 仍 hard block. H3-c4 + v0.81 replay canary 全 PASS
+>
+> v0.84 是 5 kernel-deepening 版本的第 1 个 (per 12-kernel-mapping §8.3, Bisen 2026-08-06 拍板 Kernel-first). 下一阶段 v0.85+: Plugin SDK 全量 (剩 /api/judge / /api/dual_agent / /api/lca) + Runtime 订阅 EventBus (Runtime API 改 event-driven) + frontend 接入 hint/idle/goal_changed/reflection_completed 4 个 event_type + 跨学科扩展 (Phase 7+ 推迟).
 
 ### 8.3 演进优先级建议
 
