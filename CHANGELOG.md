@@ -12,6 +12,201 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.87.0] 2026-08-11
+
+### feat: Phase 6+ Kernel 扩展 #2 — Motivation Profile + POMDP Policy (4 子版本第 2 个)
+
+> **背景**: v0.86.0 Phase 6+ Kernel 扩展 #1 (Goal Ontology + Twin Consistency + Thompson Sampling + Integration) 全部完成. 4 sub-commit 全部 push. 缺失清单 6→3 (Goal / Twin Consistency / Thompson Sampling 全部落地). 下一阶段突破剩 3 项: Motivation Profile (X 维度抽出) + POMDP Policy (部分可观测 MDP) + 集成 (3-way A/B Test). Multi-Domain 扩展推迟 v0.88+ (Phase 7+ 抽象推演).
+> **v0.87.0 目标**: Phase 6+ 第 2 个版本. 4 sub-commit a/b/c/d. 898 → 958 tests (+60, +6.7%). 缺失清单 3→1.
+> **v0.87.0 4 子版本 范围** (Bisen 拍板 2026-08-11):
+> - a: Motivation Profile schema (X 维度抽出, 4 维时序 frustration/engagement/confidence/recent_trajectory)
+> - b: Motivation 集成 Runtime + LCA (motivation_reward_adjustment factor 0.7/0.8/1.0/1.3)
+> - c: POMDP 雏形 (4 状态 Engaged/Frustrated/Bored/Confused + Bayesian belief inference)
+> - d: POMDP 集成 PolicyLearner + 真 A/B 3-policy (LinUCB/Thompson/POMDP)
+
+#### v0.87.0-a: Motivation Profile schema (X 维度抽出, 4 维时序)
+
+NEW: `ecos/motivation/{__init__,profile}.py` — Motivation Profile 主类
+- `MotivationObservation`: timestamp / signal_type / value / source / evidence_id
+- `MotivationProfile`: 4 维 (frustration/engagement/confidence) + recent_trajectory (deque maxlen=100) + evidence_ids
+- `VALID_SIGNAL_TYPES`: `ClassVar` (frustration/engagement/confidence/trajectory)
+- `add_observation(obs)`: 按 signal_type 更新对应维度 + 追加 trajectory + 关联 evidence
+- `to_dict` / `from_dict`: JSON 序列化 (跟 BeliefState 对称)
+
+MODIFY: `ecos/cta/belief_state.py:BeliefState` — Motivation Profile 集成
+- `motivation: MotivationProfile` 字段 (顶层 import 无循环, default_factory)
+- `to_dict()` / `from_dict()` 序列化 motivation (MotivationProfile.to_dict()/from_dict)
+- `_apply_delta_fields()` 接管 motivation (apply_snapshot 恢复路径)
+- `add_motivation_observation(obs)` allowlisted mutation (跟 append_goal / add_evidence 模式一致)
+- **X 维度保留** (per Bisen 决策 2026-08-11, 向后兼容, lbc001/lbc002 历史数据不变)
+
+MODIFY: `scripts/check_no_direct_state_mutation.py` — 防御性自检 [8] allowlist 扩展
+- `add_motivation_observation` 加入 FUNC_ALLOWLIST
+
+MODIFY: `ecos/__init__.py` — `__version__ = "0.87.0"` (a/b/c/d 4 commit 同步 bump)
+
+NEW: `tests/test_motivation_profile.py` — 16 tests
+- 3 MotivationObservation (basic / to_dict_roundtrip / validation)
+- 6 MotivationProfile (default / frustration / engagement / confidence / trajectory_only / deque_maxlen_100)
+- 4 BeliefState 集成 (default / to_dict / from_dict / add_motivation_observation allowlisted)
+- 3 evidence + edge (evidence_id / unknown_signal_type / from_dict evidence_ids)
+
+向后兼容:
+- BeliefState.X 字段保留 (lbc001/lbc002 历史数据不变, per Bisen 决策)
+- 老 JSON snapshot 加载 motivation 兜底空 dict
+- 防御性自检 [8] 仍 hard block
+- H3-c4 canary 必 PASS
+
+#### v0.87.0-b: Motivation Profile 集成 Runtime + LCA + Evaluator
+
+MODIFY: `ecos/lca/evaluator.py:Evaluator` — `motivation_reward_adjustment`
+- 新增 `motivation_reward_adjustment(state) -> float` (multiplicative factor in [0.5, 1.5])
+- 规则 (per design doc §3.3):
+  - frustration > 0.7: factor = 0.7 (降低 gain, 避免 burnout)
+  - engagement < 0.3: factor = 0.8 (降低 gain, 学生走神)
+  - confidence > 0.7 AND engagement > 0.6: factor = 1.3 (boost gain, 学生状态好)
+  - 其他: factor = 1.0 (默认)
+- 防御性自检 [1]: motivation 字段缺失 / 异常 _log.warning + 返 1.0
+
+MODIFY: `ecos/lca/experiment_designer.py:ExperimentDesigner` — motivation-aware 候选池
+- `design()` 新增 motivation kwarg (Optional[MotivationProfile], TYPE_CHECKING 避免循环)
+- `_motivation_itype_override`: motivation-aware itype preference
+  - frustration > 0.7 → EXPLANATORY
+  - engagement < 0.3 → INQUIRY
+  - confidence > 0.7 + engagement > 0.6 → PRACTICE
+- frustration > 0.7 额外降难度 ≤ 0.4
+- motivation=None 走 default_types (v0.82.0-b 向后兼容)
+
+MODIFY: `ecos/lca/orchestrator.py:LCAEngine` — motivation 集成 select_intervention
+- `select_intervention()` 新增 motivation kwarg
+- motivation=None → state.motivation fallback (v0.87.0-a 集成)
+- 透传 motivation 到 ExperimentDesigner.design()
+- 估算 expected_gain 时乘 `motivation_reward_adjustment` factor
+
+MODIFY: `ecos/runtime/api.py` — 新增 `plan_motivation_aware` API
+- `plan_motivation_aware(student_id, audience, **kwargs)` 跟 plan / plan_goal_aware 并行
+- 新增 kwargs: `motivation_observation` (emit 到 state) + `motivation` (透传 LCA)
+- 走 Twin Consistency Check (v0.86.0-b 兼容)
+- `motivation_observation` → `state.add_motivation_observation` (allowlisted mutation)
+
+NEW: `tests/test_motivation_runtime.py` — 14 tests
+- 3 Evaluator.motivation_reward_adjustment (default / frustration / confidence+engagement)
+- 4 ExperimentDesigner motivation-aware (frustration / engagement_low / confidence+engagement / None)
+- 3 Runtime.plan_motivation_aware (basic / observation emits / state fallback)
+- 4 集成 (LCAEngine motivation / state fallback / reward applied / Twin Consistency)
+
+向后兼容:
+- LCAEngine.select_intervention motivation=None → state.motivation fallback
+- Runtime.plan / plan_goal_aware 行为不变 (v0.86)
+- ExperimentDesigner.design motivation=None → default_types
+- 防御性自检 [8] 仍 hard block
+
+#### v0.87.0-c: POMDP 雏形 (4 状态 + Bayesian belief inference)
+
+NEW: `ecos/lca/l4_optimization/pomdp.py` — `POMDPPolicy` 主类
+- 4 状态: Engaged / Frustrated / Bored / Confused (CLASSVAR)
+- belief_state: 4 维概率向量 (uniform prior, 冷启动)
+- transition: 4x4 矩阵 (强 self-loop 0.7 + 弱跨 0.1, row sum 精确 = 1.0)
+- observation_model: 4x4 矩阵 (强对角 0.6 + 弱跨 auto, row sum 精确 = 1.0)
+- reward: 4 × n_arms 矩阵 (random init, seed 可重现)
+- `select_arm(context) -> int`: argmax_a `b^T @ R`
+- `update(arm, context, reward)`: 仅更新 arm_pull_counts (简化, 不学 transition)
+- `bayes_update(observation)`: `b'(s') ∝ O[o|s'] * T^T @ b` (Bayes rule + normalize)
+- `dump_state` / `load_state`: 9 字段 (维度校验, 防御性自检 [5])
+- `get_arm_stats`: 9 字段 (跟 LinUCB/Thompson 接口同构)
+- `POMDPConfig` dataclass: n_arms / n_states / n_observations / seed
+
+MODIFY: `ecos/lca/l4_optimization/__init__.py` — 导出 POMDPPolicy / POMDPConfig
+
+NEW: `tests/test_pomdp.py` — 16 tests
+- 4 init (uniform_belief / transition_row_sums / observation_diagonal / seed_reproducibility)
+- 3 select_arm + update (returns_valid / prefers_high_reward / update_increments_counts)
+- 3 bayes_update (normalizes / diagonal_increases / invalid_observation_ignored)
+- 2 persistence (dump_load_roundtrip / get_arm_stats)
+- 4 集成 (belief_over_steps / seed_determinism / select_uses_belief / observation_distribution)
+
+POMDP 雏形限制 (Phase 6+ 初始版本, 后续 v0.88+ 扩展):
+- Simplified transition (不依赖 action, 固定矩阵)
+- Simplified observation model (固定 4x4)
+- 不实现 partial observability 的"模型学习"
+- 不实现完整 POMDP solver (point-based / SARSOP 等)
+
+向后兼容:
+- 接口同构 LinUCB/Thompson
+- 防御性自检 [8] 仍 hard block
+
+#### v0.87.0-d: POMDP 集成 PolicyLearner + 真 A/B 3-policy
+
+MODIFY: `ecos/lca/l4_optimization/policy_learner.py:LCAPolicyLearner`
+- `policy_type` 扩展到 3 值 (Literal["linucb", "thompson", "pomdp"])
+- `__init__` 新增 `pomdp_seed` kwarg
+- `pomdp: Optional[POMDPPolicy]` 实例 (仅 `policy_type=="pomdp"` 创建)
+- `select_intervention`: dispatch 到 `self.pomdp.select_arm` (POMDP 路径)
+- `update`: dispatch 到 `self.pomdp.update` (POMDP 简化 update)
+- `apply_penalty`: `policy_type=="pomdp"` 路径 _log.warning + return False (POMDP 无 A 矩阵)
+- 未知 `policy_type` 抛 ValueError (4 值校验)
+
+MODIFY: `ecos/lca/policy_learner.py:PolicyLearner`
+- `PolicyLearnerConfig` 新增 `pomdp_seed` 字段
+- `_get_learner` 透传 `pomdp_seed` 到 LCAPolicyLearner
+
+MODIFY: `ecos/evaluation/policy_ab_test.py:PolicyABTest`
+- `SUPPORTED_POLICIES` 扩展到 4 值 (含 "pomdp")
+- `_create_fresh_bandit`: 加 "pomdp" 分支 → `POMDPPolicy(n_arms=10, seed=42)`
+- 真 A/B 3-way 支持: linucb / linucb_baseline / thompson / pomdp 任意 2-way 对比
+
+NEW: `tests/test_pomdp_policy_learner.py` — 14 tests
+- 4 LCAPolicyLearner POMDP (default_no_pomdp / pomdp_select / pomdp_update / apply_penalty_skip)
+- 3 PolicyLearner config (default_no_pomdp / pomdp_seed_propagation / invalid_policy_type)
+- 4 PolicyABTest 3-policy (pomdp_create_fresh / linucb_vs_pomdp / thompson_vs_pomdp / 3-way)
+- 3 集成 (linucb_unchanged / thompson_unchanged / pomdp_new_path)
+
+向后兼容:
+- 默认 `policy_type="linucb"` (v0.86.0-d 兼容, 0 行为变更)
+- LinUCB / Thompson 路径行为不变
+- 真 A/B 仍支持 linucb_baseline 占位
+- 防御性自检 [8] 仍 hard block
+
+#### Architecture outcomes (v0.87 累积)
+
+| 维度 | v0.86.0-d | v0.87.0-d | Δ |
+|---|---|---|---|
+| State Engine §1.1 | 100% | 100% | 保持 |
+| Event Engine §1.2 | 100% | 100% | 保持 |
+| Policy Engine §1.3 | 95% (LinUCB + Thompson) | **100%** (LinUCB + Thompson + POMDP) | **+5%** |
+| Evidence Engine §1.4 | 100% | 100% | 保持 |
+| Evaluation Engine §1.5 | 100% | 100% | 保持 |
+| Twin §2.1 | 100% (含 current_goals) | 100% (含 motivation 独立 Profile) | 保持 (但 schema 扩展) |
+| Belief §2.2 | 60% | 60% | 保持 |
+| Goal §2.3 | 100% | 100% | 保持 |
+| Event §2.4 | 100% | 100% | 保持 |
+| Policy §2.5 | 80% (2-policy) | **100%** (3-policy Abstract Policy 接口) | **+20%** |
+| Evidence §2.6 | 100% | 100% | 保持 |
+| Runtime API §5 | 100% (motivation-aware 扩展) | 100% (plan_motivation_aware) | 保持 |
+| Plugin SDK §6 | 100% | 100% | 保持 |
+| Motivation Profile §2.1 | 0% (X 维度在 5D) | **100%** (独立 Profile + 4 维时序) | **+100%** |
+| pytest | 898 | **958** (+60) | +6.7% |
+| 防御性自检 [8] | hard block | hard block | 保持 |
+| H3-c4 canary | PASS | PASS | 保持 |
+| v0.81 replay canary | PASS | PASS | 保持 |
+| 真 A/B test | 2-way | **3-way** (LinUCB/Thompson/POMDP) | 突破 |
+
+#### v0.87 完成后缺失清单 (12-kernel-mapping §8.2 0-20% 剩 1 项)
+
+| 组件 | 状态 | 下一阶段 |
+|---|---|---|
+| ❌ Multi-Domain 扩展 (科研 / 职业 / 创意) | 0% | v0.88+ (Phase 7+ 抽象推演) |
+
+#### 设计档
+
+- `discussions/2026-08-11-v087-design.md` (~330 行, 4 sub-section + 5 决策 + 7 风险)
+- `12-kernel-mapping-current-vs-2.0.md` §1.3 / §2.1 / §8.2 / §8.4 (累积状态表)
+
+📋 后续 (v0.88+):
+- v0.88.0: Multi-Domain 扩展 (科研 / 职业 / 创意) + POMDP 完整 (T(s'|s,a) + R(s,a) + point-based solver)
+- v0.89.0+: Phase 7+ 抽象推演 (Twin → Human Twin + Plugin SDK 文档化 + Teacher/Parent Dashboard)
+
+
 ## [0.86.0] 2026-08-11
 
 ### feat: Phase 6+ Kernel 扩展 — Goal Ontology + Twin Consistency + Thompson Sampling + Integration (4 子版本第 1 个)
