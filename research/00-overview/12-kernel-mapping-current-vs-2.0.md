@@ -96,16 +96,17 @@
 |---|---|---|
 | `ecos/lca/l4_optimization/linucb.py:LinUCB` | 80% | LinUCB 已有,接口清晰（select_arm / update） |
 | `ecos/lca/l4_optimization/policy_learner.py:LCAPolicyLearner` | 80% | LinUCB 包装 + 上下文构建 + arm 候选映射 |
+| `ecos/lca/l4_optimization/thompson.py:ThompsonSampling` (v0.86.0-c) | 100% | Beta-Bernoulli Bandit, 接口同构 LinUCB (select_arm/update/dump_state/load_state) |
 | `ecos/lca/orchestrator.py:LCAEngine._estimate_gain` | 60% | 简化估算策略（scale × (1-K) × scaffolding）,不是 LinUCB 但属于 Policy 库的一员 |
 | `ecos/dual_agent/orchestrator.py:_compute_dual_agent_confidence` (v0.69.0) | 50% | LinUCB θ@x 预测,属于 Policy Engine 的"预测接口",但不是独立 Engine |
-| **缺失：Thompson Sampling** | 0% | 没有贝叶斯 Bandit |
 | **缺失：POMDP Policy** | 0% | 没有部分可观测 MDP |
 | **缺失：LLM-as-Policy** | 0% | LLM 只做 rationale / critic,不做策略推荐 |
-| **缺失：Policy 评估框架** | 0% | 没有 AB test 框架（不能对比 LinUCB vs Thompson） |
+| `ecos/evaluation/policy_ab_test.py:PolicyABTest` (v0.86.0-d) | 80% | v0.83.0-c 占位 + v0.86.0-d 真 A/B Test (replay events, LinUCB vs Thompson, 5% winner threshold) |
 
 **演进建议**：
-- **v0.76.0**：引入 Thompson Sampling（Policy Engine 第二个 Policy）
-- **v0.77.0**：加 Policy 评估框架（offline evaluation + AB test）
+- **v0.76.0**：引入 Thompson Sampling（Policy Engine 第二个 Policy）✅ 2026-08-11 v0.86.0-c 落地 (Beta-Bernoulli Bandit, LinUCB 同接口, policy_type="thompson" 切换)
+- **v0.77.0**：加 Policy 评估框架（offline evaluation + AB test）✅ 2026-08-11 v0.86.0-d 落地 (PolicyABTest 真 A/B Test, replay events, 5% winner 阈值)
+- **v0.87.0+**：POMDP Policy (部分可观测 MDP, 推迟 v0.86 因为单 commit 太重)
 - **Phase 7+**：实验 LLM-as-Policy
 
 ### 1.4 Evidence Engine
@@ -164,13 +165,14 @@
 | `BeliefState.bloom_profile` | 80% | Learning Profile 已有（Bloom 部分） |
 | `BeliefState.tc_states` | 70% | Learning Profile 已有（TC 部分） |
 | `BeliefState.learning_dna` | 70% | Preference Profile 已有（但标"待启用"） |
+| `BeliefState.current_goals` (v0.86.0-a) | 100% | Goal Ontology 关联 (Capability / Objective / Metric / Evidence) |
+| `ecos/twin/consistency.py:TwinConsistencyChecker` (v0.86.0-b) | 100% | Twin 一致性校验 (5 规则: K+Bloom / TC+K / Goal+confidence / Bloom+C / current_goals+evidence) |
 | **缺失：Motivation Profile** | 0% | 没有 Frustration / Engagement / Confidence 时序独立组件（X 维度接近但混在 5D 里） |
-| **缺失：Twin 一致性保证** | 0% | 没有跨 Profile 一致性校验（如 K mastery + Bloom L3 + TC 通过是否一致） |
 
 **演进建议**：
-- **v0.71.0**：把 `BeliefState` 重命名为 `StudentTwin`（语义清晰）
-- **v0.72.0**：拆 Motivation Profile 独立（X 维度从 5D 抽出）
-- **v0.73.0**：加 Twin 一致性校验
+- **v0.71.0**：把 `BeliefState` 重命名为 `StudentTwin`（语义清晰, 推迟 v0.86 没做 7 字段重命名风险大)
+- **v0.72.0**：拆 Motivation Profile 独立（X 维度从 5D 抽出, v0.87+ 推进）
+- **v0.73.0**：加 Twin 一致性校验 ✅ 2026-08-11 v0.86.0-b 落地 (TwinConsistencyChecker + 5 规则 + Runtime.plan 触发)
 
 ### 2.2 Belief（统一状态表达）
 
@@ -198,14 +200,17 @@
 | `ecos/cta/belief_state.py:BloomProfileState` | 50% | 只有 Bloom 6 层（remember / understand / apply / analyze / evaluate / create）,不是 Goal Ontology |
 | `ecos/lca/intervention.py:select_bloom_target` | 40% | 选 Bloom 目标层,但不是 Goal Ontology 的 Capability / Objective / Metric |
 | `ecos/cta/belief_state.py:TCState` | 40% | TC 状态（post_liminal / mastery 等）,接近 Goal 的"完成判定"但不是 Goal 本身 |
-| **缺失：Capability** | 0% | 没有"Python 变量理解"这种能力描述 |
-| **缺失：Objective** | 0% | 没有"L3 Apply 层掌握"这种目标 |
-| **缺失：Metric** | 0% | 没有"答对概率 ≥ 0.7"这种度量 |
-| **缺失：Evidence 关联** | 0% | Goal 不关联达成证据 |
+| `ecos/goal/goal.py:Goal` (v0.86.0-a) | 100% | Goal 完整 4 字段: Capability / Objective + bloom_level / Metric (dimension + threshold) / Evidence (evidence_ids) |
+| `ecos/goal/goal.py:Capability` (v0.86.0-a) | 100% | Capability dataclass (name / description / domain, frozen) |
+| `ecos/goal/ontology.py:GoalOntology` (v0.86.0-a) | 100% | factory + registry (register/get/query_by_domain/from_capability) |
+| `ecos/goal/registry.py:DEFAULT_CAPABILITIES_LIST` (v0.86.0-d) | 100% | 5 Python Capability (variables / loops / functions / conditionals / strings) |
+| `ecos/cta/belief_state.py:BeliefState.current_goals` (v0.86.0-a) | 100% | Goal Ontology 集成 (to_dict / from_dict / append_goal / remove_goal) |
+| `ecos/evaluation/goal_completion.py:GoalCompletion.check_goal` (v0.86.0-a) | 100% | accept Goal 对象 (Union[str, Goal] dispatch) |
 
 **演进建议**：
-- **Phase 6+**：引入 Goal Ontology（Capability -> Objective -> Metric -> Evidence）
-- **Phase 7+**：扩展到非教育 Domain（如科研 / 职业）
+- **Phase 6+**：引入 Goal Ontology（Capability -> Objective -> Metric -> Evidence）✅ 2026-08-11 v0.86.0-a 落地 (Goal + Capability + GoalOntology + current_goals + GoalCompletion.check_goal)
+- **v0.86.0-d**：集成 Goal-aware Runtime.plan + DEFAULT_CAPABILITY_REGISTRY ✅ 2026-08-11 v0.86.0-d 落地 (5 Python 默认 Capability)
+- **Phase 7+**：扩展到非教育 Domain（如科研 / 职业, v0.88+ 推迟）
 
 ### 2.4 Event（统一输入）
 
@@ -412,16 +417,16 @@ v0.84.0-d 在 LCA 4-layer 之外, 引入 Plugin Runtime 雏形 (kernel-mapping �
 | 60-80% | BeliefState(Twin 雏形) / DimensionState(Belief 雏形) / MIRT(Inference) / BKT(Inference) | 4 |
 | 40-60% | Observation / CalibrationMessage / partial credit / LLM Critic / attribution | 5 |
 | 20-40% | calibration_log / response_history / evidence_predictions 占位 | 3 |
-| 0-20% | Goal Ontology / Twin 一致性保证 / Motivation Profile / Thompson Sampling / POMDP Policy / Multi-Domain 扩展 | 6 |
+| 0-20% | Motivation Profile / POMDP Policy / Multi-Domain 扩展 | 3 |
 
 ### 8.2 缺失核心组件清单
 
 完全缺失（接近度 ≤ 20%）：
-1. **Goal Ontology**（Capability -> Objective -> Metric -> Evidence, Phase 6+ 引入）
-2. **Twin 一致性保证**（跨 Profile 一致性校验, v0.71.0 引入）
-3. **Motivation Profile 独立**（X 维度从 5D 抽出, Phase 7+）
-4. **Thompson Sampling / POMDP Policy**（Policy Engine 第 2-3 个 policy, Phase 6+）
-5. **Multi-Domain 扩展**（科研 / 职业 / 创意, Phase 7+）
+1. **Motivation Profile 独立**（X 维度从 5D 抽出, Phase 7+ / v0.87+）
+2. **POMDP Policy**（部分可观测 MDP, Phase 6+ / v0.87+）
+3. **Multi-Domain 扩展**（科研 / 职业 / 创意, Phase 7+ / v0.88+）
+
+> **[v0.86.0 完成 2026-08-11]**: 3 项缺失 6→3 (Goal Ontology / Twin Consistency / Thompson Sampling 全部落地). Phase 6+ Kernel 扩展第 1 个版本 4 sub-commit 全部完成 (a=Goal/b=Twin/c=Thompson/d=Integration). pytest 836 → 898 (+62, +7.4%).
 
 > **[v0.83.0 更新 2026-08-10]**: Evidence Engine + Runtime API 100% 落地. 4 sub-commits a/b/c/d. 63 新增 tests (15+14+16+18, pytest 673 → 736, +9.4%). 详情见 §1.4/§1.5/§5.
 > - Evidence Engine 100% (统一 schema + 6 来源 + 跨 3 表 CRUD + Belief 关联)
@@ -448,6 +453,17 @@ v0.84.0-d 在 LCA 4-layer 之外, 引入 Plugin Runtime 雏形 (kernel-mapping �
 > - 防御性自检 [8] 仍 hard block. H3-c4 + v0.81 replay canary 全 PASS
 >
 > v0.85 是 6 kernel-deepening 版本的第 2 个 (per 12-kernel-mapping §8.3, Bisen 2026-08-06 拍板 Kernel-first). Plugin SDK 架构全部走通 (production activation). 下一阶段 v0.86+: Phase 6+ Kernel 扩展 (Goal Ontology / Twin 一致性保证 / Thompson Sampling / POMDP Policy) + Phase 7+ 抽象推演 (Twin → Human Twin + Multi-Domain + Plugin SDK 文档化).
+
+> **[v0.86.0 更新 2026-08-11]**: Phase 6+ Kernel 扩展第 1 个版本. 4 sub-commits a/b/c/d. 62 新增 tests (18+14+16+14, pytest 836 → 898, +7.4%). 详情见 §1.3/§2.1/§2.3/§5.
+> - Goal Ontology §2.3 100% (Capability → Objective → Metric → Evidence, 5 Python 默认 Capability)
+> - Twin Consistency Check §2.1 100% (5 规则 + Runtime.plan 触发, goal_changed event 集成)
+> - Thompson Sampling §1.3 95% (Beta-Bernoulli Bandit, LinUCB 同接口, policy_type 切换)
+> - True A/B Test: LinUCB vs Thompson replay (5% winner 阈值 + 5 样本最小)
+> - Runtime API Goal-aware: plan_goal_aware 新 API + evaluate 接受 Goal 对象
+> - 防御性自检 [8] 仍 hard block (append_goal/remove_goal/Checker/Thompson/Runtime 0 新 mutation site)
+> - H3-c4 + v0.81 replay canary 全 PASS
+>
+> v0.86 是 Phase 6+ Kernel 扩展第 1 个版本 (4 sub-commit a/b/c/d). 下一阶段 v0.87+: POMDP Policy (部分可观测 MDP) + Motivation Profile (X 维度从 5D 抽出) + Phase 7+ 抽象推演 (Twin → Human Twin + Multi-Domain + Plugin SDK 文档化).
 
 ### 8.3 演进优先级建议
 

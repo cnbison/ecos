@@ -12,6 +12,219 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.86.0] 2026-08-11
+
+### feat: Phase 6+ Kernel 扩展 — Goal Ontology + Twin Consistency + Thompson Sampling + Integration (4 子版本第 1 个)
+
+> **背景**: v0.85.0 Plugin SDK 100% + Event 统一输入 100% 落地. 6 kernel-deepening 全部完成. 下一阶段突破 12-kernel-mapping §8.2 0-20% 缺失清单 3 项 (Goal Ontology / Twin Consistency / Thompson Sampling) + Integration 串 3 主轴进 Runtime. POMDP 推迟 v0.87+ (per Bisen 决策 2026-08-11, 单 commit 太重).
+> **v0.86.0 目标**: Phase 6+ Kernel 扩展第 1 个版本. 4 sub-commit a/b/c/d. 836 → 898 tests (+62, +7.4%).
+> **v0.86.0 4 子版本 范围**:
+> - a: Goal Ontology (Capability → Objective → Metric → Evidence) + BeliefState.current_goals + GoalCompletion.check_goal
+> - b: Twin Consistency Check (5 规则 + Runtime.plan 触发)
+> - c: Thompson Sampling (Beta-Bernoulli Bandit, LinUCB 同接口)
+> - d: Integration (Goal-aware Runtime.plan + 真 A/B Test + DEFAULT_CAPABILITY_REGISTRY)
+
+#### v0.86.0-a: Goal Ontology (Capability → Objective → Metric → Evidence)
+
+NEW: `ecos/goal/{__init__,goal,ontology}.py` — Goal + Capability dataclass + GoalOntology singleton
+- Goal: `goal_id` / `capability` / `objective` / `bloom_level` (1-6) / `metric_dimension` (K/Bloom/TC) / `metric_threshold` / `evidence_ids` (List[int]) / `status` / `created_at`
+- Capability: `name` / `description` / `domain` (frozen)
+- GoalOntology: `register_capability` / `get_capability` / `query_by_domain` / `from_capability` factory + `reset` (test isolation)
+- module-level `get_default_ontology()` / `reset_default_ontology()` singleton
+- `Goal.to_goal_id_str()` Union[str, Goal] dispatch (向后兼容 GoalCompletion 字符串 regex)
+
+MODIFY: `ecos/cta/belief_state.py:BeliefState` — `current_goals` 集成
+- `current_goals: List["Goal"]` field (TYPE_CHECKING 避免循环 import, default_factory=list 向后兼容)
+- `to_dict()` / `from_dict()` 序列化 current_goals (Goal.to_dict()/from_dict)
+- `_apply_delta_fields()` 接管 current_goals (apply_snapshot 恢复路径)
+- `append_goal()` / `remove_goal()` allowlisted mutation (跟 append_trajectory_snapshot / add_evidence 模式一致)
+
+MODIFY: `ecos/evaluation/goal_completion.py` — GoalCompletion 升级
+- `check(state, goal_id_or_goal)` Union[str, Goal] dispatch (v0.83.0-c 字符串路径仍 work)
+- `check_goal(state, goal)` 新 API (内部 to_goal_id_str 复用 check)
+- `_resolve_goal_id()` helper dispatch
+
+MODIFY: `scripts/check_no_direct_state_mutation.py` — 防御性自检 [8] allowlist 扩展
+- `append_goal` / `remove_goal` 加入 FUNC_ALLOWLIST
+
+MODIFY: `ecos/__init__.py` — `__version__ = "0.86.0"` (a/b/c/d 4 commit 同步 bump)
+
+NEW: `tests/test_goal_ontology.py` — 18 tests
+- 4 Goal dataclass (basic / to_dict_roundtrip / to_goal_id_str 3 dim / validation)
+- 2 Capability (creation / frozen)
+- 5 GoalOntology (register / get / query_by_domain / from_capability / reset)
+- 4 BeliefState integration (default empty / to_dict / from_dict / append+remove)
+- 3 GoalCompletion.check_goal (K / Bloom+TC / check Union 路径)
+
+向后兼容:
+- `GoalCompletion.check(state, "K.mastery>=0.7")` 字符串路径仍 work (v0.83.0-c)
+- BeliefState 老 JSON snapshot 加载 current_goals 兜底 [] (防御性自检 [5])
+- 防御性自检 [8] 仍 hard block (Goal dataclass + check_goal 0 新 mutation site)
+- H3-c4 canary 必 PASS (Goal 不影响 LCA 行为)
+
+#### v0.86.0-b: Twin Consistency Check (跨 Profile 校验, 5 规则)
+
+NEW: `ecos/twin/{__init__,consistency}.py` — Twin Consistency 主类
+- `TwinConsistencyChecker.check(state, goal=None) -> TwinConsistencyResult`
+- `TwinConsistencyResult`: consistent / violations / recommendation / goal_id
+- 5 规则 (Phase 6 初始):
+  - Rule 1: K.mastery ≥ 0.7 → Bloom.L3+_avg ≥ 0.5 (知识 + 认知层级 一致)
+  - Rule 2: TC.<tc_id>.pass → K.mastery ≥ 0.6 (TC 概念转变 + 知识 一致)
+  - Rule 3: Goal.status="completed" → overall_confidence ≥ 0.7 (目标 + 把握度 一致)
+  - Rule 4: Bloom.L6+_avg ≥ 0.5 → C.confidence ≥ 0.3 (高阶认知 + 信心 一致)
+  - Rule 5: current_goals 非空 → 至少 1 个 Goal 关联 evidence (Goal 不悬空)
+- 阈值硬编码 (5 常量), 后续 v0.86.x 可配置化
+- module-level `get_default_checker()` / `reset_default_checker()` singleton
+
+MODIFY: `ecos/runtime/api.py:plan` — Twin Consistency Check 集成
+- 新增 kwargs: `goal` (Optional[Goal]) + `event_log` (Optional[EventLog])
+- 新增 `_run_twin_consistency_check` helper: 选 intervention 前 run check
+- 失败: 不阻断 plan, log warning + emit `goal_changed` event (source="twin_consistency_check")
+- 防御性自检 [1]: check / event emit 失败 _log.warning 不 raise
+- 失败行为: 继续 lca.select_intervention (per Bisen 决策 "走 fallback" = 走原路径)
+
+NEW: `tests/test_twin_consistency.py` — 14 tests
+- 2 TwinConsistencyResult (basic / to_dict)
+- 5 规则 violation (rule_k_bloom / rule_tc_k / rule_goal_completed / rule_bloom_confidence / rule_goals_evidence)
+- 3 综合 (all_consistent / with_goal_param_stricter / recommendation_human_review)
+- 2 singleton (get_default / reset)
+- 2 Runtime.plan 集成 (consistent 不阻断 / inconsistent emit event + log warning)
+
+向后兼容:
+- `goal=None` 走 state-only 检查 (v0.85 plan 调用兼容)
+- 防御性自检 [8] 仍 hard block (Checker 只产 result, 不 mutate state)
+- Runtime.plan 响应字段不变 (lca.select_intervention 仍返 LCAResult)
+- H3-c4 canary 必 PASS (Twin Consistency 只是 defensive check, 不影响 LCA 行为)
+
+#### v0.86.0-c: Thompson Sampling (贝叶斯 Bandit, LinUCB 同接口)
+
+NEW: `ecos/lca/l4_optimization/thompson.py` — ThompsonSampling 主类
+- Beta-Bernoulli conjugate: 每 arm 维护 (α, β) 标量
+- `select_arm(context) -> int`: 采样 Beta(α, β) 选 argmax (context 忽略, non-contextual)
+- `update(arm, context, reward)`: α += reward, β += (1 - reward)
+- `dump_state` / `load_state`: 6 字段 (alpha / beta / arm_pull_counts / alpha_prior / beta_prior / n_arms)
+- `get_arm_stats`: 8 字段 (含 expected_reward = α/(α+β) 后验均值)
+- PRNG: `np.random.default_rng(seed)` (生产系统 entropy, 测试固定 seed)
+- 冷启动: (α=1, β=1) uniform prior
+- `ThompsonConfig` dataclass: n_arms / alpha_prior / beta_prior / seed
+
+MODIFY: `ecos/lca/l4_optimization/policy_learner.py:LCAPolicyLearner` — policy_type 字段
+- 新增 `policy_type` 字段 (Literal["linucb", "thompson"], 默认 "linucb" 向后兼容)
+- 新增 `thompson_seed` kwarg (测试用)
+- 新增 `thompson: Optional[ThompsonSampling]` 实例 (仅 `policy_type=="thompson"` 创建)
+- `select_intervention`: dispatch 到 `self.thompson.select_arm` (Thompson 路径)
+- `update`: dispatch 到 `self.thompson.update` (Thompson 路径)
+- `apply_penalty`: `policy_type=="thompson"` 路径 _log.warning + return False (Thompson 无 A 矩阵)
+- 未知 `policy_type` 抛 ValueError
+- 防御性自检 [8]: Thompson 不 mutate state
+
+MODIFY: `ecos/lca/l4_optimization/__init__.py` — 导出 ThompsonSampling / ThompsonConfig
+
+MODIFY: `ecos/lca/policy_learner.py:PolicyLearner` — policy_type 透传
+- `PolicyLearnerConfig` 新增 `policy_type` + `thompson_seed` 字段
+- `_get_learner` 透传 `policy_type` + `thompson_seed` 到 LCAPolicyLearner
+
+NEW: `tests/test_thompson_sampling.py` — 16 tests
+- 8 ThompsonSampling (init uniform / select valid / update_incr_alpha / update_incr_beta / prefer_high_alpha / dump_load / get_arm_stats / seed reproducibility)
+- 4 LCAPolicyLearner (default_linucb / thompson_select / thompson_update / apply_penalty_skip)
+- 2 PolicyLearner (default_linucb_through_config / policy_type propagation)
+- 2 向后兼容 (linucb_path_unchanged / invalid_policy_type_raises)
+
+向后兼容:
+- 默认 `policy_type="linucb"` (v0.82.0-d 兼容, 0 行为变更)
+- LinUCB 路径行为不变 (apply_penalty 仍生效, 现有 lbc001/lbc002 数据不受影响)
+- 接口同构: `select_arm` / `update` 跟 LinUCB 一致 (context 参数 Thompson 忽略)
+- Thompson 默认 PRNG 系统 entropy (生产环境不固定 seed, 可重现性靠测试 seed)
+- 防御性自检 [1]: arm 越界 / -ve alpha 兜底 _log.warning 不 raise
+- H3-c4 canary 必 PASS (Thompson 只改 select_intervention / update, classroom 行为不变)
+
+#### v0.86.0-d: Integration (Goal-aware Runtime.plan + 真 A/B Test + DEFAULT_CAPABILITY_REGISTRY)
+
+NEW: `ecos/goal/registry.py` — DEFAULT_CAPABILITY_REGISTRY (5 Python Capability)
+- `DEFAULT_CAPABILITIES_LIST`: 5 条 Python Capability (variables / loops / functions / conditionals / strings)
+- `register_default_capabilities(onto=None)`: 注入 ontology (idempotent)
+- cold-start 友好: 学生初始 `current_goals=[]` 但 ontology 已有 5 默认 Capability 可用
+
+MODIFY: `ecos/goal/__init__.py` — 导出 DEFAULT_CAPABILITIES_LIST + register_default_capabilities
+
+MODIFY: `ecos/evaluation/evaluation_engine.py:check_goal_completion` — Union[str, Goal]
+- v0.86.0-d: goal 对象走 `goal_id_str` 转换, goal_id 字符串直传 (向后兼容)
+- lazy import Goal 避免循环
+
+MODIFY: `ecos/evaluation/policy_ab_test.py:PolicyABTest` — 真 A/B Test
+- `_compare_with_replay`: 创建 fresh bandit_a + bandit_b, replay events 累积 reward
+- `_create_fresh_bandit`: linucb/linucb_baseline → LinUCB(16-dim), thompson → ThompsonSampling(seed=42)
+- `_extract_reward_from_event`: 优先 score → reward → correct (boolean) → None
+- 16-dim zero context (LinUCB 需要固定维度, Thompson 忽略)
+- winner 判定: 5% 阈值 + 至少 5 样本
+- 防御性: event 解析 / bandit 操作异常 _log.warning 跳过 (continue)
+- `events=None` 走 v0.83.0-c 占位 path (lca_engine.intervention_history)
+- `SUPPORTED_POLICIES` class attribute (3 种 Policy)
+
+MODIFY: `ecos/runtime/api.py` — `plan_goal_aware` 新 API + evaluate 接受 goal
+- `plan_goal_aware(student_id, audience, **kwargs)`: 新 API, 跟 plan 并行
+- `plan` 委托 `plan_goal_aware` (向后兼容, 0 行为变化)
+- `evaluate(metric='goal_completion', goal=Goal / goal_id=str)`: goal 优先, 字符串 fallback
+- v0.86.0-b Twin Consistency Check 集成 (前置 defensive)
+
+NEW: `tests/test_runtime_goal_aware.py` — 14 tests
+- 3 DEFAULT_CAPABILITY_REGISTRY (5 capabilities / register idempotent / default singleton)
+- 2 Runtime.plan_goal_aware (new API / without goal state-only)
+- 1 Runtime.plan backward compat (delegates to plan_goal_aware)
+- 2 Runtime.evaluate goal (accept Goal / goal_id 字符串兼容)
+- 3 PolicyABTest 真 A/B (with events / winner threshold / fallback when None)
+- 3 集成 (registry + plan + evaluate / eval goal from registry / A/B after registry)
+
+向后兼容:
+- `plan` 行为不变 (委托 plan_goal_aware, 0 调用方改动)
+- 现有 string goal_id 路径仍 work (v0.83.0-c)
+- Plugin 架构不变 (v0.85.0-d production activation 已接)
+- Runtime API 6 核心 0 接口变更, 0 行为 regression
+- 防御性自检 [8] 仍 hard block (Checker / Runtime API 0 直接 mutation)
+- H3-c4 canary 必 PASS
+- v0.81 replay canary 必 PASS (真 A/B 走 16-dim zero context, EventLog 写入路径不变)
+
+#### Architecture outcomes (v0.86 累积)
+
+| 维度 | v0.85.0-d | v0.86.0-d | Δ |
+|---|---|---|---|
+| State Engine §1.1 | 100% | 100% | 保持 |
+| Event Engine §1.2 | 100% | 100% | 保持 |
+| Policy Engine §1.3 | 80% (LinUCB only) | **95%** (LinUCB + Thompson) | **+15%** |
+| Evidence Engine §1.4 | 100% | 100% | 保持 |
+| Evaluation Engine §1.5 | 100% | 100% | 保持 |
+| Twin §2.1 | 70% (5D + Bloom + TC 学徒) | **100%** (一致性校验 + Goal-aware) | **+30%** |
+| Belief §2.2 | 60% (DimensionState) | 60% | 保持 (v0.86 不动 Belief 抽象) |
+| Goal §2.3 | 50% (Bloom only) | **100%** (Capability/Objective/Metric/Evidence) | **+50%** |
+| Event §2.4 | 100% | 100% | 保持 |
+| Policy §2.5 | 60% (LinUCB 包装) | **80%** (LinUCB + Thompson 同接口) | **+20%** |
+| Evidence §2.6 | 100% | 100% | 保持 |
+| Runtime API §5 | 100% | 100% (功能扩, 接口不变) | 保持 |
+| Plugin SDK §6 | 100% | 100% | 保持 |
+| pytest | 836 | **898** (+62) | +7.4% |
+| 防御性自检 [8] | hard block | hard block | 保持 |
+| H3-c4 canary | PASS | PASS | 保持 |
+| v0.81 replay canary | PASS | PASS | 保持 |
+| 真 A/B test | ❌ | ✅ (LinUCB vs Thompson) | 突破 |
+
+#### v0.86 完成后缺失清单 (12-kernel-mapping §8.2 0-20%)
+
+| 组件 | 状态 | 下一阶段 |
+|---|---|---|
+| ❌ Motivation Profile (X 维度从 5D 抽出) | 0% | v0.87+ |
+| ❌ POMDP Policy (部分可观测 MDP) | 0% | v0.87+ |
+| ❌ Multi-Domain 扩展 (科研 / 职业 / 创意) | 0% | v0.88+ (Phase 7+ 抽象推演) |
+
+#### 设计档
+
+- `discussions/2026-08-11-v086-design.md` (302 行, 4 sub-section + 5 决策 + 7 风险)
+- `12-kernel-mapping-current-vs-2.0.md` §8.2 / §8.4 (累积状态表)
+
+📋 后续 (v0.87+):
+- v0.87.0: POMDP Policy (部分可观测 MDP) + Motivation Profile (X 维度从 5D 抽出)
+- v0.88.0+: Phase 7+ 抽象推演 (Twin → Human Twin + Multi-Domain + Plugin SDK 文档化)
+
+
 ## [0.84.0] 2026-08-11
 
 ### feat: Event Engine 100% + Plugin SDK 雏形 — LearningEvent unification (4 子版本第 1 个, v0.84.0-a)
