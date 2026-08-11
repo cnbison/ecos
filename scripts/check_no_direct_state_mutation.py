@@ -42,6 +42,7 @@ FUNC_ALLOWLIST = {
     "add_evidence",  # v0.83.0-b: BeliefState.add_evidence (Belief-Evidence 关联, Evidence Engine 注入)
     "append_goal",  # v0.86.0-a: BeliefState.append_goal (Goal Ontology 关联, 取代直接 state.current_goals.append)
     "remove_goal",  # v0.86.0-a: BeliefState.remove_goal (Goal Ontology 移除, discard 模式)
+    "add_motivation_observation",  # v0.87.0-a: BeliefState.add_motivation_observation (Motivation Profile 关联, 取代直接 state.motivation.add_observation)
     "_apply_delta_fields",  # BeliefState._apply_delta_fields (StateEngine 调)
     "_copy_state_fields",  # StateEngine._copy_state_fields
     "commit",  # StateEngine.commit

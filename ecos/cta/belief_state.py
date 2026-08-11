@@ -22,8 +22,13 @@ import numpy as np
 # v0.86.0-a: Goal Ontology 关联 (TYPE_CHECKING 避免循环 import)
 # BeliefState 持 List[Goal] 实例. Goal dataclass 在 ecos/goal/goal.py, 不引用 BeliefState, 无循环
 # 序列化走 Goal.to_dict() / Goal.from_dict()
+# v0.87.0-a: Motivation Profile 关联 (X 维度抽出, 独立 Profile)
+# MotivationProfile 不引用 BeliefState, 可顶层 import
+from ..motivation.profile import MotivationProfile
+
 if TYPE_CHECKING:
     from ..goal.goal import Goal
+    from ..motivation.profile import MotivationObservation
 
 
 class BloomLevel(Enum):
@@ -324,6 +329,11 @@ class BeliefState:
     # 存 Goal 实例 (List["Goal"]), 序列化走 Goal.to_dict() / from_dict()
     # 防御性自检 [8] 仍 hard block: append_goals() 是 allowlisted mutation (跟 append_trajectory_snapshot 模式一致)
     current_goals: List["Goal"] = field(default_factory=list)
+    # v0.87.0-a: Motivation Profile (X 维度抽出, 独立 Profile)
+    # X 维度保留 (向后兼容, lbc001/lbc002 历史数据不变)
+    # Motivation Profile 独立新增 (渐进迁移)
+    # 防御性自检 [8] 仍 hard block: add_motivation_observation 是 allowlisted mutation
+    motivation: MotivationProfile = field(default_factory=MotivationProfile)
 
     def theta_vector(self) -> np.ndarray:
         """返回 [θ_K, θ_P, θ_S, θ_C, θ_X] 5D 向量."""
@@ -452,6 +462,7 @@ class BeliefState:
             "last_updated": self.last_updated.isoformat(),
             "version": self.version,
             "current_goals": [g.to_dict() for g in self.current_goals],
+            "motivation": self.motivation.to_dict(),  # v0.87.0-a
         }
 
     @classmethod
@@ -466,6 +477,7 @@ class BeliefState:
         import numpy as np
         # v0.86.0-a: Goal Ontology 恢复 (lazy import 避免循环)
         from ..goal.goal import Goal
+        # v0.87.0-a: Motivation Profile 恢复 (顶层 import 已就绪)
         return cls(
             student_id=d.get("student_id", ""),
             K=_dim_from_dict(d.get("K", {}), default_dim="K"),
@@ -482,6 +494,7 @@ class BeliefState:
             last_updated=_parse_iso(d.get("last_updated")),
             version=d.get("version", "v1.0"),
             current_goals=[Goal.from_dict(g) for g in d.get("current_goals", [])],
+            motivation=MotivationProfile.from_dict(d.get("motivation", {})),  # v0.87.0-a
         )
 
     def apply_snapshot(self, snapshot: Dict[str, Any]) -> None:
@@ -537,6 +550,17 @@ class BeliefState:
                 self.current_goals.pop(i)
                 return True
         return False
+
+    def add_motivation_observation(self, obs: "MotivationObservation") -> None:
+        """v0.87.0-a: Append MotivationObservation to motivation.recent_trajectory.
+
+        取代直接 `state.motivation.add_observation(obs)` mutation. 跟 add_evidence / append_goal
+        模式一致, allowlisted in check_no_direct_state_mutation.py FUNC_ALLOWLIST.
+
+        Args:
+            obs: MotivationObservation 实例 (ecos/motivation/profile.py)
+        """
+        self.motivation.add_observation(obs)
 
     # ---------------------------------------------------------------
     # v0.83.0-b: Belief-Evidence 关联方法 (3 个)
@@ -682,6 +706,9 @@ class BeliefState:
                 Goal.from_dict(g) if isinstance(g, dict) else g
                 for g in snapshot["current_goals"]
             ]
+        # v0.87.0-a: 接管 motivation (Motivation Profile 持久化)
+        if "motivation" in snapshot:
+            self.motivation = MotivationProfile.from_dict(snapshot["motivation"])
 
 
 # ── Helper 序列化函数（BeliefState 嵌套结构用）────────────────────────
