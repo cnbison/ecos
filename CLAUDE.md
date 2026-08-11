@@ -33,8 +33,15 @@
 >   - v0.83 Evidence Engine + Runtime API (4 子包 + 6 核心 API)
 >   - v0.84 Event Engine 100% + Plugin SDK 雏形 (4 sub-version a/b/c/d)
 >   - v0.85 Plugin SDK 100% + Production Activation (4 endpoint 全走 Plugin path + Flask startup)
+>   **v0.86.0 Phase 6+ Kernel 扩展 #1 全部完成** (Goal Ontology 100% + Twin Consistency 100% + Thompson Sampling 95% + Integration 100%)
+>   **v0.87.0 Phase 6+ Kernel 扩展 #2 全部完成** (Motivation Profile 100% + POMDP Policy 雏形 + 真 A/B 3-way)
+>   **v0.88.0 Phase 7+ 抽象推演 #1 全部完成 (a/b/c/d)**:
+>   - v0.88.0-a: Domain base class + 3 domain schema (Education/Science/Career)
+>   - v0.88.0-b: Multi-Domain 集成 Runtime + LCA + Evaluator (DomainExtension + Runtime.plan_domain_aware + ExperimentDesigner + Evaluator.domain_reward_adjustment)
+>   - v0.88.0-c: POMDP 完整 (依赖型 T(s'|s,a) + 固定 init R(s,a) + bayes_update(action, obs) + schema_version 校验)
+>   - v0.88.0-d: POMDP 集成 Runtime + 真 A/B 3-way 升级 (LCAPolicyLearner.set_observation + LCAEngine pomdp integration)
 > ECOS 7 组件: 5D+cov (K/P/S/C/X 均真评估) / Bloom 6级 / TC 状态 / LearningDNA (标"待启用") / Trajectory / Misconceptions / overall_confidence。
-> 详见 [03-roadmap.md](./research/00-overview/03-roadmap.md) (v1.5 已同步) + [12-kernel-mapping-current-vs-2.0.md §8.2 v0.85.0 更新](./research/00-overview/12-kernel-mapping-current-vs-2.0.md)。
+> 详见 [03-roadmap.md](./research/00-overview/03-roadmap.md) (v1.5+ 已同步) + [12-kernel-mapping-current-vs-2.0.md §8.2 v0.88.0 更新](./research/00-overview/12-kernel-mapping-current-vs-2.0.md)。
 >
 > **历史重大弊端跟进 (Bisen 2026-07-22 测试发现 → 2026-07-30 状态)**:
 > - ✅ **Partial Credit 缺失 — v0.54.0 已修复**。学生答对 70% 但缺 I/O 时, ECOS 不再按 0% 处理。
@@ -389,9 +396,9 @@ bash scripts/install-hooks.sh    # 设 core.hooksPath = githooks/
 | 5 | DB 恢复 6 关键字段 | 4 次漏字段 (json/tc_states/trajectory/item_params) | 检查 6 字段全在 belief.py + db.py |
 | 6 | DB 恢复走 apply_snapshot | v0.77.1 收口 6 处直接 state.X = value mutation | `grep "state.apply_snapshot(" web/api/belief.py` |
 | 7 | replay 脚本无字面量 skill_id | v0.78 H3-c4 artifact (7 个 replay 脚本硬编码 skill_id="variables") | AST 检测 `scripts/check_no_literal_skill_id.py`, 排除 docstring + dict .get() 默认 |
-| 8 | 直接 state.X = value mutation 扫描 | v0.78 BeliefEngine.update() 含 ~46 处直接 mutation (v0.80 拆 4-layer 收口); v0.81 TODO mutations 迁移完成 + hard block; v0.82 LCA 4-layer 拆分 (LCAEngine 缩到 facade, 不引入新 mutation site); v0.83 Evidence Engine + Runtime API 0 新 mutation site (Runtime API 纯函数 + kwargs 注入, 符合 kernel-mapping §5 CQRS 原则); v0.84 Event Engine 100% + Plugin SDK 雏形 0 新 mutation site (EventBus 纯 pub/sub 不动 state, PluginRuntime 委托 Runtime.update_belief 经 engine.update 间接 mutate, LearningEvent factory 是 factory pattern 不 mutate state); v0.85 Plugin SDK 100% + production activation 0 新 mutation site (PluginRuntime.start() 在 if __name__ 块, Runtime subscriber 调 Runtime.update_belief/orchestrator.process_observation/Runtime.plan 间接 mutate, 4 frontend stub endpoint 只产 event 不写 state) | AST 检测 `scripts/check_no_direct_state_mutation.py`, allowlist: BeliefState.{__init__,to_dict,from_dict,apply_snapshot,validate,bump_version,append_trajectory_snapshot,add_evidence} + StateEngine.commit + BeliefUpdator.apply + create_initial_state. v0.81 hard block (exit 1), LINE_ALLOWLIST shrinks 8 -> 1 (ecos/dual_agent/orchestrator.py:842 only). v0.83.0-b add_evidence 扩展 allowlist (跟 append_trajectory_snapshot 模式一致). v0.84.0-b/v0.84.0-d 不引入新 allowlist (纯 pub/sub / factory). v0.85.0-b/c/d 同样 0 新 mutation site |
+| 8 | 直接 state.X = value mutation 扫描 | v0.78 BeliefEngine.update() 含 ~46 处直接 mutation (v0.80 拆 4-layer 收口); v0.81 TODO mutations 迁移完成 + hard block; v0.82 LCA 4-layer 拆分 (LCAEngine 缩到 facade, 不引入新 mutation site); v0.83 Evidence Engine + Runtime API 0 新 mutation site (Runtime API 纯函数 + kwargs 注入, 符合 kernel-mapping §5 CQRS 原则); v0.84 Event Engine 100% + Plugin SDK 雏形 0 新 mutation site (EventBus 纯 pub/sub 不动 state, PluginRuntime 委托 Runtime.update_belief 经 engine.update 间接 mutate, LearningEvent factory 是 factory pattern 不 mutate state); v0.85 Plugin SDK 100% + production activation 0 新 mutation site (PluginRuntime.start() 在 if __name__ 块, Runtime subscriber 调 Runtime.update_belief/orchestrator.process_observation/Runtime.plan 间接 mutate, 4 frontend stub endpoint 只产 event 不写 state); **v0.86.0 / v0.87.0 / v0.88.0-a/b/c/d 同样 0 新 mutation site** (DomainExtension set_domain_extension 加入 allowlist, POMDP reward→observation 走 LCAPolicyLearner._reward_to_observation 静态方法不 mutate, LCAEngine._last_observation 是 instance dict 不在 state 上) | AST 检测 `scripts/check_no_direct_state_mutation.py`, allowlist: BeliefState.{__init__,to_dict,from_dict,apply_snapshot,validate,bump_version,append_trajectory_snapshot,add_evidence} + StateEngine.commit + BeliefUpdator.apply + create_initial_state. v0.81 hard block (exit 1), LINE_ALLOWLIST shrinks 8 -> 1 (ecos/dual_agent/orchestrator.py:842 only). v0.83.0-b add_evidence 扩展 allowlist (跟 append_trajectory_snapshot 模式一致). v0.84.0-b/v0.84.0-d 不引入新 allowlist (纯 pub/sub / factory). v0.85.0-b/c/d 同样 0 新 mutation site. **v0.88.0-b set_domain_extension 加入 allowlist (DomainExtension 维护 state.domain_extension 是 Runtime 字段, 走 apply_snapshot 一致)**. v0.88.0-d 不引入新 allowlist (POMDP 反馈走静态方法 + dict 跟踪). |
 
-**836 pytest 测试**（截至 v0.85.0, 42 个文件）：
+**1044 pytest 测试**（截至 v0.88.0-d, 47 个文件）：
 - `test_state_engine.py` (54)：v0.80.0-a StateEngine commit/validate/snapshot/diff + apply_snapshot shim
 - `test_inference_engine.py` (28)：v0.80.0-b InferenceEngine (含 5 个 critical 不变量 test: run() 不 mutate state)
 - `test_belief_updater.py` (34)：v0.80.0-b BeliefUpdator (sole mutation site, calls StateEngine.commit)
@@ -418,6 +425,13 @@ bash scripts/install-hooks.sh    # 设 core.hooksPath = githooks/
 - `test_dual_agent_plugin.py` (11)：v0.85.0-b /api/dual_agent 改造 (request_calibration event + Runtime subscriber)
 - `test_lca_plugin.py` (10)：v0.85.0-c /api/lca 改造 (request_intervention event + Runtime.plan)
 - `test_event_stub.py` (13)：v0.85.0-d Production activation + 4 frontend stub endpoint (hint / idle / goal_change / reflection)
+- `test_goal_ontology.py` / `test_twin_consistency.py` / `test_thompson_sampling.py` (30+)：v0.86.0 Phase 6+ Kernel 扩展 #1 (Goal Ontology 100% + Twin Consistency 100% + Thompson Sampling 95%)
+- `test_motivation_profile.py` / `test_motivation_runtime.py` (24+)：v0.87.0 Phase 6+ Kernel 扩展 #2 (Motivation Profile 100% schema + Runtime integration)
+- `test_pomdp_policy.py` / `test_pomdp_three_way.py` (24+)：v0.87.0 POMDP Policy 雏形 (4 状态 + Bayesian belief + 真 A/B 3-way)
+- `test_domain_base.py` (12)：v0.88.0-a Domain base class + 3 domain schema (Education/Science/Career)
+- `test_domain_extension.py` / `test_runtime_domain_aware.py` (26)：v0.88.0-b Multi-Domain 集成 (DomainExtension + Runtime.plan_domain_aware + LCA + Evaluator)
+- `test_pomdp_action_dependent.py` (16)：v0.88.0-c POMDP 依赖型 T(s'|s,a) + 固定 init R(s,a) + schema_version
+- `test_pomdp_runtime_integration.py` (17)：v0.88.0-d POMDP 集成 Runtime (LCAPolicyLearner.set_observation + LCAEngine pomdp integration)
 - `test_defensive.py` (8)：8 项防御性自检的 pytest 版本
 - `test_apply_snapshot.py` (19)：v0.77.1 DB 恢复路径单一入口 (6 字段恢复 + 不接管边界 + round-trip)
 - `test_partial_credit.py` (5)：partial credit + MIRT 回归保护

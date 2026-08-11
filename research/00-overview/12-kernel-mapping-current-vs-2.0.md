@@ -319,7 +319,7 @@
 - **v0.88.0-b** ✅ (2026-08-11): Multi-Domain 集成 (DomainExtension + Runtime + LCA). 4 个集成点全完成: BeliefState.domain_extension + Runtime.plan_domain_aware + ExperimentDesigner domain-aware + Evaluator.domain_reward_adjustment. 26 新增 tests (pytest 985 → 1011, +2.7%). 防御性自检 [8] 仍 hard block (set_domain_extension 加入 allowlist). H3-c4 + v0.81 replay canary 全 PASS. Multi-Domain §3 80% → 95%.
 - **v0.88.0-c** ✅ (2026-08-11): POMDP 完整 (依赖型 T+R). 3D transition (n_states x n_states x n_arms) + R(s, a) 固定 init + bayes_update(action, observation) + schema_version 校验. 16 新增 tests (pytest 1011 → 1027, +1.6%). 防御性自检 [8] 仍 hard block. POMDP Policy §1.3 80% → 100%. 老 snapshot 不兼容 (per design §4.3, schema_version="0.88.0-c" 校验).
 - **v0.88.0-d** ✅ (2026-08-11): POMDP 集成 Runtime + 真 A/B 3-way 升级. LCAEngine.select_intervention 前消费 observation (bayes_update(action, obs)) + LCAPolicyLearner.set_observation API + PolicyABTest 自动升级. 17 新增 tests (pytest 1027 → 1044, +1.7%). H3-c4 + v0.81 replay canary 全 PASS. 防御性自检 [8] 仍 hard block. POMDP Runtime 集成 + Multi-Domain 100%.
-- **v0.88.0 final** (待实施): 文档同步 + memory v0.87.0 → v0.88.0 completion state.
+- **v0.88.0 final** ✅ (2026-08-11): 文档同步收口. README.md (badge + 当前状态 + Kernel 深化进度表 + 累计产出更新) + CLAUDE.md (当前阶段追加 v0.86/v0.87/v0.88 摘要 + 防御性自检 [8] 追加 mutation 状态 + pytest 测试清单 836 → 1044) + memory 新增 `project-v088-completion-state.md`. 缺失清单 0 项剩.
 - **v0.89.0+** (Phase 7+ 抽象推演 #2+): Twin → Human Twin 抽象 + Plugin SDK 文档化 + Teacher/Parent Dashboard + 跨学科扩展
 
 **设计原则**:
@@ -490,7 +490,8 @@ v0.84.0-d 在 LCA 4-layer 之外, 引入 Plugin Runtime 雏形 (kernel-mapping �
 > - 接口同构 LinUCB/Thompson (set_observation 在 linucb/thompson 路径静默忽略)
 > - 防御性自检 [8] 仍 hard block. H3-c4 + v0.81 replay canary 全 PASS.
 > - POMDP Runtime 集成 + Multi-Domain 100% 全部完成.
-> - 下一阶段 v0.88.0 final: 文档同步 + memory v0.87.0 → v0.88.0 completion state.
+> - **v0.88.0 final 完成**: README.md / CLAUDE.md / 12-kernel-mapping §8.2 / memory (`project-v088-completion-state.md`) 全部同步. 缺失清单 0 项剩.
+> - 下一阶段 v0.89.0+: Phase 7+ 抽象推演 #2+ (Twin → Human Twin + Plugin SDK 文档化 + Teacher/Parent Dashboard + 跨学科扩展) + POMDP point-based solver (POMCP / DESPOT).
 
 > **[v0.87.0 完成 2026-08-11]**: 缺失清单 3→1 (Motivation Profile / POMDP Policy 全部落地). Phase 6+ Kernel 扩展第 2 个版本 4 sub-commit 全部完成 (a=Motivation schema/b=Motivation Runtime+c=POMDP 雏形/d=POMDP 集成 3-way A/B). pytest 898 → 958 (+60, +6.7%).
 
