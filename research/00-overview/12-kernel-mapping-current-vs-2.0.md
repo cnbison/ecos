@@ -408,6 +408,7 @@ v0.84.0-d 在 LCA 4-layer 之外, 引入 Plugin Runtime 雏形 (kernel-mapping �
 | 100% (LCA 4-layer) | Planner / ExperimentDesigner / Evaluator / PolicyLearner / Intervention / LCAAttribution | 6 - **[v0.82.0]** LCA 4-layer split 100% 完成 (a/b/c/d 4 sub-phases, 2026-08-10) |
 | 100% (v0.83.0) | Evidence Engine (6 来源 + 跨 3 表 CRUD) / Belief-Evidence 关联 (add_evidence + 反查) / Evaluation Engine (TwinAttribution + PolicyABTest + GoalCompletion) / Runtime API (6 核心纯函数 + kwargs) | 4 类 12 文件 - **[v0.83.0]** Evidence Engine + Runtime API 100% 完成 (a/b/c/d 4 sub-phases, 2026-08-10) |
 | 100% (v0.84.0) | LearningEventType enum (7 值) / LearningEvent factory methods (3) / CalibrationMessage.to_learning_event / FeatureExtractor event_log 注入 / DualAgentOrchestrator event_log 注入 / EventBus pub/sub / EventLog retention policy / PluginRuntime + /api/answer Plugin 路径 | 8 类 17 文件 - **[v0.84.0]** Event Engine 100% + Event 统一输入 95% + Plugin SDK 10% 完成 (a/b/c/d 4 sub-phases, 2026-08-11) |
+| 100% (v0.85.0) | LearningEventType enum (10 值) / 8 LearningEvent factory methods / PluginRuntime (3 subscriber: response_submitted + request_calibration + request_intervention) / /api/answer + /api/judge + /api/dual_agent + /api/lca 4 endpoint Plugin 路径 / Flask startup production activation / 4 frontend stub endpoint (hint / idle / goal_change / reflection) | 11 类 24 文件 - **[v0.85.0]** Plugin SDK 100% + Event 统一输入 100% + Runtime event-driven 50% 完成 (a/b/c/d 4 sub-phases, 2026-08-11) |
 | 60-80% | BeliefState(Twin 雏形) / DimensionState(Belief 雏形) / MIRT(Inference) / BKT(Inference) | 4 |
 | 40-60% | Observation / CalibrationMessage / partial credit / LLM Critic / attribution | 5 |
 | 20-40% | calibration_log / response_history / evidence_predictions 占位 | 3 |
@@ -438,6 +439,15 @@ v0.84.0-d 在 LCA 4-layer 之外, 引入 Plugin Runtime 雏形 (kernel-mapping �
 > - 防御性自检 [8] 仍 hard block. H3-c4 + v0.81 replay canary 全 PASS
 >
 > v0.84 是 5 kernel-deepening 版本的第 1 个 (per 12-kernel-mapping §8.3, Bisen 2026-08-06 拍板 Kernel-first). 下一阶段 v0.85+: Plugin SDK 全量 (剩 /api/judge / /api/dual_agent / /api/lca) + Runtime 订阅 EventBus (Runtime API 改 event-driven) + frontend 接入 hint/idle/goal_changed/reflection_completed 4 个 event_type + 跨学科扩展 (Phase 7+ 推迟).
+
+> **[v0.85.0 更新 2026-08-11]**: Plugin SDK 100% + Event 统一输入 100% + Runtime event-driven 50% 落地. 4 sub-commits a/b/c/d. 44 新增 tests (10+11+10+13, pytest 792 → 836, +5.6%). 详情见 §1.2/§2.4/§4.5/§6.
+> - Plugin SDK 100% (4/4 endpoint 全走 Plugin path: /api/answer /judge/dual_agent/lca + Flask startup production activation via plugin_runtime.start())
+> - Event 统一输入 100% (10 event_type + 8 factory methods + 4 frontend stub endpoint: hint/idle/goal_change/reflection)
+> - Runtime event-driven 50% (3 subscriber 接 plugin path: response_submitted / request_calibration / request_intervention)
+> - PluginRuntime 接受 dual_orchestrator_factory + lca_engine_factory kwarg, 委托 Runtime API (Runtime.update_belief / orchestrator.process_observation / Runtime.plan)
+> - 防御性自检 [8] 仍 hard block. H3-c4 + v0.81 replay canary 全 PASS
+>
+> v0.85 是 6 kernel-deepening 版本的第 2 个 (per 12-kernel-mapping §8.3, Bisen 2026-08-06 拍板 Kernel-first). Plugin SDK 架构全部走通 (production activation). 下一阶段 v0.86+: Phase 6+ Kernel 扩展 (Goal Ontology / Twin 一致性保证 / Thompson Sampling / POMDP Policy) + Phase 7+ 抽象推演 (Twin → Human Twin + Multi-Domain + Plugin SDK 文档化).
 
 ### 8.3 演进优先级建议
 
