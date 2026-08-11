@@ -317,7 +317,8 @@
 **演进建议**:
 - **v0.88.0-a** ✅ (2026-08-11): Domain 抽象层奠基. NEW `ecos/domain/{__init__,base,education,science,career}.py` 5 文件. Multi-Domain §3 0% → 80% (Domain 抽象层 100%, 集成留 v0.88.0-b)
 - **v0.88.0-b** ✅ (2026-08-11): Multi-Domain 集成 (DomainExtension + Runtime + LCA). 4 个集成点全完成: BeliefState.domain_extension + Runtime.plan_domain_aware + ExperimentDesigner domain-aware + Evaluator.domain_reward_adjustment. 26 新增 tests (pytest 985 → 1011, +2.7%). 防御性自检 [8] 仍 hard block (set_domain_extension 加入 allowlist). H3-c4 + v0.81 replay canary 全 PASS. Multi-Domain §3 80% → 95%.
-- **v0.88.0-c** (待实施): POMDP 依赖型 T(s'|s,a) + R(s,a) 固定 init + bayes_update(action, observation) 升级. 替换 v0.87.0-c 4x4 T 为 (n_states, n_states, n_arms) — T[a] 矩阵依赖 action.
+- **v0.88.0-c** ✅ (2026-08-11): POMDP 完整 (依赖型 T+R). 3D transition (n_states x n_states x n_arms) + R(s, a) 固定 init + bayes_update(action, observation) + schema_version 校验. 16 新增 tests (pytest 1011 → 1027, +1.6%). 防御性自检 [8] 仍 hard block. POMDP Policy §1.3 80% → 100%. 老 snapshot 不兼容 (per design §4.3, schema_version="0.88.0-c" 校验).
+- **v0.88.0-d** (待实施): POMDP 集成 LCAEngine.select_intervention + PolicyABTest 升级. 14 新增 tests.
 - **v0.89.0+** (Phase 7+ 抽象推演 #2+): Twin → Human Twin 抽象 + Plugin SDK 文档化 + Teacher/Parent Dashboard + 跨学科扩展
 
 **设计原则**:
@@ -466,7 +467,17 @@ v0.84.0-d 在 LCA 4-layer 之外, 引入 Plugin Runtime 雏形 (kernel-mapping �
 > - MODIFY scripts/check_no_direct_state_mutation.py FUNC_ALLOWLIST += set_domain_extension (防御性自检 [8] 仍 hard block)
 > - Domain-agnostic Kernel 不变 (POMDP / LinUCB / Thompson / Evidence 不感知 Domain)
 > - H3-c4 + v0.81 replay canary 全 PASS. apply_snapshot 路径覆盖 domain_extension (兜底老 snapshot).
-> - 下一阶段 v0.88.0-c: POMDP 依赖型 T(s'|s,a) + R(s,a) 固定 init + bayes_update 升级.
+> - 下一阶段 v0.88.0-d: POMDP 集成 LCAEngine.select_intervention + PolicyABTest 升级.
+
+> **[v0.88.0-c 更新 2026-08-11]**: Phase 7+ 抽象推演 #1 sub-version c 完成. POMDP 完整 (依赖型 T+R). 16 新增 tests (pytest 1011 → 1027, +1.6%). 详情见 §1.3 (Policy Engine).
+> - MODIFY POMDPPolicy.transition: 2D (n_states x n_states, v0.87.0-c) → 3D (n_states x n_states x n_arms, v0.88.0-c). 不同 action → 不同 T[a].
+> - MODIFY POMDPPolicy.reward: random uniform (v0.87.0-c) → 固定 init (state s 偏好 arm 区间, U(0.5, 1.0), 其他 U(0.0, 0.5))
+> - MODIFY POMDPPolicy.bayes_update(observation) → bayes_update(action, observation) (考虑 action)
+> - MODIFY POMDPPolicy.dump_state: 加 schema_version="0.88.0-c" 标识 (老 snapshot 不兼容)
+> - MODIFY POMDPPolicy.load_state: schema_version 校验 (老 snapshot raise)
+> - 接口同构 LinUCB/Thompson (select_arm / update 名称不变). bayes_update 是 POMDP-specific, 可变.
+> - 防御性自检 [8] 仍 hard block. H3-c4 + v0.81 replay canary 全 PASS.
+> - 下一阶段 v0.88.0-d: POMDP 集成 LCAEngine.select_intervention + PolicyABTest 升级.
 
 > **[v0.87.0 完成 2026-08-11]**: 缺失清单 3→1 (Motivation Profile / POMDP Policy 全部落地). Phase 6+ Kernel 扩展第 2 个版本 4 sub-commit 全部完成 (a=Motivation schema/b=Motivation Runtime+c=POMDP 雏形/d=POMDP 集成 3-way A/B). pytest 898 → 958 (+60, +6.7%).
 

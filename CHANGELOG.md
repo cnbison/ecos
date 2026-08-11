@@ -99,12 +99,91 @@
 - Multi-Domain §3: 0% → **95%** (Domain 抽象 100% + Runtime/LCA 集成 95%, 剩 Q-Matrix domain 维度扩展 v0.89+)
 - pytest: 958 → **1011** (+53, +5.5%; 27 + 26)
 
-#### 📋 v0.88.0-c (Phase 7+ 抽象推演 #1 sub c, 待实施)
+## [0.88.0-c] 2026-08-11
 
-- POMDP 依赖型 T(s'|s,a) + R(s,a) 固定 init + bayes_update(action, observation) 升级
-- 替换 v0.87.0-c 4x4 T 为 (n_states, n_states, n_arms) — T[a] 矩阵依赖 action
-- R 固定 init (n_states, n_arms)
-- +16 tests
+### feat: Phase 7+ 抽象推演 #1 (sub c) — POMDP 完整 (依赖型 T+R)
+
+> **背景**: v0.88.0-a/b Phase 7+ 抽象推演 #1 sub a/b 完成 (Domain 抽象 + Runtime 集成). v0.88.0-c 推进 POMDP 完整化 (依赖型 T+R), 升级 v0.87.0-c 雏形.
+> **v0.88.0-c 目标**: POMDP 真正"action 选择"有意义. 替换 v0.87.0-c 简化 T (不依赖 action) 为依赖型 T(s'|s, a), 替换 random R init 为固定 init, bayes_update 升级考虑 action. pytest 1011 → 1027 (+16, +1.6%).
+
+#### MODIFY: POMDPPolicy T(s'|s, a) 依赖 action (n_states x n_states x n_arms)
+
+- `ecos/lca/l4_optimization/pomdp.py:POMDPPolicy`:
+  - `transition` shape 升级: 2D (n_states x n_states, v0.87.0-c) → **3D (n_states x n_states x n_arms, v0.88.0-c)**
+  - `_init_transition_matrix(seed)`: 每 action 有自己的 T[a]
+    - base T[s'|s]: 强 self-loop (0.7) + 弱跨 (0.1) (跟 v0.87.0-c 同)
+    - perturbation[a]: 跨状态偏移, 强度依赖 action (a=0 → +0.05, a=n_arms-1 → +0.15)
+    - 归一化: T[a] 每行 sum = 1 (valid stochastic matrix)
+  - **T 真正 action-dependent**: 不同 action 导致不同 T[a] (v0.87.0-c 雏形 T 不依赖 action, action 无意义)
+  - 注意: 设计档 §4.2 原始代码的 perturbation 是常数 (+0.1), 导致 T[a] 全部相同. v0.88.0-c 实现做了 action-dependent 修正 (perturbation 强度随 a 递增).
+
+#### MODIFY: POMDPPolicy R(s, a) 固定 init (替换 v0.87.0-c random uniform)
+
+- `_init_reward_matrix(seed)`:
+  - 规则 (per design doc §4.2):
+    - state s 偏好 arm 区间 [s*n_arms//n_states, (s+1)*n_arms//n_states) → R[s, a] ∈ U(0.5, 1.0) (高 reward)
+    - 其他 arm 区间 → R[s, a] ∈ U(0.0, 0.5) (低 reward)
+  - PRNG seed 可重现 (跟 v0.87.0-c random init 同接口, 测试可固定)
+  - 注意: 操作符优先级 — `s * n_arms // n_states` ≠ `s * (n_arms // n_states)`. init 用前者, test 用前者.
+
+#### MODIFY: bayes_update(action, observation) 考虑 action
+
+- 签名变化 (v0.87.0-c → v0.88.0-c):
+  - 旧: `bayes_update(observation)` — T 不依赖 action, action 无意义
+  - 新: `bayes_update(action, observation)` — T 依赖 action, 不同 action → 不同 posterior
+- 算法:
+  - `b_pred[s'] = Σ_s T[s'|s, a] * b(s)` (predict 用 T[a])
+  - `b_post[s'] ∝ O[o|s'] * b_pred[s']` (update 同 v0.87.0-c)
+  - 归一化 (fallback uniform 防御 norm=0)
+- 防御性自检 [1]: 越界 action / observation _log.warning 跳过
+
+#### MODIFY: dump_state / load_state schema_version 校验
+
+- `dump_state`:
+  - 新字段 `schema_version = "0.88.0-c"` (标识新 schema, 老 snapshot 不兼容)
+  - `transition` 序列化为 3D (List[List[List[float]]]) (n_states x n_states x n_arms)
+- `load_state`:
+  - 校验 `schema_version == "0.88.0-c"`, 不匹配 → `ValueError("老 snapshot 不兼容")`
+  - 3D transition shape 校验 (第一/二/三维都校验)
+- **老 snapshot 不兼容**: per design doc §4.3 (v0.87.0-c → v0.88.0-c 升级是 schema break)
+
+#### MODIFY: tests/test_pomdp.py (existing 16 tests 适配新签名)
+
+- `bayes_update(observation=X)` → `bayes_update(action=0, observation=X)` (全部 5 处)
+- `transition.sum(axis=1)` (2D) → `transition[:, :, a].sum(axis=1)` (3D per-action)
+- `dump_state` round-trip 增加 `schema_version` 校验
+
+#### NEW: tests/test_pomdp_action_dependent.py (16 tests, v0.88.0-c 关键升级)
+
+1. **T 形状 (2)**: 3D shape + per-action row sum = 1
+2. **T 依赖 action (2)**: 不同 action → 不同 T[a] + perturbation +0.1 structure 验证
+3. **R 固定 init (4)**: state 偏好区间 + R ∈ [0, 1] + seed 可重现 + 不同 seed 不同 R
+4. **bayes_update 考虑 action (4)**: 同 obs 不同 action → 不同 posterior + invalid 越界跳过 + normalization
+5. **dump_state/load_state schema (4)**: 含 schema_version + 3D roundtrip + 老 snapshot raise + 缺失 schema raise
+
+#### 关键不变量 (跟 v0.88.0-a/b 一致)
+
+- **接口同构 LinUCB/Thompson**: `select_arm / update / dump_state / load_state` 名称不变
+- **bayes_update signature 变化**: v0.87.0-c 1-arg → v0.88.0-c 2-arg (考虑 action, POMDP-specific)
+- **PRNG seed 可重现**: production 走系统 entropy, 测试固定 seed
+- **防御性自检 [8] 仍 hard block**: POMDPPolicy 不 mutate state
+- **H3-c4 canary PASS**: bayes_update 升级不改 classroom 行为 (only T shape + reward init)
+- **v0.81 replay canary PASS**: 序列化 schema 完整 (schema_version + 3D transition)
+
+#### 累计进度 (v0.87.0-d → v0.88.0-c)
+
+- POMDP Policy §1.3: 80% → **100%** (依赖型 T + 固定 R + action-aware bayes_update 全部完成)
+- pytest: 958 → **1027** (+69, +7.2%; 27 + 26 + 16)
+- 缺失清单: 0 项剩 (Multi-Domain 95% + POMDP 100%)
+
+#### 📋 v0.88.0-d (Phase 7+ 抽象推演 #1 sub d, 待实施)
+
+- POMDP 集成 LCAEngine.select_intervention: 接受 last_action feedback, 调 pomdp.bayes_update(action, observation) before select
+- PolicyABTest._create_fresh_bandit pomdp 升级依赖型 T+R
+- +14 tests
+
+
+## [0.88.0-b] 2026-08-11
 
 
 ## [0.88.0-a] 2026-08-11

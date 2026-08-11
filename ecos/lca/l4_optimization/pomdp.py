@@ -1,24 +1,32 @@
-"""POMDP Policy — 部分可观测 MDP 雏形 (v0.87.0-c).
+"""POMDP Policy — 部分可观测 MDP 完整 (v0.88.0-c, 依赖型 T+R).
 
 对应 12-kernel-mapping §1.3 Policy Engine:
-    "POMDP Policy (部分可观测 MDP, Phase 6+)".
+    "POMDP Policy (部分可观测 MDP, Phase 6+)" → "POMDP 完整 (依赖型 T+R, v0.88.0-c)".
 
-v0.87.0-c 范围 (Phase 6+ 第 2 个 sub-version):
+v0.88.0-c 范围 (Phase 7+ 第 1 个 sub-version, POMDP 雏形升级):
   - 4 状态 POMDP (Engaged / Frustrated / Bored / Confused)
-  - 简化 transition + observation model (固定矩阵, 不学习)
-  - Bayesian belief update (b'(s') ∝ O[o|s'] * Σ_s T[s'|s] * b(s))
-  - select_action: argmax_a Σ_s b(s) * R(s, a)
-  - 接口同构 LinUCB / Thompson (select_arm / update / dump_state / load_state)
-  - PRNG seed (测试用)
+  - **依赖型 T(s'|s, a)**: shape (n_states, n_states, n_arms) — 替换 v0.87.0-c 4x4 简化矩阵
+    每个 action 有自己的 transition 矩阵 (选该 action 时, +0.1 跨状态概率)
+  - **R(s, a) 固定 init**: 替换 v0.87.0-c random init (state s 偏好 arm 区间 [s*n_arms/n_states, (s+1)*n_arms/n_states))
+  - **bayes_update(action, observation)**: Bayes update 考虑 action
+    b'(s') ∝ O[o|s'] * Σ_s T[s'|s, a] * b(s)
+  - select_arm: argmax_a Σ_s b(s) * R(s, a) (跟 v0.87.0-c 同, R shape 不变)
+  - update(arm, context, reward): 仍仅追踪 arm_pull_counts (接口同构 LinUCB/Thompson)
+  - dump_state / load_state: 7+ 字段, transition 加 action 维
+    **老 snapshot 不兼容** (维度变化, per design doc §4.3)
 
-POMDP 雏形限制 (Phase 6+ 初始版本, 后续 v0.88+ 扩展):
-  - Simplified transition (不依赖 action, 简化矩阵)
-  - Simplified observation model (固定 4x4)
-  - 不实现 partial observability 的"模型学习" (transition / observation 固定)
-  - 不实现完整 POMDP solver (point-based / SARSOP 等)
+v0.87.0-c 雏形限制 (已升级部分):
+  - ~~Simplified transition (不依赖 action)~~ → v0.88.0-c: T(s'|s, a) 依赖 action ✅
+  - ~~R(s, a) random init~~ → v0.88.0-c: 固定 init (per design doc §4.2) ✅
+  - **仍限制** (推迟 v0.89+):
+    - T(s'|s, a) 固定, 不学
+    - R(s, a) 固定 init, 不学
+    - 不实现 point-based solver (α-vector, PBVI, Perseus)
+    - 不实现完整 POMDP solver (SARSOP, etc.)
 
 向后兼容:
-  - 接口同构 LinUCB/Thompson (select_arm / update / dump_state / load_state)
+  - 接口同构 LinUCB/Thompson (select_arm / update / dump_state / load_state 名称不变)
+  - **bayes_update signature 变化**: v0.87.0-c `bayes_update(observation)` → v0.88.0-c `bayes_update(action, observation)`
   - 防御性自检 [8] 仍 hard block (POMDPPolicy 不 mutate state)
   - H3-c4 canary 必 PASS (POMDP 只改 select_intervention / update, classroom 行为不变)
 """
@@ -32,6 +40,9 @@ from typing import Any, ClassVar, Dict, List, Optional
 import numpy as np
 
 _log = logging.getLogger(__name__)
+
+# v0.88.0-c: schema version for dump_state / load_state 老 snapshot 检测
+SCHEMA_VERSION = "0.88.0-c"
 
 
 @dataclass
@@ -52,7 +63,7 @@ class POMDPConfig:
 
 
 class POMDPPolicy:
-    """小 POMDP solver (v0.87.0-c 雏形).
+    """POMDP solver (v0.88.0-c, 依赖型 T+R).
 
     4 状态:
       - 0: Engaged   (投入)
@@ -61,23 +72,31 @@ class POMDPPolicy:
       - 3: Confused  (困惑)
 
     Belief state: b = P(state) (4-dim 概率向量, 和 = 1)
-    Transition:    T[s'|s] (4x4, 简化: 不依赖 action)
-    Observation:   O[o|s] (4 obs per state, 4x4 矩阵)
-    Reward:        R(s, a) (per state + action, 4 x n_arms)
+    Transition:    **T[s'|s, a]** (n_states x n_states x n_arms, **依赖 action**)
+                   - base T[s'|s]: 强 self-loop (0.7) + 弱跨 (0.1) (跟 v0.87.0-c 同)
+                   - perturbation[a]: 选该 action 时 +0.1 跨状态概率 (off-diagonal)
+    Observation:   O[o|s] (n_obs per state, 跟 v0.87.0-c 同, 不依赖 action)
+    Reward:        **R(s, a) 固定 init** (n_states x n_arms, 替换 v0.87.0-c random)
+                   - state s 偏好 arm 区间 [s*n_arms/n_states, (s+1)*n_arms/n_states) (高 reward)
+                   - 其他 arm 区间 (低 reward)
+                   - PRNG seed 可重现
 
     算法:
-      - select_arm: argmax_a Σ_s b(s) * R(s, a)
-      - bayes_update(observation): b'(s') ∝ O[o|s'] * Σ_s T[s'|s] * b(s)
-      - update(arm, context, reward): 仅更新 arm_pull_counts (简化, 不学 transition)
+      - select_arm: argmax_a Σ_s b(s) * R(s, a) (跟 v0.87.0-c 同)
+      - **bayes_update(action, observation)**: b'(s') ∝ O[o|s'] * Σ_s T[s'|s, a] * b(s)
+        (v0.88.0-c 升级: 考虑 action)
+      - update(arm, context, reward): 仅更新 arm_pull_counts (v0.87.0-c 接口同构)
 
     适用:
       - reward ∈ [0, 1] (any float)
       - 4 状态 (Engaged/Frustrated/Bored/Confused)
-      - 固定 transition / observation model (Phase 6+ 简化)
+      - **依赖 action 的 T**: 不同 action 导致不同 belief update (v0.88.0-c 关键升级)
+      - **固定 R init**: 测试可重现 (PRNG seed)
 
     防御性自检 [1]:
-      - bayes_update 越界 observation _log.warning 跳过
+      - bayes_update 越界 action / observation _log.warning 跳过
       - select_arm n_arms=0 返 0 (degenerate)
+      - dump_state schema_version 不匹配 _log.warning + raise
     """
 
     STATE_NAMES: ClassVar[tuple] = ("Engaged", "Frustrated", "Bored", "Confused")
@@ -99,34 +118,69 @@ class POMDPPolicy:
         # Belief state: 概率向量 (和 = 1, uniform prior)
         self.belief_state: np.ndarray = np.ones(self.n_states) / self.n_states
 
-        # Transition: T[s'|s] (n_states x n_states, 简化: 不依赖 action)
-        # 强 self-loop (0.7) + 弱跨状态 (0.1) → row sums = 0.7 + (n_states-1)*0.1
-        # 当 n_states=4: row sum = 0.7 + 3*0.1 = 1.0
-        self.transition: np.ndarray = (
-            np.eye(self.n_states) * 0.7
-            + np.ones((self.n_states, self.n_states)) * 0.1
-        )
-        # 归一化 row sum = 1 (防御性: 不依赖 n_states 整除)
-        self.transition = self.transition / self.transition.sum(axis=1, keepdims=True)
+        # v0.88.0-c: T[s'|s, a] 依赖 action (n_states x n_states x n_arms)
+        # base T[s'|s]: 强 self-loop (0.7) + 弱跨 (0.1)
+        # perturbation[a]: 选该 action 时 +0.1 跨状态概率 (off-diagonal only)
+        self.transition: np.ndarray = self._init_transition_matrix()
 
-        # Observation model: O[o|s] (n_observations x n_states)
-        # 强对角 (0.6) + 弱跨 (auto: (1-0.6)/(n_states-1)) → row sum 精确 = 1.0
-        # 例: n_states=4 → off-diagonal = 0.4/3 ≈ 0.1333
+        # Observation model: O[o|s] (n_observations x n_states, 跟 v0.87.0-c 同, 不依赖 action)
         obs_off = (1.0 - 0.6) / max(1, self.n_states - 1)
         self.observation_model: np.ndarray = np.full(
             (self.n_observations, self.n_states), obs_off
         )
         for s in range(self.n_states):
             self.observation_model[s, s] = 0.6
-        # row sum 精确 = 1.0 (无需归一化, 但防御性: normalize 防浮点误差)
         self.observation_model = self.observation_model / self.observation_model.sum(axis=1, keepdims=True)
 
-        # Reward: R(s, a) (n_states x n_arms), random init
-        self.reward: np.ndarray = self._rng.uniform(0, 1, (self.n_states, self.n_arms))
+        # v0.88.0-c: R(s, a) 固定 init (替换 v0.87.0-c random uniform init)
+        self.reward: np.ndarray = self._init_reward_matrix(seed)
 
         # Stats
         self.arm_pull_counts: np.ndarray = np.zeros(self.n_arms, dtype=int)
         self.total_observations: int = 0
+
+    def _init_transition_matrix(self) -> np.ndarray:
+        """v0.88.0-c: 初始化 T[s'|s, a] (n_states x n_states x n_arms), 依赖 action.
+
+        算法 (per design doc §4.2 intent):
+          - base T[s'|s]: 强 self-loop (0.7) + 弱跨 (0.1) (跟 v0.87.0-c 同)
+          - perturbation[a]: 选该 action 时跨状态概率偏移, 强度依赖 action
+            → a=0: +0.05 (最小), a=n_arms-1: +0.15 (最大)
+            → 不同 action 导致不同 transition 矩阵 (T 真正 action-dependent)
+          - 归一化: T[a] 每行 sum = 1 (valid stochastic matrix)
+        """
+        transition = np.zeros((self.n_states, self.n_states, self.n_arms))
+        for a in range(self.n_arms):
+            base = np.eye(self.n_states) * 0.7 + np.ones((self.n_states, self.n_states)) * 0.1
+            # v0.88.0-c: perturbation 强度依赖 action (per design doc §4.2 intent)
+            # 设计意图: 不同 action 导致不同跨状态概率 (a 越大, cross-state 越强)
+            perturbation_strength = 0.05 + 0.10 * (a / max(1, self.n_arms - 1))
+            perturbation = np.ones((self.n_states, self.n_states)) * perturbation_strength
+            np.fill_diagonal(perturbation, 0.0)  # off-diagonal only
+            T_a = base + perturbation
+            # 归一化 row sum = 1
+            transition[:, :, a] = T_a / T_a.sum(axis=1, keepdims=True)
+        return transition
+
+    def _init_reward_matrix(self, seed: Optional[int]) -> np.ndarray:
+        """v0.88.0-c: 固定 R(s, a) init (替换 v0.87.0-c random uniform).
+
+        规则 (per design doc §4.2):
+          - state s 偏好 arm 区间 [s*n_arms/n_states, (s+1)*n_arms/n_states)
+            → 该区间 R[s, a] ∈ U(0.5, 1.0) (高 reward)
+          - 其他 arm 区间 R[s, a] ∈ U(0.0, 0.5) (低 reward)
+        """
+        rng = np.random.default_rng(seed)
+        R = np.zeros((self.n_states, self.n_arms))
+        for s in range(self.n_states):
+            start = (s * self.n_arms // self.n_states)
+            end = ((s + 1) * self.n_arms // self.n_states)
+            R[s, start:end] = rng.uniform(0.5, 1.0, end - start)
+            if start > 0:
+                R[s, :start] = rng.uniform(0.0, 0.5, start)
+            if end < self.n_arms:
+                R[s, end:] = rng.uniform(0.0, 0.5, self.n_arms - end)
+        return R
 
     def select_arm(self, context: Optional[np.ndarray] = None) -> int:
         """argmax_a Σ_s b(s) * R(s, a).
@@ -149,9 +203,8 @@ class POMDPPolicy:
     def update(self, arm: int, context: Optional[np.ndarray] = None, reward: float = 0.0) -> None:
         """Update arm_pull_counts (简化, 不学 transition / observation model).
 
-        v0.87.0-c 简化: 仅追踪 arm 拉取次数. POMDP 完整 update 需要
-        observation 反馈 (下一 commit bayes_update 处理), 跟 update 分开.
-        当前 commit 仅满足接口同构 (跟 LinUCB/Thompson 一致).
+        跟 v0.87.0-c 接口同构 (LinUCB/Thompson 一致), 不接受 action feedback.
+        POMDP 完整 update 需要 observation feedback (bayes_update 处理), 跟 update 分开.
 
         Args:
             arm: 选中的 arm 索引
@@ -168,30 +221,42 @@ class POMDPPolicy:
                 arm, self.n_arms,
             )
             return
-        # 截断 reward 到 [0, 1] (跟 LinUCB.update 一致)
         clamped = max(0.0, min(1.0, float(reward)))
         self.arm_pull_counts[arm] += 1
 
-    def bayes_update(self, observation: int) -> None:
-        """Bayesian belief update (POMDP 核心).
+    def bayes_update(self, action: int, observation: int) -> None:
+        """v0.88.0-c: Bayesian belief update (考虑 action, T(s'|s, a) 依赖 action).
 
-        b'(s') ∝ O[o|s'] * Σ_s T[s'|s] * b(s)
+        b'(s') ∝ O[o|s'] * Σ_s T[s'|s, a] * b(s)
 
         Args:
+            action:      int [0, n_arms), 上次 select 的 arm (POMDP 依赖 action)
             observation: int [0, n_observations), 答题 reaction 量化
 
-        防御性自检 [1]: 越界 observation _log.warning 跳过 (不 raise)
+        v0.88.0-c 关键升级: bayes_update 现在考虑 action (跟 v0.87.0-c 区分):
+          - v0.87.0-c: bayes_update(observation) — T 不依赖 action, action 无意义
+          - v0.88.0-c: bayes_update(action, observation) — T 依赖 action, 不同 action → 不同 posterior
+
+        防御性自检 [1]: 越界 action / observation _log.warning 跳过 (不 raise)
         """
-        if not (0 <= int(observation) < self.n_observations):
+        action_int = int(action)
+        observation_int = int(observation)
+        if not (0 <= action_int < self.n_arms):
+            _log.warning(
+                "POMDPPolicy.bayes_update: action 越界 (action=%s, n_arms=%s), 跳过",
+                action, self.n_arms,
+            )
+            return
+        if not (0 <= observation_int < self.n_observations):
             _log.warning(
                 "POMDPPolicy.bayes_update: observation 越界 (obs=%s, n_obs=%s), 跳过",
                 observation, self.n_observations,
             )
             return
-        # Predict: b_pred[s'] = Σ_s T[s'|s] * b(s)
-        b_pred = self.transition.T @ self.belief_state
+        # Predict: b_pred[s'] = Σ_s T[s'|s, a] * b(s)
+        b_pred = self.transition[:, :, action_int].T @ self.belief_state
         # Update: b_post[s'] ∝ O[obs|s'] * b_pred[s']
-        b_post = self.observation_model[observation] * b_pred
+        b_post = self.observation_model[observation_int] * b_pred
         # Normalize
         norm = b_post.sum()
         if norm > 0:
@@ -230,19 +295,21 @@ class POMDPPolicy:
         }
 
     def dump_state(self) -> Dict[str, Any]:
-        """导出状态 (跟 LinUCB 持久化 schema 兼容).
+        """导出状态 (v0.88.0-c schema, 老 snapshot 不兼容).
 
         Returns:
             dict 含:
+              - schema_version (str)  v0.88.0-c 起标识, 老 snapshot 抛
               - n_arms / n_states / n_observations
               - belief_state (List[float])
-              - transition (List[List[float]])  n_states x n_states
+              - transition (List[List[List[float]]])  n_states x n_states x n_arms (3D, v0.88.0-c 升级)
               - observation_model (List[List[float]])  n_obs x n_states
-              - reward (List[List[float]])  n_states x n_arms
+              - reward (List[List[float]])  n_states x n_arms (固定 init, v0.88.0-c 升级)
               - arm_pull_counts (List[int])
               - total_observations (int)
         """
         return {
+            "schema_version": SCHEMA_VERSION,
             "n_arms": self.n_arms,
             "n_states": self.n_states,
             "n_observations": self.n_observations,
@@ -255,13 +322,25 @@ class POMDPPolicy:
         }
 
     def load_state(self, state: Dict[str, Any]) -> None:
-        """加载状态 (含维度校验, 防御性自检 [5]).
+        """加载状态 (v0.88.0-c schema 校验, 防御性自检 [5]).
 
         Args:
             state: dump_state() 导出的 dict
 
-        防御性自检 [5]: n_arms / n_states / n_observations 必须匹配, 缺一不可
+        防御性自检 [5]:
+          - schema_version 不匹配 → raise (老 snapshot 不兼容)
+          - n_arms / n_states / n_observations 必须匹配
+          - transition 形状必须是 3D (n_states x n_states x n_arms)
+          - reward 长度必须是 n_states
         """
+        schema_version = state.get("schema_version")
+        if schema_version != SCHEMA_VERSION:
+            raise ValueError(
+                f"POMDPPolicy schema_version 不匹配: "
+                f"expected={SCHEMA_VERSION!r}, got={schema_version!r}. "
+                f"老 snapshot 不兼容, 需要迁移或丢弃."
+            )
+
         n_arms = int(state.get("n_arms", self.n_arms))
         n_states = int(state.get("n_states", self.n_states))
         n_observations = int(state.get("n_observations", self.n_observations))
@@ -278,15 +357,29 @@ class POMDPPolicy:
             raise ValueError(
                 f"POMDPPolicy state belief_state 长度不匹配 (expected={self.n_states}, got={len(belief)})"
             )
-
         self.belief_state = np.array(belief, dtype=float)
 
-        # transition / observation_model / reward 长度校验 (per 防御性自检 [5])
+        # v0.88.0-c: transition 必须是 3D (n_states x n_states x n_arms)
         transition = state.get("transition") or []
         if len(transition) != self.n_states:
             raise ValueError(
-                f"POMDPPolicy state transition 长度不匹配 (expected={self.n_states}, got={len(transition)})"
+                f"POMDPPolicy state transition 第一维不匹配 (expected={self.n_states}, got={len(transition)})"
             )
+        # 第二维 + 第三维校验 (防御性: 防止 (n_states, n_states, 1) 等退化 shape)
+        for a_idx, T_a in enumerate(transition):
+            if len(T_a) != self.n_states:
+                raise ValueError(
+                    f"POMDPPolicy state transition 第二维不匹配 (action={a_idx}, expected={self.n_states}, got={len(T_a)})"
+                )
+            if not isinstance(T_a[0], list):
+                raise ValueError(
+                    f"POMDPPolicy state transition 第三维必须是 list "
+                    f"(action={a_idx}, got type={type(T_a[0]).__name__}, 期望 3D array)"
+                )
+            if len(T_a[0]) != self.n_arms:
+                raise ValueError(
+                    f"POMDPPolicy state transition 第三维不匹配 (action={a_idx}, expected={self.n_arms}, got={len(T_a[0])})"
+                )
         self.transition = np.array(transition, dtype=float)
 
         observation = state.get("observation_model") or []
@@ -314,4 +407,5 @@ class POMDPPolicy:
 __all__ = [
     "POMDPPolicy",
     "POMDPConfig",
+    "SCHEMA_VERSION",
 ]
