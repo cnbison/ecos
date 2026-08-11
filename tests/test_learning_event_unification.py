@@ -43,7 +43,7 @@ class TestLearningEventType:
     """LearningEventType enum: 7 值 + from_value() 兼容 string/enum/unknown."""
 
     def test_enum_values(self):
-        """All 7 event types are defined."""
+        """All 10 event types are defined (v0.84.0-a 7 + v0.85.0-a/b/c 3)."""
         assert LearningEventType.OBSERVATION.value == "observation"
         assert LearningEventType.CALIBRATION.value == "calibration"
         assert LearningEventType.RESPONSE_SUBMITTED.value == "response_submitted"
@@ -51,7 +51,11 @@ class TestLearningEventType:
         assert LearningEventType.IDLE_DETECTED.value == "idle_detected"
         assert LearningEventType.GOAL_CHANGED.value == "goal_changed"
         assert LearningEventType.REFLECTION_COMPLETED.value == "reflection_completed"
-        assert len(LearningEventType) == 7
+        # v0.85.0-a/b/c 新增 3 个
+        assert LearningEventType.JUDGE_COMPLETED.value == "judge_completed"
+        assert LearningEventType.REQUEST_CALIBRATION.value == "request_calibration"
+        assert LearningEventType.REQUEST_INTERVENTION.value == "request_intervention"
+        assert len(LearningEventType) == 10
 
     def test_from_value_string_roundtrip(self):
         """from_value accepts strings matching enum values."""

@@ -242,6 +242,51 @@ NEW: `tests/test_plugin_sdk.py` (11 tests, 0.21s)
 | H3-c4 canary | PASS | PASS | PASS | PASS | PASS | 保持 |
 | v0.81 replay canary | PASS | PASS | PASS | PASS | PASS | 保持 |
 
+#### v0.85.0-a: /api/judge 改造
+
+MODIFY: `ecos/cta/event_log.py`
+- `LearningEventType` enum 扩展到 10 值 (v0.84.0-a 7 + v0.85.0-a 1 + v0.85.0-b/c 2 占位):
+  - `JUDGE_COMPLETED = "judge_completed"` (v0.85.0-a 新增)
+  - `REQUEST_CALIBRATION = "request_calibration"` (v0.85.0-b 占位)
+  - `REQUEST_INTERVENTION = "request_intervention"` (v0.85.0-c 占位)
+- NEW: `LearningEvent.from_judge_completed(student_id, problem_id, correct, score, reasoning, attempts, source, event_id)` factory
+  - payload 结构: {problem_id, correct, score, reasoning, attempts}
+  - 时间戳 datetime.now() (跟其他 factory 一致)
+  - event_id `_make_event_id()`
+
+MODIFY: `web/api/app.py:api_judge_answer` (+22 lines)
+- LLM judge 成功后, emit `LearningEvent.from_judge_completed(...)` 到 default bus
+- 失败路径 (result is None) **不 emit** (跟 v0.56.1 不污染 state 原则一致)
+- 防御性自检 [1]: emit 失败 _log.warning 不 raise (judge 响应仍正常返回)
+
+NEW: `tests/test_judge_event.py` (10 tests, 0.25s)
+- 1 LearningEventTypeJudgeCompleted (JUDGE_COMPLETED enum 值 + 10 总值)
+- 3 FromJudgeCompletedFactory (basic / custom_source / payload_types)
+- 1 ApiJudgeEmitsOnSuccess (judge_completed event 触发 subscriber)
+- 1 ApiJudgeDoesNotEmitOnFailure (失败路径不 emit)
+- 1 EmitFailureDefensive (bus raise 不阻断主响应)
+- 1 BackwardCompat (response keys unchanged: judged/problem_id/student_id/correct/score/reasoning/attempts)
+- 1 DefensiveChecks (silent pass scan app.py)
+- 1 H3C4Canary (LCA path 不受影响)
+
+向后兼容:
+- 792 现有 + 10 新增 = 802 全过 (H3-c4 canary PASS)
+- `/api/judge` **响应字段不变** (judged/correct/score/reasoning/attempts/needs_rejudge/error/error_code)
+- LearningEventType 仍向后兼容老 string event_type ("observation")
+- 防御性自检 [8] **仍 hard block**
+
+#### Architecture outcomes (cumulative after a)
+
+| 维度 | v0.84.0-d | v0.85.0-a | Δ |
+|---|---|---|---|
+| Event Engine §1.2 | 100% | 100% (无变化) | 保持 |
+| Event (统一输入) §2.4 | 95% | **97%** (10 event_type + judge_completed 接 frontend) | +2% |
+| Plugin SDK §6 | 10% (1/4 endpoint) | **35%** (2/4 endpoint: /api/answer + /api/judge emit) | **+25%** |
+| pytest 总数 | 792 | 802 | +10 tests (+1.3%) |
+| 防御性自检 [8] | hard block | hard block | 保持 |
+| H3-c4 canary | PASS | PASS | 保持 |
+| v0.81 replay canary | PASS | PASS | 保持 |
+
 
 ## [0.83.0] 2026-08-10
 

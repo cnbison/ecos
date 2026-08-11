@@ -413,6 +413,31 @@ def api_judge_answer():
             score, correct,
         )
 
+        # v0.85.0-a: Plugin 路径 - emit judge_completed event (observability)
+        # 不写 state (跟 v0.56.1 不污染 state 原则一致), 只产 event
+        # 失败路径 (result is None 上方) 不 emit, 跟 v0.56.1 显式 fail 一致
+        # 防御性自检 [1]: emit 失败 _log.warning 不阻断主响应
+        try:
+            from ecos.cta.event_log import LearningEvent
+            from ecos.event import get_default_bus
+            event = LearningEvent.from_judge_completed(
+                student_id=student_id,
+                problem_id=problem_id,
+                correct=correct,
+                score=score,
+                reasoning=reasoning,
+                attempts=attempts,
+                source="api_judge",
+            )
+            bus = get_default_bus()
+            bus.publish("judge_completed", event)
+        except Exception:
+            _log.warning(
+                "/api/judge: emit judge_completed event 失败 (sid=%s, pid=%s), "
+                "judge response 仍正常返回, event 不写",
+                student_id, problem_id, exc_info=True,
+            )
+
         return jsonify({
             "judged": True,
             "problem_id": problem_id,

@@ -44,7 +44,7 @@ class LearningEventType(Enum):
     """v0.84.0-a: LearningEvent 类型枚举 (kernel-mapping §2.4 Event 统一输入).
 
     Forward-compat with v0.81.0-a schema (event_type 字段是 TEXT, 兼容任意 string).
-    7 个值:
+    v0.85.0-a 扩展到 10 个值 (前 7 个 v0.84.0-a + 3 个 v0.85.0-a/b/c):
       - OBSERVATION: v0.81 老值, BeliefUpdator commit 后 emit
       - CALIBRATION: v0.84.0-a 新增, dual_agent orchestrator 互校完成后 emit
       - RESPONSE_SUBMITTED: v0.84.0-a 新增, FeatureExtractor 学生提交答案时 emit
@@ -52,6 +52,9 @@ class LearningEventType(Enum):
       - IDLE_DETECTED: v0.84.0-a 占位, frontend v0.85+ 接
       - GOAL_CHANGED: v0.84.0-a 占位, frontend v0.85+ 接
       - REFLECTION_COMPLETED: v0.84.0-a 占位, frontend v0.85+ 接
+      - JUDGE_COMPLETED: v0.85.0-a 新增, /api/judge LLM judge 成功后 emit
+      - REQUEST_CALIBRATION: v0.85.0-b 新增, /api/dual_agent 走 Plugin path emit
+      - REQUEST_INTERVENTION: v0.85.0-c 新增, /api/lca 走 Plugin path emit
 
     老调用方传 string ("observation") 仍 work, 枚举值是 .value.
     """
@@ -63,6 +66,9 @@ class LearningEventType(Enum):
     IDLE_DETECTED = "idle_detected"
     GOAL_CHANGED = "goal_changed"
     REFLECTION_COMPLETED = "reflection_completed"
+    JUDGE_COMPLETED = "judge_completed"
+    REQUEST_CALIBRATION = "request_calibration"
+    REQUEST_INTERVENTION = "request_intervention"
 
     @classmethod
     def from_value(cls, value: Any) -> "LearningEventType":
@@ -255,6 +261,54 @@ class LearningEvent:
             source=source,
             event_type=LearningEventType.RESPONSE_SUBMITTED,
             event_id=event_id,
+        )
+
+    # ── v0.85.0-a: judge_completed factory ───────────────────────────────────
+
+    @classmethod
+    def from_judge_completed(
+        cls,
+        student_id: str,
+        problem_id: str,
+        correct: bool,
+        score: float,
+        reasoning: str,
+        attempts: int,
+        source: str = "api_judge",
+        event_id: Optional[str] = None,
+    ) -> "LearningEvent":
+        """Construct LearningEvent for judge_completed (v0.85.0-a factory).
+
+        Emitted by /api/judge after successful LLM judge. Observability use
+        case (e.g. ECE validation replay), NOT state mutation path (state
+        mutation happens via /api/answer → response_submitted event).
+
+        Args:
+            student_id: which student this judgment belongs to.
+            problem_id: which problem was judged.
+            correct: derived from score (score >= 0.6).
+            score: partial credit score 0.0-1.0.
+            reasoning: LLM reasoning text.
+            attempts: how many retry attempts succeeded (1-3).
+            source: who produced (default "api_judge").
+            event_id: optional pre-generated event_id.
+
+        Returns:
+            LearningEvent with event_type="judge_completed" and structured payload.
+        """
+        return cls(
+            event_id=event_id or _make_event_id(),
+            student_id=str(student_id),
+            timestamp=datetime.now(),
+            source=source,
+            event_type=LearningEventType.JUDGE_COMPLETED.value,
+            payload={
+                "problem_id": str(problem_id),
+                "correct": bool(correct),
+                "score": float(score),
+                "reasoning": str(reasoning),
+                "attempts": int(attempts),
+            },
         )
 
 
