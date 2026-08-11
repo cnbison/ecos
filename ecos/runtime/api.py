@@ -230,9 +230,16 @@ def plan(student_id: str, audience: str = "student", **kwargs) -> Any:
         **kwargs:
             lca_engine: Optional[LCAEngine]
             cta_input:  Optional[CTAInput]  (默认自动 estimate(student_id))
+            # v0.86.0-b: Twin Consistency Check
+            goal:       Optional[Goal]      (若传, 校验该 Goal 关联 evidence)
+            event_log:  Optional[EventLog]   (inconsistent 时 emit goal_changed event)
 
     Returns:
         LCAResult (含 Intervention + rationale + expected_gain/risk)
+
+    v0.86.0-b: 选 intervention 前 run Twin Consistency Check, 若 inconsistent
+        → emit goal_changed event + log warning + 继续 lca.select_intervention
+        (不阻断 plan, 走 fallback 策略, per Bisen 决策 2026-08-11)
     """
     lca = kwargs.get("lca_engine") or _get_default_lca_engine()
     cta_input = kwargs.get("cta_input")
@@ -241,7 +248,60 @@ def plan(student_id: str, audience: str = "student", **kwargs) -> Any:
         state = estimate(student_id)
         from ecos.lca.cta_input import CTAInput
         cta_input = CTAInput(student_id=student_id, belief_state=state)
+
+    # v0.86.0-b: Twin Consistency Check (前置 defensive)
+    _run_twin_consistency_check(
+        student_id=student_id,
+        state=cta_input.belief_state,
+        goal=kwargs.get("goal"),
+        event_log=kwargs.get("event_log"),
+    )
+
     return lca.select_intervention(cta_input, audience=audience)
+
+
+def _run_twin_consistency_check(
+    student_id: str,
+    state: Any,
+    goal: Any,
+    event_log: Any,
+) -> None:
+    """v0.86.0-b: 内部 helper, run Twin Consistency Check + emit event.
+
+    不阻断 plan (per Bisen 决策), 失败时 log warning + emit goal_changed event.
+    Event 失败 _log.warning 不 raise (防御性自检 [1]).
+    """
+    try:
+        from ecos.twin import get_default_checker
+        checker = get_default_checker()
+        result = checker.check(state, goal=goal)
+        if not result.consistent:
+            _log.warning(
+                "Runtime.plan: Twin inconsistent (sid=%s, violations=%d, recommendation=%s)",
+                student_id, len(result.violations), result.recommendation,
+            )
+            # Emit goal_changed event if event_log available
+            if event_log is not None:
+                try:
+                    from ecos.cta.event_log import LearningEvent
+                    event = LearningEvent.from_goal_changed(
+                        student_id=student_id,
+                        old_goal_id="",
+                        new_goal_id="",
+                        source="twin_consistency_check",
+                    )
+                    event_log.log_event(event)
+                except Exception:
+                    _log.warning(
+                        "Runtime.plan: emit goal_changed event failed (sid=%s)",
+                        student_id, exc_info=True,
+                    )
+    except Exception:
+        # 防御性: check 本身失败不阻断 plan
+        _log.warning(
+            "Runtime.plan: Twin Consistency Check failed (sid=%s), 继续 plan",
+            student_id, exc_info=True,
+        )
 
 
 __all__ = [
