@@ -298,6 +298,36 @@
 - 缺失清单: 0 项剩
 
 
+
+## [0.89.0-c] 2026-08-11
+
+### feat: Phase 7+ 抽象推演 #2 (sub c) — POMDPPolicy 集成 PBVI
+
+> v0.89.0-c 将 POMDPPolicy 的默认选臂策略从 v0.88.0-c 的 QMDP argmax 升级为 PBVI α-vector argmax，同时保留显式 QMDP fallback。
+
+#### MODIFY: POMDPPolicy PBVI 集成
+
+- `ecos/lca/l4_optimization/pomdp.py`:
+  - `use_pbvi=True` 默认启用 PBVI，`False` 保留 QMDP 行为
+  - 首次 `select_arm()` 懒加载 reachable belief points、创建 PBVI solver 并求解
+  - `solve_pbvi()` 提供显式求解入口，solver 实例缓存复用
+  - `dump_state()` / `load_state()` 持久化 PBVI 开关、配置、belief points 与 α-vectors
+  - schema_version 升级为 `0.89.0-c`，旧 v0.88.0-c / v0.87.0-c snapshot hard block
+
+#### 防御性自检与测试
+
+- PBVI 失败时记录 warning 并退回 QMDP，避免策略调用静默中断
+- solver 状态恢复校验 α-vector state-space 维度
+- 防御性自检 [8] 无新增 direct state mutation allowlist
+- 新增 `tests/test_pomdp_pbvi_integration.py` 10 tests
+- pytest 1075 → **1085** (+10)
+
+#### 累计进度
+
+- POMDP Policy: 85% → **90%** (PBVI 算法 + Policy 集成)
+- 下一阶段 v0.89.0-d: Runtime + PolicyABTest 集成
+
+
 ## [0.89.0-a] 2026-08-11
 
 ### feat: Phase 7+ 抽象推演 #2 (sub a) — POMDP point-based solver 雏形 (PBVI + α-vector)

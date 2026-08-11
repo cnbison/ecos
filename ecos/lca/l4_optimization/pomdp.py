@@ -35,14 +35,18 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any, ClassVar, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional
 
 import numpy as np
 
+if TYPE_CHECKING:
+    from ecos.lca.l4_optimization.pomdp_solver import PBVI
+
 _log = logging.getLogger(__name__)
 
-# v0.88.0-c: schema version for dump_state / load_state 老 snapshot 检测
-SCHEMA_VERSION = "0.88.0-c"
+# v0.89.0-c: schema version for dump_state / load_state 老 snapshot 检测
+# v0.88.0-c 老 snapshot raise ValueError (per design doc §7.5 + 防御性自检 [5])
+SCHEMA_VERSION = "0.89.0-c"
 
 
 @dataclass
@@ -107,6 +111,12 @@ class POMDPPolicy:
         n_states: int = 4,
         n_observations: int = 4,
         seed: Optional[int] = None,
+        use_pbvi: bool = True,
+        pbvi_gamma: float = 0.95,
+        pbvi_epsilon: float = 1e-4,
+        pbvi_n_iters: int = 50,
+        pbvi_n_belief_points: int = 16,
+        pbvi_seed: Optional[int] = None,
     ):
         if n_states <= 0:
             raise ValueError(f"POMDPPolicy: n_states={n_states} 必须 > 0")
@@ -138,6 +148,17 @@ class POMDPPolicy:
         # Stats
         self.arm_pull_counts: np.ndarray = np.zeros(self.n_arms, dtype=int)
         self.total_observations: int = 0
+
+        # v0.89.0-c: PBVI solver (point-based value iteration)
+        # use_pbvi=True 默认开 (PBVI 是更精确求解), False 退化到 QMDP (v0.88.0-c)
+        self.use_pbvi = bool(use_pbvi)
+        self.pbvi_gamma = float(pbvi_gamma)
+        self.pbvi_epsilon = float(pbvi_epsilon)
+        self.pbvi_n_iters = int(pbvi_n_iters)
+        self.pbvi_n_belief_points = int(pbvi_n_belief_points)
+        self.pbvi_seed = pbvi_seed
+        # solver 懒加载 (首次 select_arm / solve_pbvi 才创建)
+        self.solver: Optional["PBVI"] = None
 
     def _init_transition_matrix(self) -> np.ndarray:
         """v0.88.0-c: 初始化 T[s'|s, a] (n_states x n_states x n_arms), 依赖 action.
@@ -183,7 +204,15 @@ class POMDPPolicy:
         return R
 
     def select_arm(self, context: Optional[np.ndarray] = None) -> int:
-        """argmax_a Σ_s b(s) * R(s, a).
+        """argmax_a: PBVI 路径 (v0.89.0-c) 或 QMDP fallback (v0.88.0-c).
+
+        PBVI 路径 (use_pbvi=True, 默认):
+          - 懒加载 PBVI solver (reachable_belief_points 从 belief_state 出发)
+          - solver.solve() 直到收敛 (首次 select_arm 时)
+          - argmax_a α_a(belief_state) = argmax_a Σ_s α_a(s) * b(s)
+
+        QMDP fallback (use_pbvi=False):
+          - argmax_a Σ_s b(s) * R(s, a) (v0.88.0-c 行为, 跟 v0.87.0-c 同)
 
         Args:
             context: 上下文向量 (LinUCB 接口同构, POMDP 不依赖 context, 忽略)
@@ -191,14 +220,78 @@ class POMDPPolicy:
         Returns:
             arm 索引 [0, n_arms)
 
-        防御性: n_arms=0 返 0 (degenerate)
+        防御性:
+          - n_arms=0 返 0 (degenerate)
+          - PBVI 路径 solver 初始化失败 → fallback QMDP + _log.warning
         """
         if self.n_arms <= 0:
             _log.warning("POMDPPolicy.select_arm: n_arms=%s, 返 0 (degenerate)", self.n_arms)
             return 0
-        # Expected reward per action: b^T @ R (n_arms,)
+
+        if self.use_pbvi:
+            try:
+                solver = self._init_pbvi_solver()
+                if not solver.alpha_vectors:
+                    # 首次: 触发 solve (PBVI iterative backup 直到收敛)
+                    solver.solve(self.transition, self.observation_model, self.reward)
+                return solver.best_action(self.belief_state)
+            except Exception as e:
+                # 防御性: PBVI 失败 → fallback QMDP (避免 NaN / 崩溃)
+                _log.warning(
+                    "POMDPPolicy.select_arm: PBVI 路径失败 (%s), fallback 到 QMDP",
+                    e,
+                )
+
+        # QMDP fallback (v0.88.0-c 行为)
         expected_reward = self.belief_state @ self.reward
         return int(np.argmax(expected_reward))
+
+    def _init_pbvi_solver(self) -> "PBVI":
+        """懒加载 PBVI solver (v0.89.0-c).
+
+        首次调用时构造 PBVI:
+          - belief_points = reachable_belief_points(self.transition, O, self.belief_state, ...)
+            起点 = 当前 belief_state
+          - 内部随机 sample (action, observation) → next belief (跟 bayes_update 同公式)
+        后续调用直接返 cached solver (self.solver).
+
+        Returns:
+            PBVI: solver 实例 (cached after first call)
+
+        防御性: lazy import 避免循环依赖 (pomdp_solver 引用 pomdp reward 公式)
+        """
+        if self.solver is None:
+            from ecos.lca.l4_optimization.pomdp_solver import (
+                PBVI,
+                reachable_belief_points,
+            )
+            belief_points = reachable_belief_points(
+                self.transition,
+                self.observation_model,
+                self.belief_state,
+                n_steps=3,
+                n_samples_per_step=max(1, self.pbvi_n_belief_points // 3 - 1),
+                seed=self.pbvi_seed,
+            )
+            self.solver = PBVI(
+                belief_points=belief_points,
+                gamma=self.pbvi_gamma,
+                epsilon=self.pbvi_epsilon,
+                n_iters=self.pbvi_n_iters,
+            )
+        return self.solver
+
+    def solve_pbvi(self) -> int:
+        """显式触发 PBVI solve (v0.89.0-c).
+
+        懒加载 solver + 触发 iterative backup 直到收敛. 返实际迭代次数.
+        Production 由 Runtime plan / LCAEngine.select_intervention 显式触发 (v0.89.0-d).
+
+        Returns:
+            int: 实际迭代次数 (1..pbvi_n_iters)
+        """
+        solver = self._init_pbvi_solver()
+        return solver.solve(self.transition, self.observation_model, self.reward)
 
     def update(self, arm: int, context: Optional[np.ndarray] = None, reward: float = 0.0) -> None:
         """Update arm_pull_counts (简化, 不学 transition / observation model).
@@ -295,11 +388,11 @@ class POMDPPolicy:
         }
 
     def dump_state(self) -> Dict[str, Any]:
-        """导出状态 (v0.88.0-c schema, 老 snapshot 不兼容).
+        """导出状态 (v0.89.0-c schema, v0.88.0-c / v0.87.0-c 老 snapshot 不兼容).
 
         Returns:
             dict 含:
-              - schema_version (str)  v0.88.0-c 起标识, 老 snapshot 抛
+              - schema_version (str)  "0.89.0-c" (老 snapshot raise per 防御性自检 [5])
               - n_arms / n_states / n_observations
               - belief_state (List[float])
               - transition (List[List[List[float]]])  n_states x n_states x n_arms (3D, v0.88.0-c 升级)
@@ -307,7 +400,27 @@ class POMDPPolicy:
               - reward (List[List[float]])  n_states x n_arms (固定 init, v0.88.0-c 升级)
               - arm_pull_counts (List[int])
               - total_observations (int)
+              - use_pbvi (bool)  v0.89.0-c PBVI 开关
+              - pbvi_config (Dict)  PBVI 配置 (gamma / epsilon / n_iters / n_belief_points)
+              - solver_state (Dict)  PBVI solver 状态 (alpha_vectors + belief_points, lazy 兜底 None)
         """
+        pbvi_config = {
+            "gamma": self.pbvi_gamma,
+            "epsilon": self.pbvi_epsilon,
+            "n_iters": self.pbvi_n_iters,
+            "n_belief_points": self.pbvi_n_belief_points,
+        }
+        # solver_state 懒加载兜底: 未初始化时存 None (load_state 时重建)
+        if self.solver is None:
+            solver_state = None
+        else:
+            solver_state = {
+                "alpha_vectors": [
+                    {"action": α.action, "values": α.values.tolist()}
+                    for α in self.solver.alpha_vectors
+                ],
+                "belief_points": [b.tolist() for b in self.solver.belief_points],
+            }
         return {
             "schema_version": SCHEMA_VERSION,
             "n_arms": self.n_arms,
@@ -319,10 +432,16 @@ class POMDPPolicy:
             "reward": self.reward.tolist(),
             "arm_pull_counts": self.arm_pull_counts.tolist(),
             "total_observations": self.total_observations,
+            "use_pbvi": self.use_pbvi,
+            "pbvi_config": pbvi_config,
+            "solver_state": solver_state,
         }
 
     def load_state(self, state: Dict[str, Any]) -> None:
-        """加载状态 (v0.88.0-c schema 校验, 防御性自检 [5]).
+        """加载状态 (v0.89.0-c schema 校验, 防御性自检 [5]).
+
+        v0.89.0-c snapshot 包含 PBVI 开关、配置和可选 solver 状态；老
+        v0.88.0-c / v0.87.0-c snapshot 不兼容，必须迁移或丢弃。
 
         Args:
             state: dump_state() 导出的 dict
@@ -403,6 +522,35 @@ class POMDPPolicy:
         )
         self.total_observations = int(state.get("total_observations", 0))
 
+        self.use_pbvi = bool(state.get("use_pbvi", self.use_pbvi))
+        pbvi_config = state.get("pbvi_config") or {}
+        self.pbvi_gamma = float(pbvi_config.get("gamma", self.pbvi_gamma))
+        self.pbvi_epsilon = float(pbvi_config.get("epsilon", self.pbvi_epsilon))
+        self.pbvi_n_iters = int(pbvi_config.get("n_iters", self.pbvi_n_iters))
+        self.pbvi_n_belief_points = int(
+            pbvi_config.get("n_belief_points", self.pbvi_n_belief_points)
+        )
+
+        solver_state = state.get("solver_state")
+        self.solver = None
+        if solver_state is not None:
+            belief_points = solver_state.get("belief_points") or []
+            alpha_vectors = solver_state.get("alpha_vectors") or []
+            if not belief_points:
+                raise ValueError("POMDPPolicy solver_state belief_points 不能为空")
+            solver = self._init_pbvi_solver()
+            solver.belief_points = [np.asarray(b, dtype=float) for b in belief_points]
+            restored_alphas = []
+            from ecos.lca.l4_optimization.pomdp_solver import AlphaVector
+            for item in alpha_vectors:
+                values = np.asarray(item["values"], dtype=float)
+                if values.shape != (self.n_states,):
+                    raise ValueError(
+                        "POMDPPolicy solver_state alpha_vector values 长度不匹配 "
+                        f"(expected={self.n_states}, got={values.shape})"
+                    )
+                restored_alphas.append(AlphaVector(action=int(item["action"]), values=values))
+            solver.alpha_vectors = restored_alphas
 
 __all__ = [
     "POMDPPolicy",

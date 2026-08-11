@@ -28,6 +28,7 @@ import numpy as np
 import pytest
 
 from ecos.lca.l4_optimization import POMDPConfig, POMDPPolicy
+from ecos.lca.l4_optimization.pomdp import SCHEMA_VERSION
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -167,9 +168,9 @@ def test_pomdp_dump_load_roundtrip():
     policy.bayes_update(action=2, observation=1)
 
     state = policy.dump_state()
-    # v0.88.0-c: schema_version 必须
-    assert state.get("schema_version") == "0.88.0-c", (
-        f"dump_state 应含 schema_version='0.88.0-c', got {state.get('schema_version')!r}"
+    # schema_version 必须跟当前 POMDP snapshot schema 一致
+    assert state.get("schema_version") == SCHEMA_VERSION, (
+        f"dump_state 应含 schema_version={SCHEMA_VERSION!r}, got {state.get('schema_version')!r}"
     )
     assert "belief_state" in state
     assert "transition" in state
