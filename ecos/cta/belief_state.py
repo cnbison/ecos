@@ -15,9 +15,15 @@ _log = logging.getLogger(__name__)
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Tuple
 
 import numpy as np
+
+# v0.86.0-a: Goal Ontology 关联 (TYPE_CHECKING 避免循环 import)
+# BeliefState 持 List[Goal] 实例. Goal dataclass 在 ecos/goal/goal.py, 不引用 BeliefState, 无循环
+# 序列化走 Goal.to_dict() / Goal.from_dict()
+if TYPE_CHECKING:
+    from ..goal.goal import Goal
 
 
 class BloomLevel(Enum):
@@ -314,6 +320,10 @@ class BeliefState:
     overall_confidence: float = 0.0
     last_updated: datetime = field(default_factory=datetime.now)
     version: str = "v1.0"
+    # v0.86.0-a: Goal Ontology 关联 (Phase 6+ Kernel 扩展)
+    # 存 Goal 实例 (List["Goal"]), 序列化走 Goal.to_dict() / from_dict()
+    # 防御性自检 [8] 仍 hard block: append_goals() 是 allowlisted mutation (跟 append_trajectory_snapshot 模式一致)
+    current_goals: List["Goal"] = field(default_factory=list)
 
     def theta_vector(self) -> np.ndarray:
         """返回 [θ_K, θ_P, θ_S, θ_C, θ_X] 5D 向量."""
@@ -422,6 +432,8 @@ class BeliefState:
         v0.61.0 新增：dual_agent 持久化需要 BeliefState 落盘.
         np.ndarray 用 .tolist() 转 Python list, datetime 用 ISO format.
 
+        v0.86.0-a: 加入 current_goals 序列化 (Goal.to_dict()).
+
         防御性自检：保持跟 dump_state() 调用一致, 字段一一对应.
         """
         return {
@@ -439,6 +451,7 @@ class BeliefState:
             "overall_confidence": self.overall_confidence,
             "last_updated": self.last_updated.isoformat(),
             "version": self.version,
+            "current_goals": [g.to_dict() for g in self.current_goals],
         }
 
     @classmethod
@@ -447,8 +460,12 @@ class BeliefState:
 
         缺失字段用 default 兜底, 保持跟 to_dict 对称.
         student_id 缺失时 fallback "" (orch.load_state 会用 sid 强制覆盖).
+
+        v0.86.0-a: 恢复 current_goals (Goal.from_dict 还原每条 Goal)
         """
         import numpy as np
+        # v0.86.0-a: Goal Ontology 恢复 (lazy import 避免循环)
+        from ..goal.goal import Goal
         return cls(
             student_id=d.get("student_id", ""),
             K=_dim_from_dict(d.get("K", {}), default_dim="K"),
@@ -464,6 +481,7 @@ class BeliefState:
             overall_confidence=float(d.get("overall_confidence", 0.0)),
             last_updated=_parse_iso(d.get("last_updated")),
             version=d.get("version", "v1.0"),
+            current_goals=[Goal.from_dict(g) for g in d.get("current_goals", [])],
         )
 
     def apply_snapshot(self, snapshot: Dict[str, Any]) -> None:
@@ -490,6 +508,35 @@ class BeliefState:
         (method name match: "append_trajectory_snapshot").
         """
         self.trajectory.append(snap)
+
+    def append_goal(self, goal: Any) -> None:
+        """v0.86.0-a: Append Goal to current_goals via allowlisted method.
+
+        取代直接 `state.current_goals.append(goal)` mutation. 跟 append_trajectory_snapshot
+        模式一致, allowlisted in check_no_direct_state_mutation.py FUNC_ALLOWLIST.
+
+        Args:
+            goal: Goal 实例 (ecos/goal/goal.py). 非法类型 _log.warning 跳过.
+        """
+        from ..goal.goal import Goal
+        if not isinstance(goal, Goal):
+            _log.warning(
+                "BeliefState.append_goal: 期望 Goal 实例, 实际=%s, skip",
+                type(goal).__name__,
+            )
+            return
+        self.current_goals.append(goal)
+
+    def remove_goal(self, goal_id: str) -> bool:
+        """v0.86.0-a: 按 goal_id 移除 Goal. 移除成功返回 True, 不存在返回 False.
+
+        允许直接 mutation (跟 discard/remove 模式一致, single-purpose method).
+        """
+        for i, g in enumerate(self.current_goals):
+            if g.goal_id == goal_id:
+                self.current_goals.pop(i)
+                return True
+        return False
 
     # ---------------------------------------------------------------
     # v0.83.0-b: Belief-Evidence 关联方法 (3 个)
@@ -628,6 +675,13 @@ class BeliefState:
                     irreversible=bool(tc_data.get("irreversible", False)),
                     timestamp=ts,
                 )
+        # v0.86.0-a: 接管 current_goals (Goal Ontology 持久化)
+        if "current_goals" in snapshot:
+            from ..goal.goal import Goal
+            self.current_goals = [
+                Goal.from_dict(g) if isinstance(g, dict) else g
+                for g in snapshot["current_goals"]
+            ]
 
 
 # ── Helper 序列化函数（BeliefState 嵌套结构用）────────────────────────

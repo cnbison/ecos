@@ -7,6 +7,10 @@ v0.83.0-c 范围: 支持 3 类 Goal
   - Bloom.L3+ achieved          (Bloom apply/analyze/evaluate/create >= threshold)
   - TC.<tc_id> pass              (TC status = "post_liminal")
 
+v0.86.0-a 扩展: Goal Ontology 集成
+  - check_goal(state, goal)   新 API, 接受 Goal 实例 (内部转 goal_id_str)
+  - check(state, goal_id_or_goal)  Union 类型, 向后兼容 str goal_id
+
 设计:
   - GoalCompletion 是纯函数式 (无 side effect)
   - GoalStatus 输出完整 (completed + current/target + missing_dimensions)
@@ -18,7 +22,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from ..cta.belief_state import BeliefState
 
@@ -62,10 +66,11 @@ class GoalStatus:
 # ---------------------------------------------------------------------------
 
 class GoalCompletion:
-    """Goal 完成判定 (v0.83.0-c).
+    """Goal 完成判定 (v0.83.0-c + v0.86.0-a Goal Ontology 集成).
 
     用法:
         gc = GoalCompletion()
+        # v0.83.0-c 兼容路径 (字符串)
         status = gc.check(state, "K.mastery>=0.7")
         # -> GoalStatus(completed=False, current_value=0.6, target_value=0.7,
         #                missing_dimensions=["K.mastery_prob=0.6<0.7"])
@@ -76,6 +81,13 @@ class GoalCompletion:
         status = gc.check(state, "TC.python_variables.pass")
         # -> TC.post_liminal (status == "post_liminal") 才完成
 
+        # v0.86.0-a 新 API (Goal 实例)
+        from ecos.goal import Goal
+        goal = Goal(goal_id="g1", capability="python_variables", objective="apply",
+                    bloom_level=3, metric_dimension="K", metric_threshold=0.7)
+        status = gc.check_goal(state, goal)
+        # -> 内部转 goal_id_str "K.mastery>=0.7", 走同一 check 路径
+
     支持的 Goal ID 格式 (regex):
       - r"K\\.mastery>=([\\d.]+)"     -> K 维度 mastery_prob
       - r"Bloom\\.L(\\d+)>=([\\d.]+)"  -> Bloom 层级 (L3+) 平均 mastery
@@ -83,16 +95,19 @@ class GoalCompletion:
       - 其他: 返 GoalStatus(completed=False, current=0.0, target=0.0, missing=["unknown_goal_format"])
     """
 
-    def check(self, state: BeliefState, goal_id: str) -> GoalStatus:
+    def check(self, state: BeliefState, goal_id_or_goal: Union[str, "Goal"]) -> GoalStatus:  # noqa: F821
         """判定 Goal 是否完成.
 
         Args:
-            state:   BeliefState (5D + Bloom + TC)
-            goal_id: Goal 标识
+            state:            BeliefState (5D + Bloom + TC)
+            goal_id_or_goal:  str (v0.83.0-c) 或 Goal 实例 (v0.86.0-a)
 
         Returns:
             GoalStatus (含 completed / current_value / target_value / missing_dimensions)
         """
+        # v0.86.0-a: Goal 实例 dispatch (Union[str, Goal])
+        goal_id = self._resolve_goal_id(goal_id_or_goal)
+
         # K.mastery >= X
         m = re.match(r"^K\.mastery>=([\d.]+)$", goal_id)
         if m:
@@ -120,6 +135,47 @@ class GoalCompletion:
             target_value=0.0,
             missing_dimensions=[f"unknown_goal_format: {goal_id}"],
         )
+
+    def check_goal(self, state: BeliefState, goal: "Goal") -> GoalStatus:  # noqa: F821
+        """v0.86.0-a 新 API: 接受 Goal 实例.
+
+        内部转 goal_id_str 走同一 check 路径. 是 check(state, goal) 的便捷包装.
+
+        Args:
+            state: BeliefState
+            goal:  Goal 实例 (metric_dimension 必须是 K / Bloom / TC)
+
+        Returns:
+            GoalStatus
+        """
+        return self.check(state, goal)
+
+    @staticmethod
+    def _resolve_goal_id(goal_id_or_goal: Union[str, "Goal"]) -> str:  # noqa: F821
+        """v0.86.0-a: Union[str, Goal] → str dispatch.
+
+        - str: 直接返
+        - Goal: 调 goal.to_goal_id_str() (会触发 ValueError if metric_dimension 非法)
+        - 其他: _log.warning 返空串 (check 路径会走 unknown_goal_format)
+        """
+        # str 路径 (v0.83.0-c 兼容)
+        if isinstance(goal_id_or_goal, str):
+            return goal_id_or_goal
+
+        # v0.86.0-a: lazy import 避免循环
+        from ..goal.goal import Goal
+        if isinstance(goal_id_or_goal, Goal):
+            try:
+                return goal_id_or_goal.to_goal_id_str()
+            except ValueError as e:
+                _log.warning("GoalCompletion._resolve_goal_id: %s", e)
+                return ""
+
+        _log.warning(
+            "GoalCompletion._resolve_goal_id: 期望 str 或 Goal, 实际=%s",
+            type(goal_id_or_goal).__name__,
+        )
+        return ""
 
     # ---------------------------------------------------------------
     # 内部: 3 类 Goal 检查
