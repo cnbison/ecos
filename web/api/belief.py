@@ -453,6 +453,63 @@ def get_student_state(student_id: str) -> dict[str, Any]:
     }
 
 
+def _update_via_plugin_or_legacy(
+    engine: Any,
+    state: Any,
+    obs: Any,
+    student_id: str,
+) -> Any:
+    """v0.84.0-d: Plugin 路径 vs legacy 路径选择.
+
+    Plugin 路径 (PluginRuntime 已 start()):
+      1. 构造 LearningEvent (event_type="response_submitted", payload=Observation.to_dict())
+      2. bus.publish("response_submitted", event)
+      3. Runtime subscriber (PluginRuntime._handle_response_submitted) 收到 event,
+         内部调 Runtime.update_belief -> BeliefEngine.update(state, obs, log_event=False)
+      4. state 被 mutate in place, 返回同一对象
+
+    Legacy 路径 (PluginRuntime 未 start 或 bus 无 subscriber):
+      - 直接 BeliefEngine.update(state, obs) (老行为, 向后兼容 tests)
+      - 用于 Plugin SDK 雏形验证期间 (留 fallback, 不破坏现有 lbc001/lbc002 数据)
+
+    Args:
+        engine: BeliefEngine 实例 (per-student)
+        state: BeliefState 实例
+        obs: Observation 实例
+        student_id: 学生 ID (event.student_id 用)
+
+    Returns:
+        BeliefState (updated, 同一对象 reference)
+    """
+    # Lazy imports to avoid circular deps at module load
+    from ecos.cta.event_log import LearningEvent
+    from ecos.event import get_default_bus
+
+    # 构造 event
+    event = LearningEvent.from_response_submitted(
+        obs,
+        source="web_api_belief_submit_answer",
+    )
+
+    # Publish 到 bus
+    bus = get_default_bus()
+    success = bus.publish("response_submitted", event)
+
+    if success == 0:
+        # 无 subscriber (PluginRuntime 未启动或测试环境), 走 legacy 路径
+        # 向后兼容: 不破坏现有 tests + lbc001/lbc002 答题流程
+        _log.debug(
+            "submit_answer: bus.publish response_submitted 返 0 (无 subscriber), "
+            "走 legacy direct path. v0.84.0-d PluginRuntime 启动后不再走此路径."
+        )
+        return engine.update(state, obs)
+
+    # Plugin 路径: state 已被 Runtime subscriber mutate (in place reference)
+    # student_id 跟 event.student_id 一致 (Observation.skill_id fallback)
+    # Runtime subscriber 通过 state_factory 拿到同一 (engine, state) 对象
+    return state
+
+
 def submit_answer(
     student_id: str,
     problem_id: str,
@@ -525,7 +582,15 @@ def submit_answer(
         ai_reasoning=ai_reasoning,  # v0.52.2: 存 AI reasoning
     )
 
-    updated_state = engine.update(current_state, obs)
+    # v0.84.0-d: Plugin SDK 雏形 - produce event, Runtime subscriber 处理
+    # Plugin 原则 (kernel-mapping §6): belief.py 不直接 BeliefEngine.update
+    # 老调用方 (tests) 走 fallback 路径 (无 subscriber 时直接 update, 向后兼容)
+    updated_state = _update_via_plugin_or_legacy(
+        engine=engine,
+        state=current_state,
+        obs=obs,
+        student_id=student_id,
+    )
     student["state"] = updated_state
 
     # 持久化:每次答题后保存到 SQLite（W5 传 engine 持久化状态机）

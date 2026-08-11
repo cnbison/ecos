@@ -104,14 +104,17 @@ def update_belief(student_id: str, evidence: Any, **kwargs) -> Any:
         evidence:   Observation (或 dict 含 skill_id/problem_id/correct/score)
         **kwargs:
             belief_engine: Optional[BeliefEngine]
+            state:         Optional[BeliefState] (v0.84.0-d 新增, 复用已有 state)
+                          不传时调用 estimate() 创建新 state (老行为, 向后兼容)
             lca_result:    Optional[LCAResult]  (v0.82 LCA 4-layer 输出)
             log_event:     bool = True
 
     Returns:
-        BeliefState (更新后)
+        BeliefState (更新后, 跟传入 state 是同一对象 if state kwarg 传入)
     """
     engine = kwargs.get("belief_engine") or _get_default_belief_engine()
-    state = estimate(student_id, belief_engine=engine)
+    # v0.84.0-d: state kwarg 复用已有 state (Plugin SDK 路径), 否则 estimate 创建新
+    state = kwargs.get("state") or estimate(student_id, belief_engine=engine)
     return engine.update(
         state,
         evidence,

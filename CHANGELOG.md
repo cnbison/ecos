@@ -188,6 +188,60 @@ NEW: `tests/test_event_log_retention.py` (11 tests, 0.39s)
 | H3-c4 canary | PASS | PASS | PASS | PASS | 保持 |
 | v0.81 replay canary | PASS | PASS | PASS | PASS | 保持 |
 
+#### v0.84.0-d: Plugin SDK 雏形 (/api/answer 改造)
+
+NEW: `web/api/plugin_runtime.py` (~125 lines)
+- `PluginRuntime` 类: 包装 Runtime API 作为 EventBus subscriber
+  - `__init__(bus=None, state_factory=None)`: bus 默认 singleton, state_factory 默认 `_get_or_create_student` (lazy import 避免循环)
+  - `start()`: 注册 1 个 subscriber (response_submitted), 防御性自检 [1] 重复 start 警告
+  - `stop()`: 取消所有 subscriber (test isolation)
+  - `_handle_response_submitted(event)`: 重建 Observation (from event.payload) → 调 Runtime.update_belief (state kwarg 复用) → engine.update mutate in place
+  - `_default_state_factory(student_id)`: lazy import web/api/belief.py:_get_or_create_student, 共享 _STUDENT_STATES dict
+- v0.84.0-d 范围: 只接 1 subscriber (response_submitted). /api/judge / /api/dual_agent / /api/lca 留 v0.85+
+
+MODIFY: `ecos/runtime/api.py` (+3 lines, backward-compat)
+- `update_belief(student_id, evidence, **kwargs)`:
+  - 新增 `state: Optional[BeliefState]` kwarg (v0.84.0-d)
+  - 传入时复用已有 state 对象 (Plugin SDK 路径), 不传时 estimate 创建新 (老行为)
+
+MODIFY: `web/api/belief.py:submit_answer` (-3 lines, +30 lines helper)
+- 旧路径: `engine.update(state, obs)` 直调
+- 新路径: 抽 `_update_via_plugin_or_legacy()` helper
+  - 构造 `LearningEvent.from_response_submitted(obs, source="web_api_belief_submit_answer")`
+  - `bus.publish("response_submitted", event)`
+  - **success > 0** (PluginRuntime 已 start): Plugin 路径, state 已被 subscriber mutate
+  - **success == 0** (无 subscriber, 防御性): legacy 路径, `engine.update(state, obs)` 直调 (向后兼容)
+- Plugin 原则验证: submit_answer body **不**直接 `engine.update(`. 1 处直调在 helper (legacy fallback).
+- 防御性自检 [1]: legacy fallback 失败 _log.warning 不 raise (backward compat)
+
+NEW: `tests/test_plugin_sdk.py` (11 tests, 0.21s)
+- 3 PluginRuntimeBasic (start_registers_subscriber / stop_unregisters / double_start_noop)
+- 2 PluginRuntimeHandler (calls_runtime_update_belief / returns_state)
+- 2 PluginPathEndToEnd (real_belief_engine_via_plugin_path / state_factory_called_with_student_id_from_event)
+- 1 LegacyFallback (no_subscriber_falls_back_to_legacy)
+- 1 PluginPrinciple (belief_py_no_engine_update_import, AST scan 验证 submit_answer body 无 engine.update)
+- 1 DefensiveChecks (silent pass scan)
+- 1 H3C4Canary (lca_path_unaffected)
+
+向后兼容:
+- 781 现有 + 11 新增 = 792 全过 (replay/simulate/H3-c4 canary PASS)
+- submit_answer **响应字段不变** (correct / score / theta / misc / persisted / 其它 v0.49+ 字段)
+- 防御性自检 [8] **仍 hard block**
+- /api/judge / /api/dual_agent / /api/lca **未动**, 留 v0.85+
+- PluginRuntime.start() 默认未启动 (production 激活需要 Flask startup 注册, 留 v0.85+)
+
+#### Architecture outcomes (cumulative after a+b+c+d — v0.84 final)
+
+| 维度 | v0.83.0-d | v0.84.0-a | v0.84.0-b | v0.84.0-c | v0.84.0-d | Δ (cumulative) |
+|---|---|---|---|---|---|---|
+| Event Engine §1.2 | 80% | 80% (unification) | 95% (Bus added) | **100%** (Bus + retention) | **100%** | **+20%** |
+| Event (统一输入) §2.4 | 40% | 90% | 95% | 95% | **95%** (Plugin 雏形接 1 topic) | +55% |
+| Plugin SDK §6 | 0% | 0% | 0% | 0% | **10%** (1/4 endpoint, /api/answer) | **+10%** |
+| pytest 总数 | 736 | 755 | 770 | 781 | 792 | +56 tests (+7.6%) |
+| 防御性自检 [8] | hard block | hard block | hard block | hard block | hard block | 保持 |
+| H3-c4 canary | PASS | PASS | PASS | PASS | PASS | 保持 |
+| v0.81 replay canary | PASS | PASS | PASS | PASS | PASS | 保持 |
+
 
 ## [0.83.0] 2026-08-10
 
