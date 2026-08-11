@@ -316,7 +316,8 @@
 
 **演进建议**:
 - **v0.88.0-a** ✅ (2026-08-11): Domain 抽象层奠基. NEW `ecos/domain/{__init__,base,education,science,career}.py` 5 文件. Multi-Domain §3 0% → 80% (Domain 抽象层 100%, 集成留 v0.88.0-b)
-- **v0.88.0-b** (待实施): Multi-Domain 集成 (DomainExtension + Runtime + LCA). 4 个集成点: BeliefState.domain_extension + Runtime.plan_domain_aware + ExperimentDesigner domain-aware + Evaluator.domain_reward_adjustment
+- **v0.88.0-b** ✅ (2026-08-11): Multi-Domain 集成 (DomainExtension + Runtime + LCA). 4 个集成点全完成: BeliefState.domain_extension + Runtime.plan_domain_aware + ExperimentDesigner domain-aware + Evaluator.domain_reward_adjustment. 26 新增 tests (pytest 985 → 1011, +2.7%). 防御性自检 [8] 仍 hard block (set_domain_extension 加入 allowlist). H3-c4 + v0.81 replay canary 全 PASS. Multi-Domain §3 80% → 95%.
+- **v0.88.0-c** (待实施): POMDP 依赖型 T(s'|s,a) + R(s,a) 固定 init + bayes_update(action, observation) 升级. 替换 v0.87.0-c 4x4 T 为 (n_states, n_states, n_arms) — T[a] 矩阵依赖 action.
 - **v0.89.0+** (Phase 7+ 抽象推演 #2+): Twin → Human Twin 抽象 + Plugin SDK 文档化 + Teacher/Parent Dashboard + 跨学科扩展
 
 **设计原则**:
@@ -456,7 +457,16 @@ v0.84.0-d 在 LCA 4-layer 之外, 引入 Plugin Runtime 雏形 (kernel-mapping �
 完全缺失（接近度 ≤ 20%）：
 1. **Multi-Domain 集成 (Runtime + LCA)** —— v0.88.0-b 目标 (Phase 7+ 抽象推演 #1)
 
-> **[v0.88.0-a 更新 2026-08-11]**: Phase 7+ 抽象推演 #1 sub-version a 完成. Domain 抽象层奠基 (NEW `ecos/domain/{__init__,base,education,science,career}.py` 5 文件). Multi-Domain §3: 0% → 80%. 27 新增 tests (pytest 958 → 985, +2.8%). H3-c4 + v0.81 replay canary 全 PASS. 防御性自检 [8] 仍 hard block (Domain dataclass 不 mutate state). 下一阶段 v0.88.0-b: Multi-Domain 集成 (DomainExtension + Runtime.plan_domain_aware + Designer domain-aware + Evaluator.domain_reward_adjustment).
+> **[v0.88.0-b 更新 2026-08-11]**: Phase 7+ 抽象推演 #1 sub-version b 完成. Multi-Domain 集成 (DomainExtension + Runtime + LCA + Evaluator). 26 新增 tests (pytest 985 → 1011, +2.7%). 详情见 §3.1.
+> - NEW BeliefState.domain_extension (Dict[str, Any] 字段 + set/get/has allowlisted mutation, 跟 motivation 模式一致)
+> - NEW Runtime.plan_domain_aware API (跟 plan_motivation_aware 模式一致, plan / plan_goal_aware / plan_motivation_aware / plan_domain_aware 4-way 并行)
+> - MODIFY ExperimentDesigner domain-aware 候选池 (domain_aware_types config, education=None / science=INQUIRY / career=PRACTICE, domain 在 CAStage 之后 final override)
+> - NEW Evaluator.domain_reward_adjustment (DOMAIN_REWARD_FACTORS: education=1.0 / science=1.1 / career=1.2 / creative=0.9)
+> - MODIFY LCAEngine.select_intervention domain_name kwarg (透传 Designer + 注入 reward factor)
+> - MODIFY scripts/check_no_direct_state_mutation.py FUNC_ALLOWLIST += set_domain_extension (防御性自检 [8] 仍 hard block)
+> - Domain-agnostic Kernel 不变 (POMDP / LinUCB / Thompson / Evidence 不感知 Domain)
+> - H3-c4 + v0.81 replay canary 全 PASS. apply_snapshot 路径覆盖 domain_extension (兜底老 snapshot).
+> - 下一阶段 v0.88.0-c: POMDP 依赖型 T(s'|s,a) + R(s,a) 固定 init + bayes_update 升级.
 
 > **[v0.87.0 完成 2026-08-11]**: 缺失清单 3→1 (Motivation Profile / POMDP Policy 全部落地). Phase 6+ Kernel 扩展第 2 个版本 4 sub-commit 全部完成 (a=Motivation schema/b=Motivation Runtime+c=POMDP 雏形/d=POMDP 集成 3-way A/B). pytest 898 → 958 (+60, +6.7%).
 
@@ -511,6 +521,7 @@ v0.84.0-d 在 LCA 4-layer 之外, 引入 Plugin Runtime 雏形 (kernel-mapping �
 > v0.87 是 Phase 6+ Kernel 扩展第 2 个版本 (4 sub-commit a/b/c/d). 缺失清单 3→1 (剩 Multi-Domain 扩展). 下一阶段 v0.88+: Multi-Domain 扩展 (科研 / 职业 / 创意) + POMDP 完整 (T(s'|s,a) + R(s,a) + point-based solver) + Phase 7+ 抽象推演.
 
 > **[v0.88.0-a 更新 2026-08-11]**: Phase 7+ 抽象推演 #1 sub-version a 完成. Domain 抽象层奠基. 27 新增 tests (pytest 958 → 985, +2.8%). 详情见 §3.1 (NEW).
+> **[v0.88.0-b 更新 2026-08-11]**: Phase 7+ 抽象推演 #1 sub-version b 完成. Multi-Domain 集成 (DomainExtension + Runtime + LCA + Evaluator). 26 新增 tests (pytest 985 → 1011, +2.7%). 详情见 §3.1.
 > - NEW `ecos/domain/{__init__,base,education,science,career}.py` 5 文件 (Domain ABC + 3 Domain + DomainRegistry)
 > - Domain ABC: 4 abstract property (name / description / capability_ontology / profile_extensions)
 > - EducationDomain: K12, 5 Python default capability (复用 v0.86.0-d DEFAULT_CAPABILITIES_LIST) + grade_levels + learning_standards

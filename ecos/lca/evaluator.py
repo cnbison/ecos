@@ -85,7 +85,22 @@ class Evaluator:
         self.attribution.attribute_effect(intervention, student_id, state_delta)
 
     v0.82.0-c: 上述 4 个方法抽到 Evaluator, LCAEngine 仅委托.
+    v0.87.0-b: motivation_reward_adjustment (MotivationProfile → factor 0.7/0.8/1.0/1.3).
+    v0.88.0-b: domain_reward_adjustment (Domain name → factor 0.9/1.0/1.1/1.2).
     """
+
+    # v0.88.0-b: Domain reward factor 映射表
+    #   - education: 1.0 (默认 K12, 不 boost 也不降)
+    #   - science:   1.1 (boost gain, 科研迭代快, intervention 见效快)
+    #   - career:    1.2 (boost gain, 实战主导, intervention 即时反馈)
+    #   - creative:  0.9 (降 gain, 创意需要更多时间)
+    #   - unknown:   1.0 (兜底中性)
+    DOMAIN_REWARD_FACTORS: dict = {
+        "education": 1.0,
+        "science": 1.1,
+        "career": 1.2,
+        "creative": 0.9,
+    }
 
     def __init__(
         self,
@@ -146,6 +161,58 @@ class Evaluator:
         except Exception:
             _log.warning(
                 "Evaluator.motivation_reward_adjustment 异常, 返 1.0 (中性)",
+                exc_info=True,
+            )
+            return 1.0
+
+    # ---------------------------------------------------------------
+    # v0.88.0-b: Domain reward 调整
+    # ---------------------------------------------------------------
+
+    def domain_reward_adjustment(
+        self,
+        belief_state: BeliefState,
+        domain_name: Optional[str] = None,
+    ) -> float:
+        """v0.88.0-b: 根据 Domain name 调整 gain (multiplicative factor).
+
+        规则 (per design doc §3.2):
+          - education: factor = 1.0 (K12 默认, 不 boost 也不降)
+          - science:   factor = 1.1 (科研迭代快, intervention 见效快)
+          - career:    factor = 1.2 (实战主导, intervention 即时反馈)
+          - creative:  factor = 0.9 (创意需要更多时间)
+          - unknown / None: factor = 1.0 (兜底中性)
+
+        Args:
+            belief_state:  CTA 状态 (含 domain_extension 字段, v0.88.0-b)
+            domain_name:  Domain name (e.g. "education"/"science"/"career")
+                          None = 读 belief_state.domain_extension["active_domain"] 兜底
+
+        Returns:
+            float in [0.5, 1.5] 调整 factor (跟 motivation_reward_adjustment 同 range)
+
+        防御性自检 [1]: domain_name 未知 _log.warning + 返 1.0
+        """
+        try:
+            # v0.88.0-b: domain_name 优先, 否则读 state.domain_extension["active_domain"]
+            if domain_name is None:
+                domain_name = getattr(belief_state, "domain_extension", {}).get(
+                    "active_domain"
+                )
+            if domain_name is None:
+                return 1.0
+
+            factor = self.DOMAIN_REWARD_FACTORS.get(domain_name)
+            if factor is None:
+                _log.warning(
+                    "Evaluator.domain_reward_adjustment: 未知 domain=%s, 返 1.0 (中性)",
+                    domain_name,
+                )
+                return 1.0
+            return float(factor)
+        except Exception:
+            _log.warning(
+                "Evaluator.domain_reward_adjustment 异常, 返 1.0 (中性)",
                 exc_info=True,
             )
             return 1.0

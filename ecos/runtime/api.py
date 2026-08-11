@@ -344,6 +344,66 @@ def plan_motivation_aware(student_id: str, audience: str = "student", **kwargs) 
     )
 
 
+def plan_domain_aware(student_id: str, audience: str = "student", **kwargs) -> Any:
+    """v0.88.0-b: Domain-aware plan (新 API, 跟 plan / plan_goal_aware / plan_motivation_aware 并行).
+
+    跟 plan_motivation_aware 的区别:
+        - 接受 domain_name 参数 (e.g. "education"/"science"/"career")
+        - 自动 set_domain_extension("active_domain", ...) 到 state (allowlisted mutation)
+        - 透传 domain_name 到 LCAEngine.select_intervention
+        - 走 Twin Consistency Check (per goal, 如传)
+
+    Args:
+        student_id: 学生 ID
+        audience:   rationale 受众
+        **kwargs:
+            lca_engine:  Optional[LCAEngine]
+            cta_input:   Optional[CTAInput]
+            goal:        Optional[Goal]      (若传, 校验该 Goal 关联 evidence)
+            event_log:   Optional[EventLog]   (inconsistent 时 emit goal_changed event)
+            domain_name: Optional[str]        (e.g. "education"/"science"/"career", 设入 domain_extension["active_domain"])
+            motivation:  Optional[MotivationProfile]  (透传 motivation)
+
+    Returns:
+        LCAResult (跟 plan / plan_goal_aware / plan_motivation_aware 同一返回)
+
+    v0.88.0-b: domain 考虑走 2 路径 (LCAEngine.select_intervention 走 itype override + reward factor).
+    v0.88.0-b: Runtime.plan_domain_aware 跟 Runtime.plan_motivation_aware 独立, 不重叠
+              (domain 选 intervention 类型, motivation 调 reward factor).
+    """
+    lca = kwargs.get("lca_engine") or _get_default_lca_engine()
+    cta_input = kwargs.get("cta_input")
+    if cta_input is None:
+        # 默认: 估计 student state, 构造 CTAInput
+        state = estimate(student_id)
+        from ecos.lca.cta_input import CTAInput
+        cta_input = CTAInput(student_id=student_id, belief_state=state)
+
+    # v0.86.0-b: Twin Consistency Check (前置 defensive)
+    _run_twin_consistency_check(
+        student_id=student_id,
+        state=cta_input.belief_state,
+        goal=kwargs.get("goal"),
+        event_log=kwargs.get("event_log"),
+    )
+
+    # v0.88.0-b: domain_name emit (allowlisted mutation, set_domain_extension)
+    domain_name = kwargs.get("domain_name")
+    if domain_name is not None:
+        cta_input.belief_state.set_domain_extension("active_domain", domain_name)
+
+    # v0.87.0-b: motivation observation emit (allowlisted mutation)
+    motivation_obs = kwargs.get("motivation_observation")
+    if motivation_obs is not None:
+        cta_input.belief_state.add_motivation_observation(motivation_obs)
+
+    # v0.87.0-b: motivation 透传到 LCA (None 时 fallback to state.motivation)
+    motivation = kwargs.get("motivation")
+    return lca.select_intervention(
+        cta_input, audience=audience, motivation=motivation, domain_name=domain_name,
+    )
+
+
 def _run_twin_consistency_check(
     student_id: str,
     state: Any,
@@ -397,4 +457,5 @@ __all__ = [
     "plan",
     "plan_goal_aware",
     "plan_motivation_aware",
+    "plan_domain_aware",
 ]

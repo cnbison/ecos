@@ -334,6 +334,11 @@ class BeliefState:
     # Motivation Profile 独立新增 (渐进迁移)
     # 防御性自检 [8] 仍 hard block: add_motivation_observation 是 allowlisted mutation
     motivation: MotivationProfile = field(default_factory=MotivationProfile)
+    # v0.88.0-b: Domain Extension (Multi-Domain 抽象)
+    # Dict[str, Any] 兜底 (跟 motivation_profile 模式一致), 老 JSON snapshot 加载 domain_extension 兜底 {}
+    # 渐进迁移: 不重命名 BeliefState, 沿用 v0.71.0 推迟的重命名决策
+    # 防御性自检 [8] 仍 hard block: set_domain_extension 是 allowlisted mutation
+    domain_extension: Dict[str, Any] = field(default_factory=dict)
 
     def theta_vector(self) -> np.ndarray:
         """返回 [θ_K, θ_P, θ_S, θ_C, θ_X] 5D 向量."""
@@ -463,6 +468,7 @@ class BeliefState:
             "version": self.version,
             "current_goals": [g.to_dict() for g in self.current_goals],
             "motivation": self.motivation.to_dict(),  # v0.87.0-a
+            "domain_extension": dict(self.domain_extension),  # v0.88.0-b
         }
 
     @classmethod
@@ -495,6 +501,7 @@ class BeliefState:
             version=d.get("version", "v1.0"),
             current_goals=[Goal.from_dict(g) for g in d.get("current_goals", [])],
             motivation=MotivationProfile.from_dict(d.get("motivation", {})),  # v0.87.0-a
+            domain_extension=dict(d.get("domain_extension", {})),  # v0.88.0-b
         )
 
     def apply_snapshot(self, snapshot: Dict[str, Any]) -> None:
@@ -561,6 +568,49 @@ class BeliefState:
             obs: MotivationObservation 实例 (ecos/motivation/profile.py)
         """
         self.motivation.add_observation(obs)
+
+    # ---------------------------------------------------------------
+    # v0.88.0-b: Domain Extension 方法 (3 个)
+    # ---------------------------------------------------------------
+
+    def set_domain_extension(self, key: str, value: Any) -> None:
+        """v0.88.0-b: 设置 domain_extension[key] = value (allowlisted mutation).
+
+        取代直接 `state.domain_extension[key] = value` mutation. 跟 add_evidence / append_goal /
+        add_motivation_observation 模式一致, allowlisted in check_no_direct_state_mutation.py
+        FUNC_ALLOWLIST.
+
+        Args:
+            key:   domain extension 字段名 (e.g. "research_methods")
+            value: 任意值 (e.g. ["empirical", "theoretical"])
+
+        防御性自检 [1]: key 非字符串 _log.warning 跳过
+        """
+        if not isinstance(key, str):
+            _log.warning(
+                "BeliefState.set_domain_extension: key 应为 str, 实际=%s, skip",
+                type(key).__name__,
+            )
+            return
+        self.domain_extension[key] = value
+
+    def get_domain_extension(self, key: str, default: Any = None) -> Any:
+        """v0.88.0-b: 反查 domain_extension[key] (default 兜底).
+
+        Args:
+            key:     domain extension 字段名
+            default: 缺失时返 default
+
+        Returns:
+            value 或 default
+
+        防御性自检 [1]: key 不存在返 default, 不 raise
+        """
+        return self.domain_extension.get(key, default)
+
+    def has_domain_extension(self, key: str) -> bool:
+        """v0.88.0-b: 判定 domain_extension[key] 是否存在."""
+        return key in self.domain_extension
 
     # ---------------------------------------------------------------
     # v0.83.0-b: Belief-Evidence 关联方法 (3 个)
@@ -709,6 +759,9 @@ class BeliefState:
         # v0.87.0-a: 接管 motivation (Motivation Profile 持久化)
         if "motivation" in snapshot:
             self.motivation = MotivationProfile.from_dict(snapshot["motivation"])
+        # v0.88.0-b: 接管 domain_extension (Multi-Domain Extension 持久化)
+        if "domain_extension" in snapshot:
+            self.domain_extension = dict(snapshot["domain_extension"])
 
 
 # ── Helper 序列化函数（BeliefState 嵌套结构用）────────────────────────

@@ -110,12 +110,18 @@ def test_version_consistency(ecos_dir: Path):
     assert match, f"{init_file} 缺少 __version__ 定义"
     version = match.group(1)
 
-    # 验证版本号格式 (语义化版本: MAJOR.MINOR.PATCH)
-    semver_pattern = re.compile(r"^\d+\.\d+\.\d+$")
-    assert semver_pattern.match(version), f"版本号格式不对: {version} (应: MAJOR.MINOR.PATCH)"
+    # 验证版本号格式 (语义化版本: MAJOR.MINOR.PATCH, 可选 -a/-b/-c/-d sub-version 标签)
+    # v0.88.0-a 起: 子版本 commit 用 -a/-b/-c/-d 后缀 (更直观, 一眼看到当前 sub-commit)
+    # 之前 (v0.87.0-a/d 等): 全用 "0.87.0", 由 commit message 区分 sub-version
+    semver_pattern = re.compile(r"^\d+\.\d+\.\d+(?:-(?:a|b|c|d))?$")
+    assert semver_pattern.match(version), (
+        f"版本号格式不对: {version} (应: MAJOR.MINOR.PATCH, 可选 -a/-b/-c/-d sub-version 标签)"
+    )
 
     # 验证版本号至少 0.40.0 (v0.40.0 之前是 v0.40.0 docs sync 起点)
-    parts = version.split(".")
+    # 去掉可选的 sub-version 后缀 (e.g. "0.88.0-a" → "0.88.0")
+    base_version = version.split("-")[0]
+    parts = base_version.split(".")
     major, minor, patch = int(parts[0]), int(parts[1]), int(parts[2])
     assert (major, minor, patch) >= (0, 40, 0), \
         f"版本号 {version} 落后于 v0.40.0 docs sync 起点"

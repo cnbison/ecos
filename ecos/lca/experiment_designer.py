@@ -13,6 +13,8 @@
     - CA 阶段 (MODELING → EXPLANATORY 主导, COACHING → PRACTICE 主导, SCAFFOLDING → EXPLANATORY + 高 scaffolding)
     - Bjork 触发 (test → INQUIRY 强化, space → 更低 difficulty)
     - CLT 级别 (NOVICE 0.9 / DEVELOPING 0.6 / PROFICIENT 0.3 / EXPERT 0.1 scaffolding)
+  - v0.87.0-b: motivation-aware itype override (frustration/engagement/confidence)
+  - v0.88.0-b: domain-aware itype override (education/science/career)
 
 设计原则:
   - ExperimentDesigner 是 2.0 §2.2.1 实验设计层, 不持有 bandit state
@@ -81,6 +83,10 @@ class ExperimentDesignerConfig:
         scaffolding_by_clt:     CLT 4 级 → scaffolding_level 映射
         feedback_density_default: 默认 feedback_density (非 EXPERT)
         feedback_density_expert: EXPERT 级别 feedback_density
+        domain_aware_types:     v0.88.0-b: 各 Domain 默认 itype 映射 (per design doc §3.2)
+                                  - education: None (走 K12 logic, 已有)
+                                  - science:   INQUIRY (苏格拉底式)
+                                  - career:    PRACTICE (实战)
     """
 
     n_candidates: int = 10
@@ -105,6 +111,13 @@ class ExperimentDesignerConfig:
     })
     feedback_density_default: float = 0.8
     feedback_density_expert: float = 0.4
+    # v0.88.0-b: domain-aware itype preference (per design doc §3.2)
+    # None = 走 default K12 logic (education Domain 不强制 override)
+    domain_aware_types: dict = field(default_factory=lambda: {
+        "education": None,  # 已有 K12 logic
+        "science": InterventionType.INQUIRY,   # 科研: 苏格拉底式
+        "career": InterventionType.PRACTICE,   # 职业: 实战主导
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -146,6 +159,7 @@ class ExperimentDesigner:
         cta_input: CTAInput,
         n_candidates: Optional[int] = None,
         motivation: Optional["MotivationProfile"] = None,
+        domain_name: Optional[str] = None,
     ) -> List[Intervention]:
         """生成候选干预池.
 
@@ -156,6 +170,9 @@ class ExperimentDesigner:
             motivation:  v0.87.0-b: 可选 MotivationProfile, 调整 itype 权重
                           (frustration > 0.7 优先 EXPLANATORY, engagement < 0.3 优先 INQUIRY,
                            confidence+engagement 高 优先 PRACTICE)
+            domain_name: v0.88.0-b: 可选 Domain name (e.g. "education"/"science"/"career"),
+                          调整 itype 权重 (science → INQUIRY, career → PRACTICE).
+                          None = 不做 domain override (走 K12 default)
 
         Returns:
             List[Intervention] 长度 = n_candidates
@@ -168,6 +185,7 @@ class ExperimentDesigner:
           5. InterventionType → quantity (3/8/5/4/3)
           6. CLT != EXPERT → feedback_density 0.8, EXPERT → 0.4
           7. v0.87.0-b: motivation 调整 itype 权重 (frustration/engagement/confidence)
+          8. v0.88.0-b: domain 调整 itype 权重 (science=INQUIRY / career=PRACTICE)
         """
         if n_candidates is None:
             n_candidates = self.config.n_candidates
@@ -179,6 +197,8 @@ class ExperimentDesigner:
 
         # v0.87.0-b: motivation-aware itype preference
         motivation_override = self._motivation_itype_override(motivation)
+        # v0.88.0-b: domain-aware itype preference
+        domain_override = self._domain_itype_override(domain_name)
 
         candidates: List[Intervention] = []
         target_skills = cta_input.skill_filter or []
@@ -187,8 +207,11 @@ class ExperimentDesigner:
 
         for i in range(n_candidates):
             # v0.87.0-b: motivation override 优先于 default types
+            # v0.88.0-b: domain override (优先级: motivation > domain > default)
             if motivation_override is not None and i % 3 == 0:
                 itype = motivation_override
+            elif domain_override is not None and i % 3 == 1:
+                itype = domain_override
             else:
                 itype = self.config.default_types[i % len(self.config.default_types)]
             difficulty = self.config.default_difficulties[
@@ -197,6 +220,10 @@ class ExperimentDesigner:
 
             # Step 1: CA 阶段调整干预类型
             itype = self._adjust_for_ca_stage(itype, ca_stage, i)
+
+            # v0.88.0-b: domain override 在 CAStage 调整之后 (domain 有最终决定权, per design doc §3.2)
+            if domain_override is not None and i % 3 == 2:
+                itype = domain_override
 
             # Step 2: Bjork 触发调整
             bjork = list(bjork_triggers)
@@ -273,6 +300,36 @@ class ExperimentDesigner:
                 exc_info=True,
             )
         return None
+
+    def _domain_itype_override(
+        self,
+        domain_name: Optional[str],
+    ) -> Optional[InterventionType]:
+        """v0.88.0-b: domain-aware itype preference.
+
+        规则 (per design doc §3.2):
+          - education: 返 None (走 K12 default logic, 已有)
+          - science:   返 INQUIRY (苏格拉底式, 探索驱动)
+          - career:    返 PRACTICE (实战主导)
+          - 其他 (含 None): 返 None (走 default_types)
+
+        Args:
+            domain_name: Domain name (e.g. "education"/"science"/"career")
+
+        Returns:
+            Optional[InterventionType] (None = 不 override)
+        """
+        if domain_name is None:
+            return None
+        try:
+            override = self.config.domain_aware_types.get(domain_name)
+            return override
+        except Exception:
+            _log.warning(
+                "ExperimentDesigner._domain_itype_override 异常, 返 None",
+                exc_info=True,
+            )
+            return None
 
     # ---------------------------------------------------------------
     # 内部工具

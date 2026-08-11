@@ -242,6 +242,7 @@ class LCAEngine:
         cta_input: CTAInput,
         audience: Optional[str] = None,
         motivation: Optional["MotivationProfile"] = None,
+        domain_name: Optional[str] = None,
     ) -> LCAResult:
         """LCA 主选择流程.
 
@@ -257,6 +258,9 @@ class LCAEngine:
             audience: rationale 受众（student / teacher / parent）
             motivation: v0.87.0-b: 可选 MotivationProfile, 调整候选池 itype 权重
                         (frustration/engagement/confidence 考虑)
+            domain_name: v0.88.0-b: 可选 Domain name (e.g. "education"/"science"/"career"),
+                          调整候选池 itype 权重 + reward factor
+                          (None = 读 state.domain_extension["active_domain"] 兜底)
 
         Returns:
             LCAResult（含 Intervention + rationale + expected_gain/risk）
@@ -269,6 +273,12 @@ class LCAEngine:
         if motivation is None:
             motivation = getattr(belief_state, "motivation", None)
 
+        # v0.88.0-b: domain_name fallback to belief_state.domain_extension["active_domain"]
+        if domain_name is None:
+            domain_name = getattr(belief_state, "domain_extension", {}).get(
+                "active_domain"
+            )
+
         # v0.82.0-a: Step 1-4 委托 Planner (决策层 4 步合一)
         history = self.intervention_history.get(student_id, [])
         plan: PlanDecision = self.planner.plan(cta_input, intervention_history=history)
@@ -280,11 +290,13 @@ class LCAEngine:
         # Step 5: 生成候选 + LinUCB 选择
         # v0.82.0-b: 候选生成委托 ExperimentDesigner (LCA 4-layer 第 2 层)
         # v0.87.0-b: motivation 透传到 ExperimentDesigner.design()
+        # v0.88.0-b: domain_name 透传到 ExperimentDesigner.design()
         candidates = self.experiment_designer.design(
             plan,
             cta_input,
             n_candidates=self.config.bandit_config.n_arms,
             motivation=motivation,
+            domain_name=domain_name,
         )
         # v0.82.0-d: LinUCB 选择委托 PolicyLearner.select (LCA 4-layer 第 4 层)
         #   内部 lazy init per-student LCAPolicyLearner (v0.57.0 per-student 隔离)
@@ -303,6 +315,12 @@ class LCAEngine:
         # v0.87.0-b: motivation reward 调整 (multiplicative factor)
         motivation_factor = self.evaluator.motivation_reward_adjustment(belief_state)
         expected_gain *= motivation_factor
+
+        # v0.88.0-b: domain reward 调整 (multiplicative factor, 跟 motivation 同 range)
+        domain_factor = self.evaluator.domain_reward_adjustment(
+            belief_state, domain_name=domain_name
+        )
+        expected_gain *= domain_factor
 
         chosen.expected_gain = max(0.0, min(1.0, expected_gain))
         chosen.expected_risk = expected_risk

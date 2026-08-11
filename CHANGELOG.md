@@ -12,6 +12,101 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.88.0-b] 2026-08-11
+
+### feat: Phase 7+ 抽象推演 #1 (sub b) — Multi-Domain 集成 Runtime + LCA
+
+> **背景**: v0.88.0-a Domain 抽象层奠基完成 (Domain base class + 3 domain schema). Phase 7+ 抽象推演 #1 sub b: 把 Multi-Domain 集成到 Runtime API + LCA 链路.
+> **v0.88.0-b 目标**: Domain 集成 Runtime + LCA + Evaluator. Multi-Domain §3: 80% → 95% (Runtime API + LCA 4-layer 全 runtime 可感知 Domain). pytest 985 → 1011 (+26, +2.7%).
+
+#### NEW: BeliefState.domain_extension (allowlisted mutation, 跟 motivation 同模式)
+
+- `ecos/cta/belief_state.py:BeliefState`:
+  - `domain_extension: Dict[str, Any] = field(default_factory=dict)` 字段 (default_factory dict)
+  - `set_domain_extension(key, value)` allowlisted mutation (防御性自检 [8] allowlist)
+  - `get_domain_extension(key, default=None)` getter
+  - `has_domain_extension(key)` 判定
+  - `to_dict()` 含 `domain_extension` (跟 motivation 模式一致)
+  - `from_dict()` 兜底 `dict(d.get("domain_extension", {}))` (向后兼容老 snapshot)
+  - `_apply_delta_fields()` 恢复 `domain_extension` (apply_snapshot 路径)
+
+#### NEW: Runtime.plan_domain_aware API (跟 plan_motivation_aware 模式一致)
+
+- `ecos/runtime/api.py:plan_domain_aware(student_id, audience, **kwargs)`:
+  - 接受 `domain_name` kwarg (e.g. "education"/"science"/"career")
+  - 自动 `set_domain_extension("active_domain", domain_name)` 到 state (allowlisted mutation)
+  - 透传 `domain_name` 到 `lca.select_intervention(... domain_name=...)`
+  - 走 Twin Consistency Check (per goal, 如传)
+  - 跟 plan / plan_goal_aware / plan_motivation_aware 并行, 不重叠
+  - **重要**: plan_domain_aware 跟 plan_motivation_aware 独立. domain 选 intervention 类型 (itype override), motivation 调 reward factor. 两者并存不冲突.
+
+#### MODIFY: ExperimentDesigner domain-aware 候选池
+
+- `ecos/lca/experiment_designer.py:ExperimentDesigner`:
+  - `domain_aware_types: dict = {"education": None, "science": INQUIRY, "career": PRACTICE}` config (per design doc §3.2)
+  - `design(... domain_name=None)` 新参数 (None = 不 override)
+  - `_domain_itype_override(domain_name)` method (fallback to None for unknown)
+  - **优先级**: motivation_override > domain_override > default_types. 但 `_adjust_for_ca_stage` 调整后, **domain 在 i % 3 == 2 时 final override** (per design doc §3.2 "domain 有最终决定权")
+  - 教育 Domain 走 K12 default logic (None override, 已成熟)
+  - science → INQUIRY (苏格拉底式), career → PRACTICE (实战主导)
+
+#### MODIFY: Evaluator.domain_reward_adjustment
+
+- `ecos/lca/evaluator.py:Evaluator`:
+  - `DOMAIN_REWARD_FACTORS = {"education": 1.0, "science": 1.1, "career": 1.2, "creative": 0.9}`
+  - `domain_reward_adjustment(state, domain_name=None) -> float` method
+  - `domain_name=None` 时 fallback to `state.domain_extension["active_domain"]`
+  - 未知 domain / 无 active_domain → 1.0 (中性兜底)
+  - 注入到 `select_intervention` 的 `expected_gain *= factor` (跟 motivation_reward_adjustment 同模式)
+
+#### MODIFY: LCAEngine.select_intervention domain_name kwarg
+
+- `ecos/lca/orchestrator.py:LCAEngine.select_intervention`:
+  - 新增 `domain_name: Optional[str] = None` kwarg
+  - 透传 `domain_name` 到 `experiment_designer.design(... domain_name=...)`
+  - `expected_gain *= evaluator.domain_reward_adjustment(state, domain_name)` (reward shaping)
+  - `domain_name=None` 时 fallback to `state.domain_extension.get("active_domain")`
+
+#### MODIFY: scripts/check_no_direct_state_mutation.py FUNC_ALLOWLIST
+
+- `set_domain_extension` 加入 FUNC_ALLOWLIST (跟 `add_motivation_observation` 同模式, 防御性自检 [8] 仍 hard block)
+
+#### MODIFY: tests/test_defensive.py test_version_consistency
+
+- 接受 `-a`/`-b`/`-c`/`-d` sub-version 后缀 (v0.88.0-a 起新 pattern, sub-commit 一目了然)
+- 之前 (v0.87.0-a/d 等): 全用 "0.87.0", 由 commit message 区分. 新 pattern 更直观.
+
+#### 测试 (`tests/test_domain_runtime.py` 26 测试, 5 块)
+
+1. **BeliefState.domain_extension 字段 (7)**: field 存在 / default_factory 独立 / set allowlist / invalid key skip / get / get missing default / has
+2. **BeliefState 序列化 domain_extension (4)**: to_dict 含 / from_dict 恢复 / missing 兜底 / apply_snapshot 恢复
+3. **ExperimentDesigner domain-aware (4)**: science→INQUIRY / career→PRACTICE / None 不 override / 未知 domain 兜底
+4. **Evaluator.domain_reward_adjustment (6)**: education=1.0 / science=1.1 / career=1.2 / unknown=1.0 / fallback to state.extension / 无 domain=1.0
+5. **Runtime.plan_domain_aware 集成 (5)**: sets active_domain / returns LCAResult / falls back to state / 不破坏 plan / 不破坏 motivation_aware
+
+#### 关键不变量 (跟 v0.88.0-a 一致)
+
+- **Domain-agnostic Kernel 1 套**: LinUCB / Thompson / POMDP / Evidence / Runtime 不引用 Domain (Domain 不 mutate state)
+- **Domain-specific Extension N 套**: 3 个 Domain 各有独立 capability_ontology + profile_extensions
+- **Capability 是 Domain 入口**: 通过 `capability_ontology` 暴露 Domain 能力 (复用 v0.86.0-a Capability frozen dataclass)
+- **Plan 4-way 不重叠**: plan / plan_goal_aware / plan_motivation_aware / plan_domain_aware 并行, 独立调用
+- **防御性自检 [8] 仍 hard block**: set_domain_extension 加入 allowlist, 其他 mutation 仍禁
+- **H3-c4 canary PASS**: domain-aware 不影响 LCA 行为 (reward factor 1.0/1.1/1.2 在合理范围)
+- **v0.81 replay canary PASS**: domain_extension 走 apply_snapshot 单一入口
+
+#### 累计进度 (v0.87.0-d → v0.88.0-b)
+
+- Multi-Domain §3: 0% → **95%** (Domain 抽象 100% + Runtime/LCA 集成 95%, 剩 Q-Matrix domain 维度扩展 v0.89+)
+- pytest: 958 → **1011** (+53, +5.5%; 27 + 26)
+
+#### 📋 v0.88.0-c (Phase 7+ 抽象推演 #1 sub c, 待实施)
+
+- POMDP 依赖型 T(s'|s,a) + R(s,a) 固定 init + bayes_update(action, observation) 升级
+- 替换 v0.87.0-c 4x4 T 为 (n_states, n_states, n_arms) — T[a] 矩阵依赖 action
+- R 固定 init (n_states, n_arms)
+- +16 tests
+
+
 ## [0.88.0-a] 2026-08-11
 
 ### feat: Phase 7+ 抽象推演 #1 (sub a) — Domain base class + 3 domain schema
