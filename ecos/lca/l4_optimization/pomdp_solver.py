@@ -110,30 +110,31 @@ class PBVI:
         observation_model: np.ndarray,
         reward: np.ndarray,
     ) -> List[AlphaVector]:
-        """PBVI 单步 backup (v0.89.0-a).
+        """PBVI 单步 backup (v0.89.0-b, 经典 PBVI / Sondik 1971 简化).
 
-        算法:
-          对每个 action a (n_arms):
-            对每个 belief point b (K):
-              V_a(b) = Σ_s b(s) * R(s, a) + γ * Σ_o P(o|b, a) * max_{α'} α'(b')
-
-        P(o|b, a) 计算 (per Sondik 1971):
-          P(o|b, a) = Σ_s' O[o|s'] * Σ_s T[s'|s, a] * b(s)
-          b'_a(s') = O[o|s'] * Σ_s T[s'|s, a] * b(s) / P(o|b, a)
+        算法 (对每个 action a, 输出 α-vector in state space):
+          α_a[s] = R(s, a) + γ * Σ_o P(o|δ_s, a) * max_{α'} α'(b'_a,o)
+          其中:
+            δ_s = one-hot belief (state s)
+            b'_a,o(s') = O[o|s'] * Σ_s' T[s'|s, a] * δ_s(s) / P(o|δ_s, a)
+                      = O[o|s'] * T[s'|s, a] / P(o|δ_s, a)
+            P(o|δ_s, a) = Σ_s' O[o|s'] * T[s'|s, a]
 
         纯函数 (不修改 self.alpha_vectors, 新 α-vector 作为返回值).
+        belief_points 在 backup_step 中**不直接使用** (留 v0.89.0-c/d 阶段
+        用于 coverage / reachable check). PBVI class 持有 belief_points
+        作为 init anchor, 但 backup 是 state-space PBVI 简化.
 
         Args:
-            transition:        shape (n_states, n_states, n_arms) — POMDPPolicy.transition
-            observation_model: shape (n_observations, n_states)   — POMDPPolicy.observation_model
-            reward:            shape (n_states, n_arms)            — POMDPPolicy.reward
+            transition:        shape (n_states, n_states, n_arms)
+            observation_model: shape (n_observations, n_states)
+            reward:            shape (n_states, n_arms)
 
         Returns:
-            List[AlphaVector]: 每个 action 一个 α (action, values[K])
+            List[AlphaVector]: 每个 action 一个 α (action, values[n_states])
 
         防御性自检 [1]:
           - 输入 shape 不匹配 → ValueError
-          - belief_points 维度不匹配 → ValueError
         """
         # 维度校验
         if transition.ndim != 3:
@@ -167,32 +168,29 @@ class PBVI:
                 f"第二维={observation_model.shape[1]} 跟 n_states={n_states} 不匹配"
             )
 
-        # belief_points 维度校验
-        for b_idx, b in enumerate(self.belief_points):
-            if b.shape != (n_states,):
-                raise ValueError(
-                    f"PBVI.backup_step: belief_points[{b_idx}] shape={b.shape} "
-                    f"跟 n_states={n_states} 不匹配"
-                )
-
         new_alphas: List[AlphaVector] = []
 
         for a in range(n_arms):
-            values = np.zeros(len(self.belief_points))
-            for b_idx, b in enumerate(self.belief_points):
-                # 即时 reward: Σ_s b(s) * R(s, a)
-                immediate = float(b @ reward[:, a])
-                # 未来 expected value: γ * Σ_o P(o|b, a) * max_{α'} α'(b')
+            # α_a values shape (n_states,) — α_a[s] = V_a(δ_s)
+            values = np.zeros(n_states)
+            T_a = transition[:, :, a]  # shape (n_states, n_states)
+
+            for s in range(n_states):
+                # immediate reward 在 state s 选 action a
+                immediate = float(reward[s, a])
+
+                # future expected value
                 future = 0.0
                 for o in range(n_observations):
-                    # b'(s') = O[o|s'] * T[:, :, a].T @ b
-                    T_a = transition[:, :, a]
-                    b_next_unnorm = observation_model[o] * (T_a.T @ b)
+                    # b'_a,o(s') = O[o|s'] * T[s'|s, a]  (one-hot δ_s)
+                    b_next_unnorm = observation_model[o] * T_a[:, s]
                     p_obs = b_next_unnorm.sum()
                     if p_obs > 0:
                         b_next = b_next_unnorm / p_obs
                         future += p_obs * self._alpha_value_at(b_next)
-                values[b_idx] = immediate + self.gamma * future
+
+                values[s] = immediate + self.gamma * future
+
             new_alphas.append(AlphaVector(action=a, values=values))
 
         return new_alphas
@@ -263,8 +261,192 @@ class PBVI:
             "actions": [α.action for α in self.alpha_vectors],
         }
 
+    def update_alpha_vectors(self, new_alphas: List[AlphaVector]) -> bool:
+        """更新 α-vector + 收敛检测 (v0.89.0-b).
+
+        算法:
+          - 对每个 new_alpha (按 action 匹配), 算 values 跟旧 α 的 max abs diff
+          - 收集 max_diff
+          - 替换 self.alpha_vectors 为 new_alphas
+          - max_diff < epsilon → 收敛 (返 True)
+
+        Args:
+            new_alphas: 新 α-vector 集合 (List[AlphaVector])
+
+        Returns:
+            bool: 是否收敛 (max_diff < epsilon)
+
+        防御性自检 [1]:
+          - new_alphas 为空 → False (退化, 不更新)
+        """
+        if not new_alphas:
+            return False
+
+        # 算 max_diff (按 action 匹配)
+        max_diff = 0.0
+        old_by_action = {α.action: α for α in self.alpha_vectors}
+        for new_α in new_alphas:
+            old_α = old_by_action.get(new_α.action)
+            if old_α is not None and old_α.values.shape == new_α.values.shape:
+                diff = float(np.max(np.abs(new_α.values - old_α.values)))
+                if diff > max_diff:
+                    max_diff = diff
+
+        # 替换 (PBVI 简化: 直接替换)
+        self.alpha_vectors = list(new_alphas)
+        return max_diff < self.epsilon
+
+    def solve(
+        self,
+        transition: np.ndarray,
+        observation_model: np.ndarray,
+        reward: np.ndarray,
+    ) -> int:
+        """PBVI 主算法: iterative backup + 收敛 (v0.89.0-b).
+
+        算法:
+          for i in 1..n_iters:
+            new_alphas = backup_step(transition, O, reward)
+            converged = update_alpha_vectors(new_alphas)
+            if converged: 返 i
+          返 n_iters (未收敛)
+
+        Args:
+            transition:        shape (n_states, n_states, n_arms)
+            observation_model: shape (n_observations, n_states)
+            reward:            shape (n_states, n_arms)
+
+        Returns:
+            int: 实际迭代次数 (1..n_iters)
+
+        防御性自检 [1]:
+          - 输入 shape 由 backup_step 校验 (传透)
+        """
+        for i in range(self.n_iters):
+            new_alphas = self.backup_step(transition, observation_model, reward)
+            converged = self.update_alpha_vectors(new_alphas)
+            if converged:
+                return i + 1
+        return self.n_iters
+
 
 __all__ = [
     "AlphaVector",
     "PBVI",
+    "reachable_belief_points",
+    "uniform_belief_points",
 ]
+
+
+def reachable_belief_points(
+    transition: np.ndarray,
+    observation_model: np.ndarray,
+    initial_belief: np.ndarray,
+    n_steps: int = 5,
+    n_samples_per_step: int = 4,
+    seed: Optional[int] = None,
+) -> List[np.ndarray]:
+    """reachable belief point sampling (v0.89.0-b).
+
+    简化算法:
+      - 从 initial_belief 出发
+      - 随机采样 (action, observation) 对, 算 next belief (跟 POMDP.bayes_update 同公式)
+      - 收集 n_steps * n_samples_per_step 个 belief points
+      - 加入 initial_belief 作为 anchor (确保起点覆盖)
+
+    Args:
+        transition:        shape (n_states, n_states, n_arms)
+        observation_model: shape (n_observations, n_states)
+        initial_belief:    shape (n_states,) 起点 belief
+        n_steps:           采样步数 (默认 5)
+        n_samples_per_step: 每步采样数 (默认 4)
+        seed:              PRNG seed (None = 系统 entropy, 测试用固定 seed)
+
+    Returns:
+        List[np.ndarray]: belief points (每个 shape (n_states,))
+
+    跟 POMDP.bayes_update 一致:
+        b'(s') = O[o|s'] * Σ_s T[s'|s, a] * b(s) / P(o|b, a)
+        P(o|b, a) = Σ_s' b'(s')
+
+    防御性自检 [1]:
+      - n_states 维度不匹配 → ValueError
+      - n_steps / n_samples_per_step <= 0 → ValueError
+    """
+    if transition.ndim != 3:
+        raise ValueError(
+            f"reachable_belief_points: transition 必须是 3D, got shape={transition.shape}"
+        )
+    if observation_model.ndim != 2:
+        raise ValueError(
+            f"reachable_belief_points: observation_model 必须是 2D, got shape={observation_model.shape}"
+        )
+    if n_steps <= 0:
+        raise ValueError(f"reachable_belief_points: n_steps={n_steps} 必须 > 0")
+    if n_samples_per_step <= 0:
+        raise ValueError(
+            f"reachable_belief_points: n_samples_per_step={n_samples_per_step} 必须 > 0"
+        )
+
+    n_states = transition.shape[0]
+    n_arms = transition.shape[2]
+    n_observations = observation_model.shape[0]
+
+    if observation_model.shape[1] != n_states:
+        raise ValueError(
+            f"reachable_belief_points: observation_model shape={observation_model.shape} "
+            f"第二维跟 n_states={n_states} 不匹配"
+        )
+    if initial_belief.shape != (n_states,):
+        raise ValueError(
+            f"reachable_belief_points: initial_belief shape={initial_belief.shape} "
+            f"跟 n_states={n_states} 不匹配"
+        )
+
+    rng = np.random.default_rng(seed)
+    belief_points: List[np.ndarray] = [initial_belief.copy()]
+    current = initial_belief.copy()
+
+    for _ in range(n_steps):
+        for _ in range(n_samples_per_step):
+            a = int(rng.integers(0, n_arms))
+            o = int(rng.integers(0, n_observations))
+            # b'(s') = O[o|s'] * T[:, :, a].T @ b / P(o|b, a)
+            b_next_unnorm = observation_model[o] * (transition[:, :, a].T @ current)
+            p_obs = b_next_unnorm.sum()
+            if p_obs > 0:
+                current = b_next_unnorm / p_obs
+                belief_points.append(current.copy())
+    return belief_points
+
+
+def uniform_belief_points(
+    n_states: int = 4,
+    n_samples: int = 10,
+    seed: Optional[int] = None,
+) -> List[np.ndarray]:
+    """uniform simplex sampling (v0.89.0-b).
+
+    用 Dirichlet(1, 1, ..., 1) = uniform on (n_states-1)-simplex.
+
+    Args:
+        n_states: 状态数量 (默认 4)
+        n_samples: 采样数 (默认 10)
+        seed:     PRNG seed (None = 系统 entropy, 测试用固定 seed)
+
+    Returns:
+        List[np.ndarray]: belief points (每个 shape (n_states,))
+
+    防御性自检 [1]:
+      - n_states / n_samples <= 0 → ValueError
+    """
+    if n_states <= 0:
+        raise ValueError(f"uniform_belief_points: n_states={n_states} 必须 > 0")
+    if n_samples <= 0:
+        raise ValueError(f"uniform_belief_points: n_samples={n_samples} 必须 > 0")
+
+    rng = np.random.default_rng(seed)
+    return [
+        rng.dirichlet(np.ones(n_states))
+        for _ in range(n_samples)
+    ]

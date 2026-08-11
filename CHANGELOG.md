@@ -357,6 +357,80 @@
 - 下一阶段 v0.89.0-b: PBVI.update_alpha_vectors + PBVI.solve + reachable/uniform_belief_points sampling
 
 
+## [0.89.0-b] 2026-08-11
+
+### feat: Phase 7+ 抽象推演 #2 (sub b) — PBVI 完整算法 + belief point sampling
+
+> **背景**: v0.89.0-a PBVI 雏形 (α-vector 数据结构 + 单步 backup) 完成. v0.89.0-b 补完 PBVI 完整算法 (iterative backup + 收敛检测) + belief point sampling (reachable / uniform).
+> **v0.89.0-b 目标**: PBVI.solve 主算法 + update_alpha_vectors 收敛检测 + reachable_belief_points / uniform_belief_points sampling. pytest 1063 → 1075 (+12, +1.1%).
+
+#### MODIFY: backup_step 算法 (经典 PBVI / Sondik 1971 简化)
+
+- `ecos/lca/l4_optimization/pomdp_solver.py:PBVI.backup_step`:
+  - v0.89.0-a 算法: 对每个 belief_point b 算 V_a(b), 输出 α.values shape (n_belief_points,)
+  - **v0.89.0-b 算法**: 对每个 state s 算 V_a(δ_s) (one-hot belief), 输出 α.values shape (n_states,)
+    - 经典 PBVI 简化 (Sondik 1971): α-vector in state space, V(b) = max_a α_a · b
+    - 跟 design §2.3 AlphaVector.values[n_states] 定义对齐
+    - belief_points 在 backup_step 中**不直接使用** (留 v0.89.0-c/d 阶段作为 coverage anchor)
+- α-vector + alpha_value + best_action 接口同 PBVI 标准: V(b) = α.values @ belief
+
+#### NEW: PBVI.update_alpha_vectors (收敛检测)
+
+- `PBVI.update_alpha_vectors(new_alphas) -> bool`:
+  - 按 action 匹配新旧 α-vector, 算 max abs diff
+  - max_diff < epsilon → 返 True (收敛)
+  - 替换 self.alpha_vectors 为 new_alphas
+  - 防御性: new_alphas=[] 返 False 不更新
+
+#### NEW: PBVI.solve (iterative backup 主算法)
+
+- `PBVI.solve(transition, observation_model, reward) -> int`:
+  - iterative backup_step + update_alpha_vectors, 收敛或达到 n_iters 停止
+  - 返实际迭代次数 (1..n_iters)
+  - 防御性: 输入 shape 由 backup_step 校验 (传透)
+
+#### NEW: reachable_belief_points (PBVI belief space 采样)
+
+- `ecos/lca/l4_optimization/pomdp_solver.py:reachable_belief_points`:
+  - 从 initial_belief 出发, 随机 sample (action, observation) 对
+  - 算 next belief (跟 POMDP.bayes_update 同公式 b'(s') = O[o|s'] · T[s'|s, a] · b / P(o|b, a))
+  - 收集 n_steps * n_samples_per_step + 1 (含 initial anchor) 个 belief points
+  - 防御性: transition / observation_model / initial_belief shape 校验 + n_steps / n_samples_per_step > 0 校验
+
+#### NEW: uniform_belief_points (simplex uniform 采样)
+
+- `ecos/lca/l4_optimization/pomdp_solver.py:uniform_belief_points`:
+  - Dirichlet(1, 1, ..., 1) = uniform on (n_states-1)-simplex
+  - n_states / n_samples 配置
+  - 每个 sample 是合法概率分布 (sum ≈ 1.0, component ∈ [0, 1])
+
+#### 防御性自检 + 不变量
+
+- 防御性自检 [8] 仍 hard block (PBVI solver 不 mutate state, AST 扫 49 文件无新增 mutation site)
+- 防御性自检 [1]: reachable_belief_points shape / param 校验 + uniform_belief_points param 校验 + update_alpha_vectors empty input 返 False
+- H3-c4 canary PASS (PBVI 是 POMDP solver 子模块, LCA 行为不变)
+- v0.81 replay canary PASS (PBVI 不影响 StateEngine.replay 路径)
+- 接口同构 POMDPPolicy.select_arm (best_action 接口同构, c 阶段集成)
+
+#### 测试覆盖 (12 tests, 增量 +12)
+
+- `tests/test_pbvi_solver.py` (累积, 含 a 19 + b 12 = 31 tests):
+  - v0.89.0-b 增量 (12):
+    - PBVI.update_alpha_vectors 基本更新 / 收敛检测 (3)
+    - PBVI.solve 填充 α / 收敛 / n_iters 上限 / value 性质 (4)
+    - reachable_belief_points 计数 / 确定性 seed / 输入校验 (3)
+    - uniform_belief_points 计数 / simplex 性质 (2)
+- pytest 1063 → **1075** (+12, +1.1%)
+
+#### 累计进度 (v0.89.0-a → v0.89.0-b)
+
+- POMDP Policy: 85% (依赖型 T+R + PBVI 雏形) → **90%** (依赖型 T+R + PBVI 完整算法)
+- pytest: 1063 → **1075** (+12)
+- 防御性自检 [8]: hard block (0 新 mutation site)
+- H3-c4 + v0.81 replay canary: 全 PASS
+- 下一阶段 v0.89.0-c: POMDPPolicy 集成 PBVI select_arm (替换 v0.88.0-c QMDP, use_pbvi=True 默认)
+
+
 ## [0.88.0-c] 2026-08-11
 
 ### feat: Phase 7+ 抽象推演 #1 (sub c) — POMDP 完整 (依赖型 T+R)

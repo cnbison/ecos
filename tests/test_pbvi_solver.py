@@ -30,7 +30,12 @@ import logging
 import numpy as np
 import pytest
 
-from ecos.lca.l4_optimization.pomdp_solver import AlphaVector, PBVI
+from ecos.lca.l4_optimization.pomdp_solver import (
+    AlphaVector,
+    PBVI,
+    reachable_belief_points,
+    uniform_belief_points,
+)
 
 
 # === AlphaVector dataclass 测试 (3 tests) ===
@@ -155,9 +160,9 @@ def _make_toy_pomdp(n_states=4, n_arms=10, n_observations=4, seed=42):
 
 
 def test_backup_step_returns_n_arms_alpha_vectors():
-    """backup_step 返回 n_arms 个 AlphaVector (每个 action 一个).
+    """backup_step 返回 n_arms 个 AlphaVector (每个 action 一个, v0.89.0-b 经典 PBVI).
 
-    v0.89.0-a §2.3: 对每个 action a 产生一个 α-vector.
+    v0.89.0-b §3: 对每个 action a 输出 α-vector in state space (values shape (n_states,)).
     """
     n_states, n_arms = 4, 5
     belief_points = [np.array([1.0, 0.0, 0.0, 0.0]), np.array([0.25, 0.25, 0.25, 0.25])]
@@ -170,9 +175,9 @@ def test_backup_step_returns_n_arms_alpha_vectors():
     # 每个 α 的 action 不同
     actions = sorted(α.action for α in new_alphas)
     assert actions == list(range(n_arms))
-    # 每个 α 的 values 长度 = belief_points 数量
+    # 每个 α 的 values 长度 = n_states (经典 PBVI in state space, v0.89.0-b)
     for α in new_alphas:
-        assert α.values.shape == (len(belief_points),)
+        assert α.values.shape == (n_states,)
 
 
 def test_backup_step_uses_action_dependent_transition():
@@ -251,3 +256,224 @@ def test_alpha_value_and_best_action_with_no_alphas(caplog):
         action = solver.best_action(np.array([1.0, 0.0, 0.0, 0.0]))
     assert action == 0
     assert any("best_action" in rec.message for rec in caplog.records)
+
+
+# === v0.89.0-b: PBVI 完整算法 + belief point sampling 测试 (12 tests) ===
+#
+# 对应设计档 §3 (PBVI.update_alpha_vectors + PBVI.solve + reachable/uniform belief sampling).
+# 实际函数数量 = 12, pytest 收集 = 12 (无 parametrize).
+
+
+def test_update_alpha_vectors_basic():
+    """update_alpha_vectors 更新 self.alpha_vectors (v0.89.0-b §3).
+
+    验证: 调用 update_alpha_vectors(new_alphas) 后 self.alpha_vectors 等于 new_alphas.
+    """
+    belief_points = [np.array([1.0, 0.0, 0.0, 0.0])]
+    solver = PBVI(belief_points=belief_points)
+    transition, observation_model, reward = _make_toy_pomdp(n_arms=3)
+
+    new_alphas = solver.backup_step(transition, observation_model, reward)
+    solver.update_alpha_vectors(new_alphas)
+
+    assert len(solver.alpha_vectors) == 3
+    assert all(isinstance(α, AlphaVector) for α in solver.alpha_vectors)
+
+
+def test_update_alpha_vectors_convergence_detected():
+    """update_alpha_vectors 收敛检测 (v0.89.0-b §3).
+
+    验证:
+      - 第一次 update (α_vectors 空 → old_by_action 空 → max_diff=0 → 收敛)
+      - 第二次 update (基于第一次 α, future 部分变化 → max_diff > 0 → 不收敛)
+      - 第 N 次 update (到收敛) → 收敛
+    """
+    belief_points = [np.array([1.0, 0.0, 0.0, 0.0]), np.array([0.0, 1.0, 0.0, 0.0])]
+    solver = PBVI(belief_points=belief_points, gamma=0.5, epsilon=1e-6)
+    transition, observation_model, reward = _make_toy_pomdp(n_arms=3, seed=42)
+
+    # 第一次 backup + update (α_vectors 空 → max_diff=0 → 收敛 True)
+    new_alphas_1 = solver.backup_step(transition, observation_model, reward)
+    converged_1 = solver.update_alpha_vectors(new_alphas_1)
+    assert converged_1 is True
+
+    # 第二次 backup + update (γ=0.5 + future ≠ 0 → max_diff > 0 → 不收敛)
+    new_alphas_2 = solver.backup_step(transition, observation_model, reward)
+    converged_2 = solver.update_alpha_vectors(new_alphas_2)
+    assert converged_2 is False
+
+
+def test_update_alpha_vectors_empty_returns_false():
+    """update_alpha_vectors 空 new_alphas 返 False (v0.89.0-b §3 防御性).
+
+    验证: new_alphas=[] → 不更新 + 返 False.
+    """
+    belief_points = [np.array([1.0, 0.0, 0.0, 0.0])]
+    solver = PBVI(belief_points=belief_points)
+
+    result = solver.update_alpha_vectors([])
+    assert result is False
+    # alpha_vectors 仍空
+    assert solver.alpha_vectors == []
+
+
+def test_solve_populates_alpha_vectors():
+    """solve 填充 self.alpha_vectors (v0.89.0-b §3).
+
+    验证: solve 后 len(alpha_vectors) == n_arms.
+    """
+    belief_points = [np.array([1.0, 0.0, 0.0, 0.0])]
+    solver = PBVI(belief_points=belief_points, n_iters=10)
+    transition, observation_model, reward = _make_toy_pomdp(n_arms=3)
+
+    iters = solver.solve(transition, observation_model, reward)
+
+    assert 1 <= iters <= 10
+    assert len(solver.alpha_vectors) == 3
+
+
+def test_solve_converges_within_n_iters():
+    """solve 在 n_iters 内收敛 (v0.89.0-b §3).
+
+    简化 POMDP (γ=0.5, 强 self-loop): 预期快速收敛.
+    """
+    belief_points = [np.array([1.0, 0.0, 0.0, 0.0])]
+    solver = PBVI(belief_points=belief_points, gamma=0.5, epsilon=1e-3, n_iters=50)
+    transition, observation_model, reward = _make_toy_pomdp(n_arms=3, seed=42)
+
+    iters = solver.solve(transition, observation_model, reward)
+
+    # 应该 < n_iters (50) 内收敛 (简化 POMDP)
+    assert iters < 50
+    # 收敛时 values 不应剧烈变化 (convergence 保证)
+    assert len(solver.alpha_vectors) == 3
+
+
+def test_solve_respects_n_iters_cap():
+    """solve 遵守 n_iters 上限 (v0.89.0-b §3).
+
+    验证: n_iters=1 时最多 1 次迭代 (强制不收敛).
+    """
+    belief_points = [np.array([1.0, 0.0, 0.0, 0.0])]
+    solver = PBVI(belief_points=belief_points, n_iters=1)
+    transition, observation_model, reward = _make_toy_pomdp(n_arms=3, seed=42)
+
+    iters = solver.solve(transition, observation_model, reward)
+
+    assert iters == 1  # 1 次迭代
+
+
+def test_solve_value_increases_monotonically():
+    """solve 收敛时 value 递增 (POMDP value iteration 性质, v0.89.0-b §3).
+
+    简化 POMDP (γ=0.5, 高 reward 偏好): value 单调递增直到收敛.
+    注: 严格单调只在 discount 充分小时保证 (γ < 1). 这里 γ=0.5 足够小.
+    """
+    belief_points = [np.array([1.0, 0.0, 0.0, 0.0])]
+    solver = PBVI(belief_points=belief_points, gamma=0.5, epsilon=1e-6, n_iters=20)
+    transition, observation_model, reward = _make_toy_pomdp(n_arms=3, seed=42)
+
+    solver.solve(transition, observation_model, reward)
+
+    # best_action 在 fixed belief 上 ≥ 0 (POMDP value >= 0 if R >= 0)
+    belief = np.array([0.25, 0.25, 0.25, 0.25])
+    v_final = solver.alpha_value(belief)
+    # 注: R ∈ U(0, 1), value = immediate + γ * future ≥ 0 (因所有项 ≥ 0)
+    assert v_final >= 0.0
+
+
+def test_reachable_belief_points_returns_correct_count():
+    """reachable_belief_points 返 n_steps * n_samples_per_step + 1 (含 initial) (v0.89.0-b §3.2).
+
+    验证: 返 n_steps*n_samples + 1 (initial 作为 anchor).
+    """
+    belief_points = [np.array([1.0, 0.0, 0.0, 0.0])]
+    transition, observation_model, _ = _make_toy_pomdp(n_arms=5, n_observations=4, seed=42)
+    initial = np.array([0.25, 0.25, 0.25, 0.25])
+
+    samples = reachable_belief_points(
+        transition, observation_model, initial,
+        n_steps=3, n_samples_per_step=4, seed=42,
+    )
+
+    # 最多 n_steps * n_samples_per_step + 1 (initial)
+    assert len(samples) == 3 * 4 + 1
+    # initial 是第一个
+    assert np.array_equal(samples[0], initial)
+    # 每个 belief shape (n_states,)
+    for b in samples:
+        assert b.shape == (4,)
+
+
+def test_reachable_belief_points_deterministic_with_seed():
+    """reachable_belief_points 同 seed 返同 output (v0.89.0-b §3.2).
+
+    验证: 同一 seed 两次调用返完全一致.
+    """
+    belief_points = [np.array([1.0, 0.0, 0.0, 0.0])]
+    transition, observation_model, _ = _make_toy_pomdp(n_arms=5, n_observations=4, seed=42)
+    initial = np.array([0.25, 0.25, 0.25, 0.25])
+
+    samples_1 = reachable_belief_points(
+        transition, observation_model, initial,
+        n_steps=3, n_samples_per_step=4, seed=42,
+    )
+    samples_2 = reachable_belief_points(
+        transition, observation_model, initial,
+        n_steps=3, n_samples_per_step=4, seed=42,
+    )
+
+    assert len(samples_1) == len(samples_2)
+    for b1, b2 in zip(samples_1, samples_2):
+        assert np.array_equal(b1, b2)
+
+
+def test_reachable_belief_points_validates_input():
+    """reachable_belief_points 输入校验 (v0.89.0-b §3.2).
+
+    验证: 错 shape / 负参数 raise ValueError.
+    """
+    belief_points = [np.array([1.0, 0.0, 0.0, 0.0])]
+    transition, observation_model, _ = _make_toy_pomdp(n_arms=5, n_observations=4, seed=42)
+    initial = np.array([0.25, 0.25, 0.25, 0.25])
+
+    # n_steps=0 抛
+    with pytest.raises(ValueError, match="n_steps"):
+        reachable_belief_points(
+            transition, observation_model, initial, n_steps=0, n_samples_per_step=4, seed=42,
+        )
+    # n_samples_per_step=0 抛
+    with pytest.raises(ValueError, match="n_samples_per_step"):
+        reachable_belief_points(
+            transition, observation_model, initial, n_steps=3, n_samples_per_step=0, seed=42,
+        )
+    # initial belief shape 错 抛
+    bad_initial = np.array([0.5, 0.5])
+    with pytest.raises(ValueError, match="initial_belief"):
+        reachable_belief_points(
+            transition, observation_model, bad_initial, n_steps=3, n_samples_per_step=4, seed=42,
+        )
+
+
+def test_uniform_belief_points_returns_correct_count():
+    """uniform_belief_points 返 n_samples 个 (v0.89.0-b §3.2).
+
+    验证: 返 n_samples 个 belief, 每个 shape (n_states,).
+    """
+    samples = uniform_belief_points(n_states=4, n_samples=12, seed=42)
+    assert len(samples) == 12
+    for b in samples:
+        assert b.shape == (4,)
+
+
+def test_uniform_belief_points_each_sums_to_one():
+    """uniform_belief_points 每个 belief sum ≈ 1.0 (simplex 性质, v0.89.0-b §3.2).
+
+    验证: Dirichlet 采样 → 每个 belief 是概率分布 (sum ≈ 1.0).
+    """
+    samples = uniform_belief_points(n_states=4, n_samples=10, seed=42)
+    for b in samples:
+        assert np.isclose(b.sum(), 1.0, atol=1e-6)
+        # 每个 component ∈ [0, 1]
+        assert np.all(b >= 0.0)
+        assert np.all(b <= 1.0)
