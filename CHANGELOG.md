@@ -298,6 +298,52 @@
 - 缺失清单: 0 项剩
 
 
+## [0.89.0-d] 2026-08-12
+
+### feat: Phase 7+ 抽象推演 #2 (sub d) — Runtime + PolicyABTest 集成 PBVI
+
+> v0.89.0-d 把 PBVI 接入生产路径：LCAPolicyLearner / LCAEngine.select_intervention 显式 `solve_pbvi()`，PolicyABTest 工厂显式 `use_pbvi=True`，保持真 3-way A/B + 接口同构。
+
+#### MODIFY: Runtime / PolicyABTest 集成 PBVI
+
+- `ecos/lca/l4_optimization/policy_learner.py`:
+  - `LCAPolicyLearner.__init__` 新增 `pomdp_use_pbvi: Optional[bool] = None` 形参；构造 `POMDPPolicy` 时显式 `use_pbvi=True`（默认）。
+  - `LCAPolicyLearner.select_intervention` POMDP 路径在 `bayes_update` 之后、`select_arm` 之前显式 `solve_pbvi()`（try/except 兜底）。
+  - `PolicyLearnerConfig` 同步暴露 `pomdp_use_pbvi`；`PolicyLearner._get_learner` 透传。
+- `ecos/lca/orchestrator.py`:
+  - `LCAEngine.select_intervention` POMDP 路径双层防御：set_observation 后、select 前对 `learner.pomdp.solve_pbvi()` 显式触发，确保 dual_agent 直接走 LCAEngine 时也生效。
+- `ecos/evaluation/policy_ab_test.py`:
+  - `PolicyABTest._create_fresh_bandit` POMDP 工厂显式 `use_pbvi=True`，真 3-way A/B 维持（linucb / thompson / pomdp+PBVI）。
+- `ecos/lca/l4_optimization/pomdp.py`:
+  - `POMDPPolicy.solve_pbvi` 幂等：solver.alpha_vectors 非空时直接返 0，避免重复 backup。
+- `ecos/runtime/api.py`:
+  - 签名保持稳定；docstring 注明 "v0.89.0-d: POMDP 路径走 PBVI via LCAEngine singleton; opt-out kwargs 留待 v0.90+"。
+
+#### 防御性自检与不变量
+
+- 接口同构 LinUCB / Thompson / POMDP 不变
+- 真 A/B Test 3-way 维持（linucb / thompson / pomdp+PBVI）
+- 防御性自检 [8] hard block：0 新 mutation site
+- H3-c4 canary + v0.81 replay canary 全 PASS
+- POMDP observation feedback 闭环（v0.88.0-d 维持）
+
+#### 测试覆盖 (10 tests)
+
+- `tests/test_runtime_pbvi.py` (NEW, +10 tests):
+  - 2 tests: LCAPolicyLearner 默认 / opt-out use_pbvi
+  - 2 tests: select_intervention 触发 solve_pbvi + 幂等
+  - 1 test: LCAEngine.select_intervention 双层防御
+  - 2 tests: PolicyABTest 工厂 + 3-way A/B
+  - 1 test: PBVI α-vector dump/load replay canary
+  - 1 test: solve_pbvi 失败 fallback QMDP
+  - 1 test: H3-c4 canary（PBVI 同 seed 确定性）
+- pytest 1085 → **1095** (+10)
+
+#### 累计进度
+
+- POMDP Policy: 90% → **100%** (依赖型 T+R + PBVI 完整集成)
+- 下一阶段 v0.89.0 final: 文档同步收口（README.md / CLAUDE.md / 12-kernel-mapping §8.2 / memory）
+
 
 ## [0.89.0-c] 2026-08-11
 

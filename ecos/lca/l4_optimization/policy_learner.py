@@ -70,6 +70,7 @@ class LCAPolicyLearner:
         policy_type: str = "linucb",
         thompson_seed: Optional[int] = None,
         pomdp_seed: Optional[int] = None,
+        pomdp_use_pbvi: Optional[bool] = None,
     ):
         # v0.87.0-d: 校验 policy_type (3 值)
         if policy_type not in ("linucb", "thompson", "pomdp"):
@@ -98,11 +99,13 @@ class LCAPolicyLearner:
                 seed=thompson_seed,
             )
         # v0.87.0-d: POMDP Policy 实例 (仅 policy_type=="pomdp" 时创建)
+        # v0.89.0-d: 显式传 use_pbvi (默认 None → 走 POMDPPolicy 默认 True)
         self.pomdp: Optional[POMDPPolicy] = None
         if policy_type == "pomdp":
             self.pomdp = POMDPPolicy(
                 n_arms=self.config.n_arms,
                 seed=pomdp_seed,
+                use_pbvi=True if pomdp_use_pbvi is None else bool(pomdp_use_pbvi),
             )
         # Arm 索引 → 候选干预 hash（用于 update 时反查）
         self._arm_fingerprints: Dict[int, str] = {}
@@ -157,12 +160,21 @@ class LCAPolicyLearner:
 
         # v0.87.0-d: POMDP 路径 (non-contextual, 走 belief_state)
         # v0.88.0-d: POMDP 路径接受 action observation feedback (T(s'|s,a) 依赖 action)
+        # v0.89.0-d: POMDP 路径默认走 PBVI (v0.89.0-c 集成); 显式 solve_pbvi 触发收敛
         if self.policy_type == "pomdp" and self.pomdp is not None:
             # v0.88.0-d: 在 select 前消化上次 observation (bayes_update 考虑 action)
             # 这是 v0.88.0-c 依赖型 T+R 的关键集成点: action 影响 transition, observation 影响 posterior
             if self._last_observation is not None and self._last_arm >= 0:
                 self.pomdp.bayes_update(self._last_arm, self._last_observation)
                 self._last_observation = None  # 消费后清空 (避免重复消费)
+            # v0.89.0-d: 显式 solve_pbvi (首次 select 走 PBVI 前必须收敛; PBVI 内部 α-vector 缓存保证幂等)
+            try:
+                self.pomdp.solve_pbvi()
+            except Exception as e:  # noqa: BLE001
+                _log.warning(
+                    "LCAPolicyLearner.select_intervention: solve_pbvi 失败 (%s), 退化到 select_arm 内 fallback",
+                    e,
+                )
             arm = self.pomdp.select_arm(context=None)
             self._last_arm = arm
             idx = arm % len(candidate_interventions)

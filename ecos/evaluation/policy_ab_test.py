@@ -325,13 +325,16 @@ class PolicyABTest:
         """v0.86.0-d: 根据 policy_id 创建 fresh bandit.
 
         Args:
-            policy_id: "linucb" / "linucb_baseline" / "thompson"
+            policy_id: "linucb" / "linucb_baseline" / "thompson" / "pomdp"
 
         Returns:
-            Fresh bandit 实例 (LinUCB / ThompsonSampling)
+            Fresh bandit 实例 (LinUCB / ThompsonSampling / POMDPPolicy)
 
         Raises:
             ValueError: 未知 policy_id
+
+        v0.89.0-d: POMDP 工厂默认 use_pbvi=True, 保持真 3-way A/B (linucb / thompson /
+        pomdp+PBVI) 仍然比较同一求解器家族.
         """
         # v0.86.0-d: lazy import 避免循环
         # v0.87.0-d: 扩展到 POMDPPolicy
@@ -345,7 +348,8 @@ class PolicyABTest:
             return ThompsonSampling(n_arms=10, seed=42)
         elif policy_id == "pomdp":
             # v0.87.0-d: POMDP: 10 arm, 4 状态, fixed seed (可重现)
-            return POMDPPolicy(n_arms=10, seed=42)
+            # v0.89.0-d: 默认 use_pbvi=True (PBVI 完整集成); 退化 QMDP 留 v0.90+ kwargs
+            return POMDPPolicy(n_arms=10, seed=42, use_pbvi=True)
         else:
             raise ValueError(f"PolicyABTest: 未知 policy_id={policy_id!r}")
 

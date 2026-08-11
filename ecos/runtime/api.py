@@ -247,6 +247,8 @@ def plan(student_id: str, audience: str = "student", **kwargs) -> Any:
         → emit goal_changed event + log warning + 继续 lca.select_intervention
         (不阻断 plan, 走 fallback 策略, per Bisen 决策 2026-08-11)
     v0.86.0-d: 委托 plan_goal_aware (新 API, 跟 plan 并行)
+    v0.89.0-d: POMDP 路径走 PBVI via LCAEngine singleton; opt-out kwargs (e.g.
+        pomdp_use_pbvi) 留待 v0.90+ 暴露, 当前签名保持稳定.
     """
     return plan_goal_aware(student_id, audience=audience, **kwargs)
 

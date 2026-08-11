@@ -282,15 +282,21 @@ class POMDPPolicy:
         return self.solver
 
     def solve_pbvi(self) -> int:
-        """显式触发 PBVI solve (v0.89.0-c).
+        """显式触发 PBVI solve (v0.89.0-c, 幂等: v0.89.0-d).
 
         懒加载 solver + 触发 iterative backup 直到收敛. 返实际迭代次数.
         Production 由 Runtime plan / LCAEngine.select_intervention 显式触发 (v0.89.0-d).
 
+        幂等 (v0.89.0-d): 同一 POMDPPolicy 实例上, 当 solver.alpha_vectors 已
+        非空 (上次解的 α 缓存) → 直接返 0, 跳过重复 backup. 仍要重新 solve
+        时, 调用方应 reset (重新 _init_pbvi_solver / 显式清空 solver.alpha_vectors).
+
         Returns:
-            int: 实际迭代次数 (1..pbvi_n_iters)
+            int: 实际迭代次数 (1..pbvi_n_iters); 0 = 已是上次解, 跳过
         """
         solver = self._init_pbvi_solver()
+        if solver.alpha_vectors:
+            return 0
         return solver.solve(self.transition, self.observation_model, self.reward)
 
     def update(self, arm: int, context: Optional[np.ndarray] = None, reward: float = 0.0) -> None:

@@ -330,12 +330,22 @@ class LCAEngine:
         # v0.88.0-d: POMDP 路径 - 在 select 前消化上次 observation
         #   LCAEngine 维护 _last_observation[student_id] (上次 update 产出),
         #   select 前 set 到 LCAPolicyLearner, 内部 select 调 bayes_update
+        # v0.89.0-d: 同时显式 solve_pbvi (双层防御: dual_agent 路径直接走 LCAEngine
+        #   时也确保 PBVI 在 select 前收敛; 内部幂等)
         if self.policy_learner.config.policy_type == "pomdp":
             obs = self._last_observation.get(student_id)
+            learner = self.policy_learner._get_learner(student_id)
             if obs is not None:
                 # 从 per-student LCAPolicyLearner 调 set_observation
-                learner = self.policy_learner._get_learner(student_id)
                 learner.set_observation(obs)
+            if learner.pomdp is not None:
+                try:
+                    learner.pomdp.solve_pbvi()
+                except Exception as e:  # noqa: BLE001
+                    _log.warning(
+                        "LCAEngine.select_intervention: solve_pbvi 失败 (%s), 退化到 select_arm 内 fallback",
+                        e,
+                    )
 
         # Step 7: 记录干预
         self.intervention_history.setdefault(student_id, []).append(chosen)

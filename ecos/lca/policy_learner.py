@@ -57,6 +57,8 @@ class PolicyLearnerConfig:
     policy_type: str = "linucb"
     thompson_seed: Optional[int] = None
     pomdp_seed: Optional[int] = None
+    # v0.89.0-d: POMDP 是否走 PBVI (None → POMDPPolicy 默认 True)
+    pomdp_use_pbvi: Optional[bool] = None
 
 
 # ---------------------------------------------------------------------------
@@ -117,6 +119,7 @@ class PolicyLearner:
                 policy_type=self.config.policy_type,
                 thompson_seed=self.config.thompson_seed,
                 pomdp_seed=self.config.pomdp_seed,
+                pomdp_use_pbvi=self.config.pomdp_use_pbvi,
             )
         return self._learners[student_id]
 
