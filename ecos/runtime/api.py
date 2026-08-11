@@ -180,11 +180,17 @@ def evaluate(student_id: str, metric: str = "ece", **kwargs) -> Dict[str, Any]:
     elif metric == "goal_completion":
         state = kwargs.get("state")
         goal_id = kwargs.get("goal_id")
-        if state is None or goal_id is None:
+        goal = kwargs.get("goal")  # v0.86.0-d: Goal 对象 (优先)
+        if state is None:
             raise ValueError(
-                "evaluate(metric='goal_completion') 需要 kwargs state=... 和 goal_id=..."
+                "evaluate(metric='goal_completion') 需要 kwargs state=..."
             )
-        result = evaluator.check_goal_completion(state, goal_id)
+        if goal is None and goal_id is None:
+            raise ValueError(
+                "evaluate(metric='goal_completion') 需要 kwargs goal=... 或 goal_id=..."
+            )
+        # v0.86.0-d: goal 优先 (Union[str, Goal] dispatch)
+        result = evaluator.check_goal_completion(state, goal or goal_id)
         return result.to_dict()
 
     elif metric == "ece":
@@ -240,6 +246,31 @@ def plan(student_id: str, audience: str = "student", **kwargs) -> Any:
     v0.86.0-b: 选 intervention 前 run Twin Consistency Check, 若 inconsistent
         → emit goal_changed event + log warning + 继续 lca.select_intervention
         (不阻断 plan, 走 fallback 策略, per Bisen 决策 2026-08-11)
+    v0.86.0-d: 委托 plan_goal_aware (新 API, 跟 plan 并行)
+    """
+    return plan_goal_aware(student_id, audience=audience, **kwargs)
+
+
+def plan_goal_aware(student_id: str, audience: str = "student", **kwargs) -> Any:
+    """v0.86.0-d: Goal-aware plan (新 API, 跟 plan 并行).
+
+    跟 plan 的区别:
+        - 显式接受 goal 参数 (optional)
+        - 走 Twin Consistency Check (per goal)
+        - 不阻断 plan (失败走 fallback)
+        - 后续 v0.86.0-d 后续 commit 可以扩展: Thompson update with Goal.Metric reward
+
+    Args:
+        student_id: 学生 ID
+        audience:   rationale 受众
+        **kwargs:
+            lca_engine: Optional[LCAEngine]
+            cta_input:  Optional[CTAInput]
+            goal:       Optional[Goal]      (若传, 校验该 Goal 关联 evidence)
+            event_log:  Optional[EventLog]   (inconsistent 时 emit goal_changed event)
+
+    Returns:
+        LCAResult (跟 plan 同一返回)
     """
     lca = kwargs.get("lca_engine") or _get_default_lca_engine()
     cta_input = kwargs.get("cta_input")
@@ -311,4 +342,5 @@ __all__ = [
     "evaluate",
     "simulate",
     "plan",
+    "plan_goal_aware",
 ]

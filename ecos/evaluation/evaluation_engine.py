@@ -152,9 +152,19 @@ class EvaluationEngine:
     def check_goal_completion(
         self,
         state: BeliefState,
-        goal_id: str,
+        goal_or_goal_id: "Union[str, Goal]",  # noqa: F821
     ) -> GoalStatus:
-        """Goal 完成判定 (委托 GoalCompletion)."""
+        """Goal 完成判定 (委托 GoalCompletion).
+
+        v0.86.0-d: 接受 Union[str, Goal] (Goal 对象 转 goal_id_str 走 check 路径)
+        """
+        # v0.86.0-d: lazy import 避免循环
+        from ..goal.goal import Goal
+        if isinstance(goal_or_goal_id, Goal):
+            goal_id = goal_or_goal_id.to_goal_id_str()
+        else:
+            goal_id = goal_or_goal_id
+
         if self.goal_checker is None:
             _log.warning(
                 "EvaluationEngine.check_goal_completion: GoalCompletion 已 disable, 返未完成"
