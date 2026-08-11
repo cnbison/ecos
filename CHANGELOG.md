@@ -298,6 +298,65 @@
 - 缺失清单: 0 项剩
 
 
+## [0.89.0-a] 2026-08-11
+
+### feat: Phase 7+ 抽象推演 #2 (sub a) — POMDP point-based solver 雏形 (PBVI + α-vector)
+
+> **背景**: v0.88.0 完成 Phase 7+ 抽象推演 #1 (Multi-Domain + POMDP 完整 (依赖型 T+R)). 缺失清单 0. v0.89 = POMDP Kernel 深化延续 (POMDP 完整化 #2). 引入 PBVI (Point-Based Value Iteration) 雏形, 让 POMDP 从 v0.88.0-c 的 QMDP (argmax_a b @ R[:, a]) 升级到 PBVI (belief points 上做 value iteration, α-vector 求 max α_a(b)).
+> **v0.89.0-a 目标**: PBVI 算法本体 (AlphaVector + PBVI dataclass + 单步 backup + alpha_value/best_action 雏形). pytest 1044 → 1063 (+19, +1.8%).
+> **设计档**: [discussions/2026-08-11-v089-design.md](./discussions/2026-08-11-v089-design.md) (~520 行)
+
+#### NEW: POMDP point-based solver (PBVI) 雏形
+
+- `ecos/lca/l4_optimization/pomdp_solver.py` (NEW, ~280 行):
+  - `AlphaVector` frozen dataclass: `(action: int, values: np.ndarray[n_states])` 不可变值函数向量
+  - `PBVI` class:
+    - `belief_points: List[np.ndarray]` 评估的 belief 点集合 (输入)
+    - `alpha_vectors: List[AlphaVector]` 当前迭代的 α-vector 集合 (初始空)
+    - `gamma / epsilon / n_iters` 配置 (折扣因子 + 收敛阈值 + 最大迭代)
+    - `backup_step(transition, observation_model, reward) -> List[AlphaVector]` 单步 backup
+      算法: V_a(b) = Σ_s b(s) * R(s, a) + γ * Σ_o P(o|b, a) * max_{α'} α'(b')
+      P(o|b, a) = Σ_s' O[o|s'] * Σ_s T[s'|s, a] * b(s)
+      雏形 alpha_vectors 空 → future=0 → 单步仅 immediate reward
+    - `alpha_value(belief) -> float` 在给定 belief 上算 max α(b) (雏形无 α 时返 0.0)
+    - `best_action(belief) -> int` argmax_a α_a(b) (雏形无 α 时返 0 + warning, 跟 POMDPPolicy.select_arm 接口同构)
+    - `get_alpha_stats() -> dict` 调试用统计
+  - `__all__ = ["AlphaVector", "PBVI"]`
+- v0.89.0-a 限制 (留待 v0.89.0-b/c/d):
+  - PBVI.update_alpha_vectors (收敛检测) 留 b 阶段
+  - PBVI.solve 主算法 (iterative backup) 留 b 阶段
+  - reachable_belief_points / uniform_belief_points 留 b 阶段
+  - POMDPPolicy 集成 PBVI select_arm 留 c 阶段
+  - Runtime + PolicyABTest 集成留 d 阶段
+  - POMDP T(s'|s,a) / R(s,a) 在线学习留 v0.91+ (Kernel-first 战略下推到 Kernel 深化后期)
+
+#### 防御性自检 + 不变量
+
+- 防御性自检 [8] 仍 hard block (PBVI solver 不 mutate state, 防御性自检 AST 扫描 49 文件无新增 mutation site)
+- 防御性自检 [1]: PBVI.init 空 belief_points / 无效 gamma / epsilon / n_iters raise ValueError; backup_step 输入 shape 不匹配 raise ValueError; best_action 无 α-vector 返 0 + warning log
+- H3-c4 canary PASS (PBVI 是 POMDP solver 子模块, LCA 行为不变)
+- v0.81 replay canary PASS (PBVI 不影响 StateEngine.replay 路径)
+- 接口同构 POMDPPolicy.select_arm (best_action 接口同构, c 阶段集成)
+- 雏形 backup_step 纯函数 (输入 transition / O / R, 输出新 α-vectors, 不修改 self.alpha_vectors)
+
+#### 测试覆盖 (12 tests, 实际 19 个含 parametrize)
+
+- `tests/test_pbvi_solver.py` (NEW, +19 tests):
+  - 3 tests: AlphaVector 创建 / frozen / repr+equality
+  - 4 tests (含 parametrize): PBVI init 基本配置 / 空 belief_points / 无效 gamma / 无效 epsilon+n_iters
+  - 4 tests: backup_step 返回 n_arms α-vector / action 依赖 / immediate reward 验证 / 输入 shape 校验
+  - 1 test: alpha_value + best_action 无 α-vector 返 0 + warning
+- pytest 1044 → **1063** (+19, +1.8%)
+
+#### 累计进度 (v0.88.0 final → v0.89.0-a)
+
+- POMDP Policy: 80% (依赖型 T+R) → **85%** (依赖型 T+R + PBVI 雏形算法本体)
+- pytest: 1044 → **1063** (+19)
+- 防御性自检 [8]: hard block (0 新 mutation site)
+- H3-c4 + v0.81 replay canary: 全 PASS
+- 下一阶段 v0.89.0-b: PBVI.update_alpha_vectors + PBVI.solve + reachable/uniform_belief_points sampling
+
+
 ## [0.88.0-c] 2026-08-11
 
 ### feat: Phase 7+ 抽象推演 #1 (sub c) — POMDP 完整 (依赖型 T+R)
