@@ -98,6 +98,59 @@ class Evaluator:
         self.attribution = attribution or LCAAttribution(cta_l4_backend or CTA_L4_Backend())
 
     # ---------------------------------------------------------------
+    # v0.87.0-b: Motivation reward 调整
+    # ---------------------------------------------------------------
+
+    def motivation_reward_adjustment(
+        self,
+        belief_state: BeliefState,
+    ) -> float:
+        """v0.87.0-b: 根据 MotivationProfile 调整 gain (multiplicative factor).
+
+        规则 (per design doc §3.3):
+          - frustration > 0.7: factor = 0.7 (降低 gain, 避免 burnout)
+          - engagement < 0.3: factor = 0.8 (降低 gain, 学生走神)
+          - confidence > 0.7 AND engagement > 0.6: factor = 1.3 (boost gain, 学生状态好)
+          - 其他: factor = 1.0 (默认)
+
+        Args:
+            belief_state:  CTA 状态 (含 motivation 字段, v0.87.0-a)
+
+        Returns:
+            float in [0.5, 1.5] 调整 factor
+
+        防御性自检 [1]: motivation 字段缺失 _log.warning + 返 1.0
+        """
+        try:
+            motivation = getattr(belief_state, "motivation", None)
+            if motivation is None:
+                _log.warning(
+                    "Evaluator.motivation_reward_adjustment: belief_state.motivation 缺失, 返 1.0"
+                )
+                return 1.0
+
+            frustration = float(motivation.frustration)
+            engagement = float(motivation.engagement)
+            confidence = float(motivation.confidence)
+
+            # 规则 1: frustration > 0.7 → 0.7
+            if frustration > 0.7:
+                return 0.7
+            # 规则 2: engagement < 0.3 → 0.8
+            if engagement < 0.3:
+                return 0.8
+            # 规则 3: confidence > 0.7 AND engagement > 0.6 → 1.3
+            if confidence > 0.7 and engagement > 0.6:
+                return 1.3
+            return 1.0
+        except Exception:
+            _log.warning(
+                "Evaluator.motivation_reward_adjustment 异常, 返 1.0 (中性)",
+                exc_info=True,
+            )
+            return 1.0
+
+    # ---------------------------------------------------------------
     # 估算接口 (select 阶段用)
     # ---------------------------------------------------------------
 

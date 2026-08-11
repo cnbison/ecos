@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
 
 from .cta_input import CTAInput
 from .intervention import (
@@ -36,6 +36,10 @@ from .intervention import (
     InterventionType,
 )
 from .planner import PlanDecision
+
+# v0.87.0-b: TYPE_CHECKING 避免循环 import (MotivationProfile 不引用 LCA, 顶层 import 也可)
+if TYPE_CHECKING:
+    from ..motivation.profile import MotivationProfile
 
 _log = logging.getLogger(__name__)
 
@@ -141,6 +145,7 @@ class ExperimentDesigner:
         plan: PlanDecision,
         cta_input: CTAInput,
         n_candidates: Optional[int] = None,
+        motivation: Optional["MotivationProfile"] = None,
     ) -> List[Intervention]:
         """生成候选干预池.
 
@@ -148,6 +153,9 @@ class ExperimentDesigner:
             plan:        Planner.plan() 输出 (含 bloom_target/clt_level/ca_stage/bjork_triggers)
             cta_input:   CTA 输入 (用于 skill_filter)
             n_candidates: 候选池大小 (默认 self.config.n_candidates, 通常 = bandit.n_arms)
+            motivation:  v0.87.0-b: 可选 MotivationProfile, 调整 itype 权重
+                          (frustration > 0.7 优先 EXPLANATORY, engagement < 0.3 优先 INQUIRY,
+                           confidence+engagement 高 优先 PRACTICE)
 
         Returns:
             List[Intervention] 长度 = n_candidates
@@ -159,6 +167,7 @@ class ExperimentDesigner:
           4. CLT level → scaffolding_level (0.9/0.6/0.3/0.1)
           5. InterventionType → quantity (3/8/5/4/3)
           6. CLT != EXPERT → feedback_density 0.8, EXPERT → 0.4
+          7. v0.87.0-b: motivation 调整 itype 权重 (frustration/engagement/confidence)
         """
         if n_candidates is None:
             n_candidates = self.config.n_candidates
@@ -168,13 +177,20 @@ class ExperimentDesigner:
         ca_stage = plan.ca_stage
         bjork_triggers = plan.bjork_triggers
 
+        # v0.87.0-b: motivation-aware itype preference
+        motivation_override = self._motivation_itype_override(motivation)
+
         candidates: List[Intervention] = []
         target_skills = cta_input.skill_filter or []
         # 取 bloom 标签作为 target_tcs 占位 (Phase 4+ 接 Q-Matrix)
         target_tcs = [bloom_target.name.lower()]
 
         for i in range(n_candidates):
-            itype = self.config.default_types[i % len(self.config.default_types)]
+            # v0.87.0-b: motivation override 优先于 default types
+            if motivation_override is not None and i % 3 == 0:
+                itype = motivation_override
+            else:
+                itype = self.config.default_types[i % len(self.config.default_types)]
             difficulty = self.config.default_difficulties[
                 i % len(self.config.default_difficulties)
             ]
@@ -190,6 +206,12 @@ class ExperimentDesigner:
             if "space" in bjork:
                 # 间隔模式: 更低难度
                 difficulty = min(difficulty, 0.5)
+
+            # v0.87.0-b: frustration > 0.7 → 降难度, 提 scaffolding
+            if motivation is not None and motivation.frustration > 0.7:
+                difficulty = min(difficulty, 0.4)
+                # 提升 scaffolding_factor 间接通过 _adjust_for_ca_stage
+                # (NOVICE/DEVELOPING 已经有高 scaffolding, 这里不重复)
 
             # Step 3: scaffolding_level 与 CLTLevel 对齐
             scaffolding = self.config.scaffolding_by_clt[clt_level]
@@ -223,6 +245,34 @@ class ExperimentDesigner:
             )
             candidates.append(intervention)
         return candidates
+
+    @staticmethod
+    def _motivation_itype_override(
+        motivation: Optional["MotivationProfile"],
+    ) -> Optional[InterventionType]:
+        """v0.87.0-b: motivation-aware itype preference.
+
+        规则 (per design doc §3.2):
+          - frustration > 0.7: 返 EXPLANATORY (放松, 减少压力)
+          - engagement < 0.3: 返 INQUIRY (激活兴趣)
+          - confidence > 0.7 AND engagement > 0.6: 返 PRACTICE (巩固)
+          - 其他: 返 None (走 default_types)
+        """
+        if motivation is None:
+            return None
+        try:
+            if motivation.frustration > 0.7:
+                return InterventionType.EXPLANATORY
+            if motivation.engagement < 0.3:
+                return InterventionType.INQUIRY
+            if motivation.confidence > 0.7 and motivation.engagement > 0.6:
+                return InterventionType.PRACTICE
+        except Exception:
+            _log.warning(
+                "ExperimentDesigner._motivation_itype_override 异常, 返 None",
+                exc_info=True,
+            )
+        return None
 
     # ---------------------------------------------------------------
     # 内部工具

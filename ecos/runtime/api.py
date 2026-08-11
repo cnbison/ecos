@@ -291,6 +291,59 @@ def plan_goal_aware(student_id: str, audience: str = "student", **kwargs) -> Any
     return lca.select_intervention(cta_input, audience=audience)
 
 
+def plan_motivation_aware(student_id: str, audience: str = "student", **kwargs) -> Any:
+    """v0.87.0-b: Motivation-aware plan (新 API, 跟 plan / plan_goal_aware 并行).
+
+    跟 plan_goal_aware 的区别:
+        - 接受 motivation_observation (MotivationObservation) 参数
+        - 自动 emit observation 到 state.motivation (allowlisted mutation)
+        - 透传 motivation 到 LCAEngine.select_intervention
+        - 走 Twin Consistency Check (per goal, 如传)
+
+    Args:
+        student_id: 学生 ID
+        audience:   rationale 受众
+        **kwargs:
+            lca_engine: Optional[LCAEngine]
+            cta_input:  Optional[CTAInput]
+            goal:       Optional[Goal]      (若传, 校验该 Goal 关联 evidence)
+            event_log:  Optional[EventLog]   (inconsistent 时 emit goal_changed event)
+            motivation_observation: Optional[MotivationObservation]  (emit 到 state.motivation)
+            motivation: Optional[MotivationProfile]  (直接透传 LCA, 不 emit)
+
+    Returns:
+        LCAResult (跟 plan / plan_goal_aware 同一返回)
+
+    v0.87.0-b: motivation 考虑走 2 路径 (LCAEngine.select_intervention 走它ypoverride + reward)
+    """
+    lca = kwargs.get("lca_engine") or _get_default_lca_engine()
+    cta_input = kwargs.get("cta_input")
+    if cta_input is None:
+        # 默认: 估计 student state, 构造 CTAInput
+        state = estimate(student_id)
+        from ecos.lca.cta_input import CTAInput
+        cta_input = CTAInput(student_id=student_id, belief_state=state)
+
+    # v0.86.0-b: Twin Consistency Check (前置 defensive)
+    _run_twin_consistency_check(
+        student_id=student_id,
+        state=cta_input.belief_state,
+        goal=kwargs.get("goal"),
+        event_log=kwargs.get("event_log"),
+    )
+
+    # v0.87.0-b: motivation observation emit (allowlisted mutation)
+    motivation_obs = kwargs.get("motivation_observation")
+    if motivation_obs is not None:
+        cta_input.belief_state.add_motivation_observation(motivation_obs)
+
+    # v0.87.0-b: motivation 透传到 LCA (None 时 fallback to state.motivation)
+    motivation = kwargs.get("motivation")
+    return lca.select_intervention(
+        cta_input, audience=audience, motivation=motivation,
+    )
+
+
 def _run_twin_consistency_check(
     student_id: str,
     state: Any,
@@ -343,4 +396,5 @@ __all__ = [
     "simulate",
     "plan",
     "plan_goal_aware",
+    "plan_motivation_aware",
 ]

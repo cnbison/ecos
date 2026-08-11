@@ -14,11 +14,15 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from ..cta.belief_state import BeliefState, BloomLevel, LearningDNAState
 from ..llm_client import ECOSLLMClient
 from .cta_input import CTAInput
+
+# v0.87.0-b: MotivationProfile TYPE_CHECKING 避免循环 import
+if TYPE_CHECKING:
+    from ..motivation.profile import MotivationProfile
 from .intervention import (
     CAStage,
     CLTLevel,
@@ -237,6 +241,7 @@ class LCAEngine:
         self,
         cta_input: CTAInput,
         audience: Optional[str] = None,
+        motivation: Optional["MotivationProfile"] = None,
     ) -> LCAResult:
         """LCA 主选择流程.
 
@@ -250,6 +255,8 @@ class LCAEngine:
         Args:
             cta_input: CTA 输入（含 BeliefState）
             audience: rationale 受众（student / teacher / parent）
+            motivation: v0.87.0-b: 可选 MotivationProfile, 调整候选池 itype 权重
+                        (frustration/engagement/confidence 考虑)
 
         Returns:
             LCAResult（含 Intervention + rationale + expected_gain/risk）
@@ -257,6 +264,10 @@ class LCAEngine:
         belief_state = cta_input.belief_state
         student_id = cta_input.student_id
         audience = audience or self.config.rationale_audience
+
+        # v0.87.0-b: motivation fallback to belief_state.motivation
+        if motivation is None:
+            motivation = getattr(belief_state, "motivation", None)
 
         # v0.82.0-a: Step 1-4 委托 Planner (决策层 4 步合一)
         history = self.intervention_history.get(student_id, [])
@@ -268,10 +279,12 @@ class LCAEngine:
 
         # Step 5: 生成候选 + LinUCB 选择
         # v0.82.0-b: 候选生成委托 ExperimentDesigner (LCA 4-layer 第 2 层)
+        # v0.87.0-b: motivation 透传到 ExperimentDesigner.design()
         candidates = self.experiment_designer.design(
             plan,
             cta_input,
             n_candidates=self.config.bandit_config.n_arms,
+            motivation=motivation,
         )
         # v0.82.0-d: LinUCB 选择委托 PolicyLearner.select (LCA 4-layer 第 4 层)
         #   内部 lazy init per-student LCAPolicyLearner (v0.57.0 per-student 隔离)
@@ -286,7 +299,12 @@ class LCAEngine:
         # 估算 expected_gain / risk (v0.82.0-c 委托 Evaluator)
         expected_gain = self.evaluator.estimate_gain(chosen, belief_state)
         expected_risk = self.evaluator.estimate_risk(chosen, belief_state)
-        chosen.expected_gain = expected_gain
+
+        # v0.87.0-b: motivation reward 调整 (multiplicative factor)
+        motivation_factor = self.evaluator.motivation_reward_adjustment(belief_state)
+        expected_gain *= motivation_factor
+
+        chosen.expected_gain = max(0.0, min(1.0, expected_gain))
         chosen.expected_risk = expected_risk
 
         # Step 7: 记录干预
