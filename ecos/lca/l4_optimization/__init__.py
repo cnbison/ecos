@@ -1,8 +1,9 @@
-"""L4 策略优化层——CA 状态机 + LinUCB + Thompson Sampling + 因果归因."""
+"""L4 策略优化层——CA 状态机 + LinUCB + Thompson Sampling + POMDP + 因果归因."""
 
 from .attribution import CTA_L4_Backend, CausalEffect, LCAAttribution
 from .ca_state_machine import CAStateMachine
 from .linucb import BanditConfig, LinUCB
+from .pomdp import POMDPConfig, POMDPPolicy
 from .policy_learner import LCAPolicyLearner
 from .thompson import ThompsonConfig, ThompsonSampling
 
@@ -12,6 +13,8 @@ __all__ = [
     "BanditConfig",
     "ThompsonSampling",
     "ThompsonConfig",
+    "POMDPPolicy",
+    "POMDPConfig",
     "LCAPolicyLearner",
     "LCAAttribution",
     "CausalEffect",
