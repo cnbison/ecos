@@ -297,6 +297,37 @@
 
 ---
 
+## 3.1 Multi-Domain 抽象映射 (v0.88.0-a)
+
+**2.0 定义**: Domain-agnostic Kernel 1 套 + Domain-specific Extension N 套. Kernel (LinUCB / Thompson / POMDP / Evidence / Runtime / StateEngine) 完全 Domain-agnostic; Domain 通过 profile_extensions 注入 BeliefState.
+
+| 现有代码 | 接近度 | 说明 |
+|---|---|---|
+| `ecos/domain/base.py:Domain` ABC (v0.88.0-a) | 100% | 4 abstract property: name / description / capability_ontology / profile_extensions |
+| `ecos/domain/base.py:DomainRegistry` singleton (v0.88.0-a) | 100% | register / get / list_names / has / clear / reset (单进程 1 份, 测试可隔离) |
+| `ecos/domain/education.py:EducationDomain` (v0.88.0-a) | 100% | K12 默认 Domain. 5 Python default capability (复用 v0.86.0-d DEFAULT_CAPABILITIES_LIST) + grade_levels / learning_standards extension |
+| `ecos/domain/science.py:ScienceDomain` (v0.88.0-a) | 100% | 科研 Domain. 3 capability (hypothesis/experiment/analysis) + research_methods / domain_categories extension |
+| `ecos/domain/career.py:CareerDomain` (v0.88.0-a) | 100% | 职业 Domain. 3 capability (skill/portfolio/certification) + vocational_tracks / certification_levels extension |
+| `ecos/domain/__init__.py:register_default_domains` (v0.88.0-a) | 100% | 注册 3 个 Domain 到 registry (idempotent, 同 name 覆盖) |
+| **缺失: BeliefState domain_extension** | 0% | v0.88.0-b 加 Dict[str, Any] 字段, 渐进迁移 (per design doc §3) |
+| **缺失: Runtime.plan_domain_aware** | 0% | v0.88.0-b 新 API (跟 plan_motivation_aware 模式一致) |
+| **缺失: ExperimentDesigner domain-aware** | 0% | v0.88.0-b: education 走 K12 logic, science 走 INQUIRY 主导, career 走 PRACTICE 主导 |
+| **缺失: Evaluator.domain_reward_adjustment** | 0% | v0.88.0-b: 根据 domain 调整 gain (跟 motivation_reward_adjustment 模式一致) |
+
+**演进建议**:
+- **v0.88.0-a** ✅ (2026-08-11): Domain 抽象层奠基. NEW `ecos/domain/{__init__,base,education,science,career}.py` 5 文件. Multi-Domain §3 0% → 80% (Domain 抽象层 100%, 集成留 v0.88.0-b)
+- **v0.88.0-b** (待实施): Multi-Domain 集成 (DomainExtension + Runtime + LCA). 4 个集成点: BeliefState.domain_extension + Runtime.plan_domain_aware + ExperimentDesigner domain-aware + Evaluator.domain_reward_adjustment
+- **v0.89.0+** (Phase 7+ 抽象推演 #2+): Twin → Human Twin 抽象 + Plugin SDK 文档化 + Teacher/Parent Dashboard + 跨学科扩展
+
+**设计原则**:
+- **Domain-agnostic Kernel 1 套**: LinUCB / Thompson / POMDP / Evidence / Runtime / StateEngine 不引用 Domain
+- **Domain-specific Extension N 套**: 3 个 Domain 各有独立 capability_ontology + profile_extensions
+- **Capability 是 Domain 入口**: 通过 `capability_ontology` 暴露 Domain 能力 (复用 v0.86.0-a Capability frozen dataclass)
+- **BeliefState 不重命名** (v0.86.0 推迟): v0.88.0-b 才加 `domain_extension` 字段, 渐进迁移
+- **防御性自检 [8] 仍 hard block**: Domain dataclass 不 mutate state
+
+---
+
 ## 4. LCA 4 层拆分映射
 
 **2.0 定义**：Planner -> Experiment Designer -> Evaluator -> Policy Learner。
@@ -418,12 +449,14 @@ v0.84.0-d 在 LCA 4-layer 之外, 引入 Plugin Runtime 雏形 (kernel-mapping �
 | 60-80% | BeliefState(Twin 雏形) / DimensionState(Belief 雏形) / MIRT(Inference) / BKT(Inference) | 4 |
 | 40-60% | Observation / CalibrationMessage / partial credit / LLM Critic / attribution | 5 |
 | 20-40% | calibration_log / response_history / evidence_predictions 占位 | 3 |
-| 0-20% | Multi-Domain 扩展 | 1 |
+| 80% (v0.88.0-a) | Multi-Domain 抽象层 (Domain ABC + 3 Domain + DomainRegistry) | 1 |
 
 ### 8.2 缺失核心组件清单
 
 完全缺失（接近度 ≤ 20%）：
-1. **Multi-Domain 扩展**（科研 / 职业 / 创意, Phase 7+ / v0.88+）
+1. **Multi-Domain 集成 (Runtime + LCA)** —— v0.88.0-b 目标 (Phase 7+ 抽象推演 #1)
+
+> **[v0.88.0-a 更新 2026-08-11]**: Phase 7+ 抽象推演 #1 sub-version a 完成. Domain 抽象层奠基 (NEW `ecos/domain/{__init__,base,education,science,career}.py` 5 文件). Multi-Domain §3: 0% → 80%. 27 新增 tests (pytest 958 → 985, +2.8%). H3-c4 + v0.81 replay canary 全 PASS. 防御性自检 [8] 仍 hard block (Domain dataclass 不 mutate state). 下一阶段 v0.88.0-b: Multi-Domain 集成 (DomainExtension + Runtime.plan_domain_aware + Designer domain-aware + Evaluator.domain_reward_adjustment).
 
 > **[v0.87.0 完成 2026-08-11]**: 缺失清单 3→1 (Motivation Profile / POMDP Policy 全部落地). Phase 6+ Kernel 扩展第 2 个版本 4 sub-commit 全部完成 (a=Motivation schema/b=Motivation Runtime+c=POMDP 雏形/d=POMDP 集成 3-way A/B). pytest 898 → 958 (+60, +6.7%).
 
@@ -476,6 +509,19 @@ v0.84.0-d 在 LCA 4-layer 之外, 引入 Plugin Runtime 雏形 (kernel-mapping �
 > - H3-c4 + v0.81 replay canary 全 PASS
 >
 > v0.87 是 Phase 6+ Kernel 扩展第 2 个版本 (4 sub-commit a/b/c/d). 缺失清单 3→1 (剩 Multi-Domain 扩展). 下一阶段 v0.88+: Multi-Domain 扩展 (科研 / 职业 / 创意) + POMDP 完整 (T(s'|s,a) + R(s,a) + point-based solver) + Phase 7+ 抽象推演.
+
+> **[v0.88.0-a 更新 2026-08-11]**: Phase 7+ 抽象推演 #1 sub-version a 完成. Domain 抽象层奠基. 27 新增 tests (pytest 958 → 985, +2.8%). 详情见 §3.1 (NEW).
+> - NEW `ecos/domain/{__init__,base,education,science,career}.py` 5 文件 (Domain ABC + 3 Domain + DomainRegistry)
+> - Domain ABC: 4 abstract property (name / description / capability_ontology / profile_extensions)
+> - EducationDomain: K12, 5 Python default capability (复用 v0.86.0-d DEFAULT_CAPABILITIES_LIST) + grade_levels + learning_standards
+> - ScienceDomain: 3 capability (hypothesis/experiment/analysis) + research_methods + domain_categories
+> - CareerDomain: 3 capability (skill/portfolio/certification) + vocational_tracks + certification_levels
+> - DomainRegistry singleton: register / get / list_names / has / clear (单进程 1 份, 测试可隔离)
+> - `register_default_domains(registry=None)` helper: 注册 3 个 Domain (idempotent, 同 name 覆盖)
+> - Domain-agnostic Kernel 不变 (LinUCB / Thompson / POMDP / Evidence / Runtime 都不引用 Domain)
+> - Domain-specific Extension N 套 (3 个 Domain 各有独立 capability + profile_extensions)
+> - 防御性自检 [8] 仍 hard block (Domain dataclass 不 mutate state). capability_ontology / profile_extensions 返 copy (防止外部 mutation)
+> - H3-c4 + v0.81 replay canary 全 PASS
 
 ### 8.3 演进优先级建议
 

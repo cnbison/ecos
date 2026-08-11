@@ -12,6 +12,62 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.88.0-a] 2026-08-11
+
+### feat: Phase 7+ 抽象推演 #1 (sub a) — Domain base class + 3 domain schema
+
+> **背景**: v0.87.0 Phase 6+ Kernel 扩展 #2 (Motivation Profile + POMDP Policy + 真 A/B 3-way) 全部完成. 4 sub-commit 全部 push. 缺失清单 3→1 (剩 Multi-Domain 扩展). Phase 7+ 抽象推演启动: Multi-Domain 抽象 + POMDP 完整 (依赖型 T+R).
+> **v0.88.0-a 目标**: Domain 抽象层奠基. NEW `ecos/domain/{__init__,base,education,science,career}.py` 5 文件. Multi-Domain §3: 0% → 80%.
+
+#### NEW: Domain 抽象层 (v0.88.0-a)
+
+- `ecos/domain/base.py` (~150 行): Domain ABC + DomainRegistry singleton
+  - `Domain` ABC: 4 abstract property (name / description / capability_ontology / profile_extensions)
+  - `Domain.get_capability(name)` / `has_capability(name)` / `list_capabilities()`
+  - `Domain.to_dict()` 序列化 (capability 递归 to_dict)
+  - `DomainRegistry` singleton: register / get / list_names / has / clear / reset
+  - `get_default_registry()` 懒加载 singleton 入口
+
+- `ecos/domain/education.py`: EducationDomain (K12, 默认 Domain)
+  - 5 Python default capability (variables / loops / functions / conditionals / strings, 复用 v0.86.0-d DEFAULT_CAPABILITIES_LIST)
+  - profile_extensions: grade_levels (elementary/middle/high) + learning_standards (CCSS/课标)
+
+- `ecos/domain/science.py`: ScienceDomain (科研方法)
+  - 3 capability: hypothesis / experiment / analysis
+  - profile_extensions: research_methods (empirical/theoretical/computational) + domain_categories (physics/chemistry/biology/...)
+
+- `ecos/domain/career.py`: CareerDomain (职业技能)
+  - 3 capability: skill / portfolio / certification
+  - profile_extensions: vocational_tracks (engineering/design/research/management/communication) + certification_levels (entry/mid/senior/expert)
+
+- `ecos/domain/__init__.py`: 导出 + `register_default_domains(registry=None)` helper (注册 3 个 Domain)
+
+#### 测试
+
+- `tests/test_domain_base.py` 27 测试 (16+11):
+  - Domain ABC 4 abstract property + 不能 instantiate
+  - EducationDomain 5 capability + K12 profile
+  - ScienceDomain 3 capability + research_methods
+  - CareerDomain 3 capability + vocational_tracks
+  - DomainRegistry singleton + register / get / list_names / has / clear
+  - 不可变性: capability_ontology + profile_extensions 返 copy (防止外部 mutation)
+  - 3 Domain instance distinct capability (disjoint 验证)
+
+#### 关键不变量
+
+- **Domain-agnostic Kernel 1 套**: LinUCB / Thompson / POMDP / Evidence / Runtime 不引用 Domain (Domain 不 mutate state)
+- **Domain-specific Extension N 套**: 3 个 Domain 各有独立 capability_ontology + profile_extensions
+- **Capability 是 Domain 入口**: 通过 `capability_ontology` 暴露 Domain 能力 (复用 v0.86.0-a Capability frozen dataclass)
+- **BeliefState 不重命名** (v0.86.0 推迟重命名, 渐进迁移): v0.88.0-b 才加 `domain_extension` 字段
+- **防御性自检 [8] 仍 hard block**: Domain 是 dataclass, 不 mutate state
+- **H3-c4 canary PASS**: Domain 抽象不影响 LCA 行为
+
+#### 累计进度 (v0.87.0-d → v0.88.0-a)
+
+- Multi-Domain §3: 0% → **80%** (Domain 抽象层 100% 完成, 集成留 v0.88.0-b)
+- pytest: 958 → **985** (+27, +2.8%)
+
+
 ## [0.87.0] 2026-08-11
 
 ### feat: Phase 6+ Kernel 扩展 #2 — Motivation Profile + POMDP Policy (4 子版本第 2 个)
