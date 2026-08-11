@@ -398,6 +398,150 @@ class LearningEvent:
             },
         )
 
+    # ── v0.85.0-d: frontend stub factories (4) ──────────────────────────────
+
+    @classmethod
+    def from_hint_requested(
+        cls,
+        student_id: str,
+        problem_id: str,
+        hint_level: int = 1,
+        source: str = "frontend_hint",
+        event_id: Optional[str] = None,
+    ) -> "LearningEvent":
+        """Construct LearningEvent for hint_requested (v0.85.0-d factory).
+
+        v0.85.0-d: frontend 调用 /api/event/hint, emit 此 event.
+        EventBus subscriber 处理 (未来 v0.86+ LCA 可用此信号动态调整干预).
+
+        Args:
+            student_id: which student requested hint.
+            problem_id: which problem they requested hint for.
+            hint_level: 1=soft hint, 2=detailed hint, 3=full solution outline.
+            source: who produced (default "frontend_hint").
+            event_id: optional pre-generated event_id.
+
+        Returns:
+            LearningEvent with event_type="hint_requested".
+        """
+        return cls(
+            event_id=event_id or _make_event_id(),
+            student_id=str(student_id),
+            timestamp=datetime.now(),
+            source=source,
+            event_type=LearningEventType.HINT_REQUESTED.value,
+            payload={
+                "problem_id": str(problem_id),
+                "hint_level": int(hint_level),
+            },
+        )
+
+    @classmethod
+    def from_idle_detected(
+        cls,
+        student_id: str,
+        idle_seconds: float,
+        source: str = "frontend_idle",
+        event_id: Optional[str] = None,
+    ) -> "LearningEvent":
+        """Construct LearningEvent for idle_detected (v0.85.0-d factory).
+
+        v0.85.0-d: frontend 检测 N 秒无操作, emit 此 event.
+        EventBus subscriber 处理 (未来 v0.86+ 可用此信号触发 nudge).
+
+        Args:
+            student_id: which student is idle.
+            idle_seconds: how long they have been idle (seconds).
+            source: who produced (default "frontend_idle").
+            event_id: optional pre-generated event_id.
+
+        Returns:
+            LearningEvent with event_type="idle_detected".
+        """
+        return cls(
+            event_id=event_id or _make_event_id(),
+            student_id=str(student_id),
+            timestamp=datetime.now(),
+            source=source,
+            event_type=LearningEventType.IDLE_DETECTED.value,
+            payload={
+                "idle_seconds": float(idle_seconds),
+            },
+        )
+
+    @classmethod
+    def from_goal_changed(
+        cls,
+        student_id: str,
+        old_goal_id: str,
+        new_goal_id: str,
+        source: str = "frontend_goal",
+        event_id: Optional[str] = None,
+    ) -> "LearningEvent":
+        """Construct LearningEvent for goal_changed (v0.85.0-d factory).
+
+        v0.85.0-d: frontend 学生切换学习目标, emit 此 event.
+        EventBus subscriber 处理 (未来 v0.86+ 可用此信号重置 LCA strategy).
+
+        Args:
+            student_id: which student changed goal.
+            old_goal_id: previous goal ID (e.g. "python.variables").
+            new_goal_id: new goal ID (e.g. "python.loops").
+            source: who produced (default "frontend_goal").
+            event_id: optional pre-generated event_id.
+
+        Returns:
+            LearningEvent with event_type="goal_changed".
+        """
+        return cls(
+            event_id=event_id or _make_event_id(),
+            student_id=str(student_id),
+            timestamp=datetime.now(),
+            source=source,
+            event_type=LearningEventType.GOAL_CHANGED.value,
+            payload={
+                "old_goal_id": str(old_goal_id),
+                "new_goal_id": str(new_goal_id),
+            },
+        )
+
+    @classmethod
+    def from_reflection_completed(
+        cls,
+        student_id: str,
+        reflection_text: str,
+        problem_id: Optional[str] = None,
+        source: str = "frontend_reflection",
+        event_id: Optional[str] = None,
+    ) -> "LearningEvent":
+        """Construct LearningEvent for reflection_completed (v0.85.0-d factory).
+
+        v0.85.0-d: frontend 学生完成反思, emit 此 event.
+        EventBus subscriber 处理 (未来 v0.86+ LLM 可消费 reflection 用于
+        调整 misconception 检测).
+
+        Args:
+            student_id: which student completed reflection.
+            reflection_text: student's reflection content.
+            problem_id: optional problem_id reflection is about.
+            source: who produced (default "frontend_reflection").
+            event_id: optional pre-generated event_id.
+
+        Returns:
+            LearningEvent with event_type="reflection_completed".
+        """
+        return cls(
+            event_id=event_id or _make_event_id(),
+            student_id=str(student_id),
+            timestamp=datetime.now(),
+            source=source,
+            event_type=LearningEventType.REFLECTION_COMPLETED.value,
+            payload={
+                "reflection_text": str(reflection_text),
+                "problem_id": str(problem_id) if problem_id else None,
+            },
+        )
+
 
 class EventLog:
     """Persists LearningEvents. Dual-mode: in-memory (tests) + sqlite (production).

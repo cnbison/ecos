@@ -25,6 +25,7 @@ from flask import Flask, jsonify, request, send_from_directory
 from ecos.llm_client import ECOSLLMClient
 
 from web.api.belief import get_student_state, submit_answer, _STUDENT_STATES
+from web.api.event_stub import event_stub_bp
 from web.api.interpretation import build_interpretation
 from web.api.lca import get_lca_debug_info, select_intervention as lca_select
 from web.api.qmatrix import get_question_detail, normalize_problem, select_question_for_student
@@ -33,6 +34,9 @@ _log = logging.getLogger(__name__)
 
 # Flask app
 app = Flask(__name__, static_folder=None)
+
+# v0.85.0-d: register frontend event stub Blueprint (4 endpoint: hint/idle/goal_change/reflection)
+app.register_blueprint(event_stub_bp)
 
 # LLM 客户端（全局）
 _llm_client: ECOSLLMClient | None = None
@@ -787,4 +791,24 @@ def teacher_static(filename: str):
 
 
 if __name__ == "__main__":
+    # v0.85.0-d: Production activation — 注册 PluginRuntime subscriber
+    # 启动后, /api/answer / /api/dual_agent / /api/lca / /api/judge 全部走
+    # Plugin path (emit event → bus → subscriber → Engine.update / orchestrator /
+    # Runtime.plan). 不再走 fallback legacy direct path.
+    try:
+        from web.api.plugin_runtime import get_plugin_runtime
+        plugin_runtime = get_plugin_runtime()
+        plugin_runtime.start()
+        _log.info(
+            "Production activation: PluginRuntime 启动 (subscriptions=%d)",
+            plugin_runtime.subscription_count,
+        )
+    except Exception:
+        # 防御性: PluginRuntime 启动失败不阻断 Flask 启动
+        # (production 走 fallback legacy path, 不破坏现有功能)
+        _log.warning(
+            "Production activation: PluginRuntime 启动失败, "
+            "production 走 legacy fallback (Plugin 路径未生效)",
+            exc_info=True,
+        )
     app.run(host="0.0.0.0", port=5173, debug=True)

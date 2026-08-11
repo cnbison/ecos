@@ -393,8 +393,62 @@ NEW: `tests/test_lca_plugin.py` (10 tests, 0.38s)
 | 防御性自检 [8] | hard block | hard block | hard block | hard block | 保持 |
 | H3-c4 canary | PASS | PASS | PASS | PASS | 保持 |
 
+#### v0.85.0-d: Production Activation + Frontend Stub
 
-## [0.83.0] 2026-08-10
+MODIFY: `ecos/cta/event_log.py` (+110 lines)
+- 4 新 factory methods (frontend stub 用):
+  - `from_hint_requested(student_id, problem_id, hint_level=1)` — event_type="hint_requested"
+  - `from_idle_detected(student_id, idle_seconds)` — event_type="idle_detected"
+  - `from_goal_changed(student_id, old_goal_id, new_goal_id)` — event_type="goal_changed"
+  - `from_reflection_completed(student_id, reflection_text, problem_id=None)` — event_type="reflection_completed"
+- payload 字段: hint_level / idle_seconds / old_goal_id + new_goal_id / reflection_text + problem_id
+- type hints 校验 (int / float / str)
+
+NEW: `web/api/event_stub.py` (~140 lines)
+- `event_stub_bp` Blueprint 注册 4 endpoint:
+  - `POST /api/event/hint` → emit HINT_REQUESTED (request: {student_id, problem_id, hint_level})
+  - `POST /api/event/idle` → emit IDLE_DETECTED (request: {student_id, idle_seconds})
+  - `POST /api/event/goal_change` → emit GOAL_CHANGED (request: {student_id, old_goal_id, new_goal_id})
+  - `POST /api/event/reflection` → emit REFLECTION_COMPLETED (request: {student_id, reflection_text, problem_id?})
+- 返回 `{event_id, student_id, status: "logged"}` (frontend 接入用)
+- 防御性自检 [1]: emit 失败 _log.warning 不 raise (response 仍正常返回)
+- 错误处理: 缺字段返 400 + {error}, 其他异常返 500 + {error}
+
+MODIFY: `web/api/app.py` (+24 lines)
+- `app.register_blueprint(event_stub_bp)` (启动时注册 4 stub endpoint)
+- `if __name__ == "__main__"` 块: `plugin_runtime = get_plugin_runtime(); plugin_runtime.start()`
+- 防御性: PluginRuntime 启动失败 _log.warning 不 raise (production 走 legacy fallback)
+
+NEW: `tests/test_event_stub.py` (13 tests, 0.45s)
+- 4 FrontendEventFactories (hint / idle / goal_changed / reflection_completed factory)
+- 1 BlueprintRegistration (event_stub_bp registered)
+- 4 EndpointBehavior (Flask test_client 验证 4 endpoint emit event)
+- 2 ProductionActivation (if __name__ block 调用 plugin_runtime.start() + 失败不阻断 Flask)
+- 1 DefensiveChecks (silent pass scan)
+- 1 H3C4Canary (LCA path 不受影响)
+
+向后兼容:
+- 823 现有 + 13 新增 = 836 全过 (H3-c4 canary PASS)
+- 4 现有 endpoint 响应字段**不变** (/api/answer / /api/judge / /api/dual_agent / /api/lca)
+- Flask 启动行为**不变** (host/port/debug 同 v0.84)
+- PluginRuntime 启动失败时 production 仍能跑 (legacy fallback, 不破坏 lbc001/lbc002)
+- 防御性自检 [8] **仍 hard block**
+
+#### Architecture outcomes (cumulative after a+b+c+d — v0.85 final)
+
+| 维度 | v0.84.0-d | v0.85.0-a | v0.85.0-b | v0.85.0-c | v0.85.0-d | Δ (cumulative) |
+|---|---|---|---|---|---|---|
+| Event Engine §1.2 | 100% | 100% | 100% | 100% | 100% | 保持 |
+| Event (统一输入) §2.4 | 95% | 97% | 97% | 97% | **100%** (10 event_type + 4 frontend stub) | **+5%** |
+| Plugin SDK §6 | 10% | 35% | 70% | 100% | **100%** + **production activated** | **+90%** |
+| Runtime event-driven | 0% | 0% | 50% | 50% | **50%** (3 subscriber 接 plugin path) | +50% |
+| pytest 总数 | 792 | 802 | 813 | 823 | 836 | +44 tests (+5.6%) |
+| 防御性自检 [8] | hard block | hard block | hard block | hard block | hard block | 保持 |
+| H3-c4 canary | PASS | PASS | PASS | PASS | PASS | 保持 |
+| v0.81 replay canary | PASS | PASS | PASS | PASS | PASS | 保持 |
+
+
+## [0.83.0] 2026-08-10</old_string>
 
 ### feat: Evidence Engine + Runtime API — Evidence Engine 提取 (4 子版本第 1 个, v0.83.0-a)
 
