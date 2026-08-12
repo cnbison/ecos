@@ -264,6 +264,9 @@ class Database:
             "ALTER TABLE students ADD COLUMN probe_count INTEGER DEFAULT 0",
             "ALTER TABLE students ADD COLUMN response_history TEXT",
             "ALTER TABLE students ADD COLUMN theta_cov TEXT",
+            # v0.91.0-d: cognitive_twin 字段 (Twin → Human Twin 抽象)
+            #   JSON dump CognitiveTwinAgent (含 HumanFeedbackTrajectory entries)
+            "ALTER TABLE students ADD COLUMN cognitive_twin TEXT",
         ]:
             try:
                 with self.tx() as _:
@@ -299,13 +302,21 @@ class Database:
                 dict(id=student_id, grade=grade_level, subject=subject, now=now, anon_id=anonymized_id),
             )
 
-    def save_student_state(self, student_id: str, state: BeliefState, engine=None) -> None:
+    def save_student_state(
+        self,
+        student_id: str,
+        state: BeliefState,
+        engine=None,
+        cognitive_twin_json: Optional[str] = None,
+    ) -> None:
         """保存学生完整 BeliefState（MVP JSON 序列化, W5 扩展:warm-up / probe / response_history）。
 
         Args:
             student_id: 学生 ID
             state: 完整 BeliefState
             engine: 可选 BeliefEngine 实例(W5 用于持久化 warmup_count / probe 状态 / response_history)
+            cognitive_twin_json: v0.91.0-d: 可选 CognitiveTwinAgent.dump_state() JSON 序列化结果
+                                 (Twin → Human Twin 抽象, 由 caller 提供)
         """
         now = datetime.now().isoformat()
 
@@ -464,6 +475,7 @@ class Database:
                     probe_count = :probe_count,
                     response_history = :rh,
                     theta_cov = :theta_cov,
+                    cognitive_twin = :cognitive_twin,
                     last_active_at = :now
                 WHERE student_id = :id
                 """,
@@ -481,6 +493,7 @@ class Database:
                     probe_count=probe_count,
                     rh=response_history_json,
                     theta_cov=theta_cov_json,
+                    cognitive_twin=cognitive_twin_json,
                     now=now,
                 ),
             )

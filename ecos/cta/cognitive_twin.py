@@ -286,3 +286,56 @@ class CognitiveTwinAgent:
             entry: HumanFeedbackEntry 实例 (frozen, 4 event_type 校验已通过).
         """
         self.human_feedback.append(entry)
+
+    def dump_state(self) -> Dict[str, Any]:
+        """v0.91.0-d: 序列化为 dict (用于 LCAEngine.dump_state + DB 持久化).
+
+        含 4 字段:
+          - human_feedback: HumanFeedbackTrajectory.to_dict() (entries + maxlen)
+          - action_history: Optional[Dict] (v0.92+ 占位, 当前 None)
+          - schema_version: "0.91.0"
+          - belief_state_ref: str (student_id 引用, 不重复 dump BeliefState — 跟 LCAEngine
+                              dump_state 共享)
+
+        Returns:
+            Dict 可 JSON 序列化, d 阶段 LCAEngine.dump_state 加 cognitive_twin 字段.
+        """
+        return {
+            "human_feedback": self.human_feedback.to_dict(),
+            "action_history": self.action_history,
+            "schema_version": self.schema_version,
+            "belief_state_ref": self.belief_state.student_id,
+        }
+
+    @classmethod
+    def load_state(cls, state: Dict[str, Any], belief_state: "BeliefState") -> "CognitiveTwinAgent":
+        """v0.91.0-d: 从 dict 反序列化 (LCAEngine.load_state 调).
+
+        Args:
+            state: dump_state() 输出 (含 human_feedback / schema_version / belief_state_ref)
+            belief_state: 已恢复的 BeliefState 实例 (外部传入, CognitiveTwinAgent 不自己恢复)
+
+        Returns:
+            CognitiveTwinAgent 实例 (3-tuple 聚合, belief_state 用外部传入)
+
+        Raises:
+            ValueError: schema_version 不匹配 (per 防御性自检 [5])
+        """
+        schema_version = state.get("schema_version")
+        if schema_version != SCHEMA_VERSION:
+            raise ValueError(
+                f"CognitiveTwinAgent.load_state: 不支持的 schema_version={schema_version!r}, "
+                f"expected={SCHEMA_VERSION!r}. 老 snapshot 请升级或丢弃."
+            )
+        # human_feedback 解析 (含 entries + schema_version 校验)
+        hf_dict = state.get("human_feedback", {})
+        human_feedback = HumanFeedbackTrajectory.from_dict(hf_dict)
+        # action_history 当前 None (v0.92+)
+        action_history = state.get("action_history")
+        return cls(
+            belief_state=belief_state,
+            trajectory=belief_state.trajectory,
+            human_feedback=human_feedback,
+            action_history=action_history,
+            schema_version=schema_version,
+        )

@@ -220,6 +220,8 @@ class LCAEngine:
         #   c 阶段 select_intervention 消费 (Designer + Evaluator 透传)
         #   d 阶段 dump_state/load_state 加 cognitive_twin 字段
         self._cognitive_twin: Dict[str, "CognitiveTwinAgent"] = {}
+        # v0.91.0-d: cognitive_twin dump 暂存 (load_state 后 bind_cognitive_twin 重建)
+        self._cognitive_twin_pending: Dict[str, dict] = {}
 
     # v0.82.0-a: __getattr__ forwarding for Planner 子组件 (向后兼容)
     #   旧代码 / 测试可能访问 engine.clt / engine.bjork_testing 等
@@ -505,6 +507,35 @@ class LCAEngine:
         # append_human_feedback 走 allowlisted mutation (FUNC_ALLOWLIST)
         self._cognitive_twin[student_id].append_human_feedback(entry)
 
+    def bind_cognitive_twin(
+        self,
+        student_id: str,
+        belief_state: BeliefState,
+    ) -> Optional["CognitiveTwinAgent"]:
+        """v0.91.0-d: Materialize CognitiveTwinAgent from pending dict + restored belief_state.
+
+        在 LCAEngine.load_state 之后调用 (web/api/belief.py apply_snapshot 路径),
+        把暂存的 cognitive_twin dict 重建为完整 CognitiveTwinAgent 实例.
+
+        Args:
+            student_id: 学生 ID
+            belief_state: 已 restore 的 BeliefState 实例 (含 trajectory 引用)
+
+        Returns:
+            CognitiveTwinAgent 实例 (或 None — 老 snapshot 无 cognitive_twin 字段时)
+
+        防御性自检 [5]: cognitive_twin schema_version 不匹配 raise ValueError
+                          (per HumanFeedbackTrajectory.from_dict / CognitiveTwinAgent.load_state)
+        """
+        cognitive_twin_dict = self._cognitive_twin_pending.pop(student_id, None)
+        if cognitive_twin_dict is None:
+            # 老 snapshot 无 cognitive_twin 字段, 或 student 不在 pending
+            return None
+        from ..cta.cognitive_twin import CognitiveTwinAgent
+        twin = CognitiveTwinAgent.load_state(cognitive_twin_dict, belief_state)
+        self._cognitive_twin[student_id] = twin
+        return twin
+
     # ---------------------------------------------------------------
     # v0.69.0: LinUCB 冷启动判定 (B4 前置)
     # ---------------------------------------------------------------
@@ -539,14 +570,15 @@ class LCAEngine:
         return self.policy_learner._get_learner(student_id)
 
     def dump_state(self, student_id: str) -> dict:
-        """导出 per-student LCA 状态 (7 字段 + 内部辅助字段).
+        """导出 per-student LCA 状态 (8 字段 + 内部辅助字段).
 
         v0.82.0-d: 拆 LCAEngine 跟 PolicyLearner 边界
           - LCAEngine 维护: intervention_history, last_intervention, update_count, select_count
           - PolicyLearner 维护: bandit_a, bandit_b, arm_pull_counts, arm_fingerprints, last_arm
+        v0.91.0-d: 加 cognitive_twin 字段 (Twin → Human Twin 抽象)
 
         Returns:
-            dict 含 7 关键字段 (CLAUDE.md [5]):
+            dict 含 8 关键字段 (CLAUDE.md [5]):
               1. intervention_history  (List[Intervention.to_dict()])
               2. bandit_a              (List[List[List[float]]])  <- 来自 PolicyLearner.dump
               3. bandit_b              (List[List[float]])        <- 来自 PolicyLearner.dump
@@ -554,6 +586,7 @@ class LCAEngine:
               5. last_intervention     (Intervention.to_dict() | None)
               6. update_count          (int)
               7. select_count          (int)
+              8. cognitive_twin        (Dict | None)              <- v0.91.0-d 新增
             + 内部字段:
               - arm_fingerprints       (Dict[str, str])  arm_idx → intervention_id  <- PolicyLearner.dump
               - last_arm               (int)                                        <- PolicyLearner.dump
@@ -562,6 +595,11 @@ class LCAEngine:
         policy_state = self.policy_learner.dump(student_id)
 
         last_iv = self._last_intervention.get(student_id)
+        # v0.91.0-d: cognitive_twin dump (None 时不存字段, 保持 backward compat)
+        cognitive_twin = self._cognitive_twin.get(student_id)
+        cognitive_twin_dict = (
+            cognitive_twin.dump_state() if cognitive_twin is not None else None
+        )
         return {
             # 1. intervention_history (LCAEngine 维护)
             "intervention_history": [iv.to_dict() for iv in self.intervention_history.get(student_id, [])],
@@ -574,20 +612,23 @@ class LCAEngine:
             # 6-7. 计数 (LCAEngine 维护)
             "update_count": self._update_count.get(student_id, 0),
             "select_count": self._select_count.get(student_id, 0),
+            # 8. cognitive_twin (v0.91.0-d 新增, Twin → Human Twin 抽象)
+            "cognitive_twin": cognitive_twin_dict,
             # 内部辅助 (LinUCB select arm 需要, PolicyLearner 维护)
             "arm_fingerprints": policy_state["arm_fingerprints"],
             "last_arm": policy_state["last_arm"],
         }
 
     def load_state(self, student_id: str, snapshot: dict) -> None:
-        """加载 per-student LCA 状态 (7 字段全恢复).
+        """加载 per-student LCA 状态 (8 字段全恢复).
 
         Args:
             student_id: 学生 ID
             snapshot: dump_state() 导出的 dict
 
-        防御性自检 [5]: 7 关键字段必须全恢复, 缺一不可 (否则 LinUCB 学错位).
+        防御性自检 [5]: 8 关键字段必须全恢复, 缺一不可 (否则 LinUCB 学错位).
         v0.82.0-d: LinUCB 部分委托 PolicyLearner.load (含维度校验).
+        v0.91.0-d: cognitive_twin 字段恢复 (None 时跳过 — backward compat 老 snapshot).
         """
         from .intervention import Intervention as _IV
 
@@ -608,6 +649,32 @@ class LCAEngine:
         # 6-7. 计数 (LCAEngine 维护)
         self._update_count[student_id] = int(snapshot.get("update_count", 0))
         self._select_count[student_id] = int(snapshot.get("select_count", 0))
+
+        # 8. cognitive_twin (v0.91.0-d 新增)
+        #   None 或 schema_version 校验失败 → 跳过 (老 snapshot 不抛, 避免 v0.90 升级 break)
+        #   schema_version != "0.91.0" → _log.warning + 跳过
+        cognitive_twin_dict = snapshot.get("cognitive_twin")
+        if cognitive_twin_dict is not None:
+            try:
+                # 注: 这里不直接调 CognitiveTwinAgent.load_state (需要 belief_state 引用,
+                #   belief_state 是外部传入, 由 web/api/belief.py apply_snapshot 路径提供).
+                #   LCAEngine.load_state 仅恢复 _cognitive_twin dict 的 stub, 具体 belief_state
+                #   ref 由 apply_snapshot 后置绑定.
+                from ..cta.cognitive_twin import CognitiveTwinAgent, SCHEMA_VERSION
+                if cognitive_twin_dict.get("schema_version") != SCHEMA_VERSION:
+                    _log.warning(
+                        "LCAEngine.load_state: cognitive_twin schema_version=%s 不匹配 %s, skip",
+                        cognitive_twin_dict.get("schema_version"), SCHEMA_VERSION,
+                    )
+                else:
+                    # 暂存 dict, belief_state 由 caller 负责构造 CognitiveTwinAgent.from_state
+                    # 后调用 lca.append_human_feedback 重建 (caller side 绑定)
+                    self._cognitive_twin_pending[student_id] = cognitive_twin_dict
+            except Exception:
+                _log.warning(
+                    "LCAEngine.load_state: cognitive_twin 恢复失败 (sid=%s), skip",
+                    student_id, exc_info=True,
+                )
 
     # ---------------------------------------------------------------
     # 内部工具
