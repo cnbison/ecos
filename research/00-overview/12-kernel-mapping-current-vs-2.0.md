@@ -328,7 +328,12 @@
 - **v0.90.0-b** ✅ (2026-08-12): posterior 注入 POMDPPolicy + 持久化 + schema_version 升级 0.89.0-c → 0.90.0. POMDPPolicy.set_transition_posterior / set_reward_posterior 注入接口 + _learned_t_r_posterior_mean 派生 T/R posterior mean + dump_state 加 transition_count / reward_alpha / reward_beta 3 字段 + load_state 校验 schema_version (老 snapshot raise). 13 新增 tests (pytest 1108 → 1121). 防御性自检 [5] schema_version 校验生效.
 - **v0.90.0-c** ✅ (2026-08-12): POMDPPolicy 集成 update_t_r + PBVI 用 posterior mean. update(arm, ctx, reward, observation=None) 扩展 obs 参数 + _update_t_r lazy init posterior (越界 skip, 跟 bayes_update 一致) + _resolve_t_r 共享路径 (PBVI + QMDP fallback 都用 posterior mean) + use_learned_t_r=True 默认 + solve_pbvi 不直接 mutation self.transition / self.reward (走 transient T/R 输入参数, 防御性自检 [8] 仍 hard block). 12 新增 tests (pytest 1121 → 1133). POMDP Policy §1.3 30% → 70% (算法闭环).
 - **v0.90.0-d** ✅ (2026-08-12): Runtime + PolicyABTest 集成 learned T/R + 冷启动. LCAEngine.update 透传 pomdp_observation 到 LCAPolicyLearner.update(obs) + PolicyLearnerConfig.pomdp_use_learned_t_r kwargs 注入 + PolicyABTest._create_fresh_bandit POMDP 工厂 use_learned_t_r=True + min_samples=5 + POMDPPolicy._resolve_t_r 冷启动保护 (evidence < 5 用 init, ≥ 5 切 learned) + RewardPosterior.total_evidence 公式修正 (2 * alpha0 per cell). 10 新增 tests (pytest 1133 → 1143). 3-way A/B (linucb / thompson / pomdp+PBVI+learned T/R) 维持. 防御性自检 [8] 仍 hard block (LCAEngine._last_observation 是 instance dict, 不在 state 上).
-- **v0.91.0+** (Phase 7+ 抽象推演 #3+): Twin → Human Twin 抽象 + Plugin SDK 文档化 + Teacher/Parent Dashboard + POMDP T/R 后验可视化
+- **v0.91.0-a** ✅ (2026-08-12): CognitiveTwinAgent 数据结构 + HumanFeedbackEntry (Phase 7+ 抽象推演 #4 sub-version a). NEW `ecos/cta/cognitive_twin.py` (HumanFeedbackEntry frozen dataclass 4 event_type: hint_requested/idle_detected/goal_changed/reflection_completed + HumanFeedbackTrajectory cap 500 pattern 跟 TrajectoryState 同 + CognitiveTwinAgent 3-tuple (belief_state/trajectory/human_feedback) + action_history 占位留 v0.92+ + schema_version="0.91.0"). scripts/check_no_direct_state_mutation.py FUNC_ALLOWLIST += CognitiveTwinAgent.append_human_feedback (跟 append_trajectory_snapshot 同模式). 12 新增 tests (pytest 1143 → 1155). Plugin SDK 4 frontend stub endpoint (hint/idle/goal_change/reflection) Human-in-loop 信号源数据结构闭环. 防御性自检 [8] 仍 hard block (append_human_feedback 收口到 allowlist).
+- **v0.91.0-b** ✅ (2026-08-12): Runtime + Plugin SDK 4 subscriber (Phase 7+ 抽象推演 #4 sub-version b). LCAEngine _cognitive_twin dict (per-student pattern 跟 _last_intervention / _last_observation / _cognitive_twin_pending 一致) + select_intervention cognitive_twin kwarg + append_human_feedback mutation 走 allowlist. NEW Runtime.plan_human_feedback_aware (6 plan API upper limit). PluginRuntime.start() 加 4 subscriber (hint/idle/goal/reflection) → subscription_count 3 → 7. POMDPPolicy SCHEMA_VERSION "0.90.0" → "0.91.0" (老 snapshot raise per 防御性自检 [5]). 15 新增 tests (pytest 1155 → 1170). Plugin SDK 4 endpoint 全接通 Human Twin, 不再是半成品. 防御性自检 [8] 仍 hard block (LCAEngine._cognitive_twin dict mutation 收口到 append_human_feedback).
+- **v0.91.0-c** ✅ (2026-08-12): LCA 4 layer 接入 Human feedback (Phase 7+ 抽象推演 #4 sub-version c). ExperimentDesigner.cognitive_twin kwarg + _human_feedback_itype_override (hint>5→EXPLANATORY / idle>3→INQUIRY / reflection>3→PRACTICE / goal>1→PRACTICE, 优先级 hint>idle>reflection>goal). Evaluator.human_feedback_reward_adjustment (hint>5→0.8 / idle>3→0.9 / reflection>3→1.2 / goal>1→1.1, default→1.0). LCAEngine.select_intervention kwargs 透传 cognitive_twin → designer + evaluator. 21 新增 tests (pytest 1170 → 1191). H3-c4 canary 维持 (cognitive_twin=None 行为 == v0.90 baseline). 多 multiplicative factor chain: base × motivation × domain × human_feedback.
+- **v0.91.0-d** ✅ (2026-08-12): 冷启动 + 持久化 + canary (Phase 7+ 抽象推演 #4 sub-version d). CognitiveTwinAgent.dump_state + load_state (schema_version="0.91.0" 校验, 老 raise per 防御性自检 [5]). LCAEngine.dump_state + load_state 加 cognitive_twin 字段 + bind_cognitive_twin helper (load_state 暂存 _cognitive_twin_pending, bind 时 materialize). persistence/db.py 加 cognitive_twin TEXT 列 (含 ALTER TABLE 增量迁移) + save_student_state cognitive_twin_json kwarg. 8 新增 tests (pytest 1191 → 1199). v0.81 replay canary 维持 (cognitive_twin 不通过 StateEngine.replay 重建, 走 LCA 路径).
+- **v0.91.0-e** ✅ (2026-08-12): Plugin SDK 文档化 (Phase 7+ 抽象推演 #4 sub-version e, doctest only). NEW `docs/plugin_sdk.md` (8 section: Plugin 原则 / 7 Subscriber 契约 / LCAEngine.append_human_feedback / 防御性自检 / Runtime 6 plan API / 5 sub-commit 演进日志 / 相关文档 / 调用样例) + NEW `examples/plugin_sample_human_feedback.py` (5 use case: teacher_reflection / parent_goal / hint_fatigue / idle_reminder / deep_reflection) + NEW `tests/test_plugin_sdk_docs.py` (4 doctest: 8 section / link 存在 / use case 暴露 / smoke PASS). 防御性自检 [2] test_version_consistency regex 扩展允许 -e sub-version 后缀 (Phase 7+ 抽象推演第 5 sub-commit). 4 新增 tests (pytest 1199 → 1203, doctest only).
+- **v0.92.0+** (Phase 7+ 抽象推演 #5+): HumanTwinSnapshot ActionHistory 占位兑现 + 第一方 plugin 库 + POMDP T/R 后验可视化 + Teacher/Parent Dashboard (Kernel-first 战略 v0.91+ 才允许进入应用层)
 
 **设计原则**:
 - **Domain-agnostic Kernel 1 套**: LinUCB / Thompson / POMDP / Evidence / Runtime / StateEngine 不引用 Domain
@@ -411,15 +416,21 @@ v0.84.0-d 在 LCA 4-layer 之外, 引入 Plugin Runtime 雏形 (kernel-mapping �
 
 | 现有代码 | 接近度 | 说明 |
 |---|---|---|
-| `web/api/answer.py` (POST /api/answer) | 40% | 已有 API 端点,但直接调 BeliefEngine.update,不是产生 Event |
-| `web/api/judge.py` (POST /api/judge) | 40% | 已有 LLM judge,但直接更新 response_history,不是产生 Event |
-| `web/api/dual_agent.py` (POST /api/dual_agent) | 40% | 已有 dual_agent 入口,但直接调 orch.process_observation,不是产生 Event |
-| `web/api/lca.py` (LCA 路径) | 40% | 同上 |
-| **缺失：Plugin 只产生 Event 原则** | 0% | 所有 web/api/ 端点直接操作内部 Engine |
+| `web/api/answer.py` (POST /api/answer) | 100% | v0.84.0-d 改造为 "produce event → bus → Runtime.update_belief". Plugin Runtime subscriber 间接调 Runtime 委托, 不直接 mutate state |
+| `web/api/judge.py` (POST /api/judge) | 100% | v0.85.0-a 改造. judge_completed event, Plugin Runtime subscriber 委托 Runtime. 不直接写 response_history |
+| `web/api/dual_agent.py` (POST /api/dual_agent) | 100% | v0.85.0-b 改造. request_calibration event, Runtime subscriber 委托 DualAgentOrchestrator.process_observation. 持久化走 _write_calibration_log |
+| `web/api/lca.py` (LCA 路径) | 100% | v0.85.0-c 改造. request_intervention event, Runtime subscriber 委托 Runtime.plan. 持久化走 _save_lca_state |
+| `web/api/event/hint` (POST frontend stub) | 100% | v0.91.0-b 改造. hint_requested event, Plugin Runtime subscriber 委托 LCAEngine.append_human_feedback (allowlisted mutation) |
+| `web/api/event/idle` (POST frontend stub) | 100% | v0.91.0-b 改造. idle_detected event, 同样路径 |
+| `web/api/event/goal_change` (POST frontend stub) | 100% | v0.91.0-b 改造. goal_changed event, 同样路径 |
+| `web/api/event/reflection` (POST frontend stub) | 100% | v0.91.0-b 改造. reflection_completed event, 同样路径 |
+| **Plugin 只产生 Event 原则** | 100% | v0.91.0-e 文档化 (docs/plugin_sdk.md) + 5 use case sample (examples/plugin_sample_human_feedback.py). PluginRuntime 7 subscribers 全接通 Human Twin |
+| **缺失：Plugin 文档化** | 100% | v0.91.0-e NEW `docs/plugin_sdk.md` (8 section) + `examples/plugin_sample_human_feedback.py` (5 use case) |
 
-**演进建议**：
-- **v0.78.0+**：所有 `web/api/` 端点改为产生 Event,通过 Event Bus 推到 Runtime
-- **Phase 7+**：开放 Plugin SDK
+**演进路径** (回顾):
+- **v0.84.0-a/b/c/d**: Plugin SDK 雏形 (1 subscriber + EventBus + retention) — 10%
+- **v0.85.0-a/b/c/d**: Plugin SDK 100% + Production Activation (3 subscribers + Flask startup) — 80%
+- **v0.91.0-b/e**: Plugin SDK 100% production (4 frontend stub subscriber + docs + sample) — 100%
 
 ---
 
@@ -559,6 +570,45 @@ v0.84.0-d 在 LCA 4-layer 之外, 引入 Plugin Runtime 雏形 (kernel-mapping �
 > - MODIFY POMDPPolicy._resolve_t_r: min_samples 冷启动保护 (evidence < 5 用 init, ≥ 5 切 learned)
 > - FIX RewardPosterior.total_evidence: 公式从 `1 * alpha0` 修正为 `2 * alpha0` per cell (Beta α+β 各 1 prior, 5 evidence 期望)
 > - 防御性自检 [8] 仍 hard block (LCAEngine._last_observation 是 instance dict). H3-c4 + v0.81 replay canary 全 PASS.
+
+> **[v0.91.0-a 更新 2026-08-12]**: Phase 7+ 抽象推演 #4 sub-version a 完成. CognitiveTwinAgent 数据结构 + HumanFeedbackEntry. 12 新增 tests (pytest 1143 → 1155, +1.0%). 详情见 §1.4.
+> - NEW `ecos/cta/cognitive_twin.py`: HumanFeedbackEntry (frozen dataclass, 4 event_type: hint_requested/idle_detected/goal_changed/reflection_completed) + HumanFeedbackTrajectory (cap 500 pattern 跟 TrajectoryState 同) + CognitiveTwinAgent 3-tuple (belief_state/trajectory/human_feedback) + action_history 占位留 v0.92+
+> - scripts/check_no_direct_state_mutation.py FUNC_ALLOWLIST += CognitiveTwinAgent.append_human_feedback (跟 append_trajectory_snapshot 同模式)
+> - Plugin SDK 4 frontend stub endpoint Human-in-loop 信号源数据结构闭环
+> - 防御性自检 [8] 仍 hard block (append_human_feedback 收口到 allowlist)
+
+> **[v0.91.0-b 更新 2026-08-12]**: Phase 7+ 抽象推演 #4 sub-version b 完成. Runtime + Plugin SDK 4 subscriber. 15 新增 tests (pytest 1155 → 1170, +1.3%). 详情见 §1.4 + §6.
+> - MODIFY LCAEngine._cognitive_twin dict (per-student pattern 跟 _last_intervention / _last_observation / _cognitive_twin_pending 一致) + select_intervention cognitive_twin kwarg + append_human_feedback mutation 走 allowlist
+> - NEW Runtime.plan_human_feedback_aware (6 plan API upper limit)
+> - MODIFY PluginRuntime.start() 加 4 subscriber (hint/idle/goal/reflection) → subscription_count 3 → 7
+> - MODIFY POMDPPolicy.SCHEMA_VERSION "0.90.0" → "0.91.0" (老 snapshot raise)
+> - Plugin SDK 4 endpoint 全接通 Human Twin, 不再是半成品
+> - 防御性自检 [8] 仍 hard block (LCAEngine._cognitive_twin dict mutation 收口到 append_human_feedback)
+
+> **[v0.91.0-c 更新 2026-08-12]**: Phase 7+ 抽象推演 #4 sub-version c 完成. LCA 4 layer 接入 Human feedback. 21 新增 tests (pytest 1170 → 1191, +1.8%). 详情见 §1.4 + §4.1 + §4.2.
+> - MODIFY ExperimentDesigner.cognitive_twin kwarg + _human_feedback_itype_override (hint>5→EXPLANATORY / idle>3→INQUIRY / reflection>3→PRACTICE / goal>1→PRACTICE, 优先级 hint>idle>reflection>goal)
+> - MODIFY Evaluator.human_feedback_reward_adjustment (hint>5→0.8 / idle>3→0.9 / reflection>3→1.2 / goal>1→1.1, default→1.0)
+> - MODIFY LCAEngine.select_intervention kwargs 透传 cognitive_twin → designer + evaluator
+> - H3-c4 canary 维持 (cognitive_twin=None 行为 == v0.90 baseline). 多 multiplicative factor chain: base × motivation × domain × human_feedback
+
+> **[v0.91.0-d 更新 2026-08-12]**: Phase 7+ 抽象推演 #4 sub-version d 完成. 冷启动 + 持久化 + canary. 8 新增 tests (pytest 1191 → 1199, +0.7%). 详情见 §1.4 + §5.
+> - MODIFY CognitiveTwinAgent.dump_state + load_state (schema_version="0.91.0" 校验, 老 raise per 防御性自检 [5])
+> - MODIFY LCAEngine.dump_state + load_state 加 cognitive_twin 字段 + bind_cognitive_twin helper (load_state 暂存 _cognitive_twin_pending, bind 时 materialize)
+> - MODIFY persistence/db.py 加 cognitive_twin TEXT 列 (含 ALTER TABLE 增量迁移) + save_student_state cognitive_twin_json kwarg
+> - v0.81 replay canary 维持 (cognitive_twin 不通过 StateEngine.replay 重建, 走 LCA 路径)
+
+> **[v0.91.0-e 更新 2026-08-12]**: Phase 7+ 抽象推演 #4 sub-version e 完成. Plugin SDK 文档化 (doctest only). 4 新增 tests (pytest 1199 → 1203, +0.3%). 详情见 §6 + docs/plugin_sdk.md.
+> - NEW `docs/plugin_sdk.md` (8 section: Plugin 原则 / 7 Subscriber 契约 / LCAEngine.append_human_feedback / 防御性自检 / Runtime 6 plan API / 5 sub-commit 演进日志 / 相关文档 / 调用样例)
+> - NEW `examples/plugin_sample_human_feedback.py` (5 use case: teacher_reflection / parent_goal / hint_fatigue / idle_reminder / deep_reflection + register_all_use_cases entry + _self_test_imports smoke)
+> - NEW `tests/test_plugin_sdk_docs.py` (4 doctest: 8 section / link 存在 / use case 暴露 / smoke PASS)
+> - 防御性自检 [2] test_version_consistency regex 扩展允许 -e sub-version 后缀 (Phase 7+ 抽象推演第 5 sub-commit)
+
+> **[v0.91.0 final 完成 2026-08-12]**: Phase 7+ 抽象推演 #4 (Twin → Human Twin 抽象 + Plugin SDK 文档化) 5 sub-commit 全部完成. README.md / CLAUDE.md / 12-kernel-mapping §8.2 / memory (`project-v091-completion-state.md`) 全部同步. 缺失清单 0 项剩.
+> - pytest 1143 → 1203 (+60, +5.2%). 累计 Kernel 深化 9 版本 (v0.83 → v0.91), pytest 736 → 1203 (+467, +63.5%)
+> - Plugin SDK 100% production (7 subscribers 全接通 Human Twin)
+> - Runtime 6 plan API upper limit (plan_human_feedback_aware 是 v0.91 第 6 个)
+> - LCA select_intervention kwargs 三路并行 (motivation / domain / cognitive_twin)
+> - 下一阶段 v0.92+: Phase 7+ 抽象推演 #5+ (HumanTwinSnapshot ActionHistory 占位兑现 + 第一方 plugin 库 + POMDP T/R 后验可视化 + Teacher/Parent Dashboard 应用层)
 
 > **[v0.87.0 完成 2026-08-11]**: 缺失清单 3→1 (Motivation Profile / POMDP Policy 全部落地). Phase 6+ Kernel 扩展第 2 个版本 4 sub-commit 全部完成 (a=Motivation schema/b=Motivation Runtime+c=POMDP 雏形/d=POMDP 集成 3-way A/B). pytest 898 → 958 (+60, +6.7%).
 
