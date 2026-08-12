@@ -1,12 +1,18 @@
-"""v0.91.0-d: 冷启动 + 持久化 + canary 测试.
+"""v0.91.0-d (3-tuple) → v0.92.0-a (4-tuple) 升级: 冷启动 + 持久化 + canary 测试.
 
-对应设计: discussions/2026-08-12-v091-design.md §3.
+对应设计: discussions/2026-08-12-v091-design.md §3 + v0.92 design §v0.92.0-d.
 
 测试范围 (8 tests):
   1. dump_state + load_state round-trip + schema_version 校验 (3 tests)
   2. LCAEngine dump_state + load_state 含 cognitive_twin 字段 (2 tests)
   3. 老 v0.90 LCAEngine snapshot raise (per 防御性自检 [5]) (2 tests)
   4. v0.81 replay canary (cognitive_twin 走 LCA 路径, StateEngine.replay 不重建) (1 test)
+
+v0.92.0-a 升级:
+  - CognitiveTwinAgent 3-tuple → 4-tuple (加 action_history: ActionHistory)
+  - dump_state["action_history"] 从 None → ActionHistory.to_dict() (含 entries + maxlen)
+  - load_state 解析 action_history (老 schema raise per 防御性自检 [5])
+  - SCHEMA_VERSION "0.91.0" → "0.92.0"
 """
 from __future__ import annotations
 
@@ -102,10 +108,13 @@ class TestCognitiveTwinDumpLoad:
         state = engine.create_initial_state("stu-sv")
         twin = CognitiveTwinAgent.from_state(state)
         dump = twin.dump_state()
-        assert dump["schema_version"] == "0.91.0"
+        assert dump["schema_version"] == "0.92.0"
         assert dump["belief_state_ref"] == "stu-sv"
-        assert dump["human_feedback"]["schema_version"] == "0.91.0"
-        assert dump["action_history"] is None  # v0.92+ 占位
+        assert dump["human_feedback"]["schema_version"] == "0.92.0"
+        # v0.92.0-a: action_history 从 None → ActionHistory.to_dict() (entries + maxlen)
+        assert dump["action_history"]["schema_version"] == "0.92.0"
+        assert dump["action_history"]["maxlen"] == 500
+        assert len(dump["action_history"]["entries"]) == 0  # 初始空
 
 
 # ── 2. LCAEngine dump_state + load_state 含 cognitive_twin 字段 (2 tests) ─
@@ -145,7 +154,7 @@ class TestLCAEngineDumpLoadCognitiveTwin:
         snapshot = lca.dump_state("stu-lca-dump")
         assert "cognitive_twin" in snapshot
         assert snapshot["cognitive_twin"] is not None
-        assert snapshot["cognitive_twin"]["schema_version"] == "0.91.0"
+        assert snapshot["cognitive_twin"]["schema_version"] == "0.92.0"
         assert snapshot["cognitive_twin"]["belief_state_ref"] == "stu-lca-dump"
 
     def test_load_state_restores_cognitive_twin_via_bind(self):

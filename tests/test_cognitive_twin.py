@@ -1,11 +1,11 @@
-"""v0.91.0-a: Twin → Human Twin 抽象 — CognitiveTwinAgent 数据结构测试.
+"""v0.91.0-a (3-tuple) → v0.92.0-a (4-tuple): Twin → Human Twin 抽象 — CognitiveTwinAgent 数据结构测试.
 
 对应设计: discussions/2026-08-12-v091-design.md §2.
 
 测试范围:
   1. HumanFeedbackEntry 创建 / frozen / to_dict / from_dict round-trip (3 tests)
   2. HumanFeedbackTrajectory append + cap 500 + last_n + count_by_type (3 tests)
-  3. CognitiveTwinAgent.from_state + 3-tuple access + action_history 占位 (3 tests)
+  3. CognitiveTwinAgent.from_state + 4-tuple access + action_history ActionHistory (3 tests)
   4. 防御性 (schema_version 校验 + 越界 raise + frozen raise on assignment) (3 tests)
 """
 
@@ -20,6 +20,7 @@ from ecos.cta.belief_state import BeliefState
 from ecos.cta.cognitive_twin import (
     HUMAN_FEEDBACK_EVENT_TYPES,
     SCHEMA_VERSION,
+    ActionHistory,
     CognitiveTwinAgent,
     HumanFeedbackEntry,
     HumanFeedbackTrajectory,
@@ -47,7 +48,7 @@ def test_human_feedback_entry_create_basic():
     assert entry.event_type == "hint_requested"
     assert entry.payload == {"problem_id": "PB-Q18", "hint_level": 1}
     assert entry.source == "plugin"  # default
-    assert entry.schema_version == "0.91.0"  # default
+    assert entry.schema_version == "0.92.0"  # default (CognitiveTwinAgent SCHEMA_VERSION 升级 v0.92.0-a)
 
 
 def test_human_feedback_entry_frozen_immutable():
@@ -80,7 +81,7 @@ def test_human_feedback_entry_round_trip():
     assert restored.event_type == original.event_type
     assert restored.payload == original.payload
     assert restored.source == original.source
-    assert restored.schema_version == "0.91.0"
+    assert restored.schema_version == "0.92.0"
 
 
 # ---------------------------------------------------------------------------
@@ -159,24 +160,25 @@ def test_human_feedback_trajectory_count_by_type():
 
 
 # ---------------------------------------------------------------------------
-# 3. CognitiveTwinAgent.from_state + 3-tuple access + action_history 占位 (3 tests)
+# 3. CognitiveTwinAgent.from_state + 4-tuple access + action_history ActionHistory (3 tests)
 # ---------------------------------------------------------------------------
 
 
 def test_cognitive_twin_agent_from_state_basic():
-    """from_state 静态方法: 从 BeliefState 派生 3-tuple (单一入口)."""
+    """from_state 静态方法: 从 BeliefState 派生 4-tuple (单一入口, v0.92.0-a 升级)."""
     state = BeliefState(student_id="lbc001")
     agent = CognitiveTwinAgent.from_state(state)
     assert agent.belief_state is state  # 同引用, 不复制
     assert agent.trajectory is state.trajectory  # 同一 TrajectoryState
     assert isinstance(agent.human_feedback, HumanFeedbackTrajectory)
     assert len(agent.human_feedback.entries) == 0  # 初始空
-    assert agent.action_history is None  # v0.92+ 占位
-    assert agent.schema_version == "0.91.0"
+    assert isinstance(agent.action_history, ActionHistory)  # v0.92.0-a: 升级为 ActionHistory 实例
+    assert len(agent.action_history.entries) == 0  # 初始空
+    assert agent.schema_version == "0.92.0"
 
 
-def test_cognitive_twin_agent_3tuple_access():
-    """3-tuple 字段访问: belief_state / trajectory / human_feedback."""
+def test_cognitive_twin_agent_4tuple_access():
+    """4-tuple 字段访问: belief_state / trajectory / human_feedback / action_history."""
     state = BeliefState(student_id="lbc001")
     agent = CognitiveTwinAgent.from_state(state)
     # belief_state 访问
@@ -185,6 +187,8 @@ def test_cognitive_twin_agent_3tuple_access():
     assert isinstance(agent.trajectory.snapshots, list)
     # human_feedback 訪問 (entries list 初始空)
     assert len(agent.human_feedback.entries) == 0
+    # action_history 訪問 (entries list 初始空)
+    assert len(agent.action_history.entries) == 0
     # append_human_feedback 走 allowlisted mutation (FUNC_ALLOWLIST += "append_human_feedback")
     entry = HumanFeedbackEntry(
         student_id="lbc001", timestamp=datetime.now(),
@@ -195,15 +199,31 @@ def test_cognitive_twin_agent_3tuple_access():
     assert agent.human_feedback.entries[0] == entry
 
 
-def test_cognitive_twin_agent_action_history_placeholder():
-    """action_history 留 v0.92+ 占位: 初始 None, to_dict (未来 d 阶段) 兜底 None."""
+def test_cognitive_twin_agent_append_action_history():
+    """v0.92.0-a: append_action_history 走 allowlisted mutation (FUNC_ALLOWLIST += "append_action_history").
+
+    跟 append_human_feedback 完全同模式, 但 entry 是 ActionEntry (5 action_type).
+    """
+    from ecos.cta.cognitive_twin import ActionEntry
     state = BeliefState(student_id="lbc001")
     agent = CognitiveTwinAgent.from_state(state)
-    assert agent.action_history is None
-    # 显式设置 None 仍 OK (None 是占位的默认值)
-    agent2 = CognitiveTwinAgent.from_state(state)
-    agent2.action_history = None  # 显式 reset
-    assert agent2.action_history is None
+    # 初始 ActionHistory 空
+    assert len(agent.action_history.entries) == 0
+    # append_action_history 走 allowlisted mutation
+    action_entry = ActionEntry(
+        student_id="lbc001",
+        timestamp=datetime.now(),
+        action_type="intervention_selected",
+        intervention_id="iv_abc123",
+        reward=0.75,
+        metadata={"expected_gain": 0.3, "policy_type": "linucb"},
+    )
+    agent.append_action_history(action_entry)
+    assert len(agent.action_history.entries) == 1
+    assert agent.action_history.entries[0] == action_entry
+    # count_by_type 验证
+    assert agent.action_history.count_by_type("intervention_selected") == 1
+    assert agent.action_history.count_by_type("reward_recorded") == 0
 
 
 # ---------------------------------------------------------------------------
@@ -230,11 +250,11 @@ def test_human_feedback_trajectory_invalid_count_by_type_raises():
 
 
 def test_cognitive_twin_agent_invalid_schema_version_raises():
-    """CognitiveTwinAgent.schema_version != "0.91.0" → raise ValueError (per 防御性自检 [5])."""
+    """CognitiveTwinAgent.schema_version != "0.92.0" → raise ValueError (per 防御性自检 [5])."""
     state = BeliefState(student_id="lbc001")
     with pytest.raises(ValueError, match="schema_version 必须是"):
         CognitiveTwinAgent(
             belief_state=state,
             trajectory=state.trajectory,
-            schema_version="0.90.0",  # 老 snapshot, 应 raise
+            schema_version="0.91.0",  # 老 v0.91.0 snapshot, 应 raise
         )
