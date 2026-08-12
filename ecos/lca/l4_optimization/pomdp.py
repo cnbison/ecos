@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional
 
 import numpy as np
@@ -528,6 +529,222 @@ class POMDPPolicy:
             "total_observations": self.total_observations,
             "expected_reward": expected_reward,
         }
+
+    # v0.93.0-a: POMDP diagnostic surface (Phase 7+ 抽象推演 #6)
+    def get_diagnostic(self) -> "POMDPDiagnostic":
+        """派生 POMDP 全诊断 surface (v0.93.0-a).
+
+        一次性暴露 POMDP 全部可观测字段:
+          - T: TransitionPosteriorSnapshot (Dirichlet 后验 mean + count + alpha0)
+          - R: RewardPosteriorSnapshot (Beta 后验 mean + alpha + beta + variance)
+          - belief: 4 状态 posterior (跟 self.belief_state 一致)
+          - coverage: per (s, a) 样本数 (transition_posterior.total_evidence() 派生)
+          - most_likely_state: argmax(self.belief_state)
+          - last_updated: datetime.now() (调用时算)
+
+        Returns:
+            POMDPDiagnostic: frozen dataclass 含上述字段, to_dict() JSON 可序列化.
+
+        防御性自检 [1]:
+          - _transition_posterior / _reward_posterior 未注入 → lazy init (uniform prior)
+          - 派生异常 → _log.warning + 返 uniform prior diagnostic (silent pass 防御)
+        """
+        from ecos.lca.l4_optimization.pomdp_diagnostic import (
+            POMDPDiagnostic,
+            RewardPosteriorSnapshot,
+            TransitionPosteriorSnapshot,
+            _compute_beta_variance,
+        )
+
+        # Lazy init posterior (跟 _update_t_r 同 pattern)
+        from ecos.lca.l4_optimization.pomdp_learner import (
+            RewardPosterior as _RewardPosterior,
+            TransitionPosterior as _TransitionPosterior,
+        )
+        if self._transition_posterior is None:
+            count = np.zeros((self.n_states, self.n_states, self.n_arms), dtype=int)
+            self._transition_posterior = _TransitionPosterior(count=count)
+        if self._reward_posterior is None:
+            alpha = np.ones((self.n_states, self.n_arms), dtype=float)
+            beta = np.ones((self.n_states, self.n_arms), dtype=float)
+            self._reward_posterior = _RewardPosterior(alpha=alpha, beta=beta)
+
+        try:
+            # T snapshot
+            tp_mean = self._transition_posterior.mean()
+            tp_count = self._transition_posterior.count.copy()
+            tp_alpha0 = self._transition_posterior.alpha0
+            T_snapshot = TransitionPosteriorSnapshot(
+                mean=tp_mean,
+                count=tp_count,
+                alpha0=tp_alpha0,
+            )
+
+            # R snapshot
+            rp_mean = self._reward_posterior.mean()
+            rp_alpha = self._reward_posterior.alpha.copy()
+            rp_beta = self._reward_posterior.beta.copy()
+            rp_alpha0 = self._reward_posterior.alpha0
+            rp_variance = _compute_beta_variance(rp_alpha, rp_beta)
+            R_snapshot = RewardPosteriorSnapshot(
+                mean=rp_mean,
+                alpha=rp_alpha,
+                beta=rp_beta,
+                alpha0=rp_alpha0,
+                variance=rp_variance,
+            )
+
+            # belief (copy 防止外部 mutation)
+            belief = self.belief_state.copy()
+
+            # coverage: per (s, a) 样本数派生
+            # transition_posterior count shape (n_states, n_states, n_arms) — dim1 = s
+            # coverage[s, a] = Σ_s_next count[s_next, s, a]
+            coverage = self._transition_posterior.count.sum(axis=0).astype(int)
+
+            # most_likely_state
+            most_likely_state = int(np.argmax(belief))
+
+            return POMDPDiagnostic(
+                T=T_snapshot,
+                R=R_snapshot,
+                belief=belief,
+                coverage=coverage,
+                most_likely_state=most_likely_state,
+                last_updated=datetime.now(),
+            )
+        except Exception as e:
+            # 防御性 [1] silent pass 防御: 派生失败 → _log.warning + 返 uniform diagnostic
+            _log.warning(
+                "POMDPPolicy.get_diagnostic: 派生失败 (%s), 返 uniform diagnostic",
+                e,
+            )
+            uniform_T = np.full(
+                (self.n_states, self.n_states, self.n_arms),
+                1.0 / self.n_states,
+            )
+            uniform_R = np.full((self.n_states, self.n_arms), 0.5)
+            uniform_belief = np.ones(self.n_states) / self.n_states
+            zero_count_3d = np.zeros(
+                (self.n_states, self.n_states, self.n_arms), dtype=int
+            )
+            zero_coverage = np.zeros((self.n_states, self.n_arms), dtype=int)
+            return POMDPDiagnostic(
+                T=TransitionPosteriorSnapshot(
+                    mean=uniform_T, count=zero_count_3d, alpha0=1.0
+                ),
+                R=RewardPosteriorSnapshot(
+                    mean=uniform_R,
+                    alpha=uniform_R.copy(),
+                    beta=uniform_R.copy(),
+                    alpha0=1.0,
+                    variance=np.zeros_like(uniform_R),
+                ),
+                belief=uniform_belief,
+                coverage=zero_coverage,
+                most_likely_state=0,
+                last_updated=datetime.now(),
+            )
+
+    def get_transition_heatmap(self, action: int) -> np.ndarray:
+        """返 T[action] 2D ndarray (v0.93.0-a, 给 v0.95+ dashboard 热图渲染用).
+
+        Args:
+            action: arm 索引 [0, n_arms)
+
+        Returns:
+            np.ndarray shape (n_states, n_states): T[s_next, s, action] 矩阵
+            (行 = s_next, 列 = s, 跟 transition_posterior.mean() dim 一致)
+
+        防御性自检 [1]:
+          - action 越界 → _log.warning + 返 zeros(n_states, n_states)
+        """
+        from ecos.lca.l4_optimization.pomdp_diagnostic import (
+            TransitionPosteriorSnapshot,
+        )
+
+        if not (0 <= action < self.n_arms):
+            _log.warning(
+                "POMDPPolicy.get_transition_heatmap: action=%s 越界 [0, %s), 返 zeros",
+                action, self.n_arms,
+            )
+            return np.zeros((self.n_states, self.n_states), dtype=float)
+
+        # Lazy init posterior
+        from ecos.lca.l4_optimization.pomdp_learner import (
+            TransitionPosterior as _TransitionPosterior,
+        )
+        if self._transition_posterior is None:
+            count = np.zeros((self.n_states, self.n_states, self.n_arms), dtype=int)
+            self._transition_posterior = _TransitionPosterior(count=count)
+
+        try:
+            T_mean = self._transition_posterior.mean()
+            return T_mean[:, :, action].copy()
+        except Exception as e:
+            _log.warning(
+                "POMDPPolicy.get_transition_heatmap: 派生失败 (%s), 返 zeros",
+                e,
+            )
+            return np.zeros((self.n_states, self.n_states), dtype=float)
+
+    def get_reward_curves(self, action: int) -> Dict[str, np.ndarray]:
+        """返 R 后验 per-state 统计 (v0.93.0-a, 给 v0.95+ dashboard 曲线渲染用).
+
+        Args:
+            action: arm 索引 [0, n_arms)
+
+        Returns:
+            Dict 含:
+              - alpha (np.ndarray shape (n_states,))   Beta α per state
+              - beta  (np.ndarray shape (n_states,))   Beta β per state
+              - mean  (np.ndarray shape (n_states,))   α / (α + β)
+              - variance (np.ndarray shape (n_states,)) αβ / ((α+β)² (α+β+1))
+
+        防御性自检 [1]:
+          - action 越界 → _log.warning + 返 zeros dict
+        """
+        from ecos.lca.l4_optimization.pomdp_diagnostic import (
+            _compute_beta_variance,
+        )
+
+        if not (0 <= action < self.n_arms):
+            _log.warning(
+                "POMDPPolicy.get_reward_curves: action=%s 越界 [0, %s), 返 zeros",
+                action, self.n_arms,
+            )
+            zeros = np.zeros(self.n_states, dtype=float)
+            return {"alpha": zeros.copy(), "beta": zeros.copy(),
+                    "mean": zeros.copy(), "variance": zeros.copy()}
+
+        # Lazy init posterior
+        from ecos.lca.l4_optimization.pomdp_learner import (
+            RewardPosterior as _RewardPosterior,
+        )
+        if self._reward_posterior is None:
+            alpha = np.ones((self.n_states, self.n_arms), dtype=float)
+            beta = np.ones((self.n_states, self.n_arms), dtype=float)
+            self._reward_posterior = _RewardPosterior(alpha=alpha, beta=beta)
+
+        try:
+            alpha_s = self._reward_posterior.alpha[:, action].copy()
+            beta_s = self._reward_posterior.beta[:, action].copy()
+            mean_s = self._reward_posterior.mean()[:, action].copy()
+            variance_s = _compute_beta_variance(alpha_s, beta_s)
+            return {
+                "alpha": alpha_s,
+                "beta": beta_s,
+                "mean": mean_s,
+                "variance": variance_s,
+            }
+        except Exception as e:
+            _log.warning(
+                "POMDPPolicy.get_reward_curves: 派生失败 (%s), 返 zeros",
+                e,
+            )
+            zeros = np.zeros(self.n_states, dtype=float)
+            return {"alpha": zeros.copy(), "beta": zeros.copy(),
+                    "mean": zeros.copy(), "variance": zeros.copy()}
 
     # v0.90.0-b: posterior 注入接口 (lazy, 跟 ThompsonSampling seed 同模式)
     def set_transition_posterior(self, posterior) -> None:
