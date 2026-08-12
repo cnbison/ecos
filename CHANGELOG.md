@@ -114,6 +114,57 @@
 - PBVI 失败 fallback QMDP (跟 v0.89.0-c 同模式)
 
 
+## [0.90.0-c] 2026-08-12
+
+### feat: Phase 7+ 抽象推演 #2 (sub c) — POMDP T/R 后验集成 PBVI
+
+> **背景**: v0.90.0-b 完成 posterior 持久化 + 注入路径. c 阶段: 把 posterior mean 接入 PBVI 求解, 让 T/R 从"固定 init"升级到"贝叶斯 posterior 在线学习".
+> **v0.90.0-c 目标**: PBVI 用 posterior mean (use_learned_t_r=True 默认) + update 扩展 obs 参数 + lazy init posterior. POMDP Policy §1.3: 30% → 70% (算法闭环). pytest 1121 → 1133 (+12, +1.1%).
+
+#### MODIFIED: POMDPPolicy — T/R 后验集成 PBVI (v0.90.0-c)
+
+- `ecos/lca/l4_optimization/pomdp.py`:
+  - **`__init__`**: 新增 `use_learned_t_r: bool = True` 参数 (默认开, opt-out 留 v0.91+ kwargs)
+  - **`update(arm, context, reward, observation=None)`**: 扩展 observation 可选参数
+    - observation=None (老调用兼容): 仅递增 arm_pull_counts (跟 v0.89.0-d 同)
+    - observation 非 None: 触发 `_update_t_r(arm, observation, reward)` 学习 T/R posterior
+  - **`_update_t_r(arm, observation, reward)`**: 内部方法, lazy init posterior
+    - 首次调用: 构造 TransitionPosterior (count=zeros) + RewardPosterior (alpha=beta=ones)
+    - 用 belief_state argmax 估计 s_current, obs → s_next (走 observation_model argmax)
+    - `posterior.update(s_current, arm, s_next)` + `posterior.update(s_current, arm, reward)`
+    - 越界 _log.warning + skip (跟 bayes_update 风格一致, 不 raise)
+  - **`_estimate_s_next_from_obs`**: 简化从 observation 估计 s_next (用 O[obs, :] argmax)
+  - **`_resolve_t_r()`**: 内部方法, 优先用 posterior mean (use_learned_t_r=True + posterior ready); 否则返 init T/R
+  - **`select_arm`**: 重构走 `_resolve_t_r()` 共享路径 (PBVI + QMDP fallback 都用)
+  - **`solve_pbvi`**: 同样走 `_resolve_t_r()` 共享路径
+  - **不直接 mutation self.transition / self.reward** (防御性自检 [8] hard block, posterior mean 走 PBVI 输入参数)
+
+#### NEW: tests/test_pomdp_learned_t_r.py (12 tests)
+
+- 2 tests: update(obs=None) 老调用兼容 (posterior 不创建 + arm_pull_counts 仍递增)
+- 2 tests: update(obs=X) 新调用触发 _update_t_r (lazy init + 增量)
+- 3 tests: _update_t_r (多次 update 单调 + 越界 skip + 不破坏 posterior)
+- 3 tests: use_learned_t_r 切换 (默认 True / False → init / True + posterior → learned)
+- 2 tests: PBVI 用 posterior mean (PBVI 失败 fallback QMDP + 学完 best_action 改变)
+
+#### 不变量
+
+- 接口同构 LinUCB/Thompson/POMDP 维持 (`update(arm, ctx, reward)` 老调用兼容)
+- `select_arm / bayes_update / dump_state / load_state` 名称不变
+- `solve_pbvi()` 幂等 (v0.89.0-d 维持, α 缓存命中跳过)
+- 防御性自检 [5] schema_version 校验 (b 阶段升级, c 阶段维持 "0.90.0")
+- 防御性自检 [8] 0 新 mutation site (PBVI 用 posterior mean 走 transient T/R, 不 mutation self.transition)
+- H3-c4 canary + v0.81 replay canary 全 PASS
+
+#### 下一阶段 v0.90.0-d: Runtime + PolicyABTest + 冷启动
+
+- LCAEngine.update POMDP 路径透传 observation 到 LCAPolicyLearner.update(obs)
+- LCAPolicyLearner 透传 obs 到 POMDPPolicy.update
+- PolicyLearnerConfig.pomdp_use_learned_t_r 字段
+- PolicyABTest._create_fresh_bandit POMDP 工厂 `use_learned_t_r=True`
+- min_samples=5 冷启动保护 (d 阶段最终化)
+
+
 ## [0.88.0-b] 2026-08-11
 
 ### feat: Phase 7+ 抽象推演 #1 (sub b) — Multi-Domain 集成 Runtime + LCA

@@ -121,6 +121,7 @@ class POMDPPolicy:
         pbvi_n_iters: int = 50,
         pbvi_n_belief_points: int = 16,
         pbvi_seed: Optional[int] = None,
+        use_learned_t_r: bool = True,
     ):
         if n_states <= 0:
             raise ValueError(f"POMDPPolicy: n_states={n_states} 必须 > 0")
@@ -163,6 +164,13 @@ class POMDPPolicy:
         self.pbvi_seed = pbvi_seed
         # solver 懒加载 (首次 select_arm / solve_pbvi 才创建)
         self.solver: Optional["PBVI"] = None
+
+        # v0.90.0-c: T/R 在线学习开关 (PBVI 消费 posterior mean)
+        # use_learned_t_r=True: posterior 注入/创建后, PBVI 用 posterior.mean() 替换 self.transition / self.reward
+        #                       posterior 未注入 → 走 init 路径 (跟 v0.89.0-d 行为一致)
+        # use_learned_t_r=False: 始终走 init T/R (opt-out 留 v0.91+ kwargs)
+        # 冷启动保护 (min_samples) 留 d 阶段
+        self.use_learned_t_r = bool(use_learned_t_r)
 
         # v0.90.0-b: T/R posterior 懒注入 (c 阶段首次 _update_t_r 时 lazy init)
         # 持久化路径走 set_*_posterior; load_state 从 transition_count / reward_alpha / reward_beta 重建
@@ -213,15 +221,15 @@ class POMDPPolicy:
         return R
 
     def select_arm(self, context: Optional[np.ndarray] = None) -> int:
-        """argmax_a: PBVI 路径 (v0.89.0-c) 或 QMDP fallback (v0.88.0-c).
+        """argmax_a: PBVI 路径 (v0.89.0-c) 或 QMDP fallback (v0.88.0-c, T/R 后验消费: v0.90.0-c).
 
         PBVI 路径 (use_pbvi=True, 默认):
           - 懒加载 PBVI solver (reachable_belief_points 从 belief_state 出发)
-          - solver.solve() 直到收敛 (首次 select_arm 时)
+          - solver.solve() 直到收敛 (首次 select_arm 时), T/R 走 _resolve_t_r()
           - argmax_a α_a(belief_state) = argmax_a Σ_s α_a(s) * b(s)
 
-        QMDP fallback (use_pbvi=False):
-          - argmax_a Σ_s b(s) * R(s, a) (v0.88.0-c 行为, 跟 v0.87.0-c 同)
+        QMDP fallback (use_pbvi=False 或 PBVI 失败):
+          - argmax_a Σ_s b(s) * R(s, a), R 走 _resolve_t_r()
 
         Args:
             context: 上下文向量 (LinUCB 接口同构, POMDP 不依赖 context, 忽略)
@@ -237,12 +245,15 @@ class POMDPPolicy:
             _log.warning("POMDPPolicy.select_arm: n_arms=%s, 返 0 (degenerate)", self.n_arms)
             return 0
 
+        # v0.90.0-c: T/R 走 _resolve_t_r (use_learned_t_r + posterior ready → posterior mean)
+        T, R = self._resolve_t_r()
+
         if self.use_pbvi:
             try:
                 solver = self._init_pbvi_solver()
                 if not solver.alpha_vectors:
                     # 首次: 触发 solve (PBVI iterative backup 直到收敛)
-                    solver.solve(self.transition, self.observation_model, self.reward)
+                    solver.solve(T, self.observation_model, R)
                 return solver.best_action(self.belief_state)
             except Exception as e:
                 # 防御性: PBVI 失败 → fallback QMDP (避免 NaN / 崩溃)
@@ -251,8 +262,8 @@ class POMDPPolicy:
                     e,
                 )
 
-        # QMDP fallback (v0.88.0-c 行为)
-        expected_reward = self.belief_state @ self.reward
+        # QMDP fallback (v0.88.0-c 行为, R 走 _resolve_t_r)
+        expected_reward = self.belief_state @ R
         return int(np.argmax(expected_reward))
 
     def _init_pbvi_solver(self) -> "PBVI":
@@ -291,7 +302,7 @@ class POMDPPolicy:
         return self.solver
 
     def solve_pbvi(self) -> int:
-        """显式触发 PBVI solve (v0.89.0-c, 幂等: v0.89.0-d).
+        """显式触发 PBVI solve (v0.89.0-c, 幂等: v0.89.0-d, T/R 后验消费: v0.90.0-c).
 
         懒加载 solver + 触发 iterative backup 直到收敛. 返实际迭代次数.
         Production 由 Runtime plan / LCAEngine.select_intervention 显式触发 (v0.89.0-d).
@@ -300,28 +311,42 @@ class POMDPPolicy:
         非空 (上次解的 α 缓存) → 直接返 0, 跳过重复 backup. 仍要重新 solve
         时, 调用方应 reset (重新 _init_pbvi_solver / 显式清空 solver.alpha_vectors).
 
+        T/R 消费 (v0.90.0-c): 优先用 _resolve_t_r() 替换 init T/R (use_learned_t_r=True
+        且 posterior ready 时); 否则用 init. 不直接 mutation self.transition (防御性自检 [8]).
+
         Returns:
             int: 实际迭代次数 (1..pbvi_n_iters); 0 = 已是上次解, 跳过
         """
         solver = self._init_pbvi_solver()
         if solver.alpha_vectors:
             return 0
-        return solver.solve(self.transition, self.observation_model, self.reward)
+        T, R = self._resolve_t_r()
+        return solver.solve(T, self.observation_model, R)
 
-    def update(self, arm: int, context: Optional[np.ndarray] = None, reward: float = 0.0) -> None:
-        """Update arm_pull_counts (简化, 不学 transition / observation model).
+    def update(
+        self,
+        arm: int,
+        context: Optional[np.ndarray] = None,
+        reward: float = 0.0,
+        observation: Optional[int] = None,
+    ) -> None:
+        """Update arm_pull_counts (v0.87.0-c 接口同构 LinUCB/Thompson, v0.90.0-c 扩展 obs).
 
-        跟 v0.87.0-c 接口同构 (LinUCB/Thompson 一致), 不接受 action feedback.
-        POMDP 完整 update 需要 observation feedback (bayes_update 处理), 跟 update 分开.
+        v0.90.0-c 升级:
+          - 新增可选 `observation` 参数 (默认 None, 兼容老调用)
+          - observation 非 None → 触发 _update_t_r(arm, observation, reward), 学习 T/R posterior
+          - observation None → 走老路径 (仅更新 arm_pull_counts, 跟 v0.89.0-d 兼容)
 
         Args:
-            arm: 选中的 arm 索引
-            context: 上下文向量 (忽略)
-            reward: 奖励 ∈ [0, 1] (LinUCB/Thompson 接口同构, POMDP 简化不直接用)
+            arm:         选中的 arm 索引
+            context:     上下文向量 (忽略)
+            reward:      奖励 ∈ [0, 1] (LinUCB/Thompson 接口同构, 同时给 RewardPosterior 学习)
+            observation: 观察值 ∈ [0, n_observations), v0.90.0-c 新增, 跟 bayes_update 同约定
 
         防御性自检 [1]:
           - arm 越界 _log.warning + return
           - reward 截断到 [0, 1]
+          - observation 越界 _log.warning + skip _update_t_r (不 raise, 跟 bayes_update 一致)
         """
         if arm < 0 or arm >= self.n_arms:
             _log.warning(
@@ -331,6 +356,93 @@ class POMDPPolicy:
             return
         clamped = max(0.0, min(1.0, float(reward)))
         self.arm_pull_counts[arm] += 1
+
+        # v0.90.0-c: observation feedback → _update_t_r (T/R posterior 学习)
+        if observation is not None:
+            self._update_t_r(arm=int(arm), observation=int(observation), reward=clamped)
+
+    def _update_t_r(self, arm: int, observation: int, reward: float) -> None:
+        """内部方法: 用 observation + reward 更新 T/R posterior (v0.90.0-c).
+
+        Lazy init posterior (首次调用时根据 self.n_states / self.n_arms 构造).
+        bayes_update 已在 LCAEngine 链路上被调用过, belief_state 已是 posterior 后的
+        (用 self.belief_state argmax 估计当前 s); 这里直接消费.
+
+        Args:
+            arm:         arm 索引 (上次 select 的)
+            observation: 观察值 ∈ [0, n_observations)
+            reward:      奖励 ∈ [0, 1]
+
+        防御性自检 [1]:
+          - observation 越界 _log.warning + return (不 raise, 跟 bayes_update 风格一致)
+          - arm 越界 _log.warning + return (POMDPPolicy.update 已校验, 这里防御性二次校验)
+          - posterior.mean() 失败 → _log.warning + return (posterior 维持原状)
+        """
+        if not (0 <= arm < self.n_arms):
+            _log.warning(
+                "POMDPPolicy._update_t_r: arm=%s 越界 [0, %s), 跳过",
+                arm, self.n_arms,
+            )
+            return
+        if not (0 <= observation < self.n_observations):
+            _log.warning(
+                "POMDPPolicy._update_t_r: observation=%s 越界 [0, %s), 跳过",
+                observation, self.n_observations,
+            )
+            return
+
+        from ecos.lca.l4_optimization.pomdp_learner import (
+            RewardPosterior,
+            TransitionPosterior,
+        )
+        # Lazy init posterior (首次 _update_t_r 时)
+        if self._transition_posterior is None:
+            count = np.zeros((self.n_states, self.n_states, self.n_arms), dtype=int)
+            self._transition_posterior = TransitionPosterior(count=count)
+        if self._reward_posterior is None:
+            alpha = np.ones((self.n_states, self.n_arms), dtype=float)
+            beta = np.ones((self.n_states, self.n_arms), dtype=float)
+            self._reward_posterior = RewardPosterior(alpha=alpha, beta=beta)
+
+        # 用 belief_state argmax 估计当前 state (跟 bayes_update 链路上同步)
+        s_current = int(np.argmax(self.belief_state))
+        try:
+            # T(s_next|s_current, arm) increment (用 observation 派生 s_next)
+            # 简化: observation → s_next 估计 = argmax(O[observation, :] 与 belief 一致)
+            # 完整 POMDP 应跑 particle filter, 简化走 argmax 估计
+            s_next = self._estimate_s_next_from_obs(s_current, observation)
+            self._transition_posterior.update(s_current, arm, s_next)
+            # R(s_current, arm) increment
+            self._reward_posterior.update(s_current, arm, reward)
+        except ValueError as e:
+            _log.warning(
+                "POMDPPolicy._update_t_r: posterior update 失败 (%s), 跳过",
+                e,
+            )
+
+    def _estimate_s_next_from_obs(self, s_current: int, observation: int) -> int:
+        """从 observation 估计 s_next (v0.90.0-c 简化, 用 O[obs, s_next] argmax).
+
+        简化假设: 在 belief_state 后, 用 observation likelihood argmax 估计最可能的 s_next.
+        完整 POMDP 应跑 particle filter, 简化走 deterministic argmax.
+        """
+        # O[obs, s_next] — likelihood of obs given s_next
+        return int(np.argmax(self.observation_model[observation]))
+
+    def _resolve_t_r(self):
+        """解析 T/R (v0.90.0-c): use_learned_t_r + posterior ready → posterior mean; 否则 init.
+
+        Returns:
+            (T, R) tuple (np.ndarray, np.ndarray): 跟 self.transition / self.reward 同 shape
+
+        不引入 self.transition / self.reward mutation (防御性自检 [8] hard block).
+        PBVI.solve / QMDP fallback 跟 select_arm 共享此方法.
+        """
+        if self.use_learned_t_r:
+            learned = self._learned_t_r_posterior_mean()
+            if learned is not None:
+                return learned
+        return self.transition, self.reward
 
     def bayes_update(self, action: int, observation: int) -> None:
         """v0.88.0-c: Bayesian belief update (考虑 action, T(s'|s, a) 依赖 action).
