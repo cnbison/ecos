@@ -182,7 +182,7 @@ class TestStartRegisters3Subscribers:
     """PluginRuntime.start() registers response_submitted + request_calibration + request_intervention."""
 
     def test_start_registers_three_subscribers(self):
-        """start() adds 3 subscribers."""
+        """start() adds 7 subscribers (v0.85.0-c: 3 + v0.91.0-b: 4 frontend stub)."""
         bus = EventBus()
         runtime = PluginRuntime(
             bus=bus,
@@ -190,7 +190,7 @@ class TestStartRegisters3Subscribers:
             lca_engine_factory=lambda: None,
         )
         runtime.start()
-        assert runtime.subscription_count == 3
+        assert runtime.subscription_count == 7  # v0.85.0-c: 3 + v0.91.0-b: 4 frontend stub
         assert bus.get_topic_count("response_submitted") == 1
         assert bus.get_topic_count("request_calibration") == 1
         assert bus.get_topic_count("request_intervention") == 1

@@ -21,7 +21,11 @@ from ..llm_client import ECOSLLMClient
 from .cta_input import CTAInput
 
 # v0.87.0-b: MotivationProfile TYPE_CHECKING 避免循环 import
+# v0.91.0-b: CognitiveTwinAgent + HumanFeedbackEntry TYPE_CHECKING 避免循环 import
+#   CognitiveTwinAgent 引用 BeliefState + TrajectoryState (top-level import OK),
+#   HumanFeedbackEntry 引用 LearningEvent (TYPE_CHECKING 避免循环)
 if TYPE_CHECKING:
+    from ..cta.cognitive_twin import CognitiveTwinAgent, HumanFeedbackEntry
     from ..motivation.profile import MotivationProfile
 from .intervention import (
     CAStage,
@@ -210,6 +214,12 @@ class LCAEngine:
         self._last_intervention: Dict[str, Intervention] = {}
         # v0.88.0-d: per-student last POMDP observation (下次 select 消费 bayes_update)
         self._last_observation: Dict[str, int] = {}
+        # v0.91.0-b: per-student CognitiveTwinAgent (Twin → Human Twin 抽象)
+        #   dict 模式跟 _last_intervention / _last_observation 同 (per-student state)
+        #   维护在 LCAEngine, 不污染 BeliefState (8 字段已饱和)
+        #   c 阶段 select_intervention 消费 (Designer + Evaluator 透传)
+        #   d 阶段 dump_state/load_state 加 cognitive_twin 字段
+        self._cognitive_twin: Dict[str, "CognitiveTwinAgent"] = {}
 
     # v0.82.0-a: __getattr__ forwarding for Planner 子组件 (向后兼容)
     #   旧代码 / 测试可能访问 engine.clt / engine.bjork_testing 等
@@ -245,6 +255,7 @@ class LCAEngine:
         audience: Optional[str] = None,
         motivation: Optional["MotivationProfile"] = None,
         domain_name: Optional[str] = None,
+        cognitive_twin: Optional["CognitiveTwinAgent"] = None,
     ) -> LCAResult:
         """LCA 主选择流程.
 
@@ -263,6 +274,9 @@ class LCAEngine:
             domain_name: v0.88.0-b: 可选 Domain name (e.g. "education"/"science"/"career"),
                           调整候选池 itype 权重 + reward factor
                           (None = 读 state.domain_extension["active_domain"] 兜底)
+            cognitive_twin: v0.91.0-b: 可选 CognitiveTwinAgent, Twin → Human Twin 抽象.
+                            存 self._cognitive_twin[student_id] 供 c 阶段消费 (Designer + Evaluator).
+                            None 时 fallback to self._cognitive_twin.get(student_id) (per-student dict 兜底).
 
         Returns:
             LCAResult（含 Intervention + rationale + expected_gain/risk）
@@ -280,6 +294,14 @@ class LCAEngine:
             domain_name = getattr(belief_state, "domain_extension", {}).get(
                 "active_domain"
             )
+
+        # v0.91.0-b: cognitive_twin fallback to per-student dict
+        #   存储 cognitive_twin 到 self._cognitive_twin[student_id] 供 c 阶段消费
+        #   (ExperimentDesigner._human_feedback_itype_override + Evaluator.human_feedback_reward_adjustment)
+        if cognitive_twin is None:
+            cognitive_twin = self._cognitive_twin.get(student_id)
+        if cognitive_twin is not None:
+            self._cognitive_twin[student_id] = cognitive_twin
 
         # v0.82.0-a: Step 1-4 委托 Planner (决策层 4 步合一)
         history = self.intervention_history.get(student_id, [])
@@ -427,6 +449,53 @@ class LCAEngine:
         #   v0.90.0-d: pomdp_observation 已在上面算, 这里只保留 dict (backward compat)
         if pomdp_observation is not None:
             self._last_observation[student_id] = pomdp_observation
+
+    # ---------------------------------------------------------------
+    # v0.91.0-b: Human Twin 抽象 — append_human_feedback (Plugin SDK 4 endpoint 接线)
+    # ---------------------------------------------------------------
+
+    def append_human_feedback(
+        self,
+        student_id: str,
+        entry: "HumanFeedbackEntry",
+        state: Optional[BeliefState] = None,
+    ) -> None:
+        """v0.91.0-b: 追加 HumanFeedbackEntry 到 per-student CognitiveTwinAgent.
+
+        Plugin SDK 4 endpoint subscriber (hint_requested / idle_detected / goal_changed
+        / reflection_completed) 调此方法把 Human-in-loop 信号注入 LCA 状态.
+
+        Args:
+            student_id: 学生 ID
+            entry: HumanFeedbackEntry 实例 (4 event_type 校验已通过, frozen)
+            state: Optional[BeliefState] for lazy init CognitiveTwinAgent.
+                   None 时若 student_id 不在 _cognitive_twin dict, skip (下次 select
+                   时 select_intervention 走 from_state 兜底).
+
+        防御性自检 [8]: CognitiveTwinAgent.append_human_feedback 是 allowlisted mutation
+        (FUNC_ALLOWLIST += "append_human_feedback", 跟 append_trajectory_snapshot /
+        add_evidence / set_domain_extension / add_motivation_observation 同模式).
+
+        c 阶段: select_intervention 消费 self._cognitive_twin[student_id]
+                (Designer._human_feedback_itype_override + Evaluator.human_feedback_reward_adjustment)
+        """
+        # v0.91.0-b: lazy init CognitiveTwinAgent from state (跟 _last_intervention
+        # 模式一致, state 不在时 skip 不报错)
+        if student_id not in self._cognitive_twin:
+            if state is None:
+                # No state to init from, skip silently (下次 select 时 select_intervention
+                # 会从 cta_input.belief_state 兜底 from_state)
+                _log.debug(
+                    "LCAEngine.append_human_feedback: student_id=%s 没 state, "
+                    "skip lazy init (下次 select 会兜底)",
+                    student_id,
+                )
+                return
+            from ..cta.cognitive_twin import CognitiveTwinAgent
+            self._cognitive_twin[student_id] = CognitiveTwinAgent.from_state(state)
+
+        # append_human_feedback 走 allowlisted mutation (FUNC_ALLOWLIST)
+        self._cognitive_twin[student_id].append_human_feedback(entry)
 
     # ---------------------------------------------------------------
     # v0.69.0: LinUCB 冷启动判定 (B4 前置)

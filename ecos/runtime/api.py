@@ -406,6 +406,78 @@ def plan_domain_aware(student_id: str, audience: str = "student", **kwargs) -> A
     )
 
 
+def plan_human_feedback_aware(student_id: str, audience: str = "student", **kwargs) -> Any:
+    """v0.91.0-b: Human feedback 接入 Runtime.plan (6 plan API 上限).
+
+    跟 plan_domain_aware 的区别:
+        - 接受 human_feedback_entry (HumanFeedbackEntry) 参数
+        - 自动 append_human_feedback 到 LCAEngine._cognitive_twin[student_id] (allowlisted mutation)
+        - 透传 cognitive_twin 到 LCAEngine.select_intervention
+        - 走 Twin Consistency Check (per goal, 如传)
+
+    Args:
+        student_id: 学生 ID
+        audience:   rationale 受众
+        **kwargs:
+            lca_engine: Optional[LCAEngine]
+            cta_input:  Optional[CTAInput]
+            goal:       Optional[Goal]      (若传, 校验该 Goal 关联 evidence)
+            event_log:  Optional[EventLog]   (inconsistent 时 emit goal_changed event)
+            human_feedback_entry: Optional[HumanFeedbackEntry]  (Plugin SDK 4 endpoint 注入)
+            motivation: Optional[MotivationProfile]  (透传 motivation)
+            domain_name: Optional[str]  (透传 domain_name)
+            cognitive_twin: Optional[CognitiveTwinAgent]  (显式透传, None 时 fallback to lca._cognitive_twin)
+
+    Returns:
+        LCAResult (跟 plan / plan_goal_aware / plan_motivation_aware / plan_domain_aware 同一返回)
+
+    v0.91.0-b: human feedback 6 plan API 上限 (Twin 维度已闭合:
+              belief + trajectory + motivation + domain + human_feedback). 不再加
+              plan_personalized / plan_reflection 之类.
+
+    v0.91.0-b: append_human_feedback 走 allowlisted mutation (LCAEngine 调
+              CognitiveTwinAgent.append_human_feedback, FUNC_ALLOWLIST += "append_human_feedback").
+
+    v0.91.0-c (preview): cognitive_twin 透传到 LCA select_intervention, Designer + Evaluator 消费.
+    v0.91.0-b 仅存储, c 阶段消费.
+    """
+    lca = kwargs.get("lca_engine") or _get_default_lca_engine()
+    cta_input = kwargs.get("cta_input")
+    if cta_input is None:
+        # 默认: 估计 student state, 构造 CTAInput
+        state = estimate(student_id)
+        from ecos.lca.cta_input import CTAInput
+        cta_input = CTAInput(student_id=student_id, belief_state=state)
+
+    # v0.86.0-b: Twin Consistency Check (前置 defensive)
+    _run_twin_consistency_check(
+        student_id=student_id,
+        state=cta_input.belief_state,
+        goal=kwargs.get("goal"),
+        event_log=kwargs.get("event_log"),
+    )
+
+    # v0.91.0-b: human_feedback_entry 注入 (allowlisted mutation via LCAEngine.append_human_feedback)
+    human_feedback_entry = kwargs.get("human_feedback_entry")
+    if human_feedback_entry is not None:
+        lca.append_human_feedback(
+            student_id, human_feedback_entry, state=cta_input.belief_state,
+        )
+
+    # v0.91.0-b: cognitive_twin 透传到 LCA select_intervention (None 时 fallback to dict)
+    #   b 阶段仅存储, c 阶段消费 (Designer + Evaluator 双路径调整)
+    cognitive_twin = kwargs.get("cognitive_twin")
+    if cognitive_twin is None:
+        cognitive_twin = lca._cognitive_twin.get(student_id)
+
+    return lca.select_intervention(
+        cta_input, audience=audience,
+        motivation=kwargs.get("motivation"),
+        domain_name=kwargs.get("domain_name"),
+        cognitive_twin=cognitive_twin,
+    )
+
+
 def _run_twin_consistency_check(
     student_id: str,
     state: Any,

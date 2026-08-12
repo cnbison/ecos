@@ -12,7 +12,7 @@
 - session: 长期会话管理
 """
 
-__version__ = "0.91.0-a"
+__version__ = "0.91.0-b"
 __author__ = "Bisen"
 __email__ = "cnbison@example.com"
 __license__ = "MIT"

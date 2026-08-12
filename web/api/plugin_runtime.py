@@ -8,18 +8,23 @@ v0.84.0-d 范围:
   - 验证 "Plugin 只产生 Event" 原则
   - 留 /api/judge / /api/dual_agent / /api/lca 给 v0.85
 
+v0.91.0-b 范围:
+  - 加 4 subscribers (hint_requested / idle_detected / goal_changed / reflection_completed)
+  - 4 handlers 调 LCAEngine.append_human_feedback (Twin → Human Twin 抽象)
+  - subscription_count: 3 → 7 (v0.85 production activation 兼容)
+
 设计:
   - PluginRuntime.start() 注册 subscriber 到 EventBus
-  - subscriber handler 从 event.payload 重建 Observation
-  - 调用 Runtime.update_belief (委托 BeliefEngine.update + 持久化)
+  - subscriber handler 从 event.payload 重建 Observation / HumanFeedbackEntry
+  - 调用 Runtime.update_belief / LCAEngine.append_human_feedback (委托 + 持久化)
   - state_factory 是 web/api/belief.py:_get_or_create_student (共享 _STUDENT_STATES dict)
 
-Per discussions/2026-08-11-v084-design.md §5.
+Per discussions/2026-08-11-v084-design.md §5 + discussions/2026-08-12-v091-design.md §3.
 """
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 _log = logging.getLogger(__name__)
 
@@ -38,6 +43,11 @@ class PluginRuntime:
     v0.85.0-b: 加 1 subscriber (request_calibration).
     v0.85.0-c: 加 1 subscriber (request_intervention) [TODO].
     v0.85.0-d: production activation (Flask startup 注册) [TODO].
+    v0.91.0-b: 加 4 subscribers (hint_requested / idle_detected / goal_changed / reflection_completed)
+                - 4 frontend stub endpoint (v0.85.0-d 已 production activation, 但仅
+                  produce event → bus.publish, 没 Runtime subscriber). v0.91.0-b 接通,
+                  Plugin SDK 4 endpoint 走 LCAEngine.append_human_feedback → CognitiveTwinAgent
+                  append_human_feedback (allowlisted mutation, FUNC_ALLOWLIST += "append_human_feedback").
 
     Usage:
         # 启动 (在 Flask app 启动时调一次)
@@ -92,6 +102,17 @@ class PluginRuntime:
         # v0.85.0-c: request_intervention
         sub_id = bus.subscribe("request_intervention", self._handle_request_intervention)
         self._subscription_ids.append(sub_id)
+        # v0.91.0-b: 4 frontend stub endpoint 接通 (hint / idle / goal_change / reflection)
+        #   handler 调 LCAEngine.append_human_feedback → CognitiveTwinAgent.append_human_feedback
+        #   (allowlisted mutation, FUNC_ALLOWLIST += "append_human_feedback")
+        for event_type, handler in (
+            ("hint_requested", self._handle_hint_requested),
+            ("idle_detected", self._handle_idle_detected),
+            ("goal_changed", self._handle_goal_changed),
+            ("reflection_completed", self._handle_reflection_completed),
+        ):
+            sub_id = bus.subscribe(event_type, handler)
+            self._subscription_ids.append(sub_id)
         self._started = True
         _log.info(
             "PluginRuntime 启动 (bus=%s, subscriptions=%d)",
@@ -252,6 +273,83 @@ class PluginRuntime:
         # Store for plugin to read
         self._intervention_results[student_id] = result
         return result
+
+    # ── v0.91.0-b: 4 frontend stub subscribers (Twin → Human Twin 抽象) ──
+
+    def _handle_human_feedback_event(
+        self,
+        event: Any,
+        event_type: str,
+    ) -> Optional[Any]:
+        """v0.91.0-b: 共用 helper: LearningEvent → HumanFeedbackEntry → LCAEngine.append_human_feedback.
+
+        Plugin SDK 4 endpoint (hint_requested / idle_detected / goal_changed / reflection_completed)
+        都走同一路径, 区别仅在 event_type (已经包含在 event.event_type).
+
+        Args:
+            event: LearningEvent (event_type 必须是 4 HUMAN_FEEDBACK_EVENT_TYPES 之一)
+            event_type: str (冗余参数, 主要为 logging 用)
+
+        Returns:
+            HumanFeedbackEntry (新建). 不返回 CognitiveTwinAgent (LCAEngine 内部维护).
+
+        防御性自检 [1]: handler exception _log.warning 不 raise (per v0.84.0-b EventBus 设计).
+        """
+        from ecos.cta.cognitive_twin import HumanFeedbackEntry
+
+        student_id = event.student_id
+        try:
+            entry = HumanFeedbackEntry.from_event(event)
+        except (ValueError, KeyError, AttributeError) as e:
+            _log.warning(
+                "PluginRuntime._handle_human_feedback_event (%s): HumanFeedbackEntry.from_event 失败 "
+                "(sid=%s, err=%s), skip",
+                event_type, student_id, e, exc_info=True,
+            )
+            return None
+
+        try:
+            lca_engine = self._lca_engine_factory()
+            # 调 state_factory 拿 state for lazy init cognitive_twin (跟 _handle_response_submitted 同 pattern)
+            _, state = self._state_factory(student_id)
+            lca_engine.append_human_feedback(student_id, entry, state=state)
+        except Exception as e:  # noqa: BLE001
+            _log.warning(
+                "PluginRuntime._handle_human_feedback_event (%s): LCAEngine.append_human_feedback 失败 "
+                "(sid=%s, err=%s), skip (handler 不破坏 bus)",
+                event_type, student_id, e, exc_info=True,
+            )
+            return None
+
+        return entry
+
+    def _handle_hint_requested(self, event: Any) -> Any:
+        """v0.91.0-b: hint_requested → CognitiveTwinAgent.append_human_feedback.
+
+        Student 主动请求 hint → LCA 后续 select 时 ExperimentDesigner 可降难度 (c 阶段消费).
+        """
+        return self._handle_human_feedback_event(event, "hint_requested")
+
+    def _handle_idle_detected(self, event: Any) -> Any:
+        """v0.91.0-b: idle_detected → CognitiveTwinAgent.append_human_feedback.
+
+        Frontend 检测 N 秒无操作 → LCA 后续 select 时 ExperimentDesigner 可调整 itype (c 阶段消费).
+        """
+        return self._handle_human_feedback_event(event, "idle_detected")
+
+    def _handle_goal_changed(self, event: Any) -> Any:
+        """v0.91.0-b: goal_changed → CognitiveTwinAgent.append_human_feedback.
+
+        Student 切换学习目标 → LCA 后续 select 时考虑目标调整后巩固 (c 阶段消费).
+        """
+        return self._handle_human_feedback_event(event, "goal_changed")
+
+    def _handle_reflection_completed(self, event: Any) -> Any:
+        """v0.91.0-b: reflection_completed → CognitiveTwinAgent.append_human_feedback.
+
+        Student 完成反思 → LCA 后续 select 时 ExperimentDesigner 可 PRACTICE 巩固 + reward boost (c 阶段).
+        """
+        return self._handle_human_feedback_event(event, "reflection_completed")
 
     def get_last_calibration_result(self, student_id: str) -> Optional[Any]:
         """v0.85.0-b: Get last calibration result for student (called by plugin after publish).
