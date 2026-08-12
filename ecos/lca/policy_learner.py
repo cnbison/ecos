@@ -59,6 +59,8 @@ class PolicyLearnerConfig:
     pomdp_seed: Optional[int] = None
     # v0.89.0-d: POMDP 是否走 PBVI (None → POMDPPolicy 默认 True)
     pomdp_use_pbvi: Optional[bool] = None
+    # v0.90.0-d: POMDP T/R 后验学习开关 (None → POMDPPolicy 默认 True)
+    pomdp_use_learned_t_r: Optional[bool] = None
 
 
 # ---------------------------------------------------------------------------
@@ -112,6 +114,8 @@ class PolicyLearner:
                   每个学生独立 LCAPolicyLearner 实例, LinUCB A/b 矩阵隔离.
         v0.86.0-c: 透传 policy_type + thompson_seed 到 LCAPolicyLearner
         v0.87.0-d: 透传 pomdp_seed
+        v0.89.0-d: 透传 pomdp_use_pbvi
+        v0.90.0-d: 透传 pomdp_use_learned_t_r
         """
         if student_id not in self._learners:
             self._learners[student_id] = LCAPolicyLearner(
@@ -120,6 +124,7 @@ class PolicyLearner:
                 thompson_seed=self.config.thompson_seed,
                 pomdp_seed=self.config.pomdp_seed,
                 pomdp_use_pbvi=self.config.pomdp_use_pbvi,
+                pomdp_use_learned_t_r=self.config.pomdp_use_learned_t_r,
             )
         return self._learners[student_id]
 
@@ -152,6 +157,7 @@ class PolicyLearner:
         intervention: Intervention,
         new_state: BeliefState,
         reward: float,
+        observation: Optional[int] = None,
     ) -> None:
         """基于干预效果更新 LinUCB (委托 LCAPolicyLearner.update).
 
@@ -160,12 +166,15 @@ class PolicyLearner:
             intervention:  之前选中的干预
             new_state:     干预后的 CTA 状态
             reward:        状态增量 (state_delta), 已被调用方归一化到 [0, 1]
+            observation:   v0.90.0-d 新增. POMDP observation ∈ [0, n_observations);
+                           None (LinUCB/Thompson) 走老路径; int (POMDP) 触发 _update_t_r.
         """
         learner = self._get_learner(student_id)
         learner.update(
             intervention=intervention,
             belief_state=new_state,
             reward=reward,
+            observation=observation,
         )
 
     # ---------------------------------------------------------------

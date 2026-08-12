@@ -212,9 +212,14 @@ class RewardPosterior:
         return self.alpha / (self.alpha + self.beta)
 
     def total_evidence(self) -> int:
-        """总证据数 (sum (alpha + beta) - alpha0 * n_states * n_arms), 用于冷启动阈值."""
+        """总证据数 (sum (alpha + beta) - 2 * alpha0 * n_states * n_arms), 用于冷启动阈值.
+
+        Beta(α, β) prior 假设 α0=β0=1 (uniform), 每观测 1 次 α+β += 1.
+        所以 evidence = (α + β) 总和 - 2 * α0 * n_states * n_arms (每个 cell 2 个 prior 参数).
+        """
         return int(
-            (self.alpha.sum() + self.beta.sum()) - self.alpha0 * self.n_states * self.n_arms
+            (self.alpha.sum() + self.beta.sum())
+            - 2 * self.alpha0 * self.n_states * self.n_arms
         )
 
     def get_arm_stats(self) -> Dict[str, Any]:

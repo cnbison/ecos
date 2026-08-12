@@ -122,6 +122,7 @@ class POMDPPolicy:
         pbvi_n_belief_points: int = 16,
         pbvi_seed: Optional[int] = None,
         use_learned_t_r: bool = True,
+        min_samples: int = 5,
     ):
         if n_states <= 0:
             raise ValueError(f"POMDPPolicy: n_states={n_states} 必须 > 0")
@@ -169,8 +170,14 @@ class POMDPPolicy:
         # use_learned_t_r=True: posterior 注入/创建后, PBVI 用 posterior.mean() 替换 self.transition / self.reward
         #                       posterior 未注入 → 走 init 路径 (跟 v0.89.0-d 行为一致)
         # use_learned_t_r=False: 始终走 init T/R (opt-out 留 v0.91+ kwargs)
-        # 冷启动保护 (min_samples) 留 d 阶段
         self.use_learned_t_r = bool(use_learned_t_r)
+
+        # v0.90.0-d: 冷启动保护阈值 (Bisen 拍板 2026-08-12)
+        # 证据 < min_samples → 仍走 init T/R (避免冷启动期 posterior mean 抖动)
+        # 证据 ≥ min_samples → 切换到 posterior mean (T/R 在线学习)
+        if min_samples < 0:
+            raise ValueError(f"POMDPPolicy.min_samples 必须 >= 0 (got={min_samples})")
+        self.min_samples = int(min_samples)
 
         # v0.90.0-b: T/R posterior 懒注入 (c 阶段首次 _update_t_r 时 lazy init)
         # 持久化路径走 set_*_posterior; load_state 从 transition_count / reward_alpha / reward_beta 重建
@@ -432,6 +439,9 @@ class POMDPPolicy:
     def _resolve_t_r(self):
         """解析 T/R (v0.90.0-c): use_learned_t_r + posterior ready → posterior mean; 否则 init.
 
+        v0.90.0-d 冷启动保护: 证据 < min_samples → 仍走 init T/R (避免冷启动期 posterior mean 抖动).
+        证据 ≥ min_samples → 切换到 posterior mean.
+
         Returns:
             (T, R) tuple (np.ndarray, np.ndarray): 跟 self.transition / self.reward 同 shape
 
@@ -441,7 +451,12 @@ class POMDPPolicy:
         if self.use_learned_t_r:
             learned = self._learned_t_r_posterior_mean()
             if learned is not None:
-                return learned
+                # v0.90.0-d: 冷启动阈值 (Bisen 拍板)
+                tp_ev = self._transition_posterior.total_evidence()
+                rp_ev = self._reward_posterior.total_evidence()
+                total_evidence = tp_ev + rp_ev
+                if total_evidence >= self.min_samples:
+                    return learned
         return self.transition, self.reward
 
     def bayes_update(self, action: int, observation: int) -> None:

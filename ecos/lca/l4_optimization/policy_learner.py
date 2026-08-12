@@ -71,6 +71,7 @@ class LCAPolicyLearner:
         thompson_seed: Optional[int] = None,
         pomdp_seed: Optional[int] = None,
         pomdp_use_pbvi: Optional[bool] = None,
+        pomdp_use_learned_t_r: Optional[bool] = None,
     ):
         # v0.87.0-d: 校验 policy_type (3 值)
         if policy_type not in ("linucb", "thompson", "pomdp"):
@@ -100,12 +101,14 @@ class LCAPolicyLearner:
             )
         # v0.87.0-d: POMDP Policy 实例 (仅 policy_type=="pomdp" 时创建)
         # v0.89.0-d: 显式传 use_pbvi (默认 None → 走 POMDPPolicy 默认 True)
+        # v0.90.0-d: 显式传 use_learned_t_r (默认 None → 走 POMDPPolicy 默认 True)
         self.pomdp: Optional[POMDPPolicy] = None
         if policy_type == "pomdp":
             self.pomdp = POMDPPolicy(
                 n_arms=self.config.n_arms,
                 seed=pomdp_seed,
                 use_pbvi=True if pomdp_use_pbvi is None else bool(pomdp_use_pbvi),
+                use_learned_t_r=True if pomdp_use_learned_t_r is None else bool(pomdp_use_learned_t_r),
             )
         # Arm 索引 → 候选干预 hash（用于 update 时反查）
         self._arm_fingerprints: Dict[int, str] = {}
@@ -216,6 +219,7 @@ class LCAPolicyLearner:
         intervention: Intervention,
         belief_state: BeliefState,
         reward: float,
+        observation: Optional[int] = None,
     ) -> None:
         """基于干预效果更新 LinUCB.
 
@@ -223,8 +227,12 @@ class LCAPolicyLearner:
             intervention: 之前选中的干预
             belief_state: 干预后的 CTA 状态
             reward: 状态增量（state_delta），已被调用方归一化到 [0, 1]
+            observation: v0.90.0-d 新增. POMDP observation ∈ [0, n_observations);
+                         None (LinUCB/Thompson) 走老路径; int (POMDP) 触发 _update_t_r.
 
         v0.75 P0-m: 启用 use_arm_features 时, context 重建时附 intervention.difficulty
+        v0.88.0-d: POMDP update 同时存储 observation (下次 select 消费)
+        v0.90.0-d: POMDP observation 参数透传到 POMDPPolicy.update (触发 _update_t_r 学 T/R)
         """
         # v0.86.0-c: Thompson Sampling 路径 (non-contextual)
         if self.policy_type == "thompson" and self.thompson is not None:
@@ -240,6 +248,7 @@ class LCAPolicyLearner:
 
         # v0.87.0-d: POMDP 路径 (non-contextual, 简化 update)
         # v0.88.0-d: POMDP update 同时存储 observation (下次 select 消费)
+        # v0.90.0-d: POMDP observation 参数透传到 POMDPPolicy.update (触发 _update_t_r)
         if self.policy_type == "pomdp" and self.pomdp is not None:
             arm = self._lookup_arm(intervention)
             if arm is None:
@@ -248,8 +257,10 @@ class LCAPolicyLearner:
                 self.config.min_reward,
                 min(self.config.max_reward, reward),
             )
-            self.pomdp.update(arm, context=None, reward=clamped)
-            # v0.88.0-d: reward → observation (discretize) → 下次 select 消费
+            # v0.90.0-d: observation 透传到 POMDPPolicy.update (None → 不学, int → _update_t_r)
+            self.pomdp.update(arm, context=None, reward=clamped, observation=observation)
+            # v0.88.0-d: reward → observation (discretize) → 下次 select 消费 bayes_update
+            #            (兜底, 让 LCAEngine 不传 obs 时也能维持原 v0.88.0-d 行为)
             self._last_observation = self._reward_to_observation(clamped)
             return
 

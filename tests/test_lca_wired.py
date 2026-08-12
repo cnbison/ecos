@@ -160,9 +160,9 @@ class TestLCAUpdateReward:
         learner = engine._get_bandit("test_lca_student")
         original_update = learner.update
 
-        def spy_update(intervention, belief_state, reward):
+        def spy_update(intervention, belief_state, reward, observation=None):
             captured.append(reward)
-            return original_update(intervention, belief_state, reward)
+            return original_update(intervention, belief_state, reward, observation=observation)
 
         learner.update = spy_update
 
@@ -188,9 +188,9 @@ class TestLCAUpdateReward:
         learner = engine._get_bandit("test_lca_student")
         original_update = learner.update
 
-        def spy_update(intervention, belief_state, reward):
+        def spy_update(intervention, belief_state, reward, observation=None):
             captured.append(reward)
-            return original_update(intervention, belief_state, reward)
+            return original_update(intervention, belief_state, reward, observation=observation)
 
         learner.update = spy_update
 
@@ -217,9 +217,9 @@ class TestLCAUpdateReward:
         learner = engine._get_bandit("test_lca_student")
         original_update = learner.update
 
-        def spy_update(intervention, belief_state, reward):
+        def spy_update(intervention, belief_state, reward, observation=None):
             captured.append(reward)
-            return original_update(intervention, belief_state, reward)
+            return original_update(intervention, belief_state, reward, observation=observation)
 
         learner.update = spy_update
 
@@ -245,9 +245,9 @@ class TestLCAUpdateReward:
         learner = engine._get_bandit("test_lca_student")
         original_update = learner.update
 
-        def spy_update(intervention, belief_state, reward):
+        def spy_update(intervention, belief_state, reward, observation=None):
             captured.append(reward)
-            return original_update(intervention, belief_state, reward)
+            return original_update(intervention, belief_state, reward, observation=observation)
 
         learner.update = spy_update
 

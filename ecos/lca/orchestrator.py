@@ -406,21 +406,27 @@ class LCAEngine:
         )
 
         # v0.82.0-d: LinUCB update 委托 PolicyLearner.update (LCA 4-layer 第 4 层)
+        # v0.90.0-d: POMDP 路径透传 observation (触发 _update_t_r 学 T/R)
+        pomdp_observation = None
+        if self.policy_learner.config.policy_type == "pomdp":
+            # v0.88.0-d: linucb_reward ∈ [0, 1] → discretize 到 [0, n_observations)
+            pomdp_observation = int(
+                min(3, int(linucb_reward * 4))  # 跟 LCAPolicyLearner._reward_to_observation 一致
+            )
         self.policy_learner.update(
             student_id,
             intervention,
             new_state,
             reward=linucb_reward,
+            observation=pomdp_observation,
         )
         # v0.57.0: per-student update 计数
         self._update_count[student_id] = self._update_count.get(student_id, 0) + 1
 
-        # v0.88.0-d: POMDP observation 记录 (下次 select 消费)
-        #   linucb_reward ∈ [0, 1] → discretize 到 [0, n_observations)
-        if self.policy_learner.config.policy_type == "pomdp":
-            self._last_observation[student_id] = int(
-                min(3, int(linucb_reward * 4))  # 跟 LCAPolicyLearner._reward_to_observation 一致
-            )
+        # v0.88.0-d: POMDP observation 记录 (下次 select 消费 bayes_update)
+        #   v0.90.0-d: pomdp_observation 已在上面算, 这里只保留 dict (backward compat)
+        if pomdp_observation is not None:
+            self._last_observation[student_id] = pomdp_observation
 
     # ---------------------------------------------------------------
     # v0.69.0: LinUCB 冷启动判定 (B4 前置)

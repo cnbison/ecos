@@ -131,7 +131,8 @@ def test_use_learned_t_r_false_returns_init_t_r():
 
 def test_pbvi_uses_posterior_mean_when_learned_t_r_true():
     """use_learned_t_r=True + posterior ready → PBVI 用 posterior mean."""
-    p = POMDPPolicy(seed=42, use_learned_t_r=True)
+    # min_samples=0 绕过冷启动阈值 (1 evidence 即可走 learned path)
+    p = POMDPPolicy(seed=42, use_learned_t_r=True, min_samples=0)
     p.update(arm=2, context=None, reward=1.0, observation=0)  # 创建 posterior
     T, R = p._resolve_t_r()
     # T / R 不是 init, 是 posterior mean

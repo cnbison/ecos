@@ -165,6 +165,75 @@
 - min_samples=5 冷启动保护 (d 阶段最终化)
 
 
+## [0.90.0-d] 2026-08-12
+
+### feat: Phase 7+ 抽象推演 #2 (sub d) — Runtime + PolicyABTest 集成 learned T/R + 冷启动
+
+> **背景**: v0.90.0-c 完成 POMDPPolicy 内部 learned T/R 集成 (PBVI 用 posterior mean). d 阶段: 把 obs 透传到生产路径 (Runtime + LCAEngine + LCAPolicyLearner) + PolicyABTest 工厂对齐 + 冷启动保护 (min_samples=5 阈值).
+> **v0.90.0-d 目标**: 透传 obs 闭环 + min_samples 冷启动 + 3-way A/B 维持 (linucb / thompson / pomdp+PBVI+learned T/R). POMDP Policy §1.3: 70% → 100% (生产路径完整). pytest 1133 → 1143 (+10, +0.9%).
+
+#### MODIFIED: Runtime 透传 obs (v0.90.0-d)
+
+- `ecos/lca/policy_learner.py` (PolicyLearner facade):
+  - `PolicyLearnerConfig`: 新增 `pomdp_use_learned_t_r: Optional[bool] = None` 字段 (默认 None → POMDPPolicy use_learned_t_r=True)
+  - `_get_learner`: 透传 `pomdp_use_learned_t_r` 到 LCAPolicyLearner
+  - `update(student_id, intervention, new_state, reward, observation=None)`: 接受 observation 参数, 透传到 LCAPolicyLearner.update
+- `ecos/lca/l4_optimization/policy_learner.py` (LCAPolicyLearner):
+  - `__init__`: 新增 `pomdp_use_learned_t_r: Optional[bool] = None` 形参, 构造 POMDPPolicy 时显式传入
+  - `update(intervention, belief_state, reward, observation=None)`: POMDP 路径透传 obs 到 `self.pomdp.update(arm, context=None, reward=clamped, observation=observation)`
+- `ecos/lca/orchestrator.py` (LCAEngine.update):
+  - 计算 `pomdp_observation = _reward_to_observation(reward)` (静态方法, 复用 v0.88.0-d)
+  - `policy_learner.update(..., observation=pomdp_observation)` 透传到 bandit 层
+- `ecos/evaluation/policy_ab_test.py` (PolicyABTest._create_fresh_bandit):
+  - POMDP 工厂对齐: `use_pbvi=True + use_learned_t_r=True + min_samples=5` (3-way A/B 仍可比 linucb / thompson / pomdp+PBVI+learned T/R)
+
+#### MODIFIED: POMDPPolicy._resolve_t_r — min_samples 冷启动 (v0.90.0-d)
+
+- `ecos/lca/l4_optimization/pomdp.py`:
+  - `_resolve_t_r()` 增加冷启动保护: `total_evidence (TransitionPosterior.total_evidence() + RewardPosterior.total_evidence()) >= self.min_samples` 才走 posterior mean; 否则返 init T/R (跟 v0.89.0-d 兼容)
+  - 默认 `min_samples=5` (Bisen 拍板, 跟 Thompson Sampling 冷启动对齐)
+
+#### MODIFIED: RewardPosterior.total_evidence 公式修正 (v0.90.0-d)
+
+- `ecos/lca/l4_optimization/pomdp_learner.py`:
+  - `RewardPosterior.total_evidence()` 公式从 `(alpha + beta) - alpha0 * n_states * n_arms` 修正为 `(alpha + beta) - 2 * alpha0 * n_states * n_arms`
+  - 修正原因: Beta(α, β) prior 每个 cell 2 个 prior 参数 (α0 + β0), evidence = (α + β) 总和 - 2 × prior
+  - 修正前 5 次 update → evidence=45 (错), 修正后 → evidence=5 (跟 expected count 一致)
+  - 测试 `test_min_samples_uses_learned_above_threshold` 暴露并修复
+
+#### NEW: tests/test_pomdp_runtime_learned_t_r.py (10 tests)
+
+- 3 tests: LCAEngine.update 透传 observation → POMDPPolicy.update 收 obs (触发 _update_t_r)
+- 2 tests: PolicyLearnerConfig.pomdp_use_learned_t_r 透传到 POMDPPolicy
+- 2 tests: PolicyABTest 工厂 use_learned_t_r=True + 真 3-way A/B (linucb / thompson / pomdp+PBVI+learned T/R)
+- 2 tests: min_samples 切换 (证据 < 5 用 init, ≥ 5 切 learned)
+- 1 test: H3-c4 canary (POMDP 同 seed 确定性 + learned T/R 同分布)
+
+#### MODIFIED: tests/test_lca_wired.py — spy 签名扩展 (v0.90.0-d 兼容)
+
+- 4 个 spy_update 函数签名加 `observation=None` 形参 (兼容 learner.update 新签名)
+- 不修改业务逻辑, 仅适配接口扩展
+
+#### 不变量
+
+- 接口同构 LinUCB/Thompson/POMDP 维持 (`update(arm, ctx, reward, observation=None)` 老调用兼容, observation 默认 None)
+- `select_arm / bayes_update / dump_state / load_state` 名称不变
+- `solve_pbvi()` 幂等 (v0.89.0-d 维持)
+- 防御性自检 [5] schema_version 校验 ("0.90.0", 老 v0.89.0-c snapshot raise)
+- 防御性自检 [8] 0 新 mutation site (LCAEngine._last_observation 是 instance dict, 不在 state 上; pomdp_observation 走 LCAPolicyLearner._reward_to_observation 静态方法)
+- H3-c4 canary (POMDP 同 seed 确定性) + v0.81 replay canary 全 PASS
+- 3-way A/B (linucb / thompson / pomdp+PBVI+learned T/R) 仍可比, PolicyABTest 工厂对齐
+- min_samples=5 冷启动保护 (避免冷启动时 posterior mean 抖动)
+
+#### 下一阶段 v0.90 final: 文档同步收口
+
+- README.md 当前状态同步 v0.90.0
+- CLAUDE.md 当前阶段标注 v0.90 + 防御性自检 [8] entry (v0.90 维持 0 新 mutation)
+- 12-kernel-mapping-current-vs-2.0.md §1.3 + §3.1 + §8.2 同步 v0.90
+- CHANGELOG.md v0.90 final section
+- memory/project-v090-completion-state.md 新增
+
+
 ## [0.88.0-b] 2026-08-11
 
 ### feat: Phase 7+ 抽象推演 #1 (sub b) — Multi-Domain 集成 Runtime + LCA
