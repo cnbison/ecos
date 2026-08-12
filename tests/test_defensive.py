@@ -110,10 +110,11 @@ def test_version_consistency(ecos_dir: Path):
     assert match, f"{init_file} 缺少 __version__ 定义"
     version = match.group(1)
 
-    # 验证版本号格式 (语义化版本: MAJOR.MINOR.PATCH, 可选 -a/-b/-c/-d sub-version 标签)
+    # 验证版本号格式 (语义化版本: MAJOR.MINOR.PATCH, 可选 -a/-b/-c/-d/-e sub-version 标签)
     # v0.88.0-a 起: 子版本 commit 用 -a/-b/-c/-d 后缀 (更直观, 一眼看到当前 sub-commit)
+    # v0.91.0-e 起: 加 -e 后缀 (Phase 7+ 抽象推演 #4 第 5 sub-commit, docs only)
     # 之前 (v0.87.0-a/d 等): 全用 "0.87.0", 由 commit message 区分 sub-version
-    semver_pattern = re.compile(r"^\d+\.\d+\.\d+(?:-(?:a|b|c|d))?$")
+    semver_pattern = re.compile(r"^\d+\.\d+\.\d+(?:-(?:a|b|c|d|e))?$")
     assert semver_pattern.match(version), (
         f"版本号格式不对: {version} (应: MAJOR.MINOR.PATCH, 可选 -a/-b/-c/-d sub-version 标签)"
     )
