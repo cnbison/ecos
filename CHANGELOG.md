@@ -68,6 +68,52 @@
 - dump_state / load_state 加 transition_count / reward_alpha / reward_beta 3 字段
 
 
+## [0.90.0-b] 2026-08-12
+
+### feat: Phase 7+ 抽象推演 #2 (sub b) — POMDP T/R posterior 注入 + 持久化
+
+> **背景**: v0.90.0-a 完成 T/R posterior 数据结构 (TransitionPosterior + RewardPosterior). b 阶段: 把 posterior 注入 POMDPPolicy + 持久化到 schema + 防御性 [5] 老 snapshot raise.
+> **v0.90.0-b 目标**: posterior 注入路径 + 持久化 schema 升级. POMDP Policy §1.3: 0% → 30% (T/R 学习数据通路). pytest 1108 → 1121 (+13, +1.2%).
+
+#### MODIFIED: POMDPPolicy — posterior 注入 + 持久化 (v0.90.0-b)
+
+- `ecos/lca/l4_optimization/pomdp.py`:
+  - **SCHEMA_VERSION**: "0.89.0-c" → **"0.90.0"** (老 v0.89.0-c / v0.88.0-c / v0.87.0-c snapshot raise per 防御性自检 [5])
+  - **`__init__`**: 新增 2 个 lazy 字段 `self._transition_posterior` / `self._reward_posterior` (初始 None, 走 set_*_posterior 或 load_state 注入)
+  - **`set_transition_posterior(posterior)`**: lazy 注入接口 (跟 ThompsonSampling seed 同模式)
+  - **`set_reward_posterior(posterior)`**: 跟 set_transition_posterior 同模式
+  - **`_learned_t_r_posterior_mean()`**: 内部派生方法, 返 `(T_mean, R_mean)` tuple (走 posterior.mind()), 任一 posterior 未注入返 None, shape mismatch raise
+  - **`dump_state()`**: 新增 3 字段 `transition_count / reward_alpha / reward_beta` (posterior 未注入时全 None, 跟 schema 升级兼容)
+  - **`load_state()`**:
+    - schema_version 校验升级 "0.90.0" (老 v0.89.0-c / v0.88.0-c / v0.87.0-c raise ValueError)
+    - transition_count 3D shape 校验 (n_states x n_states x n_arms) + 重建 TransitionPosterior
+    - reward_alpha / reward_beta shape 校验 + 重建 RewardPosterior (不一致 raise)
+- 不引入新 mutation site (`_transition_posterior` / `_reward_posterior` 是新字段, 跟 `solver` 同), AST 扫描 49 文件无 mutation site 报警
+- 不引入 `select_arm` / `update` / `bayes_update` 行为变更 (c 阶段才消费 posterior mean)
+
+#### NEW: tests/test_pomdp_posterior_integration.py (13 tests)
+
+- 3 tests: set_*_posterior 注入 + posterior 引用保留 + 注入不 mutate self.transition / self.reward
+- 3 tests: _learned_t_r_posterior_mean 派生 (None / shape match / uniform prior → 0.5 + 0.25)
+- 3 tests: dump_state + load_state round-trip (posterior 注入 / 未注入 / 完整 round-trip)
+- 4 tests: 老 v0.89.0-c / v0.88.0-c schema raise + posterior shape mismatch raise + reward_alpha / beta 不一致 raise
+
+#### 不变量
+
+- 接口同构 LinUCB/Thompson/POMDP 维持 (select_arm / update / dump_state / load_state 名称不变)
+- POMDPPolicy.update 老调用兼容 (c 阶段扩展 `observation=None`)
+- H3-c4 canary + v0.81 replay canary 全 PASS (select_arm / bayes_update / solver 行为不变)
+- 防御性自检 [5] schema_version 校验: 老 snapshot raise ValueError
+- 防御性自检 [8] 0 新 mutation site
+
+#### 下一阶段 v0.90.0-c: POMDPPolicy 集成 update_t_r + PBVI 用 posterior mean
+
+- `POMDPPolicy.update(arm, ctx, reward, observation=None)` 扩展参数
+- `_update_t_r(arm, observation, reward)` 内部方法 + lazy init posterior
+- `use_learned_t_r=True` 默认开关 (PBVI.solve / select_arm 用 posterior mean)
+- PBVI 失败 fallback QMDP (跟 v0.89.0-c 同模式)
+
+
 ## [0.88.0-b] 2026-08-11
 
 ### feat: Phase 7+ 抽象推演 #1 (sub b) — Multi-Domain 集成 Runtime + LCA

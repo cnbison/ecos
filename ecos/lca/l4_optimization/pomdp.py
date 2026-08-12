@@ -15,20 +15,24 @@ v0.88.0-c 范围 (Phase 7+ 第 1 个 sub-version, POMDP 雏形升级):
   - dump_state / load_state: 7+ 字段, transition 加 action 维
     **老 snapshot 不兼容** (维度变化, per design doc §4.3)
 
-v0.87.0-c 雏形限制 (已升级部分):
-  - ~~Simplified transition (不依赖 action)~~ → v0.88.0-c: T(s'|s, a) 依赖 action ✅
-  - ~~R(s, a) random init~~ → v0.88.0-c: 固定 init (per design doc §4.2) ✅
-  - **仍限制** (推迟 v0.89+):
-    - T(s'|s, a) 固定, 不学
-    - R(s, a) 固定 init, 不学
-    - 不实现 point-based solver (α-vector, PBVI, Perseus)
-    - 不实现完整 POMDP solver (SARSOP, etc.)
+v0.89.0-d 升级 (Phase 7+ 第 2 个 sub-version, PBVI 完整集成):
+  - **PBVI α-vector** 替代 QMDP: select_arm 默认走 PBVI (alpha argmax), use_pbvi=False 退化 QMDP
+  - **solve_pbvi()** 显式入口, 幂等 (α 缓存命中跳过), Runtime + LCAEngine 显式触发
+  - **solver_state 持久化**: dump_state 含 alpha_vectors + belief_points, load_state 恢复
+
+v0.90.0-b 升级 (Phase 7+ 第 3 个 sub-version sub b, T/R 学习数据通路):
+  - **set_transition_posterior / set_reward_posterior**: lazy 注入 (跟 ThompsonSampling seed 同模式)
+  - **SCHEMA_VERSION 升级**: "0.89.0-c" → "0.90.0", 老 v0.89.0-c / v0.88.0-c / v0.87.0-c snapshot raise
+  - **dump_state + 3 字段**: transition_count / reward_alpha / reward_beta (posterior raw 持久化)
+  - **_learned_t_r_posterior_mean()**: 派生 posterior mean (走 .mean()), 不直接 mutation self.transition
+  - posterior 不持有 POMDPPolicy 引用 (POMDPPolicy 持有 posterior); 走单独持久化路径
 
 向后兼容:
   - 接口同构 LinUCB/Thompson (select_arm / update / dump_state / load_state 名称不变)
   - **bayes_update signature 变化**: v0.87.0-c `bayes_update(observation)` → v0.88.0-c `bayes_update(action, observation)`
   - 防御性自检 [8] 仍 hard block (POMDPPolicy 不 mutate state)
   - H3-c4 canary 必 PASS (POMDP 只改 select_intervention / update, classroom 行为不变)
+  - 防御性自检 [5]: 老 v0.89.0-c / v0.88.0-c / v0.87.0-c snapshot raise (b 阶段升级)
 """
 
 from __future__ import annotations
@@ -44,9 +48,9 @@ if TYPE_CHECKING:
 
 _log = logging.getLogger(__name__)
 
-# v0.89.0-c: schema version for dump_state / load_state 老 snapshot 检测
-# v0.88.0-c 老 snapshot raise ValueError (per design doc §7.5 + 防御性自检 [5])
-SCHEMA_VERSION = "0.89.0-c"
+# v0.90.0-b: schema version for dump_state / load_state 老 snapshot 检测
+# v0.89.0-c / v0.88.0-c / v0.87.0-c 老 snapshot raise ValueError (per design doc §7.5 + 防御性自检 [5])
+SCHEMA_VERSION = "0.90.0"
 
 
 @dataclass
@@ -159,6 +163,11 @@ class POMDPPolicy:
         self.pbvi_seed = pbvi_seed
         # solver 懒加载 (首次 select_arm / solve_pbvi 才创建)
         self.solver: Optional["PBVI"] = None
+
+        # v0.90.0-b: T/R posterior 懒注入 (c 阶段首次 _update_t_r 时 lazy init)
+        # 持久化路径走 set_*_posterior; load_state 从 transition_count / reward_alpha / reward_beta 重建
+        self._transition_posterior: Optional[Any] = None
+        self._reward_posterior: Optional[Any] = None
 
     def _init_transition_matrix(self) -> np.ndarray:
         """v0.88.0-c: 初始化 T[s'|s, a] (n_states x n_states x n_arms), 依赖 action.
@@ -393,12 +402,56 @@ class POMDPPolicy:
             "expected_reward": expected_reward,
         }
 
+    # v0.90.0-b: posterior 注入接口 (lazy, 跟 ThompsonSampling seed 同模式)
+    def set_transition_posterior(self, posterior) -> None:
+        """注入 TransitionPosterior (v0.90.0-b).
+
+        c 阶段首次 _update_t_r 时 lazy init; b 阶段允许外部预构造后注入.
+        不做 shape 校验 (后续 _learned_t_r_posterior_mean 时校验).
+        """
+        self._transition_posterior = posterior
+
+    def set_reward_posterior(self, posterior) -> None:
+        """注入 RewardPosterior (v0.90.0-b). 跟 set_transition_posterior 同模式."""
+        self._reward_posterior = posterior
+
+    def _learned_t_r_posterior_mean(self):
+        """派生 T/R posterior mean (v0.90.0-b, c 阶段 PBVI 消费).
+
+        Returns:
+            (T_mean, R_mean) tuple (np.ndarray, np.ndarray):
+                T_mean shape (n_states, n_states, n_arms), 每 (s, a) sum=1
+                R_mean shape (n_states, n_arms), ∈ [0, 1]
+            or None: 任一 posterior 未注入 (走 init 路径)
+
+        校验:
+          - posterior.n_states / n_arms 跟 self 匹配, 否则 raise ValueError
+          - posterior shape 必须 3D / 2D, 跟 transition / reward 对齐
+        """
+        if self._transition_posterior is None or self._reward_posterior is None:
+            return None
+        tp = self._transition_posterior
+        rp = self._reward_posterior
+        if tp.n_states != self.n_states or tp.n_arms != self.n_arms:
+            raise ValueError(
+                f"TransitionPosterior shape 跟 POMDPPolicy 不匹配 "
+                f"(expected n_states={self.n_states}, n_arms={self.n_arms}, "
+                f"got n_states={tp.n_states}, n_arms={tp.n_arms})"
+            )
+        if rp.n_states != self.n_states or rp.n_arms != self.n_arms:
+            raise ValueError(
+                f"RewardPosterior shape 跟 POMDPPolicy 不匹配 "
+                f"(expected n_states={self.n_states}, n_arms={self.n_arms}, "
+                f"got n_states={rp.n_states}, n_arms={rp.n_arms})"
+            )
+        return tp.mean(), rp.mean()
+
     def dump_state(self) -> Dict[str, Any]:
-        """导出状态 (v0.89.0-c schema, v0.88.0-c / v0.87.0-c 老 snapshot 不兼容).
+        """导出状态 (v0.90.0 schema, v0.89.0-c / v0.88.0-c / v0.87.0-c 老 snapshot 不兼容).
 
         Returns:
             dict 含:
-              - schema_version (str)  "0.89.0-c" (老 snapshot raise per 防御性自检 [5])
+              - schema_version (str)  "0.90.0" (老 snapshot raise per 防御性自检 [5])
               - n_arms / n_states / n_observations
               - belief_state (List[float])
               - transition (List[List[List[float]]])  n_states x n_states x n_arms (3D, v0.88.0-c 升级)
@@ -409,6 +462,10 @@ class POMDPPolicy:
               - use_pbvi (bool)  v0.89.0-c PBVI 开关
               - pbvi_config (Dict)  PBVI 配置 (gamma / epsilon / n_iters / n_belief_points)
               - solver_state (Dict)  PBVI solver 状态 (alpha_vectors + belief_points, lazy 兜底 None)
+              - transition_count (List[List[List[int]]])  v0.90.0-b 新增: TransitionPosterior raw count
+              - reward_alpha (List[List[float]])          v0.90.0-b 新增: RewardPosterior Beta α
+              - reward_beta  (List[List[float]])          v0.90.0-b 新增: RewardPosterior Beta β
+                (posterior 未注入时全 None, 跟 schema 升级兼容)
         """
         pbvi_config = {
             "gamma": self.pbvi_gamma,
@@ -427,6 +484,17 @@ class POMDPPolicy:
                 ],
                 "belief_points": [b.tolist() for b in self.solver.belief_points],
             }
+        # v0.90.0-b: posterior raw 持久化 (lazy, 未注入时存 None)
+        if self._transition_posterior is not None:
+            transition_count = self._transition_posterior.count.tolist()
+        else:
+            transition_count = None
+        if self._reward_posterior is not None:
+            reward_alpha = self._reward_posterior.alpha.tolist()
+            reward_beta = self._reward_posterior.beta.tolist()
+        else:
+            reward_alpha = None
+            reward_beta = None
         return {
             "schema_version": SCHEMA_VERSION,
             "n_arms": self.n_arms,
@@ -441,13 +509,16 @@ class POMDPPolicy:
             "use_pbvi": self.use_pbvi,
             "pbvi_config": pbvi_config,
             "solver_state": solver_state,
+            "transition_count": transition_count,
+            "reward_alpha": reward_alpha,
+            "reward_beta": reward_beta,
         }
 
     def load_state(self, state: Dict[str, Any]) -> None:
-        """加载状态 (v0.89.0-c schema 校验, 防御性自检 [5]).
+        """加载状态 (v0.90.0 schema 校验, 防御性自检 [5]).
 
-        v0.89.0-c snapshot 包含 PBVI 开关、配置和可选 solver 状态；老
-        v0.88.0-c / v0.87.0-c snapshot 不兼容，必须迁移或丢弃。
+        v0.90.0 snapshot 含 posterior raw 字段 (transition_count / reward_alpha / reward_beta);
+        老 v0.89.0-c / v0.88.0-c / v0.87.0-c snapshot 不兼容, 必须迁移或丢弃.
 
         Args:
             state: dump_state() 导出的 dict
@@ -457,6 +528,8 @@ class POMDPPolicy:
           - n_arms / n_states / n_observations 必须匹配
           - transition 形状必须是 3D (n_states x n_states x n_arms)
           - reward 长度必须是 n_states
+          - transition_count / reward_alpha / reward_beta 必须 3D / 2D 匹配, 否则 raise
+            (None 表示 posterior 未注入, 跳过重建)
         """
         schema_version = state.get("schema_version")
         if schema_version != SCHEMA_VERSION:
@@ -557,6 +630,78 @@ class POMDPPolicy:
                     )
                 restored_alphas.append(AlphaVector(action=int(item["action"]), values=values))
             solver.alpha_vectors = restored_alphas
+
+        # v0.90.0-b: posterior 重建 (从 transition_count / reward_alpha / reward_beta)
+        # 任何字段非 None → 重建对应 posterior; 全 None → 跳过 (跟 dump_state 对称)
+        from ecos.lca.l4_optimization.pomdp_learner import (
+            RewardPosterior,
+            TransitionPosterior,
+        )
+        transition_count = state.get("transition_count")
+        reward_alpha = state.get("reward_alpha")
+        reward_beta = state.get("reward_beta")
+        # transition_count shape 校验
+        if transition_count is not None:
+            if len(transition_count) != self.n_states:
+                raise ValueError(
+                    f"POMDPPolicy state transition_count 第一维不匹配 "
+                    f"(expected={self.n_states}, got={len(transition_count)})"
+                )
+            for s_idx, count_s in enumerate(transition_count):
+                if len(count_s) != self.n_states:
+                    raise ValueError(
+                        f"POMDPPolicy state transition_count 第二维不匹配 "
+                        f"(s={s_idx}, expected={self.n_states}, got={len(count_s)})"
+                    )
+                if not isinstance(count_s[0], list):
+                    raise ValueError(
+                        f"POMDPPolicy state transition_count 第三维必须是 list "
+                        f"(s={s_idx}, got type={type(count_s[0]).__name__})"
+                    )
+                if len(count_s[0]) != self.n_arms:
+                    raise ValueError(
+                        f"POMDPPolicy state transition_count 第三维不匹配 "
+                        f"(s={s_idx}, expected={self.n_arms}, got={len(count_s[0])})"
+                    )
+            tp_count = np.array(transition_count, dtype=int)
+            self._transition_posterior = TransitionPosterior(count=tp_count)
+        else:
+            self._transition_posterior = None
+        # reward_alpha / reward_beta shape 校验 + 重建
+        if reward_alpha is not None and reward_beta is not None:
+            if len(reward_alpha) != self.n_states:
+                raise ValueError(
+                    f"POMDPPolicy state reward_alpha 第一维不匹配 "
+                    f"(expected={self.n_states}, got={len(reward_alpha)})"
+                )
+            for s_idx, alpha_s in enumerate(reward_alpha):
+                if len(alpha_s) != self.n_arms:
+                    raise ValueError(
+                        f"POMDPPolicy state reward_alpha 第二维不匹配 "
+                        f"(s={s_idx}, expected={self.n_arms}, got={len(alpha_s)})"
+                    )
+            if len(reward_beta) != self.n_states:
+                raise ValueError(
+                    f"POMDPPolicy state reward_beta 第一维不匹配 "
+                    f"(expected={self.n_states}, got={len(reward_beta)})"
+                )
+            for s_idx, beta_s in enumerate(reward_beta):
+                if len(beta_s) != self.n_arms:
+                    raise ValueError(
+                        f"POMDPPolicy state reward_beta 第二维不匹配 "
+                        f"(s={s_idx}, expected={self.n_arms}, got={len(beta_s)})"
+                    )
+            rp_alpha = np.array(reward_alpha, dtype=float)
+            rp_beta = np.array(reward_beta, dtype=float)
+            self._reward_posterior = RewardPosterior(alpha=rp_alpha, beta=rp_beta)
+        elif reward_alpha is not None or reward_beta is not None:
+            # 一边 None 一边 not None → 不一致, raise
+            raise ValueError(
+                "POMDPPolicy state posterior 不一致: "
+                "reward_alpha / reward_beta 必须同时为 None 或同时非 None"
+            )
+        else:
+            self._reward_posterior = None
 
 __all__ = [
     "POMDPPolicy",
