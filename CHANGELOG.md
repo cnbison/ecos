@@ -12,6 +12,93 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.93.0] 2026-08-12
+
+### feat: Phase 7+ 抽象推演 #6 — POMDP T/R 后验可视化 (4 sub-commit a/b/c/d)
+
+> **背景**: v0.92.0-d 完成 HumanTwinSnapshot ActionHistory 占位兑现 (1259 pytest, 0 缺失清单). POMDP Policy 已经 6 sub-version 累积 (v0.87 雏形 / v0.88 依赖型 T+R / v0.89 PBVI / v0.90 T/R 在线学习 / v0.91 schema 0.91.0 / v0.92 schema 0.92.0), **但至今没有诊断 surface** — 开发者调 POMDP 时只能看 `select_arm` 决策, 看不到 T 后验 / R 后验 / belief 分布 / 样本覆盖度的演化.
+> **v0.93.0 目标**: 给 POMDPPolicy 加 structured diagnostic surface — 暴露 T/R/belief/coverage 字段, 加 timed snapshot 演化追踪 (N=50/K=10), 集成到 Runtime + LCAEngine + Plugin SDK 全栈, DB 持久化 + schema 升级. v0.95+ Teacher/Parent Dashboard 可直接消费 diagnostic payload 渲染. pytest 1259 → 1308 (+49, +3.9%).
+
+#### NEW: POMDPDiagnostic 数据结构 + POMDPPolicy diagnostic API 雏形 (v0.93.0-a)
+
+- NEW `ecos/lca/l4_optimization/pomdp_diagnostic.py` (~280 行):
+  - `TransitionPosteriorSnapshot` (frozen dataclass, 跟 AlphaVector / HumanFeedbackEntry / ActionEntry 同模式): mean (3D ndarray) + count (3D ndarray) + alpha0 (float) + schema_version="0.93.0" + to_dict/from_dict round-trip + 防御性 shape 校验 raise
+  - `RewardPosteriorSnapshot` (frozen dataclass): mean (2D ndarray) + alpha (2D ndarray) + beta (2D ndarray) + alpha0 (float) + variance (2D ndarray αβ/((α+β)²(α+β+1))) + schema_version="0.93.0"
+  - `POMDPDiagnostic` (frozen dataclass, 三件套 + coverage): T + R + belief (1D ndarray) + coverage (2D ndarray per-(s,a)) + most_likely_state (int) + last_updated (datetime) + schema_version="0.93.0"
+- NEW `POMDPPolicy.get_diagnostic() -> POMDPDiagnostic` (lazy init posterior + silent pass fallback to uniform prior diagnostic)
+- NEW `POMDPPolicy.get_transition_heatmap(action: int) -> np.ndarray` (T 后验 2D ndarray, 越界 _log.warning + 返 zeros)
+- NEW `POMDPPolicy.get_reward_curves(action: int) -> Dict[str, np.ndarray]` (alpha/beta/mean/variance per state)
+- 18 新增 tests (pytest 1259 → 1277)
+
+#### NEW: Runtime + LCAEngine + Plugin SDK 集成 diagnostic (v0.93.0-b)
+
+- NEW `Runtime.diagnose_pomdp(student_id: str, **kwargs) -> POMDPDiagnostic` (Runtime 第 8 plan/query API, 委托 LCAEngine.get_pomdp_diagnostic)
+- NEW `LCAEngine.get_pomdp_diagnostic(student_id: str) -> POMDPDiagnostic` (缓存命中 + 缓存 miss lazy collect + 非 POMDP _log.warning fallback)
+- NEW `LCAEngine._pomdp_diagnostic: Dict[str, POMDPDiagnostic]` (per-student dict, 跟 `_cognitive_twin` / `_last_intervention` 完全 parallel pattern)
+- MODIFY `LCAEngine.select_intervention` POMDP path: auto-collect diagnostic after Step 8 (跟 v0.92.0-b action_history auto-record parallel)
+- NEW `PluginRuntime` 第 8 subscriber `pomdp_diagnostic_updated` → `_handle_pomdp_diagnostic_updated` → Runtime.diagnose_pomdp
+- 13 新增 tests (pytest 1277 → 1290)
+
+#### NEW: 演化追踪 (timed snapshots) + 持久化 (v0.93.0-c)
+
+- MODIFY `POMDPPolicy.__init__` ADD `self._evolution: List[POMDPDiagnostic] = []` (cap K=10 FIFO) + `self._update_count: int = 0` + `self._next_snapshot_at: int = 50` + `self._evolution_interval: int = 50`
+- MODIFY `POMDPPolicy._update_t_r` END: `_update_count += 1`, 当 `_update_count >= _next_snapshot_at` 时 `_take_evolution_snapshot` (N=50 触发)
+- NEW `POMDPPolicy._take_evolution_snapshot / get_evolution / evolution_snapshot_count` (3 个 getter, FIFO cap K=10, 防御性 [1] 异常 _log.warning)
+- MODIFY `POMDPPolicy.SCHEMA_VERSION` "0.92.0" → "0.93.0" (老 0.92 snapshot raise per 防御性自检 [5])
+- MODIFY `POMDPPolicy.dump_state` ADD evolution (List[Dict]) + update_count (int) + next_snapshot_at (int) 字段
+- MODIFY `POMDPPolicy.load_state` ADD evolution graceful restore (per-snapshot KeyError/TypeError _log.warning + skip)
+- MODIFY `LCAEngine.dump_state` ADD pomdp_diagnostic 子字段 (CognitiveTwinAgent 4-tuple 内, 跟 v0.92.0-d cognitive_twin 完全 parallel)
+- MODIFY `LCAEngine.load_state` ADD pomdp_diagnostic graceful skip for 老 v0.92 snapshot
+- MODIFY `LCAStore.lca_state` 表: 新增 pomdp_diagnostic TEXT 列 (CLAUDE.md 防御性自检 [5] 9 字段对齐) + ALTER TABLE IF NOT EXISTS 老 DB 兼容 migration (跟 v0.91.0-d cognitive_twin 列 migration pattern 一致)
+- 10 新增 tests (pytest 1290 → 1300)
+
+#### NEW: H3-c4 canary + docs + examples (v0.93.0-d)
+
+- NEW `docs/pomdp_diagnostic.md` (~250 行, 8 section):
+  §一   POMDP Diagnostic 原则 (kernel-mapping §1.3 + §5 CQRS 一致)
+  §二   POMDPDiagnostic 字段 (Frozen Dataclass) + TransitionPosteriorSnapshot + RewardPosteriorSnapshot
+  §三   Runtime.diagnose_pomdp API (Runtime 第 8 plan/query API)
+  §四   LCAEngine.get_pomdp_diagnostic API (per-student dict 缓存)
+  §五   Plugin SDK 第 8 Subscriber (pomdp_diagnostic_updated → handle → Runtime.diagnose_pomdp)
+  §六   演化追踪 (Timed Snapshots N=50/K=10)
+  §七   防御性自检 (8 项 v0.93 现状)
+  §八   调用样例
+- NEW `examples/plugin_sample_pomdp_diagnostic.py` (~180 行, 3 use case):
+  1. use_case_teacher_progress_review (教师进度分析 + 冷启动判断 coverage < 5)
+  2. use_case_parent_engagement_dashboard (家长 evolution 趋势 + most_likely_state 序列)
+  3. use_case_student_self_reflection (学生自省 + 状态 → 学习建议 4 种映射)
+- H3-c4 canary 维持 (POMDP diagnostic 走 LCA 路径, BeliefState 不受影响)
+- v0.81 replay canary 维持 (POMDP diagnostic 不通过 StateEngine.replay 重建)
+- 老 v0.92 LCAEngine snapshot graceful skip (pomdp_diagnostic 字段缺 / 老 schema_version)
+- 8 新增 tests (pytest 1300 → 1308)
+
+#### 关键指标 (v0.93.0 final)
+
+- pytest: 1259 → **1308** (+49, +3.9%)
+- POMDP Diagnostic 100% production-ready (T/R/belief/coverage 一次性暴露 + 全栈集成 + 持久化)
+- 累计 Kernel 深化 11 个版本 (v0.83 → v0.93), pytest 736 → 1308 (+572, +77.7%)
+- Runtime plan/query API: 7 → **8** (+ diagnose_pomdp)
+- Plugin SDK subscribers: 7 → **8** (+ pomdp_diagnostic_updated)
+- LCAStore lca_state 列数: 8 → **9** (+ pomdp_diagnostic TEXT)
+- POMDPPolicy SCHEMA_VERSION: "0.92.0" → "0.93.0"
+- 演化追踪 (N=50/K=10) 跟 v0.81 EventLog retention (max_per_student cap) + v0.91/v0.92 cognitive_twin cap 500 完全 parallel pattern
+- FUNC_ALLOWLIST: 维持 51 文件 (0 新增, POMDPDiagnostic 是纯 frozen dataclass, 不持有 BeliefState 引用)
+
+#### 防御性自检 (8 项 v0.93 现状)
+
+| # | 项 | v0.93 状态 |
+|---|----|-----------|
+| 1 | silent pass 扫描 | POMDPDiagnostic 异常 _log.warning + 返 uniform prior diagnostic; LCAEngine._collect_pomdp_diagnostic 双层防御 |
+| 2 | __version__ 同步 | "0.92.0-d" → "0.93.0" bump |
+| 5 | schema_version 校验 | POMDPPolicy "0.92.0" → "0.93.0" 严格 raise; LCAEngine.load_state graceful skip (per v0.92.0-d 老 v0.91 compat pattern) |
+| 8 | direct state mutation 扫描 | 0 新 mutation site (POMDPDiagnostic frozen + LCAEngine._pomdp_diagnostic dict 走 self mutation + POMDPPolicy._evolution list 走 self mutation + examples 纯读不写) |
+
+#### 后续 (v0.94+)
+
+- v0.94+: Kernel-first 战略持续 (Teacher/Parent Dashboard 应用层推迟 — per `project-strategy-kernel-first.md`)
+- v0.94+ 可选: 第一方 plugin 库 (per Bisen 拍板 v0.92.0 项目方向)
+
+
 ## [0.90.0-a] 2026-08-12
 
 ### feat: Phase 7+ 抽象推演 #2 (sub a) — POMDP T/R 在线学习数据结构

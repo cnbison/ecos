@@ -119,15 +119,15 @@ ecos/
 └── prototypes/                        # 架构原型
 ```
 
-## 当前状态（2026-08-12，v0.90.0-d）— **🚀 Phase 7+ 抽象推演 #2 完成：POMDP T/R 在线学习 (Beta-Multinomial posterior) + Runtime 集成 + 冷启动**
+## 当前状态（2026-08-12，v0.93.0）— **🚀 Phase 7+ 抽象推演 #6 完成：POMDP T/R 后验可视化（POMDPDiagnostic 全栈 + 演化追踪 + 持久化）**
 
 > **Bisen 路线**: Phase 1-4 是 UI 改进路线, 跟 ROADMAP Phase 0/4/5/6 不同。
 > 2026-07-22 v0.52.3 已完成 Phase 1-4 (顶栏精简 / 题目合并 / 轨迹折叠 / 2 位小数 / Tab 导航 /
 > CSS 变量 / 5D badge / SVG icon / 拆文件 / API 封装 / URL hash 路由)。
-> 2026-07-23 ~ 2026-08-12 完成 Phase 5 核心骨架 + Phase 6+ Kernel 深化 + Phase 7+ 抽象推演 #1 + #2。
-> 详细见 [CHANGELOG.md](CHANGELOG.md) v0.54.0 → v0.90.0-d。
+> 2026-07-23 ~ 2026-08-12 完成 Phase 5 核心骨架 + Phase 6+ Kernel 深化 + Phase 7+ 抽象推演 #1-#6。
+> 详细见 [CHANGELOG.md](CHANGELOG.md) v0.54.0 → v0.93.0。
 
-**ECOS 7 组件当前状态** (v0.90.0-d):
+**ECOS 7 组件当前状态** (v0.93.0):
 | 组件 | 状态 | 详情 |
 |------|------|------|
 | 5D + θ_cov | ✅ 真评估 | K/P/S/C/X 五维均非零 (lbc001 C=-0.12 X=0.47; lbc002 C=-0.20 X=0.82) |
@@ -229,20 +229,19 @@ ECOS_DUAL_AGENT_ENABLED=1 python -m web.api.app
 
 > `.env` 文件会在 `from_env()` 调用时自动加载，无需手动 `source`。
 
-## 下一步（v0.91+ 准备中）
+## 下一步（v0.94+ 准备中）
 
-**当前状态**: v0.90.0-d Phase 7+ 抽象推演 #2 全部完成 (POMDP T/R 在线学习 + Runtime + PolicyABTest + 冷启动).
-ECOS 2.0 Kernel 深化 7 个版本 (v0.83 → v0.90) 累计 185 新测试, pytest 958 → 1143.
-下一阶段: v0.91+ (Twin → Human Twin 抽象 + Plugin SDK 文档化 + Teacher/Parent Dashboard + v0.90 后端学习 T/R 后验可视化).
+**当前状态**: v0.93.0 Phase 7+ 抽象推演 #6 全部完成 (POMDP T/R 后验可视化 POMDPDiagnostic + Runtime + LCAEngine + Plugin SDK 第 8 subscriber + 演化追踪 N=50/K=10 + 持久化 LCAStore 第 9 列 + 文档化).
+ECOS 2.0 Kernel 深化 11 个版本 (v0.83 → v0.93) 累计 572 新测试, pytest 736 → 1308.
+下一阶段: v0.94+ (Kernel-first 战略持续, Teacher/Parent Dashboard 应用层推迟 — per `project-strategy-kernel-first.md`).
 
 | 优先级 | 任务 | 触发条件 | 详见 |
 |--------|------|---------|------|
-| **P0** | **v0.91+ 启动**: Phase 7+ 抽象推演 #3+ (Twin → Human Twin + Plugin SDK 文档化) | v0.91.0 启动 | [research/00-overview/03-roadmap.md](research/00-overview/03-roadmap.md) v1.5+ |
-| **P1** | POMDP T/R 后验可视化 (学生画像里看 learned T/R mean) | v0.91+ | CHANGELOG v0.90 |
+| **P0** | **v0.94+ 启动**: Phase 7+ 抽象推演 #7+ (Kernel-first 战略持续) | v0.94.0 启动 | [research/00-overview/03-roadmap.md](research/00-overview/03-roadmap.md) v1.5+ |
+| P1 | Teacher/Parent Dashboard 应用层 (v0.94+ 按需) | Kernel 稳定后做 | `project-strategy-kernel-first.md` |
 | P1 | Domain 落地到 Education/Science/Career 实际场景 | Multi-Domain 完成 (v0.88.0-d) | CHANGELOG v0.88.0 |
 | P2 | C/X 主导题继续扩量 (从各 5 道到 20+ 道) | lbc001/lbc003 答完现有 C/X 题 | [discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md](discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md) |
 | P2 | LearningDNA 真实实现 | ≥50 题 + 交互行为数据 | — |
-| P2 | 老师端骨架 | Kernel 稳定后做 | 路线图 |
 
 ## 关联项目
 
