@@ -12,6 +12,62 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.90.0-a] 2026-08-12
+
+### feat: Phase 7+ 抽象推演 #2 (sub a) — POMDP T/R 在线学习数据结构
+
+> **背景**: v0.89.0-d 完成 PBVI 完整集成 (PBVI 跑在固定 T/R 上). v0.90 主轴: 把 T/R 从"固定 init"升级到"贝叶斯 posterior 在线学习". 4 sub-commit (a/b/c/d) 节奏, 跟 v0.86/v0.87/v0.88/v0.89 一致.
+> **v0.90.0-a 目标**: T/R posterior 数据结构 + 增量 update (新建 `pomdp_learner.py` + Dirichlet + Beta conjugate + posterior mean API). POMDP Policy §1.3: 100% (PBVI 完整) → 0% (T/R 学习数据通路) 起步. pytest 1096 → 1108 (+12, +1.1%).
+
+#### NEW: pomdp_learner.py — TransitionPosterior + RewardPosterior (v0.90.0-a)
+
+- `ecos/lca/l4_optimization/pomdp_learner.py` (NEW, ~250 行):
+  - `TransitionPosterior` (Dirichlet 多项式共轭 posterior):
+    - `count: np.ndarray` shape (n_states, n_states, n_arms), 跟 POMDPPolicy.transition 对齐
+    - `count[s_next, s, a]` 约定 (跟 POMDPPolicy.transition[s', s, a] 同)
+    - `alpha0: float = 1.0` (uniform prior, 跟 Thompson Sampling 一致)
+    - `update(s, a, s_next)` 增量: `count[s_next, s, a] += 1`
+    - `mean()` 派生 posterior MAP: `(count + alpha0) / Σ_{s_next} (count + alpha0)` (沿 axis=0 归一化)
+    - `total_evidence()` 总证据数 (sum count)
+  - `RewardPosterior` (Beta 共轭 posterior):
+    - `alpha: np.ndarray` shape (n_states, n_arms), `beta: np.ndarray` shape (n_states, n_arms)
+    - `alpha0: float = 1.0` (Beta(1, 1) uniform prior)
+    - `update(s, a, reward)` 增量: `alpha[s, a] += reward`, `beta[s, a] += (1 - reward)`
+    - `mean()` 派生 posterior MAP: `alpha / (alpha + beta)` (Bayes estimator)
+    - `total_evidence()` 总证据数 (sum (alpha + beta) - alpha0 * n_states * n_arms)
+    - `get_arm_stats()` 接口同构 ThompsonSampling
+  - 输入校验: s / a / s_next 越界 raise ValueError; reward ∉ [0, 1] raise; shape 不一致 raise (init 校验)
+  - Posterior 数据结构独立: 不持有 POMDPPolicy / BeliefState 引用, 走单独路径 (避免破坏 POMDPPolicy 接口同构)
+- `ecos/lca/l4_optimization/__init__.py`:
+  - 导出 `TransitionPosterior` + `RewardPosterior`
+
+#### NEW: tests/test_pomdp_learner.py (12 tests)
+
+- 3 tests: TransitionPosterior 创建 (shape / dtype / alpha0=1 uniform prior)
+- 3 tests: TransitionPosterior update + mean (增量 / 归一化 / 多次 update 单调)
+- 3 tests: RewardPosterior 创建 / update / mean (跟 Thompson Sampling Beta posterior 对齐)
+- 3 tests: 防御性 (越界 raise + shape 校验)
+
+#### 不引入 POMDPPolicy 修改
+
+- a 阶段不修改 `pomdp.py` (接口同构 LinUCB/Thompson/POMDP 维持)
+- 不引入 `dump_state` / `load_state` schema 变更 (schema_version 仍 "0.89.0-c", b 阶段升级)
+- 防御性自检 [8] 0 新 mutation site (`TransitionPosterior.update` / `RewardPosterior.update` 是 `self.count[s, a]` / `self.alpha[s, a]` mutation, 不在 `state.X` 模式, 跟 append_trajectory_snapshot / set_domain_extension 同, AST 扫描豁免)
+
+#### 不变量
+
+- POMDPPolicy 接口同构 LinUCB/Thompson/POMDP 维持
+- H3-c4 canary + v0.81 replay canary 全 PASS (POMDPPolicy 未触碰)
+- 防御性自检 [1] silent pass + [5] schema_version + [8] hard block 全 PASS
+
+#### 下一阶段 v0.90.0-b: posterior 注入 + 持久化 + schema_version 升级
+
+- POMDPPolicy.set_transition_posterior / set_reward_posterior 注入接口
+- `_learned_t_r_posterior_mean()` 派生 T/R posterior mean
+- SCHEMA_VERSION "0.89.0-c" → "0.90.0", 老 snapshot raise
+- dump_state / load_state 加 transition_count / reward_alpha / reward_beta 3 字段
+
+
 ## [0.88.0-b] 2026-08-11
 
 ### feat: Phase 7+ 抽象推演 #1 (sub b) — Multi-Domain 集成 Runtime + LCA
