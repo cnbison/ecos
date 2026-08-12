@@ -41,8 +41,9 @@ from .planner import PlanDecision
 
 # v0.87.0-b: TYPE_CHECKING 避免循环 import (MotivationProfile 不引用 LCA, 顶层 import 也可)
 # v0.91.0-c: CognitiveTwinAgent TYPE_CHECKING 避免循环 import
+# v0.92.0-c: ActionHistory TYPE_CHECKING 避免循环 import
 if TYPE_CHECKING:
-    from ..cta.cognitive_twin import CognitiveTwinAgent
+    from ..cta.cognitive_twin import ActionHistory, CognitiveTwinAgent
     from ..motivation.profile import MotivationProfile
 
 _log = logging.getLogger(__name__)
@@ -163,6 +164,7 @@ class ExperimentDesigner:
         motivation: Optional["MotivationProfile"] = None,
         domain_name: Optional[str] = None,
         cognitive_twin: Optional["CognitiveTwinAgent"] = None,
+        action_history: Optional["ActionHistory"] = None,
     ) -> List[Intervention]:
         """生成候选干预池.
 
@@ -180,6 +182,11 @@ class ExperimentDesigner:
                           (hint_requested > 5 → EXPLANATORY, idle_detected > 3 → INQUIRY,
                            reflection_completed > 3 → PRACTICE, goal_changed > 1 → PRACTICE).
                           None = 不做 human_feedback override (走 default).
+            action_history: v0.92.0-c: 可选 ActionHistory (Twin 第 4 维度, LCA 内部自动记录),
+                          调整 itype 权重 (reward_recorded 平均 < 0.5 → PRACTICE, dual_agent_calibrated
+                          平均 reward > 0.7 → EXPLANATORY, type_diversity → INQUIRY 切换,
+                          policy_updated < 3 → default, goal_changed > 1 → PRACTICE).
+                          None = 不做 action_history override (走 default).
 
         Returns:
             List[Intervention] 长度 = n_candidates
@@ -195,6 +202,8 @@ class ExperimentDesigner:
           8. v0.88.0-b: domain 调整 itype 权重 (science=INQUIRY / career=PRACTICE)
           9. v0.91.0-c: human_feedback 调整 itype 权重 (hint/idle/reflection/goal)
                           (优先级: motivation > human_feedback > domain > default)
+          10. v0.92.0-c: action_history 调整 itype 权重 (reward/dual_agent/type_diversity/policy/goal)
+                          (优先级: motivation > human_feedback > action_history > domain > default)
         """
         if n_candidates is None:
             n_candidates = self.config.n_candidates
@@ -210,6 +219,8 @@ class ExperimentDesigner:
         domain_override = self._domain_itype_override(domain_name)
         # v0.91.0-c: human_feedback-aware itype preference (优先级: motivation > human_feedback > domain)
         human_feedback_override = self._human_feedback_itype_override(cognitive_twin)
+        # v0.92.0-c: action_history-aware itype preference (优先级: motivation > human_feedback > action_history > domain)
+        action_history_override = self._action_history_itype_override(action_history)
 
         candidates: List[Intervention] = []
         target_skills = cta_input.skill_filter or []
@@ -220,10 +231,13 @@ class ExperimentDesigner:
             # v0.87.0-b: motivation override 优先于 default types
             # v0.88.0-b: domain override (优先级: motivation > domain > default)
             # v0.91.0-c: human_feedback override (优先级: motivation > human_feedback > domain > default)
+            # v0.92.0-c: action_history override (优先级: motivation > human_feedback > action_history > domain > default)
             if motivation_override is not None and i % 3 == 0:
                 itype = motivation_override
             elif human_feedback_override is not None and i % 3 == 1:
                 itype = human_feedback_override
+            elif action_history_override is not None and i % 3 == 2:
+                itype = action_history_override
             elif domain_override is not None and i % 3 == 2:
                 itype = domain_override
             else:
@@ -392,6 +406,71 @@ class ExperimentDesigner:
         except Exception:
             _log.warning(
                 "ExperimentDesigner._human_feedback_itype_override 异常, 返 None",
+                exc_info=True,
+            )
+        return None
+
+    @staticmethod
+    def _action_history_itype_override(
+        action_history: Optional["ActionHistory"],
+    ) -> Optional[InterventionType]:
+        """v0.92.0-c: action_history-aware itype preference (Twin 第 4 维度).
+
+        规则 (per v0.92 plan §v0.92.0-c, 5 case 优先级: reward_low > type_diversity >
+              dual_agent > policy_cold > goal_changed):
+          1. reward_recorded 平均 < 0.5 + 累计 ≥ 5 → PRACTICE   (低 gain 学生需更多练习)
+          2. intervention_selected 在某 type (e.g. EXPLANATORY) 累计 > 10 →
+             切换该 type → INQUIRY                              (避免单调, 改 INQUIRY)
+          3. dual_agent_calibrated 平均 reward > 0.7 → EXPLANATORY (互校确认学生掌握)
+          4. policy_updated 累计 < 3 → None (default)            (冷启动期稳定探索)
+          5. goal_changed 累计 > 1 → PRACTICE                   (跟 human_feedback.goal_changed 同)
+
+        优先级: reward_low > type_diversity > dual_agent > policy_cold > goal_changed
+        不满足 → 返 None (走 default_types).
+
+        Args:
+            action_history: Optional[ActionHistory] (v0.92.0-a 数据结构, Twin 第 4 维度).
+                            None 时返 None (无 action_history 数据).
+
+        Returns:
+            Optional[InterventionType] (None = 不 override)
+
+        防御性自检 [1]: action_history 缺失/异常 _log.warning + 返 None
+        """
+        if action_history is None:
+            return None
+        try:
+            ah = action_history
+            if ah is None:
+                return None
+            # 1. reward_recorded 平均 < 0.5 + 累计 ≥ 5 → PRACTICE
+            reward_count = ah.count_by_type("reward_recorded")
+            if reward_count >= 5:
+                rewards = [e.reward for e in ah.entries if e.action_type == "reward_recorded" and e.reward is not None]
+                if rewards and sum(rewards) / len(rewards) < 0.5:
+                    return InterventionType.PRACTICE
+            # 2. type_diversity (intervention_selected 在某 type > 10 → INQUIRY)
+            #   从 metadata["bloom_target"] 聚合 (LCA 自动记录的 action_history 字段)
+            type_counter: dict = {}
+            for e in ah.entries:
+                if e.action_type == "intervention_selected" and "bloom_target" in e.metadata:
+                    type_counter[e.metadata["bloom_target"]] = type_counter.get(e.metadata["bloom_target"], 0) + 1
+            if any(v > 10 for v in type_counter.values()):
+                return InterventionType.INQUIRY
+            # 3. dual_agent_calibrated 平均 reward > 0.7 → EXPLANATORY
+            dual_count = ah.count_by_type("dual_agent_calibrated")
+            if dual_count >= 1:
+                dual_rewards = [e.reward for e in ah.entries if e.action_type == "dual_agent_calibrated" and e.reward is not None]
+                if dual_rewards and sum(dual_rewards) / len(dual_rewards) > 0.7:
+                    return InterventionType.EXPLANATORY
+            # 4. policy_updated 累计 < 3 → None (冷启动期稳定探索, 不 override)
+            #   (policy_updated < 3 = 冷启动期, 不 override 让 designer 自由选)
+            # 5. goal_changed 累计 > 1 → PRACTICE (跟 human_feedback.goal_changed 同)
+            if ah.count_by_type("goal_changed") > 1:
+                return InterventionType.PRACTICE
+        except Exception:
+            _log.warning(
+                "ExperimentDesigner._action_history_itype_override 异常, 返 None",
                 exc_info=True,
             )
         return None

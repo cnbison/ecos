@@ -330,6 +330,7 @@ class LCAEngine:
         # v0.87.0-b: motivation 透传到 ExperimentDesigner.design()
         # v0.88.0-b: domain_name 透传到 ExperimentDesigner.design()
         # v0.91.0-c: cognitive_twin 透传到 ExperimentDesigner.design() (itype 权重调整)
+        # v0.92.0-c: action_history 透传到 ExperimentDesigner.design() (itype 权重调整)
         candidates = self.experiment_designer.design(
             plan,
             cta_input,
@@ -337,6 +338,7 @@ class LCAEngine:
             motivation=motivation,
             domain_name=domain_name,
             cognitive_twin=cognitive_twin,
+            action_history=action_history,
         )
         # v0.82.0-d: LinUCB 选择委托 PolicyLearner.select (LCA 4-layer 第 4 层)
         #   内部 lazy init per-student LCAPolicyLearner (v0.57.0 per-student 隔离)
@@ -367,6 +369,13 @@ class LCAEngine:
             cognitive_twin
         )
         expected_gain *= human_feedback_factor
+
+        # v0.92.0-c: action_history reward 调整 (multiplicative factor, 跟 human_feedback 同 range)
+        #   多 factor chain: base × motivation × domain × human_feedback × action_history (5 因素)
+        action_history_factor = self.evaluator.action_history_reward_adjustment(
+            action_history
+        )
+        expected_gain *= action_history_factor
 
         chosen.expected_gain = max(0.0, min(1.0, expected_gain))
         chosen.expected_risk = expected_risk

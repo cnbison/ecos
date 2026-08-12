@@ -34,8 +34,9 @@ from .l4_optimization import (
 )
 
 # v0.91.0-c: CognitiveTwinAgent TYPE_CHECKING 避免循环 import
+# v0.92.0-c: ActionHistory TYPE_CHECKING 避免循环 import
 if TYPE_CHECKING:
-    from ..cta.cognitive_twin import CognitiveTwinAgent
+    from ..cta.cognitive_twin import ActionHistory, CognitiveTwinAgent
 
 _log = logging.getLogger(__name__)
 
@@ -271,6 +272,58 @@ class Evaluator:
         except Exception:
             _log.warning(
                 "Evaluator.human_feedback_reward_adjustment 异常, 返 1.0 (中性)",
+                exc_info=True,
+            )
+            return 1.0
+
+    # ---------------------------------------------------------------
+    # v0.92.0-c: ActionHistory reward 调整 (Twin 第 4 维度)
+    # ---------------------------------------------------------------
+
+    def action_history_reward_adjustment(
+        self,
+        action_history: Optional["ActionHistory"],
+    ) -> float:
+        """v0.92.0-c: 根据 ActionHistory (Twin 第 4 维度) 调整 gain (multiplicative factor).
+
+        规则 (per v0.92 plan §v0.92.0-c):
+          - reward_recorded 平均 < 0.5 (累计 ≥ 5):  factor = 0.85 (低 gain 风险, 跟 human_feedback.hint>5→0.8 同 range)
+          - reward_recorded 平均 > 0.7 (累计 ≥ 5):  factor = 1.15 (high gain 提升)
+          - dual_agent_calibrated reward > 0.5 比例 > 0.5: factor = 1.05 (互校积极 boost)
+          - 其他: factor = 1.0 (默认)
+
+        Args:
+            action_history: Optional[ActionHistory] (v0.92.0-a 数据结构, Twin 第 4 维度).
+
+        Returns:
+            float 调整 factor in [0.85, 1.15] (跟 motivation / domain / human_feedback_reward_adjustment 同 range)
+
+        防御性自检 [1]: action_history 缺失/异常 _log.warning + 返 1.0
+        """
+        if action_history is None:
+            return 1.0
+        try:
+            ah = action_history
+            if ah is None:
+                return 1.0
+            # reward_recorded 平均 (累计 ≥ 5 才计算, 避免单点噪声)
+            rewards = [e.reward for e in ah.entries if e.action_type == "reward_recorded" and e.reward is not None]
+            if len(rewards) >= 5:
+                avg = sum(rewards) / len(rewards)
+                if avg < 0.5:
+                    return 0.85  # 低 gain 风险
+                if avg > 0.7:
+                    return 1.15  # high gain 提升
+            # dual_agent_calibrated reward > 0.5 比例 > 0.5 → boost
+            dual_rewards = [e.reward for e in ah.entries if e.action_type == "dual_agent_calibrated" and e.reward is not None]
+            if len(dual_rewards) >= 2:
+                above_half = sum(1 for r in dual_rewards if r > 0.5) / len(dual_rewards)
+                if above_half > 0.5:
+                    return 1.05  # 互校积极 boost
+            return 1.0
+        except Exception:
+            _log.warning(
+                "Evaluator.action_history_reward_adjustment 异常, 返 1.0 (中性)",
                 exc_info=True,
             )
             return 1.0
