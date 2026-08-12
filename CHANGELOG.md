@@ -286,6 +286,305 @@
 - 下一阶段 v0.91+: Phase 7+ 抽象推演 #4+ (Twin → Human Twin + Plugin SDK 文档化 + Teacher/Parent Dashboard + POMDP T/R 后验可视化)
 
 
+## [0.91.0-a] 2026-08-12
+
+### feat: Phase 7+ 抽象推演 #4 (sub a) — Twin → Human Twin 数据结构
+
+> **背景**: v0.90.0-d 完成 POMDP T/R 在线学习 + Runtime 集成 + 冷启动. v0.91 主轴: 把 Twin 从 "BeliefState 单维度" 升级到 "CognitiveTwinAgent 3-tuple 聚合 (BeliefState + Trajectory + HumanFeedbackTrajectory)". Plugin SDK 4 frontend stub endpoint (hint/idle/goal_change/reflection) 接通 Human-in-loop 信号源. 5 sub-commit (a/b/c/d/e) 节奏, 跟 v0.86/v0.87/v0.88/v0.89/v0.90 一致.
+> **v0.91.0-a 目标**: CognitiveTwinAgent 数据结构 + HumanFeedbackEntry (新建 `cognitive_twin.py` + 3-tuple + 4 event_type + cap 500 + 防御性 schema_version). pytest 1143 → 1155 (+12, +1.0%).
+
+#### NEW: cognitive_twin.py — HumanFeedbackEntry + HumanFeedbackTrajectory + CognitiveTwinAgent (v0.91.0-a)
+
+- `ecos/cta/cognitive_twin.py`:
+  - `HumanFeedbackEntry` (frozen dataclass): `student_id: str` + `timestamp: datetime` + `event_type: str` (4 值: `hint_requested` / `idle_detected` / `goal_changed` / `reflection_completed`) + `payload: Dict[str, Any]` + `source: str` (默认 `"plugin"`, 留 v0.92+ 扩展 `"teacher"` / `"parent"`) + `schema_version: str = "0.91.0"`
+  - `HumanFeedbackEntry.from_event(event: LearningEvent)`: factory method (per event_type 校验 + payload 透传)
+  - `HumanFeedbackEntry.to_dict() / from_dict()`: round-trip 持久化
+  - `HumanFeedbackTrajectory`: `entries: List[HumanFeedbackEntry]` + `append(entry)` (cap 500, 跟 TrajectoryState.maxlen=500 同 pattern) + `last_n(n)` + `count_by_type(event_type)` + `to_dict() / from_dict()`
+  - `CognitiveTwinAgent`: 3-tuple aggregate `(belief_state: BeliefState, trajectory: TrajectoryState, human_feedback: HumanFeedbackTrajectory)` + `action_history: Optional[Dict[str, Any]] = None` (v0.92+ 占位) + `schema_version: str = "0.91.0"`
+  - `CognitiveTwinAgent.from_state(state: BeliefState)`: 静态方法入口 (从 BeliefState 派生, TrajectoryState 已经在 state.trajectory, HumanFeedbackTrajectory 初始空)
+  - `CognitiveTwinAgent.append_human_feedback(entry)`: allowlisted mutation (跟 append_trajectory_snapshot 同模式, 防御性自检 [8] allowlist)
+
+#### MODIFY: scripts/check_no_direct_state_mutation.py — FUNC_ALLOWLIST += CognitiveTwinAgent.append_human_feedback
+
+- 防御性自检 [8] AST 检测: 新增 `CognitiveTwinAgent.append_human_feedback` 入口到 allowlist (跟 v0.83.0-b `add_evidence` + v0.88.0-b `set_domain_extension` 同模式)
+- 任何 `state.X = value` 直接 mutation 在 allowlist 之外的都 fail pre-commit 静态检查
+
+#### NEW: tests/test_cognitive_twin.py (12 tests)
+
+- 3 tests: HumanFeedbackEntry 创建 / frozen / to_dict / from_dict round-trip
+- 3 tests: HumanFeedbackTrajectory append + cap 500 + last_n + count_by_type
+- 3 tests: CognitiveTwinAgent.from_state + 3-tuple access + action_history 占位
+- 3 tests: 防御性 (schema_version 校验 + 越界 raise + 4 event_type 校验)
+
+#### 不引入 Runtime API / LCA / Plugin SDK 修改
+
+- a 阶段专注数据结构 + 防御性 [8] allowlist 扩展, Runtime + LCA + Plugin Runtime 集成留 b 阶段
+
+#### 不变量
+
+- 防御性自检 [1] silent pass 扫描: a 阶段 0 新 silent pass
+- 防御性自检 [5] schema_version 校验: CognitiveTwinAgent "0.91.0" (新)
+- 防御性自检 [8] hard block: 1 新 allowlist 入口 (`append_human_feedback`)
+
+#### 下一阶段 v0.91.0-b: Runtime + Plugin SDK 4 subscriber
+
+
+## [0.91.0-b] 2026-08-12
+
+### feat: Phase 7+ 抽象推演 #4 (sub b) — Runtime + Plugin SDK 4 subscriber
+
+> **背景**: v0.91.0-a 完成 CognitiveTwinAgent 数据结构. b 阶段: 把 CognitiveTwinAgent 接入 Runtime + Plugin Runtime 4 subscriber (hint/idle/goal/reflection), 让 Plugin SDK 100% production. PluginRuntime subscription_count 3 → 7.
+> **v0.91.0-b 目标**: Runtime + Plugin SDK 4 subscriber (LCAEngine._cognitive_twin dict + Runtime.plan_human_feedback_aware 第 6 plan API + PluginRuntime 7 subscribers). pytest 1155 → 1170 (+15, +1.3%).
+
+#### MODIFIED: LCAEngine — _cognitive_twin dict + append_human_feedback (v0.91.0-b)
+
+- `ecos/lca/orchestrator.py:LCAEngine`:
+  - `self._cognitive_twin: Dict[str, "CognitiveTwinAgent"] = {}` (per-student pattern 跟 _last_intervention / _last_observation 一致)
+  - `self._cognitive_twin_pending: Dict[str, dict] = {}` (load_state 暂存, bind 时 materialize, 留 d 阶段用)
+  - `select_intervention(..., cognitive_twin: Optional[CognitiveTwinAgent] = None)`: 接收 + 存 `self._cognitive_twin[student_id] = cognitive_twin`
+  - `append_human_feedback(student_id, entry: HumanFeedbackEntry, state: Optional[BeliefState] = None) -> None`: 调 `CognitiveTwinAgent.append_human_feedback` (allowlisted mutation) + lazy init CognitiveTwinAgent via `from_state`
+
+#### MODIFIED: POMDPPolicy SCHEMA_VERSION 升级 (v0.91.0-b)
+
+- `ecos/lca/l4_optimization/pomdp.py`: `SCHEMA_VERSION = "0.90.0" → "0.91.0"` (老 v0.90.0 snapshot raise per 防御性自检 [5])
+
+#### NEW: Runtime.plan_human_feedback_aware (6 plan API upper limit)
+
+- `ecos/runtime/api.py:plan_human_feedback_aware(student_id, audience="student", human_feedback_entry=None, **kwargs)`:
+  - 调 `LCAEngine.append_human_feedback(student_id, entry)` (mutation 走 allowlist)
+  - 调 `LCAEngine.select_intervention(cta_input, audience, ..., cognitive_twin=lca._cognitive_twin[student_id])`
+  - kwargs 透传到 LCAEngine
+- 6 plan API: `plan / plan_goal_aware / plan_motivation_aware / plan_domain_aware / plan_human_feedback_aware`
+- 委托链: `plan → plan_goal_aware → plan_motivation_aware → plan_domain_aware → plan_human_feedback_aware`
+
+#### MODIFIED: PluginRuntime.start() — 4 subscriber 注册 (v0.91.0-b)
+
+- `web/api/plugin_runtime.py:PluginRuntime.start()`:
+  - 加 `bus.subscribe("hint_requested", self._handle_hint_requested)`
+  - 加 `bus.subscribe("idle_detected", self._handle_idle_detected)`
+  - 加 `bus.subscribe("goal_changed", self._handle_goal_changed)`
+  - 加 `bus.subscribe("reflection_completed", self._handle_reflection_completed)`
+- 4 handler: `LearningEvent` → `HumanFeedbackEntry.from_event(event)` → `LCAEngine.append_human_feedback(student_id, entry)`
+- subscription_count: 3 → 7
+
+#### NEW: tests/test_runtime_human_feedback.py (15 tests)
+
+- 4 tests: 4 endpoint → LearningEvent → HumanFeedbackEntry → LCAEngine.append_human_feedback 链
+- 3 tests: Runtime.plan_human_feedback_aware kwargs 透传 (含 cognitive_twin=None 降级)
+- 3 tests: LCAEngine._cognitive_twin dict 持久 + from_state fallback
+- 3 tests: PluginRuntime subscription_count 3 → 7 + handler defensive fallback (handler exception 不破坏 bus)
+- 2 tests: POMDPPolicy 老 v0.90.0 snapshot raise (per 防御性自检 [5])
+
+#### 不变量
+
+- 防御性自检 [1] silent pass: b 阶段 0 新 silent pass (handler 异常 `_log.warning(..., exc_info=True)`)
+- 防御性自检 [5] schema_version: POMDPPolicy 老 v0.90.0 snapshot raise
+- 防御性自检 [8] hard block: 0 新 mutation site (LCAEngine._cognitive_twin dict mutation 收口到 append_human_feedback, Runtime.plan_human_feedback_aware 是 plan 委托链 0 mutation)
+
+#### 下一阶段 v0.91.0-c: LCA 4 layer 接入 Human feedback
+
+
+## [0.91.0-c] 2026-08-12
+
+### feat: Phase 7+ 抽象推演 #4 (sub c) — LCA 4 layer 接入 Human feedback
+
+> **背景**: v0.91.0-b 完成 Runtime + Plugin Runtime 4 subscriber. c 阶段: 把 CognitiveTwinAgent.human_feedback 接入 LCA 4 layer (Planner / ExperimentDesigner / Evaluator), 让 Human feedback 真正影响 intervention selection.
+> **v0.91.0-c 目标**: LCA 4 layer (ExperimentDesigner + Evaluator) 接入 Human feedback (4 case itype override + reward adjustment + 多 factor chain). pytest 1170 → 1191 (+21, +1.8%).
+
+#### MODIFIED: ExperimentDesigner._human_feedback_itype_override (v0.91.0-c)
+
+- `ecos/lca/l3_design/experiment_designer.py:ExperimentDesigner`:
+  - `design(..., cognitive_twin: Optional["CognitiveTwinAgent"] = None)` 新形参
+  - `_human_feedback_itype_override(cognitive_twin) -> Optional[InterventionType]` (跟 _motivation_itype_override / _domain_itype_override 同模式):
+    - `hint_requested` > 5 次 → `InterventionType.EXPLANATORY` (学生主动求助)
+    - `idle_detected` > 3 次 → `InterventionType.INQUIRY` (激活兴趣)
+    - `reflection_completed` > 3 次 → `InterventionType.PRACTICE` (巩固反思)
+    - `goal_changed` > 1 次 → `InterventionType.PRACTICE` (目标调整后巩固)
+    - 条件互斥 (优先级: hint > idle > reflection > goal_change)
+    - 不满足 → None (走 default itype)
+
+#### MODIFIED: Evaluator.human_feedback_reward_adjustment (v0.91.0-c)
+
+- `ecos/lca/l4_optimization/evaluator.py:Evaluator`:
+  - `human_feedback_reward_adjustment(cognitive_twin: Optional["CognitiveTwinAgent"]) -> float`:
+    - `hint_requested` > 5 → 0.8 (过度求助, reward 下调)
+    - `idle_detected` > 3 → 0.9 (走神, reward 微下调)
+    - `reflection_completed` > 3 → 1.2 (主动反思 boost)
+    - `goal_changed` > 1 → 1.1 (目标调整微 boost)
+    - 默认 → 1.0 (无 human feedback)
+
+#### MODIFIED: LCAEngine.select_intervention kwargs 透传 (v0.91.0-c)
+
+- `ecos/lca/orchestrator.py:LCAEngine.select_intervention`:
+  - 透传 `cognitive_twin` → `ExperimentDesigner.design` → `Evaluator.human_feedback_reward_adjustment`
+  - 双路径调整: (1) 候选池 itype 权重 (2) expected_gain multiplicative factor
+- 多 multiplicative factor chain: `base × motivation × domain × human_feedback`
+
+#### NEW: tests/test_lca_human_feedback.py (21 tests)
+
+- 8 tests: `_human_feedback_itype_override` 4 case (hint > 5 / idle > 3 / reflection > 3 / goal > 1) + priority + no-match + None + boundary
+- 6 tests: `human_feedback_reward_adjustment` 4 case + no-match + None
+- 3 tests: LCAEngine.select_intervention cognitive_twin 影响 candidate pool + expected_gain
+- 2 tests: H3-c4 canary (cognitive_twin=None 行为 == v0.90 baseline)
+- 2 tests: kwargs 透传到 Designer + Evaluator (motivation + domain + cognitive_twin 三路并行)
+
+#### 不变量
+
+- 防御性自检 [1][5][8] 全 PASS (c 阶段 0 新 silent pass, schema_version 维持, 0 新 mutation site, _human_feedback_itype_override / human_feedback_reward_adjustment 是纯函数 0 mutation)
+
+#### 下一阶段 v0.91.0-d: 冷启动 + 持久化 + canary
+
+
+## [0.91.0-d] 2026-08-12
+
+### feat: Phase 7+ 抽象推演 #4 (sub d) — 冷启动 + 持久化 + canary
+
+> **背景**: v0.91.0-c 完成 LCA 4 layer 接入 Human feedback. d 阶段: CognitiveTwinAgent 持久化 (dump_state/load_state) + LCAEngine persistence (dump_state/load_state 含 cognitive_twin 字段 + bind_cognitive_twin helper) + DB schema 升级 (cognitive_twin TEXT 列).
+> **v0.91.0-d 目标**: 持久化 schema_version="0.91.0" + LCAEngine 持久化 cognitive_twin 字段 + DB ALTER TABLE 增量迁移 + v0.81 replay canary. pytest 1191 → 1199 (+8, +0.7%).
+
+#### MODIFIED: CognitiveTwinAgent.dump_state + load_state (v0.91.0-d)
+
+- `ecos/cta/cognitive_twin.py:CognitiveTwinAgent`:
+  - `dump_state() -> Dict`: 含 `human_feedback` (to_dict) + `action_history` (None 占位) + `schema_version` ("0.91.0") + `belief_state_ref` (student_id)
+  - `load_state(state: dict, belief_state: BeliefState)`: 校验 `schema_version == "0.91.0"`, 老 raise `ValueError("不支持的 schema_version")` per 防御性自检 [5]
+
+#### MODIFIED: LCAEngine.dump_state + load_state — cognitive_twin 字段 (v0.91.0-d)
+
+- `ecos/lca/orchestrator.py:LCAEngine`:
+  - `dump_state(student_id)`: 8 字段含 `cognitive_twin` (从 `_cognitive_twin[sid].dump_state()` 派生, 无 → None)
+  - `load_state(student_id, snapshot)`: 校验 + 恢复 `cognitive_twin` 到 `_cognitive_twin_pending[sid]`
+  - `bind_cognitive_twin(student_id, belief_state)`: 从 `_cognitive_twin_pending[sid]` + `CognitiveTwinAgent.load_state(...)` materialize, 清空 pending
+
+#### MODIFIED: persistence/db.py — cognitive_twin TEXT 列 (v0.91.0-d)
+
+- `ecos/persistence/db.py`:
+  - 新增 `cognitive_twin TEXT` 列 (含 ALTER TABLE 增量迁移)
+  - `save_student_state(..., cognitive_twin_json: Optional[str] = None)`: caller 提供 JSON dump
+  - UPDATE SQL: 含 `cognitive_twin = :cognitive_twin`
+
+#### NEW: tests/test_cognitive_twin_persistence.py (8 tests)
+
+- 3 tests: CognitiveTwinAgent dump_state + load_state round-trip + schema_version 校验
+- 2 tests: LCAEngine dump_state + load_state 含 cognitive_twin 字段 + bind
+- 2 tests: 老 v0.90 LCAEngine snapshot backward compat (缺字段 / 老 schema skip)
+- 1 test: v0.81 replay canary (cognitive_twin 不通过 StateEngine.replay 重建)
+
+#### 不变量
+
+- 防御性自检 [1] silent pass: d 阶段 0 新 silent pass (老 cognitive_twin schema 不匹配 `_log.warning` 不 raise)
+- 防御性自检 [5] schema_version: CognitiveTwinAgent 老 snapshot raise; POMDPPolicy 老 snapshot raise; HumanFeedbackEntry / HumanFeedbackTrajectory 老 schema raise
+- 防御性自检 [8] hard block: 0 新 mutation site (CognitiveTwinAgent.dump_state/load_state 是 LCAEngine.dump_state/load_state 内部 dict 读写不触及 BeliefState)
+
+#### 下一阶段 v0.91.0-e: Plugin SDK 文档化 (doctest only)
+
+
+## [0.91.0-e] 2026-08-12
+
+### feat: Phase 7+ 抽象推演 #4 (sub e) — Plugin SDK 文档化 (doctest only)
+
+> **背景**: v0.91.0-a/b/c/d 4 个 sub-commit 全部完成 (Twin → Human Twin + Runtime + LCA 4 layer + 持久化). e 阶段: Plugin SDK 文档化 (docs/plugin_sdk.md) + 5 use case sample (examples/plugin_sample_human_feedback.py) + 4 doctest 验证 (tests/test_plugin_sdk_docs.py).
+> **v0.91.0-e 目标**: docs + examples + doctest. pytest 1199 → 1203 (+4, +0.3%, doctest only).
+
+#### NEW: docs/plugin_sdk.md (8 section)
+
+- `docs/plugin_sdk.md`:
+  - §一 Plugin 原则 (Plugin 不调用 Twin / Plugin 只产 Event / Runtime sole entry)
+  - §二 7 Subscriber 完整契约 (3 v0.85 + 4 v0.91 = 7 subscribers 表)
+  - §三 LCAEngine.append_human_feedback 接口 (HumanFeedbackEntry + CognitiveTwinAgent 3-tuple)
+  - §四 防御性自检 [1][5][8] (CLAUDE.md §7 同步)
+  - §五 Runtime API 6 plan 接口 (plan_human_feedback_aware 是 v0.91 第 6 个)
+  - §六 5 sub-commit 演进日志 (a/b/c/d/e, pytest +56)
+  - §七 相关文档 (discussions + kernel-mapping + 5 关键文件)
+  - §八 Plugin SDK 调用样例 (5 use case 索引)
+
+#### NEW: examples/plugin_sample_human_feedback.py (5 use case)
+
+- `examples/plugin_sample_human_feedback.py`:
+  - `use_case_teacher_reflection_analysis`: subscribe `reflection_completed` → 读 `human_feedback_trajectory` → 生成学生反思分析
+  - `use_case_parent_goal_dashboard`: subscribe `goal_changed` → 读目标调整历史
+  - `use_case_hint_fatigue_detection`: subscribe `hint_requested` → 计数 → 提示教师 > 5 过度依赖
+  - `use_case_idle_reminder`: subscribe `idle_detected` → 计数 > 3 走神提醒
+  - `use_case_deep_reflection_analysis`: subscribe `reflection_completed` → LLM 分析 `reflection_text` → emit 策略建议
+  - `register_all_use_cases()` entry point: Flask startup 注册 5 个 subscriber
+  - `_self_test_imports()` smoke test: 验证 import 路径正确
+
+#### NEW: tests/test_plugin_sdk_docs.py (4 doctest, +0 unit)
+
+- `tests/test_plugin_sdk_docs.py`:
+  - `test_docs_exists_and_has_eight_sections`: 8 section 标题全在 (`## 一` / `## 二` / `## 三` / `## 四` / `## 五` / `## 六` / `## 七` / `## 八`)
+  - `test_docs_links_point_to_existing_files`: 8 referenced 路径全存在 (discussions + ecos/cta + runtime + lca + web + examples)
+  - `test_examples_module_imports_and_exposes_use_cases`: 5 use_case + register_all_use_cases 暴露
+  - `test_examples_smoke_test_passes`: `_self_test_imports()` PASS
+
+#### MODIFIED: tests/test_defensive.py — regex 扩展允许 -e sub-version 后缀 (v0.91.0-e fix)
+
+- `tests/test_defensive.py:test_version_consistency`:
+  - regex: `r"^\d+\.\d+\.\d+(?:-(?:a|b|c|d))?$"` → `r"^\d+\.\d+\.\d+(?:-(?:a|b|c|d|e))?$"`
+  - 注释: Phase 7+ 抽象推演 #4 第 5 sub-commit (doctest only, docs + examples)
+- pre-push hook 拦截 push 后, 新 commit 修复 (commit 469b31f "v0.91.0-e fix: 防御性自检 regex 允许 -e sub-version 后缀")
+
+#### MODIFIED: ecos/__init__.py — __version__ 升级 (v0.91.0-e)
+
+- `ecos/__init__.py:__version__`: `"0.91.0-d"` → `"0.91.0-e"`
+
+#### 不变量
+
+- 防御性自检 [1] silent pass: e 阶段 docs + examples 不引入 silent pass
+- 防御性自检 [5] schema_version: 维持 (老 v0.90 / v0.89 / v0.91.0-d snapshot raise)
+- 防御性自检 [8] hard block: e 阶段 docs + examples 不引入新 mutation site
+
+
+## [0.91.0 final] 2026-08-12
+
+### docs: Phase 7+ 抽象推演 #4 文档同步收口
+
+> **背景**: v0.91.0-a/b/c/d/e 5 个 sub-commit 全部完成 (Twin → Human Twin 抽象 + Runtime + LCA 4 layer + 持久化 + Plugin SDK 文档化). final 阶段: 文档同步收口, 跟 v0.88.0 final / v0.89.0 final / v0.90.0 final 模式一致.
+
+#### MODIFIED: CLAUDE.md — 当前阶段 v0.91 同步
+
+- 当前阶段: `Phase 4 实际完成, Phase 5 v0.54.0 → v0.90.0` → `Phase 4 实际完成, Phase 5 v0.54.0 → v0.91.0`
+- v0.90.0 摘要后追加 **v0.91.0 Phase 7+ 抽象推演 #4 全部完成 (a/b/c/d/e)**:
+  - v0.91.0-a: Twin → Human Twin 数据结构 (CognitiveTwinAgent 3-tuple + HumanFeedbackEntry 4 event_type)
+  - v0.91.0-b: Runtime + Plugin SDK 4 subscriber (LCAEngine._cognitive_twin + Runtime.plan_human_feedback_aware + PluginRuntime 7 subscribers)
+  - v0.91.0-c: LCA 4 layer 接入 Human feedback (_human_feedback_itype_override + human_feedback_reward_adjustment + 多 factor chain)
+  - v0.91.0-d: 冷启动 + 持久化 + canary (CognitiveTwinAgent.dump_state/load_state + LCAEngine._cognitive_twin_pending + db cognitive_twin TEXT)
+  - v0.91.0-e: Plugin SDK 文档化 (docs/plugin_sdk.md + examples 5 use case + 4 doctest)
+- 防御性自检 [8] 同步: mutation 状态追加 v0.91.0-a 加 append_human_feedback allowlist (1 项) + b/c/d/e 0 新 mutation site
+- pytest 测试清单追加: v0.91.0-a/b/c/d/e 5 个新测试文件 (60 新增 tests)
+
+#### MODIFIED: 12-kernel-mapping-current-vs-2.0.md — §6 + §8.2 v0.91 同步
+
+- §6 Plugin SDK 边界映射:
+  - 5 web/api/ 端点 (answer / judge / dual_agent / lca / 4 frontend stub) 全部从 40% → 100%
+  - "Plugin 只产生 Event 原则" 100% (v0.91.0-e 文档化 + 5 use case sample)
+  - "缺失: Plugin 文档化" 100% (docs/plugin_sdk.md 8 section + examples 5 use case)
+  - 演进路径回顾 (v0.84 雏形 → v0.85 80% → v0.91 100%)
+- §8.2 更新日志: 追加 v0.91.0-a/b/c/d/e 5 个 sub-version entries + v0.91.0 final completion block
+
+#### MODIFIED: README.md / memory / examples — v0.91 同步
+
+- README.md 当前状态 + Kernel 深化进度表更新 (per v0.91.0 final)
+- memory 新增 `project-v091-completion-state.md` (5 sub-commit 摘要 + 累计进度 + 下一阶段 v0.92+)
+- examples 5 use case sample 已新增 (Plugin SDK 100% production 验证)
+
+#### 不变量 (v0.91)
+
+- pytest 1203 全 PASS (60 新增 tests)
+- 防御性自检 [1] silent pass + [5] schema_version + [8] hard block 全 PASS
+- H3-c4 canary (cognitive_twin=None 行为 == v0.90 baseline) + v0.81 replay canary 全 PASS
+- 3-way A/B (linucb / thompson / pomdp+PBVI+learned T/R) 维持
+- 接口同构 Runtime 6 plan API + LCA select_intervention 三路 kwargs (motivation / domain / cognitive_twin)
+
+#### 累计进度 (v0.91)
+
+- pytest: 1143 → **1203** (+60, +5.2%)
+- Plugin SDK 100% production (7 subscribers 全接通 Human Twin)
+- Runtime 6 plan API upper limit (plan_human_feedback_aware 是 v0.91 第 6 个)
+- LCA select_intervention kwargs 三路并行 (motivation / domain / cognitive_twin)
+- 累计 Kernel 深化 9 个版本 (v0.83 → v0.91), pytest 736 → 1203 (+467, +63.5%)
+- 下一阶段 v0.92+: Phase 7+ 抽象推演 #5+ (HumanTwinSnapshot ActionHistory 占位兑现 + 第一方 plugin 库 + POMDP T/R 后验可视化 + Teacher/Parent Dashboard 应用层)
+
+
 ## [0.88.0-b] 2026-08-11
 
 ### feat: Phase 7+ 抽象推演 #1 (sub b) — Multi-Domain 集成 Runtime + LCA
