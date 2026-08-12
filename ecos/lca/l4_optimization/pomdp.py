@@ -48,9 +48,9 @@ if TYPE_CHECKING:
 
 _log = logging.getLogger(__name__)
 
-# v0.91.0-b: schema version for dump_state / load_state 老 snapshot 检测
-# v0.90.0 / v0.89.0-c / v0.88.0-c / v0.87.0-c 老 snapshot raise ValueError (per design doc §7.5 + 防御性自检 [5])
-SCHEMA_VERSION = "0.91.0"
+# v0.92.0-b: schema version 升级 "0.91.0" → "0.92.0" (Phase 7+ 抽象推演 #5 同步)
+# v0.91.0 / v0.90.0 / v0.89.0-c / v0.88.0-c / v0.87.0-c 老 snapshot raise ValueError (per 防御性自检 [5])
+SCHEMA_VERSION = "0.92.0"
 
 
 @dataclass

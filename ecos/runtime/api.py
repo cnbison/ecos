@@ -407,13 +407,14 @@ def plan_domain_aware(student_id: str, audience: str = "student", **kwargs) -> A
 
 
 def plan_human_feedback_aware(student_id: str, audience: str = "student", **kwargs) -> Any:
-    """v0.91.0-b: Human feedback 接入 Runtime.plan (6 plan API 上限).
+    """v0.91.0-b: Human feedback 接入 Runtime.plan (6 plan API 上限, v0.92.0-b 升级为 7 plan API).
 
     跟 plan_domain_aware 的区别:
         - 接受 human_feedback_entry (HumanFeedbackEntry) 参数
         - 自动 append_human_feedback 到 LCAEngine._cognitive_twin[student_id] (allowlisted mutation)
         - 透传 cognitive_twin 到 LCAEngine.select_intervention
         - 走 Twin Consistency Check (per goal, 如传)
+        - 委托 plan_action_aware (v0.92.0-b 加第 7 plan API)
 
     Args:
         student_id: 学生 ID
@@ -427,19 +428,19 @@ def plan_human_feedback_aware(student_id: str, audience: str = "student", **kwar
             motivation: Optional[MotivationProfile]  (透传 motivation)
             domain_name: Optional[str]  (透传 domain_name)
             cognitive_twin: Optional[CognitiveTwinAgent]  (显式透传, None 时 fallback to lca._cognitive_twin)
+            action_entry: Optional[ActionEntry]  (v0.92.0-b: 透传到 plan_action_aware)
 
     Returns:
         LCAResult (跟 plan / plan_goal_aware / plan_motivation_aware / plan_domain_aware 同一返回)
-
-    v0.91.0-b: human feedback 6 plan API 上限 (Twin 维度已闭合:
-              belief + trajectory + motivation + domain + human_feedback). 不再加
-              plan_personalized / plan_reflection 之类.
 
     v0.91.0-b: append_human_feedback 走 allowlisted mutation (LCAEngine 调
               CognitiveTwinAgent.append_human_feedback, FUNC_ALLOWLIST += "append_human_feedback").
 
     v0.91.0-c (preview): cognitive_twin 透传到 LCA select_intervention, Designer + Evaluator 消费.
     v0.91.0-b 仅存储, c 阶段消费.
+
+    v0.92.0-b: 委托 plan_action_aware (Twin 第 4 维度闭合). 7 plan API 上限:
+              belief + trajectory + motivation + domain + human_feedback + action_history.
     """
     lca = kwargs.get("lca_engine") or _get_default_lca_engine()
     cta_input = kwargs.get("cta_input")
@@ -466,6 +467,84 @@ def plan_human_feedback_aware(student_id: str, audience: str = "student", **kwar
 
     # v0.91.0-b: cognitive_twin 透传到 LCA select_intervention (None 时 fallback to dict)
     #   b 阶段仅存储, c 阶段消费 (Designer + Evaluator 双路径调整)
+    cognitive_twin = kwargs.get("cognitive_twin")
+    if cognitive_twin is None:
+        cognitive_twin = lca._cognitive_twin.get(student_id)
+
+    # v0.92.0-b: 委托 plan_action_aware (Twin 第 4 维度 action_history)
+    return plan_action_aware(
+        student_id=student_id,
+        audience=audience,
+        lca_engine=lca,
+        cta_input=cta_input,
+        goal=kwargs.get("goal"),
+        event_log=kwargs.get("event_log"),
+        motivation=kwargs.get("motivation"),
+        domain_name=kwargs.get("domain_name"),
+        cognitive_twin=cognitive_twin,
+        action_entry=kwargs.get("action_entry"),
+    )
+
+
+def plan_action_aware(student_id: str, audience: str = "student", **kwargs) -> Any:
+    """v0.92.0-b: Twin 第 4 维度 action_history 接入 Runtime.plan (7 plan API).
+
+    跟 plan_human_feedback_aware 的区别:
+        - 接受 action_entry (ActionEntry) 参数 (LCA 内部自动记录, Plugin SDK 不加新 subscriber)
+        - 自动 append_action_history 到 LCAEngine._cognitive_twin[student_id].action_history
+          (allowlisted mutation)
+        - 透传到 LCAEngine.select_intervention (Designer + Evaluator c 阶段消费)
+        - 走 Twin Consistency Check (per goal, 如传)
+
+    Args:
+        student_id: 学生 ID
+        audience:   rationale 受众
+        **kwargs:
+            lca_engine:     Optional[LCAEngine]
+            cta_input:      Optional[CTAInput]
+            goal:           Optional[Goal]      (若传, 校验该 Goal 关联 evidence)
+            event_log:      Optional[EventLog]   (inconsistent 时 emit goal_changed event)
+            action_entry:   Optional[ActionEntry]   (LCA 内部自动记录)
+            motivation:     Optional[MotivationProfile]  (透传 motivation)
+            domain_name:    Optional[str]  (透传 domain_name)
+            cognitive_twin: Optional[CognitiveTwinAgent]  (显式透传, None 时 fallback to lca._cognitive_twin)
+
+    Returns:
+        LCAResult (跟 plan / plan_goal_aware / plan_motivation_aware / plan_domain_aware /
+                   plan_human_feedback_aware 同一返回)
+
+    v0.92.0-b: append_action_history 走 allowlisted mutation (LCAEngine 调
+              CognitiveTwinAgent.append_action_history, FUNC_ALLOWLIST += "append_action_history").
+
+    v0.92.0-b: 7 plan API 上限 (Twin 维度已闭合: belief + trajectory + motivation + domain +
+              human_feedback + action_history). 不再加 plan_personalized / plan_reflection 之类.
+    """
+    lca = kwargs.get("lca_engine") or _get_default_lca_engine()
+    cta_input = kwargs.get("cta_input")
+    if cta_input is None:
+        # 默认: 估计 student state, 构造 CTAInput
+        state = estimate(student_id)
+        from ecos.lca.cta_input import CTAInput
+        cta_input = CTAInput(student_id=student_id, belief_state=state)
+
+    # v0.86.0-b: Twin Consistency Check (前置 defensive)
+    _run_twin_consistency_check(
+        student_id=student_id,
+        state=cta_input.belief_state,
+        goal=kwargs.get("goal"),
+        event_log=kwargs.get("event_log"),
+    )
+
+    # v0.92.0-b: action_entry 注入 (allowlisted mutation via LCAEngine.append_action_history)
+    #   跟前 3 维度 human_feedback pattern 不同 — action_recorded 通常由 LCA 内部自动记录
+    #   (select_intervention + update), 此 API 留作显式注入路径供 testing / dual_agent 接线
+    action_entry = kwargs.get("action_entry")
+    if action_entry is not None:
+        lca.append_action_history(
+            student_id, action_entry, state=cta_input.belief_state,
+        )
+
+    # v0.92.0-b: 提取 cognitive_twin (LCA select_intervention 需要, action_history 走内部 fallback)
     cognitive_twin = kwargs.get("cognitive_twin")
     if cognitive_twin is None:
         cognitive_twin = lca._cognitive_twin.get(student_id)
@@ -532,4 +611,6 @@ __all__ = [
     "plan_goal_aware",
     "plan_motivation_aware",
     "plan_domain_aware",
+    "plan_human_feedback_aware",
+    "plan_action_aware",
 ]

@@ -25,7 +25,7 @@ from .cta_input import CTAInput
 #   CognitiveTwinAgent 引用 BeliefState + TrajectoryState (top-level import OK),
 #   HumanFeedbackEntry 引用 LearningEvent (TYPE_CHECKING 避免循环)
 if TYPE_CHECKING:
-    from ..cta.cognitive_twin import CognitiveTwinAgent, HumanFeedbackEntry
+    from ..cta.cognitive_twin import ActionEntry, ActionHistory, CognitiveTwinAgent, HumanFeedbackEntry
     from ..motivation.profile import MotivationProfile
 from .intervention import (
     CAStage,
@@ -258,6 +258,7 @@ class LCAEngine:
         motivation: Optional["MotivationProfile"] = None,
         domain_name: Optional[str] = None,
         cognitive_twin: Optional["CognitiveTwinAgent"] = None,
+        action_history: Optional["ActionHistory"] = None,
     ) -> LCAResult:
         """LCA 主选择流程.
 
@@ -279,6 +280,10 @@ class LCAEngine:
             cognitive_twin: v0.91.0-b: 可选 CognitiveTwinAgent, Twin → Human Twin 抽象.
                             存 self._cognitive_twin[student_id] 供 c 阶段消费 (Designer + Evaluator).
                             None 时 fallback to self._cognitive_twin.get(student_id) (per-student dict 兜底).
+            action_history: v0.92.0-b: 可选 ActionHistory (Twin 第 4 维度, LCA 内部自动记录).
+                            透传到 ExperimentDesigner._action_history_itype_override +
+                            Evaluator.action_history_reward_adjustment (c 阶段消费).
+                            None 时 fallback to self._cognitive_twin[student_id].action_history 派生.
 
         Returns:
             LCAResult（含 Intervention + rationale + expected_gain/risk）
@@ -304,6 +309,13 @@ class LCAEngine:
             cognitive_twin = self._cognitive_twin.get(student_id)
         if cognitive_twin is not None:
             self._cognitive_twin[student_id] = cognitive_twin
+
+        # v0.92.0-b: action_history fallback to cognitive_twin.action_history
+        #   (per-student dict 兜底: LCAEngine 内部 LCA 视角跟踪的 LCA 自动行为轨迹)
+        #   透传到 ExperimentDesigner._action_history_itype_override +
+        #   Evaluator.action_history_reward_adjustment (c 阶段消费)
+        if action_history is None and cognitive_twin is not None:
+            action_history = cognitive_twin.action_history
 
         # v0.82.0-a: Step 1-4 委托 Planner (决策层 4 步合一)
         history = self.intervention_history.get(student_id, [])
@@ -387,6 +399,35 @@ class LCAEngine:
         self._last_intervention[student_id] = chosen
         self._select_count[student_id] = self._select_count.get(student_id, 0) + 1
 
+        # v0.92.0-b: 自动记录 intervention_selected ActionEntry (LCA 视角, Twin 第 4 维度)
+        #   跟前 3 维度 human_feedback 主动注入 pattern 不同 — action_history 是 LCA 内部自动记录,
+        #   Plugin SDK 不加新 subscriber. metadata 含 expected_gain / expected_risk / audience /
+        #   bloom_target / policy_type 5 字段, 供 c 阶段 ExperimentDesigner + Evaluator 消费.
+        from ..cta.cognitive_twin import ActionEntry
+        try:
+            action_entry = ActionEntry(
+                student_id=student_id,
+                timestamp=datetime.now(),
+                action_type="intervention_selected",
+                intervention_id=chosen.intervention_id,
+                reward=None,  # 干预选择时无 reward (reward 在 update 时记录)
+                metadata={
+                    "expected_gain": float(chosen.expected_gain),
+                    "expected_risk": float(chosen.expected_risk),
+                    "audience": audience,
+                    "bloom_target": bloom_target.name,
+                    "policy_type": self.policy_learner.config.policy_type,
+                },
+                source="lca",
+            )
+            self.append_action_history(student_id, action_entry, state=belief_state)
+        except Exception:  # noqa: BLE001
+            # 防御性: action_history 记录失败不阻断 select (per 防御性自检 [1])
+            _log.warning(
+                "LCAEngine.select_intervention: append_action_history 失败 (sid=%s), 继续",
+                student_id, exc_info=True,
+            )
+
         # Step 8: 输出
         return LCAResult(
             student_id=student_id,
@@ -460,6 +501,33 @@ class LCAEngine:
         if pomdp_observation is not None:
             self._last_observation[student_id] = pomdp_observation
 
+        # v0.92.0-b: 自动记录 reward_recorded ActionEntry (LCA 视角, Twin 第 4 维度)
+        #   跟前 3 维度 human_feedback 主动注入 pattern 不同 — action_history 是 LCA 内部自动记录,
+        #   Plugin SDK 不加新 subscriber. metadata 含 policy_type / pomdp_observation (None for 非 POMDP).
+        #   供 c 阶段 ExperimentDesigner._action_history_itype_override +
+        #   Evaluator.action_history_reward_adjustment 消费.
+        from ..cta.cognitive_twin import ActionEntry
+        try:
+            reward_entry = ActionEntry(
+                student_id=student_id,
+                timestamp=datetime.now(),
+                action_type="reward_recorded",
+                intervention_id=intervention.intervention_id if hasattr(intervention, "intervention_id") else None,
+                reward=float(linucb_reward),
+                metadata={
+                    "policy_type": self.policy_learner.config.policy_type,
+                    "pomdp_observation": pomdp_observation,  # None for LinUCB / Thompson
+                },
+                source="lca",
+            )
+            self.append_action_history(student_id, reward_entry, state=new_state)
+        except Exception:  # noqa: BLE001
+            # 防御性: action_history 记录失败不阻断 update (per 防御性自检 [1])
+            _log.warning(
+                "LCAEngine.update: append_action_history 失败 (sid=%s), 继续",
+                student_id, exc_info=True,
+            )
+
     # ---------------------------------------------------------------
     # v0.91.0-b: Human Twin 抽象 — append_human_feedback (Plugin SDK 4 endpoint 接线)
     # ---------------------------------------------------------------
@@ -506,6 +574,50 @@ class LCAEngine:
 
         # append_human_feedback 走 allowlisted mutation (FUNC_ALLOWLIST)
         self._cognitive_twin[student_id].append_human_feedback(entry)
+
+    # ---------------------------------------------------------------
+    # v0.92.0-b: Twin 第 4 维度 — append_action_history (LCA 内部自动记录, Plugin SDK 不加新 subscriber)
+    # ---------------------------------------------------------------
+
+    def append_action_history(
+        self,
+        student_id: str,
+        entry: "ActionEntry",
+        state: Optional[BeliefState] = None,
+    ) -> None:
+        """v0.92.0-b: 追加 ActionEntry 到 per-student CognitiveTwinAgent.action_history.
+
+        LCAEngine.select_intervention Step 7 (自动记录 intervention_selected) +
+        update (自动记录 reward_recorded) 调此方法. Plugin SDK 不加新 subscriber — action_recorded
+        由 LCA 内部自动记录, 跟前 3 维度 human_feedback 主动注入 pattern 不同.
+
+        Args:
+            student_id: 学生 ID
+            entry: ActionEntry 实例 (5 action_type 校验已通过, frozen)
+            state: Optional[BeliefState] for lazy init CognitiveTwinAgent.
+                   None 时若 student_id 不在 _cognitive_twin dict, skip (下次 select
+                   时 select_intervention 走 from_state 兜底).
+
+        防御性自检 [8]: CognitiveTwinAgent.append_action_history 是 allowlisted mutation
+        (FUNC_ALLOWLIST += "append_action_history", 跟 append_human_feedback 完全同模式).
+
+        c 阶段: select_intervention 消费 cognitive_twin.action_history
+                (Designer._action_history_itype_override + Evaluator.action_history_reward_adjustment)
+        """
+        # v0.92.0-b: lazy init CognitiveTwinAgent from state (跟 append_human_feedback 完全 parallel)
+        if student_id not in self._cognitive_twin:
+            if state is None:
+                _log.debug(
+                    "LCAEngine.append_action_history: student_id=%s 没 state, "
+                    "skip lazy init (下次 select 会兜底)",
+                    student_id,
+                )
+                return
+            from ..cta.cognitive_twin import CognitiveTwinAgent
+            self._cognitive_twin[student_id] = CognitiveTwinAgent.from_state(state)
+
+        # append_action_history 走 allowlisted mutation (FUNC_ALLOWLIST)
+        self._cognitive_twin[student_id].append_action_history(entry)
 
     def bind_cognitive_twin(
         self,
@@ -650,9 +762,9 @@ class LCAEngine:
         self._update_count[student_id] = int(snapshot.get("update_count", 0))
         self._select_count[student_id] = int(snapshot.get("select_count", 0))
 
-        # 8. cognitive_twin (v0.91.0-d 新增)
-        #   None 或 schema_version 校验失败 → 跳过 (老 snapshot 不抛, 避免 v0.90 升级 break)
-        #   schema_version != "0.91.0" → _log.warning + 跳过
+        # 8. cognitive_twin (v0.91.0-d 新增, v0.92.0-a 升级为 4-tuple)
+        #   None 或 schema_version 校验失败 → 跳过 (老 snapshot 不抛, 避免 v0.91 升级 break)
+        #   schema_version != "0.92.0" → _log.warning + 跳过
         cognitive_twin_dict = snapshot.get("cognitive_twin")
         if cognitive_twin_dict is not None:
             try:
