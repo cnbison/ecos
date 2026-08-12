@@ -333,7 +333,11 @@
 - **v0.91.0-c** ✅ (2026-08-12): LCA 4 layer 接入 Human feedback (Phase 7+ 抽象推演 #4 sub-version c). ExperimentDesigner.cognitive_twin kwarg + _human_feedback_itype_override (hint>5→EXPLANATORY / idle>3→INQUIRY / reflection>3→PRACTICE / goal>1→PRACTICE, 优先级 hint>idle>reflection>goal). Evaluator.human_feedback_reward_adjustment (hint>5→0.8 / idle>3→0.9 / reflection>3→1.2 / goal>1→1.1, default→1.0). LCAEngine.select_intervention kwargs 透传 cognitive_twin → designer + evaluator. 21 新增 tests (pytest 1170 → 1191). H3-c4 canary 维持 (cognitive_twin=None 行为 == v0.90 baseline). 多 multiplicative factor chain: base × motivation × domain × human_feedback.
 - **v0.91.0-d** ✅ (2026-08-12): 冷启动 + 持久化 + canary (Phase 7+ 抽象推演 #4 sub-version d). CognitiveTwinAgent.dump_state + load_state (schema_version="0.91.0" 校验, 老 raise per 防御性自检 [5]). LCAEngine.dump_state + load_state 加 cognitive_twin 字段 + bind_cognitive_twin helper (load_state 暂存 _cognitive_twin_pending, bind 时 materialize). persistence/db.py 加 cognitive_twin TEXT 列 (含 ALTER TABLE 增量迁移) + save_student_state cognitive_twin_json kwarg. 8 新增 tests (pytest 1191 → 1199). v0.81 replay canary 维持 (cognitive_twin 不通过 StateEngine.replay 重建, 走 LCA 路径).
 - **v0.91.0-e** ✅ (2026-08-12): Plugin SDK 文档化 (Phase 7+ 抽象推演 #4 sub-version e, doctest only). NEW `docs/plugin_sdk.md` (8 section: Plugin 原则 / 7 Subscriber 契约 / LCAEngine.append_human_feedback / 防御性自检 / Runtime 6 plan API / 5 sub-commit 演进日志 / 相关文档 / 调用样例) + NEW `examples/plugin_sample_human_feedback.py` (5 use case: teacher_reflection / parent_goal / hint_fatigue / idle_reminder / deep_reflection) + NEW `tests/test_plugin_sdk_docs.py` (4 doctest: 8 section / link 存在 / use case 暴露 / smoke PASS). 防御性自检 [2] test_version_consistency regex 扩展允许 -e sub-version 后缀 (Phase 7+ 抽象推演第 5 sub-commit). 4 新增 tests (pytest 1199 → 1203, doctest only).
-- **v0.92.0+** (Phase 7+ 抽象推演 #5+): HumanTwinSnapshot ActionHistory 占位兑现 + 第一方 plugin 库 + POMDP T/R 后验可视化 + Teacher/Parent Dashboard (Kernel-first 战略 v0.91+ 才允许进入应用层)
+- **v0.92.0-a** ✅ (2026-08-12): HumanTwinSnapshot ActionHistory 占位兑现 — ActionEntry/ActionHistory 数据结构 (Phase 7+ 抽象推演 #5 sub-version a). NEW `ecos/cta/cognitive_twin.py` ActionEntry (frozen dataclass, 5 action_type: intervention_selected/dual_agent_calibrated/reward_recorded/policy_updated/goal_changed + intervention_id/reward/metadata/source/schema_version + __post_init__ 防御性校验) + ActionHistory (cap 500 pattern 跟 HumanFeedbackTrajectory 完全 parallel + append/last_n/count_by_type/to_dict/from_dict). CognitiveTwinAgent 3-tuple → 4-tuple (action_history: Optional[Dict] = None → ActionHistory default_factory) + SCHEMA_VERSION "0.91.0" → "0.92.0" + NEW append_action_history allowlisted mutation (跟 append_human_feedback 完全 parallel 模式). scripts/check_no_direct_state_mutation.py FUNC_ALLOWLIST += CognitiveTwinAgent.append_action_history. 12 新增 tests (pytest 1203 → 1215). v0.91 留 action_history 占位彻底兑现. 防御性自检 [8] 仍 hard block (append_action_history 收口到 allowlist).
+- **v0.92.0-b** ✅ (2026-08-12): Runtime + LCAEngine append_action_history 接入 (Phase 7+ 抽象推演 #5 sub-version b). LCAEngine.append_action_history method (parallel to append_human_feedback, lazy init CognitiveTwinAgent from state) + select_intervention action_history kwarg + Step 7 自动记录 intervention_selected ActionEntry + update() reward 反馈路径自动记录 reward_recorded ActionEntry. NEW Runtime.plan_action_aware (第 7 plan API, 在 plan_human_feedback_aware 委托链尾). POMDPPolicy SCHEMA_VERSION "0.91.0" → "0.92.0" (老 snapshot raise per 防御性自检 [5]). 15 新增 tests (pytest 1215 → 1230). Plugin SDK 7 subscribers 维持 (不加新 subscriber — action_history 是 LCA 内部自动记录, 不是 Human-in-loop 信号源). 防御性自检 [8] 仍 hard block (LCAEngine._cognitive_twin dict mutation 收口到 append_action_history).
+- **v0.92.0-c** ✅ (2026-08-12): LCA 4 layer 接入 ActionHistory (Phase 7+ 抽象推演 #5 sub-version c). ExperimentDesigner.action_history kwarg + _action_history_itype_override (5 case priority: reward_low / type_diversity / dual_agent / policy_cold / goal_changed). Evaluator.action_history_reward_adjustment (reward_recorded 平均<0.5→0.85 / >0.7→1.15 / dual_agent>0.5 半→1.05, default→1.0). LCAEngine.select_intervention kwargs 透传 action_history → designer + evaluator. 21 新增 tests (pytest 1230 → 1251). H3-c4 canary 维持 (action_history=None 行为 == v0.91 baseline). 多 multiplicative factor chain 升级: base × motivation × domain × human_feedback × action_history (4 因素 → 5 因素).
+- **v0.92.0-d** ✅ (2026-08-12): 冷启动 + 持久化 + canary (Phase 7+ 抽象推演 #5 sub-version d). CognitiveTwinAgent 4-tuple dump_state/load_state round-trip (action_history 字段完整保留 + 老 action_history schema raise per 防御性自检 [5]). LCAEngine.dump_state/load_state cognitive_twin 字段含 4-tuple + 老 v0.91 snapshot (schema_version="0.91.0" / action_history 字段缺) graceful skip + warning (per 防御性自检 [1]). 8 新增 tests (pytest 1251 → 1259). v0.81 replay canary 维持 (action_history 不通过 StateEngine.replay 重建, 走 LCAEngine.append_action_history 路径). persistence/db.py cognitive_twin TEXT 列自动含 action_history 字段 (无 schema 改动). 累计 Kernel 深化 10 版本 (v0.83 → v0.92), pytest 736 → 1259 (+523, +71.1%).
+- **v0.93.0+** (Phase 7+ 抽象推演 #6+): 第一方 plugin 库 + POMDP T/R 后验可视化 + Teacher/Parent Dashboard (Kernel-first 战略 v0.92+ 才允许进入应用层)
 
 **设计原则**:
 - **Domain-agnostic Kernel 1 套**: LinUCB / Thompson / POMDP / Evidence / Runtime / StateEngine 不引用 Domain
@@ -609,6 +613,40 @@ v0.84.0-d 在 LCA 4-layer 之外, 引入 Plugin Runtime 雏形 (kernel-mapping �
 > - Runtime 6 plan API upper limit (plan_human_feedback_aware 是 v0.91 第 6 个)
 > - LCA select_intervention kwargs 三路并行 (motivation / domain / cognitive_twin)
 > - 下一阶段 v0.92+: Phase 7+ 抽象推演 #5+ (HumanTwinSnapshot ActionHistory 占位兑现 + 第一方 plugin 库 + POMDP T/R 后验可视化 + Teacher/Parent Dashboard 应用层)
+
+> **[v0.92.0-a 更新 2026-08-12]**: Phase 7+ 抽象推演 #5 sub-version a 完成. HumanTwinSnapshot ActionHistory 占位兑现 (ActionEntry/ActionHistory 数据结构). 12 新增 tests (pytest 1203 → 1215, +1.0%). 详情见 §1.4 + §5.
+> - NEW `ecos/cta/cognitive_twin.py` ActionEntry frozen dataclass (5 action_type: intervention_selected/dual_agent_calibrated/reward_recorded/policy_updated/goal_changed)
+> - NEW ActionHistory cap 500 (跟 HumanFeedbackTrajectory 完全 parallel)
+> - MODIFY CognitiveTwinAgent 3-tuple → 4-tuple (加 action_history: ActionHistory)
+> - MODIFY SCHEMA_VERSION "0.91.0" → "0.92.0" (老 snapshot raise per 防御性自检 [5])
+> - NEW append_action_history allowlisted mutation (FUNC_ALLOWLIST += CognitiveTwinAgent.append_action_history)
+
+> **[v0.92.0-b 更新 2026-08-12]**: Phase 7+ 抽象推演 #5 sub-version b 完成. Runtime + LCAEngine append_action_history 接入 (Runtime 6 → 7 plan API, POMDP schema 0.91.0 → 0.92.0). 15 新增 tests (pytest 1215 → 1230, +1.2%). 详情见 §1.4 + §5.
+> - MODIFY LCAEngine.append_action_history method (lazy init CognitiveTwinAgent from state, parallel to append_human_feedback)
+> - MODIFY LCAEngine.select_intervention Step 7 自动记录 intervention_selected ActionEntry + update reward 反馈路径自动记录 reward_recorded ActionEntry
+> - NEW Runtime.plan_action_aware (第 7 plan API, 委托链 plan → plan_goal_aware → plan_motivation_aware → plan_domain_aware → plan_human_feedback_aware → plan_action_aware)
+> - MODIFY POMDPPolicy SCHEMA_VERSION "0.91.0" → "0.92.0"
+
+> **[v0.92.0-c 更新 2026-08-12]**: Phase 7+ 抽象推演 #5 sub-version c 完成. LCA 4 layer 接入 (5 factor chain: base × motivation × domain × human_feedback × action_history). 21 新增 tests (pytest 1230 → 1251, +1.7%). 详情见 §1.4 + §5.
+> - MODIFY ExperimentDesigner.action_history kwarg + _action_history_itype_override (5 case priority: reward_low / type_diversity / dual_agent / policy_cold / goal_changed)
+> - NEW Evaluator.action_history_reward_adjustment (reward_recorded 平均<0.5→0.85, >0.7→1.15, dual_agent>0.5 半→1.05, default→1.0)
+> - MODIFY LCAEngine.select_intervention kwargs 透传 action_history → designer + evaluator
+> - H3-c4 canary 维持 (action_history=None 行为 == v0.91 baseline). 多 factor chain 升级到 5 因素.
+
+> **[v0.92.0-d 更新 2026-08-12]**: Phase 7+ 抽象推演 #5 sub-version d 完成. 冷启动 + 持久化 + canary. 8 新增 tests (pytest 1251 → 1259, +0.6%). 详情见 §1.4 + §5.
+> - MODIFY CognitiveTwinAgent 4-tuple dump_state + load_state round-trip (含 action_history 字段, schema_version="0.92.0" 校验)
+> - MODIFY LCAEngine.dump_state/load_state cognitive_twin 字段含 4-tuple (human_feedback + action_history)
+> - MODIFY LCAEngine.load_state 老 v0.91 snapshot (schema_version="0.91.0" / action_history 字段缺) graceful skip + warning (per 防御性自检 [1])
+> - v0.81 replay canary 维持 (action_history 不通过 StateEngine.replay 重建, 走 LCA 路径)
+
+> **[v0.92.0 final 完成 2026-08-12]**: Phase 7+ 抽象推演 #5 (HumanTwinSnapshot ActionHistory 占位兑现) 4 sub-commit 全部完成. README.md / CLAUDE.md / 12-kernel-mapping §1.4 + §8.2 / memory (`project-v092-completion-state.md`) 全部同步. 缺失清单 0 项剩.
+> - pytest 1203 → 1259 (+56, +4.7%). 累计 Kernel 深化 10 版本 (v0.83 → v0.92), pytest 736 → 1259 (+523, +71.1%)
+> - CognitiveTwinAgent 3-tuple → 4-tuple (加 action_history: ActionHistory)
+> - Runtime 7 plan API (plan_action_aware 是 v0.92 第 7 个)
+> - LCA select_intervention kwargs 四路并行 (motivation / domain / cognitive_twin / action_history)
+> - LCA factor chain 4 → 5 因素 (base × motivation × domain × human_feedback × action_history)
+> - Plugin SDK 7 subscribers 维持 (不加新 subscriber — action_history 是 LCA 内部自动记录)
+> - 下一阶段 v0.93+: Phase 7+ 抽象推演 #6+ (第一方 plugin 库 + POMDP T/R 后验可视化 + Teacher/Parent Dashboard 应用层)
 
 > **[v0.87.0 完成 2026-08-11]**: 缺失清单 3→1 (Motivation Profile / POMDP Policy 全部落地). Phase 6+ Kernel 扩展第 2 个版本 4 sub-commit 全部完成 (a=Motivation schema/b=Motivation Runtime+c=POMDP 雏形/d=POMDP 集成 3-way A/B). pytest 898 → 958 (+60, +6.7%).
 
