@@ -6,8 +6,8 @@
   从 in-memory dict 改为 SQLite 持久化, 跨进程恢复.
 
 设计原则 (CLAUDE.md 防御性自检 [5]):
-  - 一次性列全 7 关键字段, 避免历史栽过的"分批漏字段"问题
-  - 7 字段 (CLAUDE.md [5] 6 字段 + lca.py 实际多 1 个 select_count):
+  - 一次性列全 8 关键字段 (v0.93.0-c 加 pomdp_diagnostic → 9 字段)
+  - 9 字段 (CLAUDE.md [5] 8 字段 + lca.py 实际多 1 个 select_count):
       1. intervention_history   (List[Intervention.to_dict()])
       2. bandit_a               (List[List[List[float]]]: n_arms × d × d)
       3. bandit_b               (List[List[float]]: n_arms × d)
@@ -15,6 +15,8 @@
       5. last_intervention      (Intervention.to_dict() | None)
       6. update_count           (int: 总 update 次数, LinUCB.update 调用累计)
       7. select_count           (int: 总 select 次数, LinUCB.select 调用累计)
+      8. cognitive_twin         (Dict | None — v0.91.0-d 新增, Twin → Human Twin 抽象)
+      9. pomdp_diagnostic       (Dict | None — v0.93.0-c 新增, Twin 第 5 维度)
 
 架构选择:
   - 独立表 `student_lca_state` (per-student 1 row, 1:1 with students)
@@ -23,7 +25,7 @@
 
 防御性自检:
   - [1] silent pass → _log.warning(..., exc_info=True) 全部
-  - [5] 7 字段对齐 (本文件), 缺一不可
+  - [5] 9 字段对齐 (本文件), 缺一不可
 """
 
 from __future__ import annotations
@@ -46,10 +48,12 @@ LCA_STATE_SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS student_lca_state (
     student_id TEXT PRIMARY KEY,
 
-    -- 7 字段 (CLAUDE.md 防御性自检 [5] 一次性列全)
+    -- 9 字段 (CLAUDE.md 防御性自检 [5] 一次性列全)
     -- 注: bandit_a / bandit_b / arm_pull_counts 来自 LinUCB 内部
     -- intervention_history / last_intervention 来自 LCAEngine.intervention_history
     -- update_count / select_count 来自 lca.py 模块级 dict
+    -- cognitive_twin 来自 LCAEngine._cognitive_twin (v0.91.0-d)
+    -- pomdp_diagnostic 来自 LCAEngine._pomdp_diagnostic (v0.93.0-c)
     intervention_history TEXT,     -- JSON: List[Intervention.to_dict()]
     bandit_a TEXT,                  -- JSON: List[List[List[float]]] (n_arms × d × d)
     bandit_b TEXT,                  -- JSON: List[List[float]] (n_arms × d)
@@ -57,6 +61,8 @@ CREATE TABLE IF NOT EXISTS student_lca_state (
     last_intervention TEXT,         -- JSON: Intervention.to_dict() | null
     update_count INTEGER DEFAULT 0,
     select_count INTEGER DEFAULT 0,
+    cognitive_twin TEXT,            -- JSON: CognitiveTwinAgent.dump_state() | null  (v0.91.0-d)
+    pomdp_diagnostic TEXT,          -- JSON: POMDPDiagnostic.to_dict() | null  (v0.93.0-c)
 
     last_active_at TEXT
 );
@@ -70,7 +76,7 @@ CREATE INDEX IF NOT EXISTS idx_lca_state_last_active ON student_lca_state(last_a
 
 @dataclass
 class LCAStateSnapshot:
-    """LCA 状态快照 (per-student 7 字段全打包).
+    """LCA 状态快照 (per-student 9 字段全打包).
 
     Attributes:
         student_id: 学生 ID
@@ -81,6 +87,8 @@ class LCAStateSnapshot:
         last_intervention: 最近一次干预 (Intervention.to_dict() | None)
         update_count: 总 update 次数
         select_count: 总 select 次数
+        cognitive_twin: v0.91.0-d 新增, CognitiveTwinAgent.dump_state() 或 None
+        pomdp_diagnostic: v0.93.0-c 新增, POMDPDiagnostic.to_dict() 或 None
         last_active_at: 最后活跃时间 (ISO format)
     """
 
@@ -92,6 +100,8 @@ class LCAStateSnapshot:
     last_intervention: Optional[Dict[str, Any]]
     update_count: int
     select_count: int
+    cognitive_twin: Optional[Dict[str, Any]]
+    pomdp_diagnostic: Optional[Dict[str, Any]]
     last_active_at: str
 
     def to_dict(self) -> Dict[str, Any]:
@@ -104,6 +114,8 @@ class LCAStateSnapshot:
             "last_intervention": self.last_intervention,
             "update_count": self.update_count,
             "select_count": self.select_count,
+            "cognitive_twin": self.cognitive_twin,
+            "pomdp_diagnostic": self.pomdp_diagnostic,
             "last_active_at": self.last_active_at,
         }
 
@@ -114,7 +126,7 @@ class LCAStateSnapshot:
 class LCAStore:
     """LCA 状态持久化 (SQLite).
 
-    设计: 简单直接, 7 字段全 JSON 序列化.
+    设计: 简单直接, 9 字段全 JSON 序列化 (v0.93.0-c 加 pomdp_diagnostic).
     不做 incremental save / 缓存 — 每次 save 都是全量覆盖 (per-student 数据量小).
     """
 
@@ -153,10 +165,19 @@ class LCAStore:
             raise
 
     def _init_schema(self) -> None:
-        """初始化表 (幂等)."""
+        """初始化表 (幂等, 含 v0.93.0-c 老 DB migration)."""
         try:
             with self._tx():
                 self.conn.executescript(LCA_STATE_SCHEMA_SQL)
+                # v0.93.0-c: 老 DB (v0.92.0-d 升级前) 没 cognitive_twin / pomdp_diagnostic 列
+                #   自动 ALTER TABLE 加列 (per-student 0 row 时 0 影响, 老 row NULL 兜底)
+                #   跟 v0.91.0-d cognitive_twin 列 migration pattern 一致
+                self._migrate_add_column_if_missing(
+                    "student_lca_state", "cognitive_twin", "TEXT",
+                )
+                self._migrate_add_column_if_missing(
+                    "student_lca_state", "pomdp_diagnostic", "TEXT",
+                )
         except Exception:
             # 防御性自检 [1]: schema init 失败必须 warning, 不能 silent pass
             _log.warning(
@@ -164,6 +185,33 @@ class LCAStore:
                 self.db_path, exc_info=True,
             )
             raise
+
+    def _migrate_add_column_if_missing(
+        self, table: str, column: str, col_type: str,
+    ) -> None:
+        """v0.93.0-c: ALTER TABLE IF NOT EXISTS pattern (老 DB 兼容).
+
+        检查表是否已存在 column, 缺则 ALTER TABLE ADD COLUMN.
+        SQLite 没原生 IF NOT EXISTS for ADD COLUMN, 用 PRAGMA table_info 检查.
+        失败 _log.warning 不 raise (老 DB 加列是 best-effort).
+        """
+        try:
+            cursor = self.conn.execute(f"PRAGMA table_info({table})")
+            existing_columns = {row[1] for row in cursor.fetchall()}
+            if column in existing_columns:
+                return
+            self.conn.execute(
+                f"ALTER TABLE {table} ADD COLUMN {column} {col_type}"
+            )
+            _log.info(
+                "LCAStore migration: 加列 %s.%s (%s) 完成",
+                table, column, col_type,
+            )
+        except Exception:
+            _log.warning(
+                "LCAStore migration: ALTER TABLE %s ADD COLUMN %s 失败 (best-effort)",
+                table, column, exc_info=True,
+            )
 
     def close(self) -> None:
         if self._conn is not None:
@@ -174,7 +222,7 @@ class LCAStore:
             finally:
                 self._conn = None
 
-    # ─── Save / Load (CLAUDE.md [5] 7 字段对齐) ─────────────────────────────
+    # ─── Save / Load (CLAUDE.md [5] 9 字段对齐) ─────────────────────────────
 
     def save_state(
         self,
@@ -186,11 +234,15 @@ class LCAStore:
         last_intervention: Optional[Dict[str, Any]],
         update_count: int,
         select_count: int,
+        cognitive_twin: Optional[Dict[str, Any]] = None,
+        pomdp_diagnostic: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """保存 LCA 状态 (7 字段全存, 覆盖式).
+        """保存 LCA 状态 (9 字段全存, 覆盖式).
 
         防御性自检 [1]: save 失败必须 _log.warning, 不能 silent pass.
-        防御性自检 [5]: 7 字段必须一次全存, 避免分批漏字段.
+        防御性自检 [5]: 9 字段必须一次全存, 避免分批漏字段.
+        v0.91.0-d: 加 cognitive_twin 参数 (Twin → Human Twin 抽象).
+        v0.93.0-c: 加 pomdp_diagnostic 参数 (Twin 第 5 维度 — POMDP T/R 后验可视化).
         """
         now = datetime.now().isoformat()
         try:
@@ -200,9 +252,13 @@ class LCAStore:
                     INSERT INTO student_lca_state (
                         student_id, intervention_history, bandit_a, bandit_b,
                         arm_pull_counts, last_intervention, update_count, select_count,
+                        cognitive_twin, pomdp_diagnostic,
                         last_active_at
                     ) VALUES (
-                        :sid, :ih, :ba, :bb, :apc, :li, :uc, :sc, :now
+                        :sid, :ih, :ba, :bb,
+                        :apc, :li, :uc, :sc,
+                        :ct, :pd,
+                        :now
                     )
                     ON CONFLICT(student_id) DO UPDATE SET
                         intervention_history = :ih,
@@ -212,6 +268,8 @@ class LCAStore:
                         last_intervention = :li,
                         update_count = :uc,
                         select_count = :sc,
+                        cognitive_twin = :ct,
+                        pomdp_diagnostic = :pd,
                         last_active_at = :now
                     """,
                     dict(
@@ -223,6 +281,8 @@ class LCAStore:
                         li=json.dumps(last_intervention, ensure_ascii=False) if last_intervention else None,
                         uc=int(update_count),
                         sc=int(select_count),
+                        ct=json.dumps(cognitive_twin, ensure_ascii=False) if cognitive_twin else None,
+                        pd=json.dumps(pomdp_diagnostic, ensure_ascii=False) if pomdp_diagnostic else None,
                         now=now,
                     ),
                 )
@@ -234,7 +294,7 @@ class LCAStore:
             raise
 
     def load_state(self, student_id: str) -> Optional[LCAStateSnapshot]:
-        """加载 LCA 状态 (7 字段全读).
+        """加载 LCA 状态 (9 字段全读).
 
         Returns:
             LCAStateSnapshot if found, None if not.
@@ -255,6 +315,8 @@ class LCAStore:
             return None
 
         try:
+            # v0.93.0-c: 老 v0.92 snapshot row 没 cognitive_twin / pomdp_diagnostic 列
+            #   (迁移前 ALTER TABLE 已加列, 但老 row 数据 NULL, 走 .get() 兜底)
             return LCAStateSnapshot(
                 student_id=row["student_id"],
                 intervention_history=json.loads(row["intervention_history"]) if row["intervention_history"] else [],
@@ -264,6 +326,10 @@ class LCAStore:
                 last_intervention=json.loads(row["last_intervention"]) if row["last_intervention"] else None,
                 update_count=int(row["update_count"] or 0),
                 select_count=int(row["select_count"] or 0),
+                # v0.91.0-d: cognitive_twin (老 row NULL 兜底)
+                cognitive_twin=json.loads(row["cognitive_twin"]) if row["cognitive_twin"] else None,
+                # v0.93.0-c: pomdp_diagnostic (老 row NULL 兜底)
+                pomdp_diagnostic=json.loads(row["pomdp_diagnostic"]) if row["pomdp_diagnostic"] else None,
                 last_active_at=row["last_active_at"] or "",
             )
         except Exception:

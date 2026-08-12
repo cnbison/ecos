@@ -77,7 +77,7 @@ class TestSelectInterventionAutoRecord:
         assert entry.action_type == "intervention_selected"
         assert entry.intervention_id == result.intervention.intervention_id
         assert entry.source == "lca"
-        assert entry.schema_version == SCHEMA_VERSION
+        assert entry.schema_version == "0.92.0"  # ActionEntry 是 CognitiveTwinAgent 子组件, 仍 v0.92.0 schema (独立于 POMDPPolicy SCHEMA_VERSION="0.93.0")
 
     def test_select_intervention_metadata_complete(self):
         """intervention_selected ActionEntry.metadata 含 5 字段 (expected_gain/risk/audience/bloom_target/policy_type)."""
@@ -343,10 +343,10 @@ class TestPomdpOldSchemaRaiseV092:
             p.load_state(old_state)
 
     def test_current_schema_dump_load(self):
-        """v0.92.0 schema_version="0.92.0" dump + load round-trip 不 raise."""
+        """v0.93.0 schema_version="0.93.0" dump + load round-trip 不 raise (v0.93.0-c 升级)."""
         p1 = POMDPPolicy(seed=42)
         state = p1.dump_state()
-        assert state["schema_version"] == "0.92.0"
+        assert state["schema_version"] == "0.93.0"
         p2 = POMDPPolicy(seed=42)
         p2.load_state(state)
         # 不 raise = round-trip OK

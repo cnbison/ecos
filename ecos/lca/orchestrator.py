@@ -789,15 +789,16 @@ class LCAEngine:
         return self.policy_learner._get_learner(student_id)
 
     def dump_state(self, student_id: str) -> dict:
-        """导出 per-student LCA 状态 (8 字段 + 内部辅助字段).
+        """导出 per-student LCA 状态 (9 字段 + 内部辅助字段).
 
         v0.82.0-d: 拆 LCAEngine 跟 PolicyLearner 边界
           - LCAEngine 维护: intervention_history, last_intervention, update_count, select_count
           - PolicyLearner 维护: bandit_a, bandit_b, arm_pull_counts, arm_fingerprints, last_arm
         v0.91.0-d: 加 cognitive_twin 字段 (Twin → Human Twin 抽象)
+        v0.93.0-c: 加 pomdp_diagnostic 字段 (Twin 第 5 维度 — POMDP T/R 后验可视化 + 演化追踪)
 
         Returns:
-            dict 含 8 关键字段 (CLAUDE.md [5]):
+            dict 含 9 关键字段 (CLAUDE.md [5]):
               1. intervention_history  (List[Intervention.to_dict()])
               2. bandit_a              (List[List[List[float]]])  <- 来自 PolicyLearner.dump
               3. bandit_b              (List[List[float]])        <- 来自 PolicyLearner.dump
@@ -806,6 +807,7 @@ class LCAEngine:
               6. update_count          (int)
               7. select_count          (int)
               8. cognitive_twin        (Dict | None)              <- v0.91.0-d 新增
+              9. pomdp_diagnostic      (Dict | None)              <- v0.93.0-c 新增
             + 内部字段:
               - arm_fingerprints       (Dict[str, str])  arm_idx → intervention_id  <- PolicyLearner.dump
               - last_arm               (int)                                        <- PolicyLearner.dump
@@ -818,6 +820,12 @@ class LCAEngine:
         cognitive_twin = self._cognitive_twin.get(student_id)
         cognitive_twin_dict = (
             cognitive_twin.dump_state() if cognitive_twin is not None else None
+        )
+        # v0.93.0-c: pomdp_diagnostic dump (None 时不存字段, 老 snapshot backward compat)
+        #   POMDP policy 不在用 / 派生失败 → None 兜底, load_state graceful skip
+        pomdp_diagnostic = self._pomdp_diagnostic.get(student_id)
+        pomdp_diagnostic_dict = (
+            pomdp_diagnostic.to_dict() if pomdp_diagnostic is not None else None
         )
         return {
             # 1. intervention_history (LCAEngine 维护)
@@ -833,6 +841,8 @@ class LCAEngine:
             "select_count": self._select_count.get(student_id, 0),
             # 8. cognitive_twin (v0.91.0-d 新增, Twin → Human Twin 抽象)
             "cognitive_twin": cognitive_twin_dict,
+            # 9. pomdp_diagnostic (v0.93.0-c 新增, Twin 第 5 维度 — POMDP T/R 后验可视化)
+            "pomdp_diagnostic": pomdp_diagnostic_dict,
             # 内部辅助 (LinUCB select arm 需要, PolicyLearner 维护)
             "arm_fingerprints": policy_state["arm_fingerprints"],
             "last_arm": policy_state["last_arm"],
@@ -892,6 +902,29 @@ class LCAEngine:
             except Exception:
                 _log.warning(
                     "LCAEngine.load_state: cognitive_twin 恢复失败 (sid=%s), skip",
+                    student_id, exc_info=True,
+                )
+
+        # 9. pomdp_diagnostic (v0.93.0-c 新增, Twin 第 5 维度 — POMDP T/R 后验可视化)
+        #   老 v0.92 snapshot 没此字段 → graceful skip + _log.warning (避免 v0.92 升级 break)
+        #   schema_version 不匹配 → _log.warning + skip
+        pomdp_diagnostic_dict = snapshot.get("pomdp_diagnostic")
+        if pomdp_diagnostic_dict is not None:
+            try:
+                from ..lca.l4_optimization.pomdp_diagnostic import (
+                    POMDPDiagnostic, SCHEMA_VERSION as POMDP_DIAG_SV,
+                )
+                if pomdp_diagnostic_dict.get("schema_version") != POMDP_DIAG_SV:
+                    _log.warning(
+                        "LCAEngine.load_state: pomdp_diagnostic schema_version=%s 不匹配 %s, skip",
+                        pomdp_diagnostic_dict.get("schema_version"), POMDP_DIAG_SV,
+                    )
+                else:
+                    diag = POMDPDiagnostic.from_dict(pomdp_diagnostic_dict)
+                    self._pomdp_diagnostic[student_id] = diag
+            except Exception:
+                _log.warning(
+                    "LCAEngine.load_state: pomdp_diagnostic 恢复失败 (sid=%s), skip",
                     student_id, exc_info=True,
                 )
 

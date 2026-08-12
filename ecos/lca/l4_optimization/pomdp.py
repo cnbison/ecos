@@ -51,7 +51,7 @@ _log = logging.getLogger(__name__)
 
 # v0.92.0-b: schema version 升级 "0.91.0" → "0.92.0" (Phase 7+ 抽象推演 #5 同步)
 # v0.91.0 / v0.90.0 / v0.89.0-c / v0.88.0-c / v0.87.0-c 老 snapshot raise ValueError (per 防御性自检 [5])
-SCHEMA_VERSION = "0.92.0"
+SCHEMA_VERSION = "0.93.0"
 
 
 @dataclass
@@ -184,6 +184,17 @@ class POMDPPolicy:
         # 持久化路径走 set_*_posterior; load_state 从 transition_count / reward_alpha / reward_beta 重建
         self._transition_posterior: Optional[Any] = None
         self._reward_posterior: Optional[Any] = None
+
+        # v0.93.0-c: 演化追踪 (timed snapshots)
+        #   每次 _update_t_r 时 _update_count += 1, 当 _update_count >= _next_snapshot_at 时截
+        #   一个 POMDPDiagnostic 写 _evolution. _evolution cap K=10 (FIFO, 最早丢).
+        #   跟 v0.81 EventLog retention (max_per_student cap) + v0.91/v0.92 cognitive_twin cap 500
+        #   完全 parallel pattern.
+        self._evolution: List[Any] = []  # List[POMDPDiagnostic]
+        self._update_count: int = 0
+        self._next_snapshot_at: int = 50  # N=50: 每 50 次 _update_t_r 截一个 snapshot
+        self._evolution_cap: int = 10  # K=10: cap FIFO
+        self._evolution_interval: int = 50  # N=50: snapshot 间隔
 
     def _init_transition_matrix(self) -> np.ndarray:
         """v0.88.0-c: 初始化 T[s'|s, a] (n_states x n_states x n_arms), 依赖 action.
@@ -427,6 +438,12 @@ class POMDPPolicy:
                 "POMDPPolicy._update_t_r: posterior update 失败 (%s), 跳过",
                 e,
             )
+
+        # v0.93.0-c: 演化追踪 — timed snapshot (每 N=50 次 _update_t_r 截一个)
+        self._update_count += 1
+        if self._update_count >= self._next_snapshot_at:
+            self._take_evolution_snapshot()
+            self._next_snapshot_at = self._update_count + self._evolution_interval
 
     def _estimate_s_next_from_obs(self, s_current: int, observation: int) -> int:
         """从 observation 估计 s_next (v0.90.0-c 简化, 用 O[obs, s_next] argmax).
@@ -790,6 +807,37 @@ class POMDPPolicy:
             )
         return tp.mean(), rp.mean()
 
+    # v0.93.0-c: 演化追踪 — timed snapshots (N=50 触发, K=10 cap)
+    def _take_evolution_snapshot(self) -> None:
+        """派生当前 POMDPDiagnostic + append 到 self._evolution (FIFO cap K=10).
+
+        v0.93.0-c: _update_t_r 触发后调. 内部异常 _log.warning 不 raise (per 防御性自检 [1]).
+        POMDPDiagnostic 自身不可变 (frozen dataclass), append list 是 self mutation.
+        """
+        try:
+            diagnostic = self.get_diagnostic()
+            self._evolution.append(diagnostic)
+            # FIFO cap K=10: 超过 cap 丢最早的
+            if len(self._evolution) > self._evolution_cap:
+                self._evolution.pop(0)
+        except Exception as e:  # noqa: BLE001
+            _log.warning(
+                "POMDPPolicy._take_evolution_snapshot: 派生失败 (%s), skip",
+                e, exc_info=True,
+            )
+
+    def get_evolution(self) -> List[Any]:
+        """返 self._evolution 拷贝 (cap K=10, FIFO).
+
+        Returns:
+            List[POMDPDiagnostic] (frozen dataclass 不可变, identity 守恒)
+        """
+        return list(self._evolution)
+
+    def evolution_snapshot_count(self) -> int:
+        """返 self._evolution 当前长度 (给 Runtime/Plugin 监控用, 0 <= N <= 10)."""
+        return len(self._evolution)
+
     def dump_state(self) -> Dict[str, Any]:
         """导出状态 (v0.90.0 schema, v0.89.0-c / v0.88.0-c / v0.87.0-c 老 snapshot 不兼容).
 
@@ -809,6 +857,9 @@ class POMDPPolicy:
               - transition_count (List[List[List[int]]])  v0.90.0-b 新增: TransitionPosterior raw count
               - reward_alpha (List[List[float]])          v0.90.0-b 新增: RewardPosterior Beta α
               - reward_beta  (List[List[float]])          v0.90.0-b 新增: RewardPosterior Beta β
+              - evolution (List[Dict])                    v0.93.0-c 新增: POMDPDiagnostic 演化 snapshot (K=10 cap)
+              - update_count (int)                       v0.93.0-c 新增: _update_t_r 总调用次数
+              - next_snapshot_at (int)                   v0.93.0-c 新增: 下次 snapshot 触发阈值
                 (posterior 未注入时全 None, 跟 schema 升级兼容)
         """
         pbvi_config = {
@@ -839,6 +890,16 @@ class POMDPPolicy:
         else:
             reward_alpha = None
             reward_beta = None
+        # v0.93.0-c: 演化 snapshot 持久化 (FIFO cap K=10, 内部异常 _log.warning 不 raise)
+        evolution_dicts: List[Dict[str, Any]] = []
+        for diag in self._evolution:
+            try:
+                evolution_dicts.append(diag.to_dict())
+            except Exception as e:  # noqa: BLE001
+                _log.warning(
+                    "POMDPPolicy.dump_state: evolution snapshot 序列化失败 (%s), skip",
+                    e, exc_info=True,
+                )
         return {
             "schema_version": SCHEMA_VERSION,
             "n_arms": self.n_arms,
@@ -856,6 +917,9 @@ class POMDPPolicy:
             "transition_count": transition_count,
             "reward_alpha": reward_alpha,
             "reward_beta": reward_beta,
+            "evolution": evolution_dicts,
+            "update_count": self._update_count,
+            "next_snapshot_at": self._next_snapshot_at,
         }
 
     def load_state(self, state: Dict[str, Any]) -> None:
@@ -1046,6 +1110,28 @@ class POMDPPolicy:
             )
         else:
             self._reward_posterior = None
+
+        # v0.93.0-c: 演化 snapshot 恢复 (Optional[List[Dict]], 缺省 [] 兜底)
+        #   注: 老 v0.92 snapshot 没 evolution 字段 → 兜底 []; dump 出来格式不一致
+        #   (per-snapshot schema_version="0.93.0") 时 _log.warning + skip 单个, 不 raise
+        #   (跟 LCAEngine 老 cognitive_twin snapshot graceful skip pattern 一致)
+        from ecos.lca.l4_optimization.pomdp_diagnostic import POMDPDiagnostic
+        self._evolution = []
+        evolution_list = state.get("evolution") or []
+        if evolution_list:
+            for snap_dict in evolution_list:
+                try:
+                    diag = POMDPDiagnostic.from_dict(snap_dict)
+                    self._evolution.append(diag)
+                except (ValueError, KeyError, TypeError) as e:
+                    _log.warning(
+                        "POMDPPolicy.load_state: evolution snapshot 恢复失败 (%s), skip",
+                        e, exc_info=True,
+                    )
+
+        # v0.93.0-c: 演化追踪计数器恢复 (老 snapshot 默认 0 / 50)
+        self._update_count = int(state.get("update_count", 0))
+        self._next_snapshot_at = int(state.get("next_snapshot_at", 50))
 
 __all__ = [
     "POMDPPolicy",

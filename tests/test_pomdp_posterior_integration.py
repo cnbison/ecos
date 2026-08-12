@@ -121,7 +121,7 @@ def test_dump_state_includes_posterior_fields_when_injected():
     p.set_transition_posterior(TransitionPosterior(count=count.copy()))
     p.set_reward_posterior(RewardPosterior(alpha=alpha.copy(), beta=beta.copy()))
     state = p.dump_state()
-    assert state["schema_version"] == "0.92.0"
+    assert state["schema_version"] == "0.93.0"
     assert state["transition_count"] is not None
     assert state["reward_alpha"] is not None
     assert state["reward_beta"] is not None
@@ -134,7 +134,7 @@ def test_dump_state_posterior_none_when_not_injected():
     """posterior 未注入 → dump_state posterior 字段全 None (向后兼容 c 阶段 lazy)."""
     p = POMDPPolicy(seed=42)
     state = p.dump_state()
-    assert state["schema_version"] == "0.92.0"
+    assert state["schema_version"] == "0.93.0"
     assert state["transition_count"] is None
     assert state["reward_alpha"] is None
     assert state["reward_beta"] is None
