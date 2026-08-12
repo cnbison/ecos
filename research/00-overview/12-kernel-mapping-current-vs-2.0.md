@@ -97,11 +97,11 @@
 | `ecos/lca/l4_optimization/linucb.py:LinUCB` | 80% | LinUCB 已有,接口清晰（select_arm / update） |
 | `ecos/lca/l4_optimization/policy_learner.py:LCAPolicyLearner` | 80% | LinUCB 包装 + 上下文构建 + arm 候选映射 |
 | `ecos/lca/l4_optimization/thompson.py:ThompsonSampling` (v0.86.0-c) | 100% | Beta-Bernoulli Bandit, 接口同构 LinUCB (select_arm/update/dump_state/load_state) |
-| `ecos/lca/l4_optimization/pomdp.py:POMDPPolicy` (v0.89.0-d) | 100% | 4 状态 POMDP (Engaged/Frustrated/Bored/Confused) + 依赖型 T(s'|s,a) + 固定 init R(s,a) + PBVI 默认 (α-vector 完整算法 + 收敛 + reachable belief points + lazy load + 持久化) |
+| `ecos/lca/l4_optimization/pomdp.py:POMDPPolicy` (v0.90.0-d) | 100% | 4 状态 POMDP (Engaged/Frustrated/Bored/Confused) + 依赖型 T(s'|s,a) + learned R(s,a) Beta posterior + PBVI 默认 (α-vector 完整算法 + 收敛 + reachable belief points + lazy load + 持久化) + learned T/R online (use_learned_t_r=True 默认 + min_samples=5 冷启动) |
 | `ecos/lca/orchestrator.py:LCAEngine._estimate_gain` | 60% | 简化估算策略（scale × (1-K) × scaffolding）,不是 LinUCB 但属于 Policy 库的一员 |
 | `ecos/dual_agent/orchestrator.py:_compute_dual_agent_confidence` (v0.69.0) | 50% | LinUCB θ@x 预测,属于 Policy Engine 的"预测接口",但不是独立 Engine |
 | **缺失：LLM-as-Policy** | 0% | LLM 只做 rationale / critic,不做策略推荐 |
-| `ecos/evaluation/policy_ab_test.py:PolicyABTest` (v0.89.0-d) | 100% | v0.83.0-c 占位 + v0.86.0-d 真 A/B Test + v0.87.0-d 4-policy 支持 (LinUCB/linucb_baseline/Thompson/POMDP+PBVI 任意 2-way, v0.89.0-d 工厂 use_pbvi=True) |
+| `ecos/evaluation/policy_ab_test.py:PolicyABTest` (v0.90.0-d) | 100% | v0.83.0-c 占位 + v0.86.0-d 真 A/B Test + v0.87.0-d 4-policy 支持 (LinUCB/linucb_baseline/Thompson/POMDP+PBVI+learned T/R 任意 2-way, v0.89.0-d 工厂 use_pbvi=True + v0.90.0-d 工厂 use_learned_t_r=True + min_samples=5) |
 
 **演进建议**：
 - **v0.76.0**：引入 Thompson Sampling（Policy Engine 第二个 Policy）✅ 2026-08-11 v0.86.0-c 落地 (Beta-Bernoulli Bandit, LinUCB 同接口, policy_type="thompson" 切换)
@@ -324,7 +324,11 @@
 - **v0.89.0-b** ✅ (2026-08-12): PBVI 完整算法 + belief point sampling. update_alpha_vectors 收敛检测 + PBVI.solve 主算法 (iterative backup) + reachable_belief_points (随机采样) + uniform_belief_points (Dirichlet 均匀). 12 新增 tests (pytest 1063 → 1075). 经典 PBVI (Sondik 1971 简化): α-vector in state space, V(b) = α·b. 防御性自检 [8] 仍 hard block.
 - **v0.89.0-c** ✅ (2026-08-12): POMDPPolicy 集成 PBVI. use_pbvi=True 默认 + 懒加载 reachable belief points + solve_pbvi() 显式入口 + dump_state/load_state 持久化 (use_pbvi / pbvi_config / solver_state). schema_version 0.89.0-c, 老 snapshot 0.88.0-c / 0.87.0-c raise ValueError. 10 新增 tests (pytest 1075 → 1085).
 - **v0.89.0-d** ✅ (2026-08-12): Runtime + PolicyABTest 集成 PBVI. LCAPolicyLearner / LCAEngine.select_intervention POMDP 路径显式 solve_pbvi (双层防御) + PolicyABTest 工厂 use_pbvi=True + solve_pbvi 幂等 (α 缓存命中跳过) + PolicyLearnerConfig.pomdp_use_pbvi 透传. Runtime plan 签名稳定, opt-out kwargs 留 v0.90+. 11 新增 tests (pytest 1085 → 1096). 防御性自检 [8] 仍 hard block.
-- **v0.90.0+** (Phase 7+ 抽象推演 #2+): Twin → Human Twin 抽象 + Plugin SDK 文档化 + Teacher/Parent Dashboard + POMDP T(s'|s,a) / R(s,a) 在线学习
+- **v0.90.0-a** ✅ (2026-08-12): T/R posterior 数据结构 + 增量 update. NEW `ecos/lca/l4_optimization/pomdp_learner.py` (TransitionPosterior Dirichlet 多项式共轭 + RewardPosterior Beta 共轭 + posterior mean MAP + 越界 raise + total_evidence 接口). 12 新增 tests (pytest 1096 → 1108). POMDP Policy §1.3 T/R 学习数据通路 0% → 起步. 接口同构 LinUCB/Thompson/POMDP 维持. 防御性自检 [8] 仍 hard block (posterior dataclass self mutation 不触及 BeliefState).
+- **v0.90.0-b** ✅ (2026-08-12): posterior 注入 POMDPPolicy + 持久化 + schema_version 升级 0.89.0-c → 0.90.0. POMDPPolicy.set_transition_posterior / set_reward_posterior 注入接口 + _learned_t_r_posterior_mean 派生 T/R posterior mean + dump_state 加 transition_count / reward_alpha / reward_beta 3 字段 + load_state 校验 schema_version (老 snapshot raise). 13 新增 tests (pytest 1108 → 1121). 防御性自检 [5] schema_version 校验生效.
+- **v0.90.0-c** ✅ (2026-08-12): POMDPPolicy 集成 update_t_r + PBVI 用 posterior mean. update(arm, ctx, reward, observation=None) 扩展 obs 参数 + _update_t_r lazy init posterior (越界 skip, 跟 bayes_update 一致) + _resolve_t_r 共享路径 (PBVI + QMDP fallback 都用 posterior mean) + use_learned_t_r=True 默认 + solve_pbvi 不直接 mutation self.transition / self.reward (走 transient T/R 输入参数, 防御性自检 [8] 仍 hard block). 12 新增 tests (pytest 1121 → 1133). POMDP Policy §1.3 30% → 70% (算法闭环).
+- **v0.90.0-d** ✅ (2026-08-12): Runtime + PolicyABTest 集成 learned T/R + 冷启动. LCAEngine.update 透传 pomdp_observation 到 LCAPolicyLearner.update(obs) + PolicyLearnerConfig.pomdp_use_learned_t_r kwargs 注入 + PolicyABTest._create_fresh_bandit POMDP 工厂 use_learned_t_r=True + min_samples=5 + POMDPPolicy._resolve_t_r 冷启动保护 (evidence < 5 用 init, ≥ 5 切 learned) + RewardPosterior.total_evidence 公式修正 (2 * alpha0 per cell). 10 新增 tests (pytest 1133 → 1143). 3-way A/B (linucb / thompson / pomdp+PBVI+learned T/R) 维持. 防御性自检 [8] 仍 hard block (LCAEngine._last_observation 是 instance dict, 不在 state 上).
+- **v0.91.0+** (Phase 7+ 抽象推演 #3+): Twin → Human Twin 抽象 + Plugin SDK 文档化 + Teacher/Parent Dashboard + POMDP T/R 后验可视化
 
 **设计原则**:
 - **Domain-agnostic Kernel 1 套**: LinUCB / Thompson / POMDP / Evidence / Runtime / StateEngine 不引用 Domain
@@ -527,6 +531,34 @@ v0.84.0-d 在 LCA 4-layer 之外, 引入 Plugin Runtime 雏形 (kernel-mapping �
 
 > **[v0.89.0 final 完成 2026-08-12]**: README.md / CLAUDE.md / 12-kernel-mapping §1.3 + §8.2 / memory (`project-v089-completion-state.md`) 全部同步. 缺失清单 0 项剩.
 > - 下一阶段 v0.90+: Phase 7+ 抽象推演 #2+ (Twin → Human Twin + Plugin SDK 文档化 + Teacher/Parent Dashboard + 跨学科扩展) + POMDP T(s'|s,a) / R(s,a) 在线学习.
+
+> **[v0.90.0-a 更新 2026-08-12]**: Phase 7+ 抽象推演 #3 sub-version a 完成. POMDP T/R posterior 数据结构 (Beta-Multinomial conjugate). 12 新增 tests (pytest 1096 → 1108, +1.1%). 详情见 §1.3.
+> - NEW `ecos/lca/l4_optimization/pomdp_learner.py` (TransitionPosterior Dirichlet 多项式共轭 + RewardPosterior Beta 共轭 + posterior mean MAP + 越界 raise + total_evidence + get_arm_stats 接口同构 ThompsonSampling)
+> - POMDP Policy §1.3 T/R 学习数据通路 0% → 起步. 接口同构 LinUCB/Thompson/POMDP 维持.
+
+> **[v0.90.0-b 更新 2026-08-12]**: Phase 7+ 抽象推演 #3 sub-version b 完成. posterior 注入 POMDPPolicy + 持久化 + schema_version 升级 0.89.0-c → 0.90.0. 13 新增 tests (pytest 1108 → 1121, +1.2%). 详情见 §1.3.
+> - NEW POMDPPolicy.set_transition_posterior / set_reward_posterior 注入接口
+> - NEW _learned_t_r_posterior_mean() 派生 T/R posterior mean
+> - MODIFY SCHEMA_VERSION "0.89.0-c" → "0.90.0" (老 snapshot raise)
+> - MODIFY dump_state / load_state 加 transition_count / reward_alpha / reward_beta 3 字段
+> - 防御性自检 [5] schema_version 校验生效. 防御性自检 [8] 仍 hard block.
+
+> **[v0.90.0-c 更新 2026-08-12]**: Phase 7+ 抽象推演 #3 sub-version c 完成. POMDPPolicy 集成 update_t_r + PBVI 用 posterior mean. 12 新增 tests (pytest 1121 → 1133, +1.1%). 详情见 §1.3.
+> - MODIFY POMDPPolicy.__init__: use_learned_t_r=True 默认 + min_samples 形参
+> - MODIFY POMDPPolicy.update: observation 可选参数 (默认 None, 老调用兼容)
+> - NEW POMDPPolicy._update_t_r(arm, observation, reward): lazy init posterior + 越界 skip
+> - NEW POMDPPolicy._resolve_t_r(): 共享路径 (PBVI + QMDP fallback 都用 posterior mean, use_learned_t_r=False → init T/R)
+> - PBVI 不直接 mutation self.transition / self.reward (走 transient T/R 输入参数)
+> - 防御性自检 [8] 仍 hard block. H3-c4 + v0.81 replay canary 全 PASS.
+
+> **[v0.90.0-d 更新 2026-08-12]**: Phase 7+ 抽象推演 #3 sub-version d 完成. Runtime + PolicyABTest 集成 learned T/R + 冷启动. 10 新增 tests (pytest 1133 → 1143, +0.9%). 详情见 §1.3.
+> - MODIFY PolicyLearnerConfig: pomdp_use_learned_t_r 透传 (默认 None → POMDPPolicy True)
+> - MODIFY LCAPolicyLearner.__init__: pomdp_use_learned_t_r 形参 + update 透传 obs
+> - MODIFY LCAEngine.update POMDP 路径: 透传 pomdp_observation 到 LCAPolicyLearner.update(obs)
+> - MODIFY PolicyABTest._create_fresh_bandit POMDP 工厂: use_learned_t_r=True + min_samples=5 (3-way A/B 维持)
+> - MODIFY POMDPPolicy._resolve_t_r: min_samples 冷启动保护 (evidence < 5 用 init, ≥ 5 切 learned)
+> - FIX RewardPosterior.total_evidence: 公式从 `1 * alpha0` 修正为 `2 * alpha0` per cell (Beta α+β 各 1 prior, 5 evidence 期望)
+> - 防御性自检 [8] 仍 hard block (LCAEngine._last_observation 是 instance dict). H3-c4 + v0.81 replay canary 全 PASS.
 
 > **[v0.87.0 完成 2026-08-11]**: 缺失清单 3→1 (Motivation Profile / POMDP Policy 全部落地). Phase 6+ Kernel 扩展第 2 个版本 4 sub-commit 全部完成 (a=Motivation schema/b=Motivation Runtime+c=POMDP 雏形/d=POMDP 集成 3-way A/B). pytest 898 → 958 (+60, +6.7%).
 

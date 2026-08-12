@@ -234,6 +234,58 @@
 - memory/project-v090-completion-state.md 新增
 
 
+## [0.90.0 final] 2026-08-12
+
+### docs: Phase 7+ 抽象推演 #3 文档同步收口
+
+> **背景**: v0.90.0-a/b/c/d 4 个 sub-commit 全部完成 (T/R 在线学习 + Runtime 集成 + 冷启动). final 阶段: 文档同步收口, 跟 v0.88.0 final / v0.89.0 final 模式一致.
+
+#### MODIFIED: README.md — v0.90.0 当前状态同步
+
+- Badge: `kernel-v0.89.0-d` → `kernel-v0.90.0-d` + `version-0.90.0-d`
+- "当前状态" 章节: 标题 + 时间 + 概述同步 v0.90.0 (POMDP T/R 在线学习 + Runtime 集成 + 冷启动)
+- ECOS 7 组件表头: `v0.89.0-d` → `v0.90.0-d`
+- Kernel 深化进度表新增: ✅ **POMDP T/R 在线学习 100%** (v0.90.0-a/b/c/d): Beta-Multinomial conjugate posterior + posterior mean 接入 PBVI + Runtime + PolicyABTest 集成 + 冷启动保护 (min_samples=5)
+- 累计产出: `pytest 958 → 1143 (+185, +19.3%; v0.88 累计 86 + v0.89 累计 52 + v0.90 累计 47)` + 5 个 Kernel 深化版本累计 24 个 sub-commit
+- "下一步": v0.90+ → v0.91+ 启动 (Twin → Human Twin + Plugin SDK 文档化 + Teacher/Parent Dashboard + POMDP T/R 后验可视化)
+- 当前版本: v0.89.0-d → v0.90.0-d (POMDP T/R 在线学习 100% + Runtime + PolicyABTest + 冷启动 min_samples=5)
+
+#### MODIFIED: CLAUDE.md — 当前阶段 v0.90 同步
+
+- 当前阶段: `Phase 4 实际完成, Phase 5 v0.54.0 → v0.85.0` → `Phase 4 实际完成, Phase 5 v0.54.0 → v0.90.0`
+- v0.89.0 摘要后追加 **v0.90.0 Phase 7+ 抽象推演 #3 全部完成 (a/b/c/d)**:
+  - v0.90.0-a: T/R posterior 数据结构 + 增量 update (TransitionPosterior Dirichlet + RewardPosterior Beta 共轭)
+  - v0.90.0-b: posterior 注入 POMDPPolicy + 持久化 (transition_count / reward_alpha / reward_beta 字段) + schema_version 升级 0.89.0-c → 0.90.0
+  - v0.90.0-c: POMDPPolicy 集成 update_t_r + PBVI 用 posterior mean (use_learned_t_r=True 默认 + lazy init posterior + obs 透传)
+  - v0.90.0-d: Runtime + PolicyABTest + 冷启动 (LCAEngine.update 透传 obs + PolicyLearnerConfig.pomdp_use_learned_t_r + min_samples=5 + 3-way A/B 维持)
+- 防御性自检 [8] 同步: mutation 状态追加 v0.90.0-a/b/c/d 0 新 mutation site (TransitionPosterior / RewardPosterior 走 self mutation 不触及 BeliefState, POMDPPolicy._update_t_r lazy init 走 self._transition_posterior mutation 属 POMDPPolicy self mutation, LCAEngine._last_observation 是 instance dict 不在 state 上)
+- pytest 测试清单追加: v0.90.0-a/b/c/d 4 个新测试文件 (47 新增 tests)
+- §8.2 v0.89.0 引用 → §8.2 v0.90.0 更新
+
+#### MODIFIED: 12-kernel-mapping-current-vs-2.0.md — §1.3 + §8.2 v0.90 同步
+
+- §1.3 Policy Engine 表:
+  - POMDPPolicy 描述更新 (v0.89.0-d → v0.90.0-d): 加上 learned R(s,a) Beta posterior + learned T/R online (use_learned_t_r=True 默认 + min_samples=5 冷启动)
+  - PolicyABTest 描述更新 (v0.89.0-d → v0.90.0-d): 加上 POMDP 工厂 use_learned_t_r=True + min_samples=5
+- §8.2 更新日志: 追加 v0.90.0-a/b/c/d 4 个 sub-version entries (T/R posterior + 注入持久化 + 集成 update_t_r + Runtime + 冷启动)
+- §8.2 顶部 "下一阶段" 替换: v0.91.0+ (Twin → Human Twin + Plugin SDK 文档化 + Teacher/Parent Dashboard + POMDP T/R 后验可视化)
+
+#### 不变量
+
+- pytest 1143 全 PASS (47 个新 POMDP T/R 测试)
+- 防御性自检 [1] silent pass + [5] schema_version + [8] hard block 全 PASS
+- H3-c4 canary (POMDP 同 seed 确定性 + learned T/R 同分布) + v0.81 replay canary 全 PASS
+- 接口同构 LinUCB/Thompson/POMDP 维持 (update(arm, ctx, reward, observation=None) 老调用兼容)
+- 3-way A/B (linucb / thompson / pomdp+PBVI+learned T/R) 维持
+
+#### 累计进度 (v0.90)
+
+- pytest: 1096 → **1143** (+47, +4.3%)
+- POMDP Policy §1.3: 100% (PBVI 完整) → **100% (PBVI + learned T/R + 冷启动完整)**
+- 累计 Kernel 深化 7 个版本 (v0.83 → v0.90), pytest 958 → 1143 (+185, +19.3%)
+- 下一阶段 v0.91+: Phase 7+ 抽象推演 #4+ (Twin → Human Twin + Plugin SDK 文档化 + Teacher/Parent Dashboard + POMDP T/R 后验可视化)
+
+
 ## [0.88.0-b] 2026-08-11
 
 ### feat: Phase 7+ 抽象推演 #1 (sub b) — Multi-Domain 集成 Runtime + LCA

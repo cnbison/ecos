@@ -22,7 +22,7 @@
 | **Phase 5（产品化，✅ 准备启动）** | 实验报告 + 修订文档 | ✅ 完整 Python 包 + Web UI | 完整产品 |
 | **Phase 6（系统完善，待启动）** | 研究文档 + 应用原型设计 | ✅ ecos/ Python 包 + 实验代码 | 应用探索 |
 
-> **当前阶段（2026-08-11）**：**Phase 4（Product Demo 完整化）实际完成，Phase 5（产品化）已启动 v0.54.0 → v0.85.0**。
+> **当前阶段（2026-08-12）**：**Phase 4（Product Demo 完整化）实际完成，Phase 5（产品化）已启动 v0.54.0 → v0.90.0**。
 > - Phase 4: ✅ 实际完成 v0.52.3 (Bisen 自定义 Phase 1-4 全部落地, 含 5D 视觉化 / 答题历史 / Tab 导航 / Phase 4 架构现代化)。
 > - Phase 5: 🚀 已启动并推进：partial credit (v0.54.0) / C/X 主导题 (v0.54.2/3) / LCA 接入 + 持久化 (v0.56.0/0.57.0) /
 >   dual_agent 接入 + 持久化 (v0.60.0/0.61.0/0.62.0) / H3 验证 A+B 报告 (v0.63.0/0.68.0) / v0.69.0 confidence 指标重设计 PRD /
@@ -45,8 +45,13 @@
 >   - v0.89.0-b: PBVI 完整算法 + belief point sampling (update_alpha_vectors 收敛 + PBVI.solve 主算法 + reachable/uniform belief points)
 >   - v0.89.0-c: POMDPPolicy 集成 PBVI (use_pbvi=True 默认 + 懒加载 + dump_state 持久化 solver_state + load_state 严格恢复 + schema_version 0.89.0-c)
 >   - v0.89.0-d: Runtime + PolicyABTest 集成 PBVI (LCAPolicyLearner / LCAEngine.select_intervention 显式 solve_pbvi + PolicyABTest 工厂 use_pbvi=True + solve_pbvi 幂等 + PolicyLearnerConfig.pomdp_use_pbvi 透传)
+>   **v0.90.0 Phase 7+ 抽象推演 #3 全部完成 (a/b/c/d)**:
+>   - v0.90.0-a: T/R posterior 数据结构 + 增量 update (TransitionPosterior Dirichlet + RewardPosterior Beta 共轭)
+>   - v0.90.0-b: posterior 注入 POMDPPolicy + 持久化 (transition_count / reward_alpha / reward_beta 字段) + schema_version 升级 0.89.0-c → 0.90.0
+>   - v0.90.0-c: POMDPPolicy 集成 update_t_r + PBVI 用 posterior mean (use_learned_t_r=True 默认 + lazy init posterior + obs 透传)
+>   - v0.90.0-d: Runtime + PolicyABTest + 冷启动 (LCAEngine.update 透传 obs + PolicyLearnerConfig.pomdp_use_learned_t_r + min_samples=5 + 3-way A/B 维持)
 > ECOS 7 组件: 5D+cov (K/P/S/C/X 均真评估) / Bloom 6级 / TC 状态 / LearningDNA (标"待启用") / Trajectory / Misconceptions / overall_confidence。
-> 详见 [03-roadmap.md](./research/00-overview/03-roadmap.md) (v1.5+ 已同步) + [12-kernel-mapping-current-vs-2.0.md §8.2 v0.89.0 更新](./research/00-overview/12-kernel-mapping-current-vs-2.0.md)。
+> 详见 [03-roadmap.md](./research/00-overview/03-roadmap.md) (v1.5+ 已同步) + [12-kernel-mapping-current-vs-2.0.md §8.2 v0.90.0 更新](./research/00-overview/12-kernel-mapping-current-vs-2.0.md)。
 >
 > **历史重大弊端跟进 (Bisen 2026-07-22 测试发现 → 2026-07-30 状态)**:
 > - ✅ **Partial Credit 缺失 — v0.54.0 已修复**。学生答对 70% 但缺 I/O 时, ECOS 不再按 0% 处理。
@@ -401,9 +406,9 @@ bash scripts/install-hooks.sh    # 设 core.hooksPath = githooks/
 | 5 | DB 恢复 6 关键字段 | 4 次漏字段 (json/tc_states/trajectory/item_params) | 检查 6 字段全在 belief.py + db.py |
 | 6 | DB 恢复走 apply_snapshot | v0.77.1 收口 6 处直接 state.X = value mutation | `grep "state.apply_snapshot(" web/api/belief.py` |
 | 7 | replay 脚本无字面量 skill_id | v0.78 H3-c4 artifact (7 个 replay 脚本硬编码 skill_id="variables") | AST 检测 `scripts/check_no_literal_skill_id.py`, 排除 docstring + dict .get() 默认 |
-| 8 | 直接 state.X = value mutation 扫描 | v0.78 BeliefEngine.update() 含 ~46 处直接 mutation (v0.80 拆 4-layer 收口); v0.81 TODO mutations 迁移完成 + hard block; v0.82 LCA 4-layer 拆分 (LCAEngine 缩到 facade, 不引入新 mutation site); v0.83 Evidence Engine + Runtime API 0 新 mutation site (Runtime API 纯函数 + kwargs 注入, 符合 kernel-mapping §5 CQRS 原则); v0.84 Event Engine 100% + Plugin SDK 雏形 0 新 mutation site (EventBus 纯 pub/sub 不动 state, PluginRuntime 委托 Runtime.update_belief 经 engine.update 间接 mutate, LearningEvent factory 是 factory pattern 不 mutate state); v0.85 Plugin SDK 100% + production activation 0 新 mutation site (PluginRuntime.start() 在 if __name__ 块, Runtime subscriber 调 Runtime.update_belief/orchestrator.process_observation/Runtime.plan 间接 mutate, 4 frontend stub endpoint 只产 event 不写 state); **v0.86.0 / v0.87.0 / v0.88.0-a/b/c/d / v0.89.0-a/b/c/d 同样 0 新 mutation site** (DomainExtension set_domain_extension 加入 allowlist, POMDP reward→observation 走 LCAPolicyLearner._reward_to_observation 静态方法不 mutate, LCAEngine._last_observation 是 instance dict 不在 state 上; PBVI solver 纯函数 backup_step 不 mutate state, LCAEngine pomdp path 显式 solve_pbvi 调 POMDPPolicy.solve_pbvi 内部走 self.solver.alpha_vectors 替换 仍属于 self mutation, 防御性自检 AST 扫描未引入新 mutation site) | AST 检测 `scripts/check_no_direct_state_mutation.py`, allowlist: BeliefState.{__init__,to_dict,from_dict,apply_snapshot,validate,bump_version,append_trajectory_snapshot,add_evidence} + StateEngine.commit + BeliefUpdator.apply + create_initial_state. v0.81 hard block (exit 1), LINE_ALLOWLIST shrinks 8 -> 1 (ecos/dual_agent/orchestrator.py:842 only). v0.83.0-b add_evidence 扩展 allowlist (跟 append_trajectory_snapshot 模式一致). v0.84.0-b/v0.84.0-d 不引入新 allowlist (纯 pub/sub / factory). v0.85.0-b/c/d 同样 0 新 mutation site. **v0.88.0-b set_domain_extension 加入 allowlist (DomainExtension 维护 state.domain_extension 是 Runtime 字段, 走 apply_snapshot 一致)**. v0.88.0-d 不引入新 allowlist (POMDP 反馈走静态方法 + dict 跟踪). **v0.89.0-a/b/c/d 不引入新 allowlist** (PBVI 是 POMDPPolicy 子组件, 走 self mutation 不触及 BeliefState, 防御性自检 AST 扫描 49 文件无新增 mutation site). |
+| 8 | 直接 state.X = value mutation 扫描 | v0.78 BeliefEngine.update() 含 ~46 处直接 mutation (v0.80 拆 4-layer 收口); v0.81 TODO mutations 迁移完成 + hard block; v0.82 LCA 4-layer 拆分 (LCAEngine 缩到 facade, 不引入新 mutation site); v0.83 Evidence Engine + Runtime API 0 新 mutation site (Runtime API 纯函数 + kwargs 注入, 符合 kernel-mapping §5 CQRS 原则); v0.84 Event Engine 100% + Plugin SDK 雏形 0 新 mutation site (EventBus 纯 pub/sub 不动 state, PluginRuntime 委托 Runtime.update_belief 经 engine.update 间接 mutate, LearningEvent factory 是 factory pattern 不 mutate state); v0.85 Plugin SDK 100% + production activation 0 新 mutation site (PluginRuntime.start() 在 if __name__ 块, Runtime subscriber 调 Runtime.update_belief/orchestrator.process_observation/Runtime.plan 间接 mutate, 4 frontend stub endpoint 只产 event 不写 state); **v0.86.0 / v0.87.0 / v0.88.0-a/b/c/d / v0.89.0-a/b/c/d / v0.90.0-a/b/c/d 同样 0 新 mutation site** (DomainExtension set_domain_extension 加入 allowlist, POMDP reward→observation 走 LCAPolicyLearner._reward_to_observation 静态方法不 mutate, LCAEngine._last_observation 是 instance dict 不在 state 上; PBVI solver 纯函数 backup_step 不 mutate state, LCAEngine pomdp path 显式 solve_pbvi 调 POMDPPolicy.solve_pbvi 内部走 self.solver.alpha_vectors 替换 仍属于 self mutation; TransitionPosterior / RewardPosterior dataclass 维护 self.count / self.alpha / self.beta mutation 不触及 BeliefState, _update_t_r lazy init 走 self._transition_posterior / self._reward_posterior mutation 仍属于 POMDPPolicy self mutation, 防御性自检 AST 扫描 49 文件无新增 mutation site) | AST 检测 `scripts/check_no_direct_state_mutation.py`, allowlist: BeliefState.{__init__,to_dict,from_dict,apply_snapshot,validate,bump_version,append_trajectory_snapshot,add_evidence} + StateEngine.commit + BeliefUpdator.apply + create_initial_state. v0.81 hard block (exit 1), LINE_ALLOWLIST shrinks 8 -> 1 (ecos/dual_agent/orchestrator.py:842 only). v0.83.0-b add_evidence 扩展 allowlist (跟 append_trajectory_snapshot 模式一致). v0.84.0-b/v0.84.0-d 不引入新 allowlist (纯 pub/sub / factory). v0.85.0-b/c/d 同样 0 新 mutation site. **v0.88.0-b set_domain_extension 加入 allowlist (DomainExtension 维护 state.domain_extension 是 Runtime 字段, 走 apply_snapshot 一致)**. v0.88.0-d 不引入新 allowlist (POMDP 反馈走静态方法 + dict 跟踪). **v0.89.0-a/b/c/d 不引入新 allowlist** (PBVI 是 POMDPPolicy 子组件, 走 self mutation 不触及 BeliefState). **v0.90.0-a/b/c/d 不引入新 allowlist** (TransitionPosterior/RewardPosterior 是独立 dataclass, mutation 走 self 不触及 BeliefState, POMDPPolicy._update_t_r lazy init 走 self._transition_posterior mutation 属 POMDPPolicy self mutation). |
 
-**1044 pytest 测试**（截至 v0.88.0-d, 47 个文件）→ **1096 pytest 测试**（截至 v0.89.0-d, 50 个文件）：
+**1044 pytest 测试**（截至 v0.88.0-d, 47 个文件）→ **1096 pytest 测试**（截至 v0.89.0-d, 50 个文件）→ **1143 pytest 测试**（截至 v0.90.0-d, 53 个文件）：
 - `test_state_engine.py` (54)：v0.80.0-a StateEngine commit/validate/snapshot/diff + apply_snapshot shim
 - `test_inference_engine.py` (28)：v0.80.0-b InferenceEngine (含 5 个 critical 不变量 test: run() 不 mutate state)
 - `test_belief_updater.py` (34)：v0.80.0-b BeliefUpdator (sole mutation site, calls StateEngine.commit)
@@ -440,6 +445,10 @@ bash scripts/install-hooks.sh    # 设 core.hooksPath = githooks/
 - `test_pbvi_solver.py` (31 → 实际 31 含 parametrize)：v0.89.0-a/b PBVI 算法本体 + 完整 backup + 收敛 + belief point sampling
 - `test_pomdp_pbvi_integration.py` (10)：v0.89.0-c POMDPPolicy 集成 PBVI (use_pbvi + solver 懒加载 + dump/load 持久化)
 - `test_runtime_pbvi.py` (11)：v0.89.0-d Runtime + PolicyABTest 集成 PBVI (LCAPolicyLearner / LCAEngine / PolicyABTest 工厂 / 3-way A/B / replay canary / H3-c4)
+- `test_pomdp_learner.py` (12)：v0.90.0-a T/R posterior 数据结构 + Dirichlet / Beta conjugate + 增量 update
+- `test_pomdp_posterior_integration.py` (13)：v0.90.0-b posterior 注入 POMDPPolicy + 持久化 + schema_version 升级
+- `test_pomdp_learned_t_r.py` (12)：v0.90.0-c POMDPPolicy 集成 update_t_r + PBVI 用 posterior mean
+- `test_pomdp_runtime_learned_t_r.py` (10)：v0.90.0-d Runtime + PolicyABTest + 冷启动 min_samples=5 (LCAEngine obs 透传 + PolicyLearnerConfig + 3-way A/B 维持 + H3-c4)
 - `test_defensive.py` (8)：8 项防御性自检的 pytest 版本
 - `test_apply_snapshot.py` (19)：v0.77.1 DB 恢复路径单一入口 (6 字段恢复 + 不接管边界 + round-trip)
 - `test_partial_credit.py` (5)：partial credit + MIRT 回归保护

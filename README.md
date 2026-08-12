@@ -3,8 +3,8 @@
 > **教育认知操作系统**：面向 K12 学生的下一代 AI 辅助学习系统
 > 基于"**学生认知数字孪生 + AI 学习教练**"双 Agent 共进化架构
 
-[![Status](https://img.shields.io/badge/status-kernel--v0.89.0--d-brightgreen)]()
-[![Version](https://img.shields.io/badge/version-0.89.0--d-blue)]()
+[![Status](https://img.shields.io/badge/status-kernel--v0.90.0--d-brightgreen)]()
+[![Version](https://img.shields.io/badge/version-0.90.0--d-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)]()
 
 ---
@@ -119,15 +119,15 @@ ecos/
 └── prototypes/                        # 架构原型
 ```
 
-## 当前状态（2026-08-12，v0.89.0-d）— **🚀 Phase 7+ 抽象推演 #2 完成：POMDP point-based solver (PBVI) + Runtime 集成**
+## 当前状态（2026-08-12，v0.90.0-d）— **🚀 Phase 7+ 抽象推演 #2 完成：POMDP T/R 在线学习 (Beta-Multinomial posterior) + Runtime 集成 + 冷启动**
 
 > **Bisen 路线**: Phase 1-4 是 UI 改进路线, 跟 ROADMAP Phase 0/4/5/6 不同。
 > 2026-07-22 v0.52.3 已完成 Phase 1-4 (顶栏精简 / 题目合并 / 轨迹折叠 / 2 位小数 / Tab 导航 /
 > CSS 变量 / 5D badge / SVG icon / 拆文件 / API 封装 / URL hash 路由)。
 > 2026-07-23 ~ 2026-08-12 完成 Phase 5 核心骨架 + Phase 6+ Kernel 深化 + Phase 7+ 抽象推演 #1 + #2。
-> 详细见 [CHANGELOG.md](CHANGELOG.md) v0.54.0 → v0.89.0-d。
+> 详细见 [CHANGELOG.md](CHANGELOG.md) v0.54.0 → v0.90.0-d。
 
-**ECOS 7 组件当前状态** (v0.89.0-d):
+**ECOS 7 组件当前状态** (v0.90.0-d):
 | 组件 | 状态 | 详情 |
 |------|------|------|
 | 5D + θ_cov | ✅ 真评估 | K/P/S/C/X 五维均非零 (lbc001 C=-0.12 X=0.47; lbc002 C=-0.20 X=0.82) |
@@ -145,6 +145,7 @@ ecos/
 - ✅ **Motivation Profile 100%** (v0.87.0): frustration / engagement / confidence / recent_trajectory
 - ✅ **POMDP Policy 雏形 80% → 完整 100%** (v0.87.0-d + v0.88.0-c/d): 4 状态 + Bayesian belief + 依赖型 T(s'|s,a) + R(s,a) 固定 init + Runtime 集成
 - ✅ **PBVI (Point-Based Value Iteration) 100%** (v0.89.0-a/b/c/d): α-vector 完整算法 + 收敛检测 + reachable_belief_points sampling + POMDPPolicy 默认走 PBVI + Runtime + PolicyABTest 集成
+- ✅ **POMDP T/R 在线学习 100%** (v0.90.0-a/b/c/d): Beta-Multinomial conjugate posterior + posterior mean 接入 PBVI + Runtime + PolicyABTest 集成 + 冷启动保护 (min_samples=5)
 - ✅ **Multi-Domain 抽象 100%** (v0.88.0-a/b): Domain base class + 3 Domain schemas (Education/Science/Career) + Runtime 集成 + LCA 集成
 - ✅ **Plugin SDK 100%** (v0.84.0 → v0.85.0): Plugin Runtime + 4 endpoint 全走 Plugin path + Flask startup
 - ✅ **Evidence Engine + Runtime API 100%** (v0.83.0): 4 子包 + 6 核心 API
@@ -157,11 +158,11 @@ ecos/
   详见 [discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md](discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md)
 - ✅ **H3 验证通过**: v0.69.0 重新设计 dual_agent confidence 指标, v0.86.0 真 A/B 3-way 通过。
 
-**累计产出** (v0.1.0 → v0.89.0-d, 2026-06-24 ~ 2026-08-12):
+**累计产出** (v0.1.0 → v0.90.0-d, 2026-06-24 ~ 2026-08-12):
 - Python 文件 / MD 文件 / JSON 文件 持续扩展 (kernel 深化路径)
-- 200+ commits, v0.86/v0.87/v0.88/v0.89 四个 Kernel 深化版本累计 20 个 sub-commit
+- 200+ commits, v0.86/v0.87/v0.88/v0.89/v0.90 五个 Kernel 深化版本累计 24 个 sub-commit
 - 端到端流程: Q 矩阵设计 → 出题 → 答题 → AI 评判 → 状态更新 → 持久化 → LCA 干预 → dual_agent 互校 → 个人画像
-- **pytest**: 958 → 1096 (+138, +14.4%; v0.88 累计 86 + v0.89 累计 52)
+- **pytest**: 958 → 1143 (+185, +19.3%; v0.88 累计 86 + v0.89 累计 52 + v0.90 累计 47)
   详见 [research/90-mvp/06-ecos-end-to-end-flow-analysis.md](research/90-mvp/06-ecos-end-to-end-flow-analysis.md) (26.7 KB)
 
 ## 开发环境设置
@@ -228,16 +229,16 @@ ECOS_DUAL_AGENT_ENABLED=1 python -m web.api.app
 
 > `.env` 文件会在 `from_env()` 调用时自动加载，无需手动 `source`。
 
-## 下一步（v0.90+ 准备中）
+## 下一步（v0.91+ 准备中）
 
-**当前状态**: v0.89.0-d Phase 7+ 抽象推演 #2 全部完成 (POMDP point-based solver + Runtime 集成).
-ECOS 2.0 Kernel 深化 6 个版本 (v0.83 → v0.89) 累计 138 新测试, pytest 958 → 1096.
-下一阶段: v0.90+ (Twin → Human Twin 抽象 + Plugin SDK 文档化 + Teacher/Parent Dashboard + POMDP T/R 在线学习).
+**当前状态**: v0.90.0-d Phase 7+ 抽象推演 #2 全部完成 (POMDP T/R 在线学习 + Runtime + PolicyABTest + 冷启动).
+ECOS 2.0 Kernel 深化 7 个版本 (v0.83 → v0.90) 累计 185 新测试, pytest 958 → 1143.
+下一阶段: v0.91+ (Twin → Human Twin 抽象 + Plugin SDK 文档化 + Teacher/Parent Dashboard + v0.90 后端学习 T/R 后验可视化).
 
 | 优先级 | 任务 | 触发条件 | 详见 |
 |--------|------|---------|------|
-| **P0** | **v0.90+ 启动**: Phase 7+ 抽象推演 #2+ (Twin → Human Twin + Plugin SDK 文档化) | v0.90.0 启动 | [research/00-overview/03-roadmap.md](research/00-overview/03-roadmap.md) v1.5+ |
-| **P1** | POMDP point-based solver (信念状态精确求解) | v0.89.0+ | [research/00-overview/12-kernel-mapping-current-vs-2.0.md §3](research/00-overview/12-kernel-mapping-current-vs-2.0.md) |
+| **P0** | **v0.91+ 启动**: Phase 7+ 抽象推演 #3+ (Twin → Human Twin + Plugin SDK 文档化) | v0.91.0 启动 | [research/00-overview/03-roadmap.md](research/00-overview/03-roadmap.md) v1.5+ |
+| **P1** | POMDP T/R 后验可视化 (学生画像里看 learned T/R mean) | v0.91+ | CHANGELOG v0.90 |
 | P1 | Domain 落地到 Education/Science/Career 实际场景 | Multi-Domain 完成 (v0.88.0-d) | CHANGELOG v0.88.0 |
 | P2 | C/X 主导题继续扩量 (从各 5 道到 20+ 道) | lbc001/lbc003 答完现有 C/X 题 | [discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md](discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md) |
 | P2 | LearningDNA 真实实现 | ≥50 题 + 交互行为数据 | — |
@@ -261,4 +262,4 @@ ECOS 2.0 Kernel 深化 6 个版本 (v0.83 → v0.89) 累计 138 新测试, pytes
 ---
 
 **创建日期**：2026-06-24
-**当前版本**：v0.89.0-d（2026-08-12 POMDP point-based solver 100% + Runtime + PolicyABTest 集成 PBVI）
+**当前版本**：v0.90.0-d（2026-08-12 POMDP T/R 在线学习 100% + Runtime + PolicyABTest + 冷启动 min_samples=5）
