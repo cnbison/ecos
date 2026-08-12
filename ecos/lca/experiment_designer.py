@@ -40,7 +40,9 @@ from .intervention import (
 from .planner import PlanDecision
 
 # v0.87.0-b: TYPE_CHECKING 避免循环 import (MotivationProfile 不引用 LCA, 顶层 import 也可)
+# v0.91.0-c: CognitiveTwinAgent TYPE_CHECKING 避免循环 import
 if TYPE_CHECKING:
+    from ..cta.cognitive_twin import CognitiveTwinAgent
     from ..motivation.profile import MotivationProfile
 
 _log = logging.getLogger(__name__)
@@ -160,6 +162,7 @@ class ExperimentDesigner:
         n_candidates: Optional[int] = None,
         motivation: Optional["MotivationProfile"] = None,
         domain_name: Optional[str] = None,
+        cognitive_twin: Optional["CognitiveTwinAgent"] = None,
     ) -> List[Intervention]:
         """生成候选干预池.
 
@@ -170,9 +173,13 @@ class ExperimentDesigner:
             motivation:  v0.87.0-b: 可选 MotivationProfile, 调整 itype 权重
                           (frustration > 0.7 优先 EXPLANATORY, engagement < 0.3 优先 INQUIRY,
                            confidence+engagement 高 优先 PRACTICE)
-            domain_name: v0.88.0-b: 可选 Domain name (e.g. "education"/"science"/"career"),
+            domain_name: v0.88.0-b: 可可 Domain name (e.g. "education"/"science"/"career"),
                           调整 itype 权重 (science → INQUIRY, career → PRACTICE).
                           None = 不做 domain override (走 K12 default)
+            cognitive_twin: v0.91.0-c: 可选 CognitiveTwinAgent, 调整 itype 权重
+                          (hint_requested > 5 → EXPLANATORY, idle_detected > 3 → INQUIRY,
+                           reflection_completed > 3 → PRACTICE, goal_changed > 1 → PRACTICE).
+                          None = 不做 human_feedback override (走 default).
 
         Returns:
             List[Intervention] 长度 = n_candidates
@@ -186,6 +193,8 @@ class ExperimentDesigner:
           6. CLT != EXPERT → feedback_density 0.8, EXPERT → 0.4
           7. v0.87.0-b: motivation 调整 itype 权重 (frustration/engagement/confidence)
           8. v0.88.0-b: domain 调整 itype 权重 (science=INQUIRY / career=PRACTICE)
+          9. v0.91.0-c: human_feedback 调整 itype 权重 (hint/idle/reflection/goal)
+                          (优先级: motivation > human_feedback > domain > default)
         """
         if n_candidates is None:
             n_candidates = self.config.n_candidates
@@ -199,6 +208,8 @@ class ExperimentDesigner:
         motivation_override = self._motivation_itype_override(motivation)
         # v0.88.0-b: domain-aware itype preference
         domain_override = self._domain_itype_override(domain_name)
+        # v0.91.0-c: human_feedback-aware itype preference (优先级: motivation > human_feedback > domain)
+        human_feedback_override = self._human_feedback_itype_override(cognitive_twin)
 
         candidates: List[Intervention] = []
         target_skills = cta_input.skill_filter or []
@@ -208,9 +219,12 @@ class ExperimentDesigner:
         for i in range(n_candidates):
             # v0.87.0-b: motivation override 优先于 default types
             # v0.88.0-b: domain override (优先级: motivation > domain > default)
+            # v0.91.0-c: human_feedback override (优先级: motivation > human_feedback > domain > default)
             if motivation_override is not None and i % 3 == 0:
                 itype = motivation_override
-            elif domain_override is not None and i % 3 == 1:
+            elif human_feedback_override is not None and i % 3 == 1:
+                itype = human_feedback_override
+            elif domain_override is not None and i % 3 == 2:
                 itype = domain_override
             else:
                 itype = self.config.default_types[i % len(self.config.default_types)]
@@ -330,6 +344,57 @@ class ExperimentDesigner:
                 exc_info=True,
             )
             return None
+
+    @staticmethod
+    def _human_feedback_itype_override(
+        cognitive_twin: Optional["CognitiveTwinAgent"],
+    ) -> Optional[InterventionType]:
+        """v0.91.0-c: human feedback-aware itype preference (Twin → Human Twin).
+
+        规则 (per design doc §3.3):
+          - hint_requested > 5:    返 EXPLANATORY (学生主动求助 → 详细讲解)
+          - idle_detected > 3:     返 INQUIRY     (走神 → 提问激活兴趣)
+          - reflection_completed > 3: 返 PRACTICE  (深度反思 → 巩固练习)
+          - goal_changed > 1:      返 PRACTICE    (目标调整后 → 巩固新方向)
+
+        条件互斥 (优先级: hint > idle > reflection > goal_change):
+          hint_requested > 5 EXPLANATORY 优先 (说明学生在卡题, 帮学生)
+          else idle_detected > 3 INQUIRY (走神, 提问拉回)
+          else reflection_completed > 3 PRACTICE (深度反思后巩固)
+          else goal_changed > 1 PRACTICE (目标调整后巩固)
+
+        不满足 → 返 None (走 default_types).
+
+        Args:
+            cognitive_twin: Optional[CognitiveTwinAgent] (v0.91.0-a 数据结构).
+                            None 时返 None (无 human_feedback 数据).
+
+        Returns:
+            Optional[InterventionType] (None = 不 override)
+
+        防御性自检 [1]: cognitive_twin.human_feedback 缺失/异常 _log.warning + 返 None
+        """
+        if cognitive_twin is None:
+            return None
+        try:
+            hf = cognitive_twin.human_feedback
+            if hf is None:
+                return None
+            # 优先级: hint > idle > reflection > goal_change
+            if hf.count_by_type("hint_requested") > 5:
+                return InterventionType.EXPLANATORY
+            if hf.count_by_type("idle_detected") > 3:
+                return InterventionType.INQUIRY
+            if hf.count_by_type("reflection_completed") > 3:
+                return InterventionType.PRACTICE
+            if hf.count_by_type("goal_changed") > 1:
+                return InterventionType.PRACTICE
+        except Exception:
+            _log.warning(
+                "ExperimentDesigner._human_feedback_itype_override 异常, 返 None",
+                exc_info=True,
+            )
+        return None
 
     # ---------------------------------------------------------------
     # 内部工具

@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from ..cta.belief_state import BeliefState, BloomLevel
 from .intervention import Intervention
@@ -32,6 +32,10 @@ from .l4_optimization import (
     CausalEffect,
     LCAAttribution,
 )
+
+# v0.91.0-c: CognitiveTwinAgent TYPE_CHECKING 避免循环 import
+if TYPE_CHECKING:
+    from ..cta.cognitive_twin import CognitiveTwinAgent
 
 _log = logging.getLogger(__name__)
 
@@ -213,6 +217,60 @@ class Evaluator:
         except Exception:
             _log.warning(
                 "Evaluator.domain_reward_adjustment 异常, 返 1.0 (中性)",
+                exc_info=True,
+            )
+            return 1.0
+
+    # ---------------------------------------------------------------
+    # v0.91.0-c: Human feedback reward 调整 (Twin → Human Twin 抽象)
+    # ---------------------------------------------------------------
+
+    def human_feedback_reward_adjustment(
+        self,
+        cognitive_twin: Optional["CognitiveTwinAgent"],
+    ) -> float:
+        """v0.91.0-c: 根据 CognitiveTwinAgent.human_feedback 调整 gain (multiplicative factor).
+
+        规则 (per design doc §3.3):
+          - hint_requested > 5:    factor = 0.8 (过度求助, 降 gain)
+          - idle_detected > 3:     factor = 0.9 (走神, 降 gain)
+          - reflection_completed > 3: factor = 1.2 (主动反思 boost gain)
+          - goal_changed > 1:      factor = 1.1 (目标调整后, 微 boost)
+          - 其他: factor = 1.0 (默认)
+
+        条件互斥 (优先级: hint > idle > reflection > goal_change):
+          hint_requested > 5 0.8 (学生需要帮助, 减少 force-push gain)
+          else idle_detected > 3 0.9 (走神, gain 适度降低)
+          else reflection_completed > 3 1.2 (主动反思, 充分 boost)
+          else goal_changed > 1 1.1 (目标调整, 微 boost)
+
+        Args:
+            cognitive_twin: Optional[CognitiveTwinAgent] (v0.91.0-a 数据结构).
+
+        Returns:
+            float 调整 factor in [0.5, 1.5] (跟 motivation / domain_reward_adjustment 同 range)
+
+        防御性自检 [1]: cognitive_twin 缺失/异常 _log.warning + 返 1.0
+        """
+        if cognitive_twin is None:
+            return 1.0
+        try:
+            hf = cognitive_twin.human_feedback
+            if hf is None:
+                return 1.0
+            # 优先级: hint > idle > reflection > goal_change (跟 _human_feedback_itype_override 对齐)
+            if hf.count_by_type("hint_requested") > 5:
+                return 0.8
+            if hf.count_by_type("idle_detected") > 3:
+                return 0.9
+            if hf.count_by_type("reflection_completed") > 3:
+                return 1.2
+            if hf.count_by_type("goal_changed") > 1:
+                return 1.1
+            return 1.0
+        except Exception:
+            _log.warning(
+                "Evaluator.human_feedback_reward_adjustment 异常, 返 1.0 (中性)",
                 exc_info=True,
             )
             return 1.0
