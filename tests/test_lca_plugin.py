@@ -190,7 +190,7 @@ class TestStartRegisters3Subscribers:
             lca_engine_factory=lambda: None,
         )
         runtime.start()
-        assert runtime.subscription_count == 7  # v0.85.0-c: 3 + v0.91.0-b: 4 frontend stub
+        assert runtime.subscription_count == 8  # v0.85.0-c: 3 + v0.91.0-b: 4 frontend stub + v0.93.0-b: 1 diagnostic
         assert bus.get_topic_count("response_submitted") == 1
         assert bus.get_topic_count("request_calibration") == 1
         assert bus.get_topic_count("request_intervention") == 1

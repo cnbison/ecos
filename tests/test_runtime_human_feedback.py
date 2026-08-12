@@ -254,7 +254,7 @@ class TestPluginRuntimeHumanFeedbackSubscribers:
             lca_engine_factory=lambda: None,
         )
         runtime.start()
-        assert runtime.subscription_count == 7
+        assert runtime.subscription_count == 8
         # 4 frontend stub endpoint 都有 subscriber
         assert bus.get_topic_count("hint_requested") == 1
         assert bus.get_topic_count("idle_detected") == 1

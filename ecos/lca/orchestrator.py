@@ -26,6 +26,7 @@ from .cta_input import CTAInput
 #   HumanFeedbackEntry 引用 LearningEvent (TYPE_CHECKING 避免循环)
 if TYPE_CHECKING:
     from ..cta.cognitive_twin import ActionEntry, ActionHistory, CognitiveTwinAgent, HumanFeedbackEntry
+    from ..lca.l4_optimization.pomdp_diagnostic import POMDPDiagnostic
     from ..motivation.profile import MotivationProfile
 from .intervention import (
     CAStage,
@@ -222,6 +223,11 @@ class LCAEngine:
         self._cognitive_twin: Dict[str, "CognitiveTwinAgent"] = {}
         # v0.91.0-d: cognitive_twin dump 暂存 (load_state 后 bind_cognitive_twin 重建)
         self._cognitive_twin_pending: Dict[str, dict] = {}
+        # v0.93.0-b: per-student POMDP diagnostic (Twin 第 5 维度 — POMDP T/R 后验可视化)
+        #   跟 _cognitive_twin / _last_intervention / _last_observation 同 per-student dict 模式
+        #   LCA select_intervention pomdp path auto-collect, Runtime.diagnose_pomdp 读缓存
+        #   不污染 BeliefState (Plugin SDK 第 8 subscriber pomdp_diagnostic_updated 也走此 dict)
+        self._pomdp_diagnostic: Dict[str, "POMDPDiagnostic"] = {}
 
     # v0.82.0-a: __getattr__ forwarding for Planner 子组件 (向后兼容)
     #   旧代码 / 测试可能访问 engine.clt / engine.bjork_testing 等
@@ -438,7 +444,7 @@ class LCAEngine:
             )
 
         # Step 8: 输出
-        return LCAResult(
+        result = LCAResult(
             student_id=student_id,
             intervention=chosen,
             rationale=rationale,
@@ -448,6 +454,14 @@ class LCAEngine:
             clt_level=clt_level,
             ca_stage=ca_stage,
         )
+
+        # v0.93.0-b: POMDP path auto-collect diagnostic (跟 v0.92.0-b action_history auto-record parallel)
+        #   选完 intervention 后触发 LCAEngine._pomdp_diagnostic[student_id] 缓存
+        #   Runtime.diagnose_pomdp() 读缓存, miss 时调 learner.pomdp.get_diagnostic() lazy collect
+        if self.policy_learner.config.policy_type == "pomdp":
+            self._collect_pomdp_diagnostic(student_id)
+
+        return result
 
     def update(
         self,
@@ -656,6 +670,90 @@ class LCAEngine:
         twin = CognitiveTwinAgent.load_state(cognitive_twin_dict, belief_state)
         self._cognitive_twin[student_id] = twin
         return twin
+
+    # ---------------------------------------------------------------
+    # v0.93.0-b: POMDP T/R 后验可视化 — get_pomdp_diagnostic + _collect_pomdp_diagnostic
+    # ---------------------------------------------------------------
+
+    def get_pomdp_diagnostic(
+        self,
+        student_id: str,
+    ) -> Optional["POMDPDiagnostic"]:
+        """v0.93.0-b: 拿 per-student POMDP diagnostic (Twin 第 5 维度 — T/R 后验可视化).
+
+        Args:
+            student_id: 学生 ID
+
+        Returns:
+            POMDPDiagnostic (frozen dataclass, 含 T/R/belief/coverage/most_likely_state/
+            last_updated/schema_version) 或 None:
+              - 缓存命中 (上次 select/update 调过 _collect_pomdp_diagnostic): 返缓存值
+              - 缓存 miss + policy_type=="pomdp" + learner.pomdp not None: lazy collect
+              - 缓存 miss + 非 POMDP policy: 返 None + _log.warning (per 防御性自检 [1])
+
+        防御性自检 [1]:
+          - 派生异常 → _log.warning + 返 None (silent pass 防御)
+          - 非 POMDP policy → _log.warning + 返 None (per 防御性自检 [1])
+        """
+        # 缓存命中
+        cached = self._pomdp_diagnostic.get(student_id)
+        if cached is not None:
+            return cached
+
+        # 缓存 miss → 检查 POMDP policy 是否存在
+        if self.policy_learner.config.policy_type != "pomdp":
+            _log.warning(
+                "LCAEngine.get_pomdp_diagnostic: student_id=%s policy_type=%s 不是 POMDP, 返 None",
+                student_id, self.policy_learner.config.policy_type,
+            )
+            return None
+
+        learner = self.policy_learner._learners.get(student_id)
+        if learner is None or learner.pomdp is None:
+            _log.warning(
+                "LCAEngine.get_pomdp_diagnostic: student_id=%s POMDP learner 不存在, 返 None",
+                student_id,
+            )
+            return None
+
+        # lazy collect
+        return self._collect_pomdp_diagnostic(student_id)
+
+    def _collect_pomdp_diagnostic(
+        self,
+        student_id: str,
+    ) -> Optional["POMDPDiagnostic"]:
+        """v0.93.0-b: 内部 helper, 派生 + 缓存 per-student POMDPDiagnostic.
+
+        select_intervention pomdp path 自动调, Runtime.diagnose_pomdp 缓存 miss 时也调.
+        POMDPPolicy.get_diagnostic() 内部已有 lazy init + silent pass 防御, 这里加 try/except
+        兜底 (双层防御).
+
+        Args:
+            student_id: 学生 ID
+
+        Returns:
+            POMDPDiagnostic (写入 self._pomdp_diagnostic[student_id]) 或 None:
+              - learner 不存在 / pomdp 为 None → 返 None
+              - POMDPPolicy.get_diagnostic() 异常 → _log.warning + 返 None
+
+        防御性自检 [8]: _pomdp_diagnostic dict mutation 走 self mutation (LCAEngine self
+                       mutation 不触及 BeliefState).
+        """
+        learner = self.policy_learner._learners.get(student_id)
+        if learner is None or learner.pomdp is None:
+            return None
+        try:
+            diagnostic = learner.pomdp.get_diagnostic()
+            self._pomdp_diagnostic[student_id] = diagnostic
+            return diagnostic
+        except Exception as e:  # noqa: BLE001
+            _log.warning(
+                "LCAEngine._collect_pomdp_diagnostic: POMDPPolicy.get_diagnostic 失败 "
+                "(sid=%s, err=%s), skip",
+                student_id, e, exc_info=True,
+            )
+            return None
 
     # ---------------------------------------------------------------
     # v0.69.0: LinUCB 冷启动判定 (B4 前置)

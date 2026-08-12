@@ -557,6 +557,37 @@ def plan_action_aware(student_id: str, audience: str = "student", **kwargs) -> A
     )
 
 
+def diagnose_pomdp(student_id: str, **kwargs) -> Any:
+    """v0.93.0-b: 派生 POMDP T/R 后验诊断 (Runtime API 第 8 个, 跟 plan_* 6 API 并列).
+
+    一次性暴露 POMDP 全部可观测字段:
+      - T: TransitionPosteriorSnapshot (Dirichlet 后验)
+      - R: RewardPosteriorSnapshot (Beta 后验)
+      - belief: 4 状态 posterior
+      - coverage: per (s, a) 样本数
+      - most_likely_state: argmax(belief)
+      - last_updated: datetime (派生时算, 不持久化)
+      - schema_version: "0.93.0"
+
+    Args:
+        student_id: 学生 ID
+        **kwargs:
+            lca_engine: Optional[LCAEngine]  (默认 singleton)
+
+    Returns:
+        POMDPDiagnostic frozen dataclass (to_dict() JSON 可序列化),
+        或 None: 非 POMDP policy / learner 不存在 / 派生失败
+
+    v0.95+ Teacher/Parent Dashboard 可直接 to_dict() 反序列化渲染.
+
+    v0.93.0-b: Runtime 第 8 API (跟 plan_action_aware 第 7 plan API 完全 parallel pattern).
+              不走 plan_* 链 — diagnose 是 query 操作, 不是 plan 生成.
+              Plugin SDK 第 8 subscriber pomdp_diagnostic_updated 也委托此 API.
+    """
+    lca = kwargs.get("lca_engine") or _get_default_lca_engine()
+    return lca.get_pomdp_diagnostic(student_id)
+
+
 def _run_twin_consistency_check(
     student_id: str,
     state: Any,
@@ -613,4 +644,5 @@ __all__ = [
     "plan_domain_aware",
     "plan_human_feedback_aware",
     "plan_action_aware",
+    "diagnose_pomdp",
 ]

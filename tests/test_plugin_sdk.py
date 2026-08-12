@@ -78,7 +78,7 @@ class TestPluginRuntimeBasic:
         assert not runtime.is_started
         runtime.start()
         assert runtime.is_started
-        assert runtime.subscription_count == 7  # v0.85.0-c: 3 + v0.91.0-b: 4 frontend stub (hint/idle/goal_change/reflection)
+        assert runtime.subscription_count == 8  # v0.85.0-c: 3 + v0.91.0-b: 4 frontend stub + v0.93.0-b: 1 diagnostic (hint/idle/goal_change/reflection)
         assert bus.get_topic_count("response_submitted") == 1
 
     def test_stop_unregisters_subscribers(self):
@@ -99,7 +99,7 @@ class TestPluginRuntimeBasic:
         runtime.start()
         with caplog.at_level(logging.WARNING):
             runtime.start()  # should warn + skip
-        assert runtime.subscription_count == 7  # still 7 (response_submitted + request_calibration + request_intervention + 4 human_feedback)
+        assert runtime.subscription_count == 8  # 7 + v0.93.0-b: 1 diagnostic
         assert any(
             "已启动" in r.message for r in caplog.records
         )

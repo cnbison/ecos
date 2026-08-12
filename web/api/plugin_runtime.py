@@ -48,6 +48,11 @@ class PluginRuntime:
                   produce event → bus.publish, 没 Runtime subscriber). v0.91.0-b 接通,
                   Plugin SDK 4 endpoint 走 LCAEngine.append_human_feedback → CognitiveTwinAgent
                   append_human_feedback (allowlisted mutation, FUNC_ALLOWLIST += "append_human_feedback").
+    v0.93.0-b: 加 1 subscriber (pomdp_diagnostic_updated)
+                - Plugin (frontend dashboard) 触发 pomdp_diagnostic_updated event → PluginRuntime
+                  委派 Runtime.diagnose_pomdp(student_id) → 返 POMDPDiagnostic 写入
+                  _diagnostic_results[student_id] 给 Plugin 读取 (跟 _intervention_results /
+                  _calibration_results 完全 parallel pattern). subscription_count: 7 → 8.
 
     Usage:
         # 启动 (在 Flask app 启动时调一次)
@@ -78,6 +83,8 @@ class PluginRuntime:
         self._calibration_results: Dict[str, Any] = {}
         # v0.85.0-c: per-student intervention result dict
         self._intervention_results: Dict[str, Any] = {}
+        # v0.93.0-b: per-student POMDP diagnostic result dict (Plugin dashboard 读 result 用)
+        self._diagnostic_results: Dict[str, Any] = {}
         self._subscription_ids: List[str] = []
         self._started = False
 
@@ -113,6 +120,13 @@ class PluginRuntime:
         ):
             sub_id = bus.subscribe(event_type, handler)
             self._subscription_ids.append(sub_id)
+        # v0.93.0-b: 第 8 subscriber pomdp_diagnostic_updated
+        #   handler 调 Runtime.diagnose_pomdp(student_id) → 返 POMDPDiagnostic
+        #   写入 _diagnostic_results[student_id] 给 Plugin dashboard 读
+        sub_id = bus.subscribe(
+            "pomdp_diagnostic_updated", self._handle_pomdp_diagnostic_updated,
+        )
+        self._subscription_ids.append(sub_id)
         self._started = True
         _log.info(
             "PluginRuntime 启动 (bus=%s, subscriptions=%d)",
@@ -127,6 +141,8 @@ class PluginRuntime:
         self._subscription_ids.clear()
         self._calibration_results.clear()
         self._intervention_results.clear()
+        # v0.93.0-b: 清理 _diagnostic_results
+        self._diagnostic_results.clear()
         self._started = False
         _log.info("PluginRuntime 停止")
 
@@ -351,6 +367,42 @@ class PluginRuntime:
         """
         return self._handle_human_feedback_event(event, "reflection_completed")
 
+    # ── v0.93.0-b: 第 8 subscriber — pomdp_diagnostic_updated (POMDP T/R 后验可视化) ──
+
+    def _handle_pomdp_diagnostic_updated(self, event: Any) -> Any:
+        """v0.93.0-b: pomdp_diagnostic_updated → Runtime.diagnose_pomdp.
+
+        Plugin (frontend dashboard) 触发 pomdp_diagnostic_updated event → handler
+        委派 Runtime.diagnose_pomdp(student_id, lca_engine=...) → 返 POMDPDiagnostic →
+        写入 _diagnostic_results[student_id] 给 Plugin 读.
+
+        Args:
+            event: LearningEvent (event_type="pomdp_diagnostic_updated", payload={})
+
+        Returns:
+            POMDPDiagnostic (新建). 不返 LCAEngine (LCAEngine 内部维护缓存).
+
+        防御性自检 [1]: handler exception _log.warning 不 raise (per v0.84.0-b EventBus 设计).
+
+        v0.93.0-b: 用 _lca_engine_factory 注入 lca_engine kwarg, 避免 Runtime 默认
+                  singleton 路径覆盖 (跟 _handle_request_intervention 完全 parallel pattern).
+        """
+        from ecos.runtime.api import diagnose_pomdp
+
+        student_id = event.student_id
+        try:
+            lca_engine = self._lca_engine_factory()
+            diagnostic = diagnose_pomdp(student_id=student_id, lca_engine=lca_engine)
+            self._diagnostic_results[student_id] = diagnostic
+            return diagnostic
+        except Exception as e:  # noqa: BLE001
+            _log.warning(
+                "PluginRuntime._handle_pomdp_diagnostic_updated: diagnose_pomdp 失败 "
+                "(sid=%s, err=%s), skip",
+                student_id, e, exc_info=True,
+            )
+            return None
+
     def get_last_calibration_result(self, student_id: str) -> Optional[Any]:
         """v0.85.0-b: Get last calibration result for student (called by plugin after publish).
 
@@ -366,6 +418,14 @@ class PluginRuntime:
             LCAResult or None (no intervention ran yet).
         """
         return self._intervention_results.get(student_id)
+
+    def get_last_diagnostic_result(self, student_id: str) -> Optional[Any]:
+        """v0.93.0-b: Get last POMDP diagnostic result for student (called by plugin after publish).
+
+        Returns:
+            POMDPDiagnostic or None (no diagnostic ran yet / non-POMDP policy).
+        """
+        return self._diagnostic_results.get(student_id)
 
     @property
     def is_started(self) -> bool:
