@@ -22,6 +22,11 @@ from ecos.plugins.base import (
     Plugin,
     PluginMetadata,
 )
+from ecos.plugins.registry import (
+    PluginRegistry,
+    get_default_registry,
+    reset_default_registry,
+)
 
 __version__ = SCHEMA_VERSION  # "0.94.0"
 
@@ -29,4 +34,7 @@ __all__ = [
     "SCHEMA_VERSION",
     "Plugin",
     "PluginMetadata",
+    "PluginRegistry",
+    "get_default_registry",
+    "reset_default_registry",
 ]

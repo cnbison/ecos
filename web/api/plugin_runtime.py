@@ -53,6 +53,13 @@ class PluginRuntime:
                   委派 Runtime.diagnose_pomdp(student_id) → 返 POMDPDiagnostic 写入
                   _diagnostic_results[student_id] 给 Plugin 读取 (跟 _intervention_results /
                   _calibration_results 完全 parallel pattern). subscription_count: 7 → 8.
+    v0.94.0-b: PluginRegistry DI 集成 (Phase 7+ 抽象推演 #7 — 第一方 plugin 库 Kernel-only SDK)
+                - 加 plugin_registry_factory kwarg (DI 注入 PluginRegistry, 默认 None → 从 singleton 拉)
+                - start() 在 8 built-in subscriber 注册后, 调 PluginRegistry.subscribe_all(bus)
+                  挂载 first-party plugin (HintFatiguePlugin / ParentEngagementPlugin / TeacherProgressPlugin)
+                - stop() 调 PluginRegistry.unsubscribe_all(bus) 反挂载
+                - subscription_count 维持 8 (built-in) — Plugin registry 内部自己 track subscription_ids
+                  互不干扰. Plugin registry 是 additional layer, 不是替换 built-in.
 
     Usage:
         # 启动 (在 Flask app 启动时调一次)
@@ -72,6 +79,7 @@ class PluginRuntime:
         state_factory: Optional[Callable[[str], Tuple[Any, Any]]] = None,
         dual_orchestrator_factory: Optional[Callable[[], Any]] = None,
         lca_engine_factory: Optional[Callable[[], Any]] = None,
+        plugin_registry_factory: Optional[Callable[[], Any]] = None,
     ) -> None:
         self._bus = bus
         self._state_factory = state_factory or _default_state_factory
@@ -79,6 +87,8 @@ class PluginRuntime:
         self._dual_orchestrator_factory = dual_orchestrator_factory or _default_dual_orchestrator_factory
         # v0.85.0-c: LCAEngine factory (lazy import 避免循环)
         self._lca_engine_factory = lca_engine_factory or _default_lca_engine_factory
+        # v0.94.0-b: PluginRegistry factory (DI 注入, 跟 DomainRegistry v0.88.0-a singleton 模式一致)
+        self._plugin_registry_factory = plugin_registry_factory or _default_plugin_registry_factory
         # v0.85.0-b: per-student calibration result dict (plugin 读 result 用)
         self._calibration_results: Dict[str, Any] = {}
         # v0.85.0-c: per-student intervention result dict
@@ -127,10 +137,24 @@ class PluginRuntime:
             "pomdp_diagnostic_updated", self._handle_pomdp_diagnostic_updated,
         )
         self._subscription_ids.append(sub_id)
+        # v0.94.0-b: PluginRegistry 挂载 first-party plugin (HintFatigue / ParentEngagement / TeacherProgress)
+        #   PluginRegistry.subscribe_all() 内部调 plugin.enable() + bus.subscribe(plugin.on_event)
+        #   返 Dict[plugin_name, List[sub_id]], PluginRegistry 内部 track _subscription_ids 供 unsubscribe 用
+        #   subscription_count (built-in) 维持 8 — Plugin registry 是 additional layer
+        registry = self._plugin_registry_factory()
+        try:
+            registry.subscribe_all(bus)
+        except Exception:
+            _log.warning(
+                "PluginRuntime.start: PluginRegistry.subscribe_all failed",
+                exc_info=True,
+            )
         self._started = True
         _log.info(
-            "PluginRuntime 启动 (bus=%s, subscriptions=%d)",
-            type(bus).__name__, len(self._subscription_ids),
+            "PluginRuntime 启动 (bus=%s, built_in_subscriptions=%d, registry_plugins=%s)",
+            type(bus).__name__,
+            len(self._subscription_ids),
+            registry.list_names(),
         )
 
     def stop(self) -> None:
@@ -143,6 +167,15 @@ class PluginRuntime:
         self._intervention_results.clear()
         # v0.93.0-b: 清理 _diagnostic_results
         self._diagnostic_results.clear()
+        # v0.94.0-b: 反挂载 first-party plugin (PluginRegistry.unsubscribe_all)
+        try:
+            registry = self._plugin_registry_factory()
+            registry.unsubscribe_all(bus)
+        except Exception:
+            _log.warning(
+                "PluginRuntime.stop: PluginRegistry.unsubscribe_all failed",
+                exc_info=True,
+            )
         self._started = False
         _log.info("PluginRuntime 停止")
 
@@ -469,6 +502,16 @@ def _default_lca_engine_factory() -> Any:
     """
     from web.api.lca import get_lca_engine
     return get_lca_engine()
+
+
+def _default_plugin_registry_factory() -> Any:
+    """v0.94.0-b: Default PluginRegistry factory.
+
+    Lazy import to avoid circular dep at module load.
+    Returns PluginRegistry singleton instance (跟 DomainRegistry v0.88.0-a 完全 parallel).
+    """
+    from ecos.plugins.registry import get_default_registry
+    return get_default_registry()
 
 
 # v0.85.0-b: Module-level PluginRuntime singleton (lazy init).
