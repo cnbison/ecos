@@ -12,6 +12,105 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.94.0] 2026-08-13
+
+### feat: Phase 7+ 抽象推演 #7 — 第一方 Plugin 库 (Kernel-only SDK, 4 sub-commit a/b/c/d)
+
+> **背景**: v0.93.0-d 完成 POMDP T/R 后验可视化 (1308 pytest, 0 缺失清单). Plugin SDK 8 subscriber 已 100% production, 但**没有 SDK-level Plugin 基类 + Register API + First-party reference implementations** — Plugin 开发者只能照 `examples/plugin_sample_human_feedback.py` / `plugin_sample_pomdp_diagnostic.py` 抄 use case 函数, 没法基于 SDK 基类继承.
+> **v0.94.0 目标**: 给 Plugin SDK 加 structured developer-facing surface — `Plugin(ABC)` 基类 + `PluginMetadata(frozen=True)` dataclass + `PluginRegistry` singleton + 3 first-party reference plugin (HintFatigue / ParentEngagement / TeacherProgress) + DB 持久化 (`plugin_registry` 表) + 文档化. v0.95+ Teacher/Parent Dashboard 可直接 register first-party plugin 或继承 Plugin 基类写新 plugin. pytest 1308 → 1365 (+57, +4.4%).
+
+#### NEW: Plugin ABC + PluginMetadata frozen dataclass (v0.94.0-a)
+
+- NEW `ecos/plugins/__init__.py` (~40 行): 模块导出 Plugin + PluginMetadata + PluginRegistry + SCHEMA_VERSION="0.94.0"
+- NEW `ecos/plugins/base.py` (~280 行): Plugin(ABC) + PluginMetadata(frozen=True) + 4 abstract method (on_event / get_subscribed_topics / enable / disable)
+  + `__post_init__` 防御性校验 (name lowercase alphanumeric+underscore / version semver / subscribed_topics 合法 / 不能依赖自己)
+  + to_dict / from_dict round-trip (PluginRegistryStore 持久化路径)
+  + Plugin-internal topic `pomdp_diagnostic_updated` 在合法 topic 集合内
+- 跟 Domain ABC v0.88.0-a + Capability v0.86.0-a + POMDPDiagnostic v0.93.0-a 完全 parallel pattern
+- Plugin 是 process_event pattern, 不 mutate Kernel state (defensive check [8] 仍 hard block)
+- 15 新增 tests (test_plugin_sdk_base.py): validation / serialization / frozen / ABC guard / lifecycle
+
+#### NEW: PluginRegistry singleton + Register API + PluginRuntime DI 集成 (v0.94.0-b)
+
+- NEW `ecos/plugins/registry.py` (~330 行): PluginRegistry singleton
+  - register / get / has / list_names / list_plugins / clear / reset (跟 DomainRegistry v0.88.0-a 100% parallel API)
+  - enable / disable / is_enabled (lifecycle tracking)
+  - subscribe_all(bus) / unsubscribe_all(bus) — Plugin lifecycle 跟 EventBus 联动
+  - dependencies 校验 (register 时软依赖检查)
+  - get_default_registry() / reset_default_registry() (跟 DomainRegistry 完全 parallel)
+- MODIFY `ecos/plugins/__init__.py`: 模块导出 PluginRegistry + get_default_registry + reset_default_registry
+- MODIFY `web/api/plugin_runtime.py`: PluginRuntime.__init__ 加 `plugin_registry_factory=...` kwarg (DI 注入)
+  + `_default_plugin_registry_factory()` helper (跟 `_default_state_factory` pattern 一致)
+  + start() 调 registry.subscribe_all(bus), stop() 调 registry.unsubscribe_all(bus)
+  + subscription_count 维持 8 (built-in), PluginRegistry 是 additional layer
+  + PluginRuntime built-in 8 subscriber 优先 register, PluginRegistry second (无重复订阅)
+- 15 新增 tests (test_plugin_registry.py 10 + test_plugin_runtime_registry_integration.py 5)
+
+#### NEW: First-party plugin library + LearningEvent factory + examples 升级 (v0.94.0-c)
+
+- NEW `ecos/plugins/first_party/__init__.py` (~50 行): 模块导出 HintFatiguePlugin / ParentEngagementPlugin / TeacherProgressPlugin
+- NEW `ecos/plugins/first_party/hint_fatigue.py` (~165 行): HintFatiguePlugin (订阅 hint_requested, per-student 计数 > 阈值告警)
+  - 跟 v0.91 examples::use_case_hint_fatigue_detection 完全 parallel 模式, 升级为 SDK Plugin ABC
+  - threshold 参数化 (default HINT_FATIGUE_THRESHOLD=5, 跟 examples 一致)
+  - enable/disable 清零计数
+- NEW `ecos/plugins/first_party/parent_engagement.py` (~170 行): ParentEngagementPlugin (订阅 pomdp_diagnostic_updated)
+  - 读 POMDPDiagnostic.most_likely_state + evolution (K=10 timed snapshots, v0.93.0-c)
+  - 派生: 当前状态 + 状态变化检测 (帮助家长理解 engagement 模式)
+- NEW `ecos/plugins/first_party/teacher_progress.py` (~170 行): TeacherProgressPlugin (订阅 pomdp_diagnostic_updated)
+  - 读 POMDPDiagnostic.most_likely_state + belief + coverage
+  - 冷启动判断: min(coverage) < COLD_START_COVERAGE_THRESHOLD(5) → 冷启动期, 建议保守教学
+- MODIFY `ecos/cta/event_log.py`: LearningEvent.from_pomdp_diagnostic_updated factory (Plugin-internal topic)
+  - 接受 POMDPDiagnostic 实例 (to_dict 路径) 或 dict (PluginRuntime 内调用时已序列化)
+  - 拒绝非 POMDPDiagnostic / 非 dict 类型 raise TypeError
+- MODIFY `examples/plugin_sample_human_feedback.py`: use_case_hint_fatigue_detection 升级为 SDK HintFatiguePlugin (PluginRegistry 注册)
+  + register_all_use_cases 返 Dict[str, Optional[str]] (兼容老 4 个 use_case sub_id + 新 hint_fatigue=None)
+- MODIFY `examples/plugin_sample_pomdp_diagnostic.py`: use_case_teacher_progress_review + use_case_parent_engagement_dashboard
+  升级为 SDK TeacherProgressPlugin / ParentEngagementPlugin (PluginRegistry 注册)
+- 15 新增 tests (test_first_party_plugins.py 10 + test_learning_event_pomdp_factory.py 5)
+
+#### NEW: Persistence + canary + docs + examples (v0.94.0-d)
+
+- NEW `ecos/persistence/plugin_registry_store.py` (~210 行): PluginRegistryStore class
+  - save_plugin / load_plugin / list_all / delete_plugin / set_enabled (跟 LCAStore 完全 parallel API)
+  - schema_version="0.94.0" 独立 schema (跟 POMDPPolicy 0.93.0 / CognitiveTwinAgent 0.92.0 隔离)
+  - 老 DB 兼容: CREATE TABLE IF NOT EXISTS 幂等 (v0.93 前 DB 无 plugin_registry 表)
+- MODIFY `ecos/plugins/registry.py`: PluginRegistry.save_to_db / load_from_db
+  + `_instantiate_first_party_plugin` 辅助 (3 first-party plugin 实例化)
+- MODIFY `docs/plugin_sdk.md`: 7 → 8 subscriber (加 pomdp_diagnostic_updated, v0.93.0-b 已加)
+- NEW `docs/plugin_library.md` (~280 行, 8 section): Plugin SDK 原则 / Plugin ABC 契约 / PluginMetadata 字段 / PluginRegistry API / 3 first-party plugin 详解 / 注册生命周期 / 防御性自检 / 调用样例
+- NEW `examples/plugin_sample_first_party.py` (~200 行, 3 use case): register_three_first_party / enable_disable_lifecycle / hot_reload_from_db
+- 12 新增 tests (test_plugin_registry_persistence 4 + test_v094_canary 4 + test_plugin_library_docs 4)
+
+#### 关键指标 (v0.94.0 final)
+
+- pytest: 1308 → **1365** (+57, +4.4%)
+- Plugin SDK 100% production + developer-facing surface 100% 完成
+- 累计 Kernel 深化 **12 版本** (v0.83 → v0.94), pytest 736 → 1365 (+629, +85.5%)
+- 新增 source: 8 文件 (ecos/plugins/{base, registry, __init__}.py + first_party/{__init__, hint_fatigue, parent_engagement, teacher_progress}.py + persistence/plugin_registry_store.py)
+- 新增 docs: 1 文件 (docs/plugin_library.md, ~280 行)
+- 新增 examples: 1 文件 (examples/plugin_sample_first_party.py, ~200 行)
+- 新增 tests: 8 文件 (test_plugin_sdk_base / test_plugin_registry / test_plugin_runtime_registry_integration / test_first_party_plugins / test_learning_event_pomdp_factory / test_plugin_registry_persistence / test_v094_canary / test_plugin_library_docs)
+- Plugin SDK subscribers: 8 (built-in, 维持) + 3 first-party plugin (PluginRegistry 路径)
+- PluginMetadata SCHEMA_VERSION: "0.94.0" (独立 schema, 跟 POMDPPolicy 0.93.0 / CognitiveTwinAgent 0.92.0 隔离)
+
+#### 防御性自检 (8 项 v0.94 现状)
+
+| # | 项 | v0.94 状态 |
+|---|----|-----------|
+| 1 | silent pass 扫描 | Plugin ABC / PluginRegistry / First-party plugin / PluginRegistryStore 全程 `_log.warning(..., exc_info=True)` |
+| 2 | `__version__` 同步 | "0.93.0" → "0.94.0" bump |
+| 5 | schema_version | PluginMetadata "0.94.0" 独立 schema. 老 `plugin_registry` 表 `CREATE TABLE IF NOT EXISTS` 幂等 |
+| 8 | direct state mutation 扫描 | 0 新 mutation site (Plugin 是 process_event pattern, 不持 BeliefState 引用, 跟 POMDPDiagnostic / HumanFeedbackEntry / ActionEntry 完全 parallel). AST 扫描 50+1 = 51 文件无新增 mutation site |
+
+**FUNC_ALLOWLIST 维持 51 文件**: Plugin / PluginRegistry / First-party / PluginRegistryStore 全是 process_event pattern, 不调 `state.X = value`, 不需要 allowlist.
+
+#### 后续 (v0.95+)
+
+- v0.95+: Kernel-first 战略持续 (Teacher/Parent Dashboard 应用层落地 — per `project-strategy-kernel-first.md`)
+- v0.95+ 可选: Plugin SDK 生态扩展 (plugin marketplace / 热加载 / 沙箱隔离)
+- v0.95+ 可选: 第二方/第三方 plugin SDK (third-party developer onboarding)
+
+
 ## [0.93.0] 2026-08-12
 
 ### feat: Phase 7+ 抽象推演 #6 — POMDP T/R 后验可视化 (4 sub-commit a/b/c/d)
