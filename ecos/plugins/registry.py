@@ -282,6 +282,95 @@ class PluginRegistry:
         """
         self.clear()
 
+    # ── API: persistence (v0.94.0-d) ─────────────────────────────────────
+
+    def save_to_db(self, store: Any) -> None:
+        """持久化所有 plugin metadata 到 PluginRegistryStore (v0.94.0-d).
+
+        遍历所有已注册 plugin, 调 store.save_plugin(metadata) 落盘.
+        幂等: INSERT OR REPLACE by PRIMARY KEY (name).
+
+        Args:
+            store: PluginRegistryStore 实例 (跟 lca_store LCAStore 同 pattern).
+
+        防御性:
+            - store.save_plugin 异常 _log.warning 不 raise (save 是 best-effort,
+              下次启动重新 register 即可恢复)
+            - 不持久化 subscription_ids (运行时状态, 启动重新 subscribe_all)
+        """
+        for plugin in self.list_plugins():
+            name = plugin.metadata.name
+            try:
+                store.save_plugin(
+                    name=name,
+                    version=plugin.metadata.version,
+                    enabled=self.is_enabled(name),
+                    subscribed_topics=list(plugin.metadata.subscribed_topics),
+                    metadata=plugin.metadata.to_dict(),
+                )
+            except Exception:
+                _log.warning(
+                    "PluginRegistry.save_to_db: save_plugin failed (name=%s)",
+                    name, exc_info=True,
+                )
+
+    def load_from_db(self, store: Any) -> List[str]:
+        """从 PluginRegistryStore 加载 plugin metadata, instantiate + register (v0.94.0-d).
+
+        Args:
+            store: PluginRegistryStore 实例.
+
+        Returns:
+            List[str] — 已 register 的 plugin name 列表 (sorted).
+            空 list = DB 无 plugin metadata (首次启动或 DB 为空).
+
+        流程:
+            1. store.list_all() 拿所有 plugin metadata dict
+            2. 按 name instantiate 3 first-party plugin (HintFatiguePlugin /
+               ParentEngagementPlugin / TeacherProgressPlugin) 或 fallback 到 generic stub
+            3. registry.register(plugin) — dependencies 校验后落内存
+
+        防御性:
+            - DB schema_version 不匹配 raise ValueError (跟 LCAStore 老 snapshot
+              compat pattern 一致)
+            - instantiate 失败 (plugin class 不存在 / import error) skip + _log.warning
+            - register 失败 (dependency missing / 重复 register) skip + _log.warning
+        """
+        from ecos.plugins.base import PluginMetadata
+
+        registered: List[str] = []
+        rows = store.list_all()
+        for row in rows:
+            try:
+                metadata_dict = row.get("metadata", {})
+                schema_version = row.get("schema_version", "0.94.0")
+                if schema_version != "0.94.0":
+                    _log.warning(
+                        "PluginRegistry.load_from_db: plugin %s schema_version=%s "
+                        "不匹配 expected=0.94.0, skip",
+                        row.get("name"), schema_version,
+                    )
+                    continue
+                # Instantiate plugin by name (跟 v0.94.0-c first-party plugin 列表一致)
+                name = row.get("name")
+                plugin = _instantiate_first_party_plugin(name)
+                if plugin is None:
+                    _log.warning(
+                        "PluginRegistry.load_from_db: 无法 instantiate plugin %s, skip",
+                        name,
+                    )
+                    continue
+                # 覆写 metadata 用 DB 数据 (保证版本一致)
+                plugin.metadata = PluginMetadata.from_dict(metadata_dict)
+                self.register(plugin)
+                registered.append(name)
+            except Exception:
+                _log.warning(
+                    "PluginRegistry.load_from_db: 加载 plugin %s 失败, skip",
+                    row.get("name"), exc_info=True,
+                )
+        return registered
+
 
 def get_default_registry() -> PluginRegistry:
     """获取默认 PluginRegistry singleton (懒加载, 跟 DomainRegistry.get_default_registry() 同 pattern)."""
@@ -295,6 +384,31 @@ def reset_default_registry() -> None:
     PluginRegistry.reset() 仅清空 in-memory state.
     """
     PluginRegistry._instance = None
+
+
+def _instantiate_first_party_plugin(name: str) -> Optional[Any]:
+    """Instantiate 3 first-party plugin by name (v0.94.0-d load_from_db 辅助).
+
+    Returns:
+        Plugin 实例 (HintFatiguePlugin / ParentEngagementPlugin / TeacherProgressPlugin).
+        None = name 不匹配任何 first-party plugin (跟 load_from_db skip 逻辑配对).
+    """
+    try:
+        if name == "hint_fatigue":
+            from ecos.plugins.first_party import HintFatiguePlugin
+            return HintFatiguePlugin()
+        if name == "parent_engagement":
+            from ecos.plugins.first_party import ParentEngagementPlugin
+            return ParentEngagementPlugin()
+        if name == "teacher_progress":
+            from ecos.plugins.first_party import TeacherProgressPlugin
+            return TeacherProgressPlugin()
+    except ImportError:
+        _log.warning(
+            "_instantiate_first_party_plugin: import first_party 失败 (name=%s)",
+            name, exc_info=True,
+        )
+    return None
 
 
 __all__ = [

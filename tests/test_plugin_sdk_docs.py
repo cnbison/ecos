@@ -37,7 +37,7 @@ def test_docs_exists_and_has_eight_sections():
 
     8 section 定义 (per docs/plugin_sdk.md 当前内容):
       §一   Plugin 原则
-      §二   7 Subscriber 完整契约
+      §二   8 Subscriber 完整契约 (v0.93.0-b 加 pomdp_diagnostic_updated 后 7 → 8)
       §三   LCAEngine.append_human_feedback 接口
       §四   防御性自检 (CLAUDE.md §7 同步)
       §五   Runtime API 6 plan 接口
@@ -52,7 +52,7 @@ def test_docs_exists_and_has_eight_sections():
 
     expected_sections = [
         "## 一、Plugin 原则",
-        "## 二、7 Subscriber 完整契约",
+        "## 二、8 Subscriber 完整契约",
         "## 三、LCAEngine.append_human_feedback 接口",
         "## 四、防御性自检",
         "## 五、Runtime API 6 plan 接口",

@@ -27,14 +27,17 @@ Plugin SDK 抽象推演:
 - **v0.91.0-b**: 加 4 frontend stub subscribers (`hint_requested` / `idle_detected` / `goal_changed` / `reflection_completed`)
 - **v0.91.0-c**: LCA 4 layer 接入 Human feedback (ExperimentDesigner + Evaluator)
 - **v0.91.0-d**: 冷启动 + 持久化 + canary
+- **v0.93.0-b**: 加 `pomdp_diagnostic_updated` subscriber (Runtime.diagnose_pomdp → emit POMDPDiagnostic)
+- **v0.94.0-a/b/c/d**: Plugin ABC + PluginRegistry singleton + 3 first-party plugin (HintFatigue / ParentEngagement / TeacherProgress) + PluginRegistryStore 持久化
 
 Plugin SDK 100% production: 任何 Plugin endpoint 走 Plugin 路径, 无 legacy fallback.
+v0.94+ Plugin SDK 表面化: Plugin(ABC) + PluginRegistry singleton + 3 first-party reference plugin.
 
 ---
 
-## 二、7 Subscriber 完整契约
+## 二、8 Subscriber 完整契约
 
-PluginRuntime 注册 **7 subscribers** 到 EventBus:
+PluginRuntime 注册 **8 subscribers** 到 EventBus (built-in, v0.93.0-b 加 `pomdp_diagnostic_updated`):
 
 | # | Topic | 来源 | Handler | Runtime API |
 |---|-------|------|---------|-------------|
@@ -45,6 +48,12 @@ PluginRuntime 注册 **7 subscribers** 到 EventBus:
 | 5 | `idle_detected` | `/api/event/idle` (frontend stub) | `_handle_idle_detected` | `LCAEngine.append_human_feedback` |
 | 6 | `goal_changed` | `/api/event/goal_change` (frontend stub) | `_handle_goal_changed` | `LCAEngine.append_human_feedback` |
 | 7 | `reflection_completed` | `/api/event/reflection` (frontend stub) | `_handle_reflection_completed` | `LCAEngine.append_human_feedback` |
+| 8 | `pomdp_diagnostic_updated` | Runtime.diagnose_pomdp | `_handle_pomdp_diagnostic_updated` | (Plugin-internal topic, 供 first-party plugin 订阅) |
+
+v0.94+ Plugin SDK 第一方 plugin (HintFatigue / ParentEngagement / TeacherProgress) 走
+**PluginRegistry.subscribe_all(bus)** 路径挂载, 不占用 built-in 8 subscriber 配额.
+PluginRuntime._plugin_registry_factory DI 注入 default registry (跟 DomainRegistry v0.88.0-a
+完全 parallel pattern). 详见 [docs/plugin_library.md](./plugin_library.md)。
 
 ### 2.1 核心 API (v0.84-0.85)
 
@@ -218,7 +227,7 @@ Plugin SDK 不暴露 `plan` API 直接调用 — Plugin 永远只产 event, Runt
 - `ecos/cta/cognitive_twin.py`: CognitiveTwinAgent + HumanFeedbackEntry 实现
 - `ecos/runtime/api.py`: 6 plan API (含 plan_human_feedback_aware)
 - `ecos/lca/orchestrator.py`: LCAEngine._cognitive_twin + append_human_feedback
-- `web/api/plugin_runtime.py`: PluginRuntime + 7 subscribers
+- `web/api/plugin_runtime.py`: PluginRuntime + 8 subscribers (built-in) + PluginRegistry DI 集成
 - `examples/plugin_sample_human_feedback.py`: 5 use case 示例
 
 ---
