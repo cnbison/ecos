@@ -398,6 +398,55 @@ class LearningEvent:
             },
         )
 
+    # ── v0.94.0-c: pomdp_diagnostic_updated factory ─────────────────────────
+
+    @classmethod
+    def from_pomdp_diagnostic_updated(
+        cls,
+        student_id: str,
+        diagnostic: Any,
+        source: str = "plugin_runtime",
+        event_id: Optional[str] = None,
+    ) -> "LearningEvent":
+        """Construct LearningEvent for pomdp_diagnostic_updated (v0.94.0-c factory).
+
+        Plugin-internal topic (不在 LearningEventType enum 内, 跟 v0.93.0-b
+        PluginRuntime._handle_pomdp_diagnostic_updated 一致). 由 Runtime.diagnose_pomdp
+        调用后, PluginRuntime 内部 emit, 供 first-party plugin (ParentEngagement /
+        TeacherProgress) 订阅消费.
+
+        Args:
+            student_id: which student the POMDP diagnostic belongs to.
+            diagnostic: POMDPDiagnostic 实例 (to_dict() 序列化进 payload).
+                        接受 POMDPDiagnostic 或 dict (PluginRuntime 内调用时是 dict).
+            source: who produced (default "plugin_runtime").
+            event_id: optional pre-generated event_id.
+
+        Returns:
+            LearningEvent with event_type="pomdp_diagnostic_updated" and
+            payload 含 diagnostic 序列化 dict.
+        """
+        # 序列化 diagnostic: POMDPDiagnostic 实例走 to_dict(), dict 直接用
+        if hasattr(diagnostic, "to_dict"):
+            diagnostic_dict = diagnostic.to_dict()
+        elif isinstance(diagnostic, dict):
+            diagnostic_dict = diagnostic
+        else:
+            raise TypeError(
+                f"LearningEvent.from_pomdp_diagnostic_updated: diagnostic 必须是 "
+                f"POMDPDiagnostic 或 dict, got type={type(diagnostic).__name__}"
+            )
+        return cls(
+            event_id=event_id or _make_event_id(),
+            student_id=str(student_id),
+            timestamp=datetime.now(),
+            source=source,
+            event_type="pomdp_diagnostic_updated",  # Plugin-internal topic
+            payload={
+                "diagnostic": diagnostic_dict,
+            },
+        )
+
     # ── v0.85.0-d: frontend stub factories (4) ──────────────────────────────
 
     @classmethod
