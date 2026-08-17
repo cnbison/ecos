@@ -6,6 +6,13 @@
 const API = 'http://localhost:5173/api';
 let sid = '', q = null;
 
+// v0.95.0: 4 行为事件接通的状态 (hint / idle / goal_change / reflection)
+const IDLE_SECONDS = 20;           // 停止输入 20s 记一次 idle
+const IDLE_SECONDS_MS = IDLE_SECONDS * 1000;
+let _idleTimer = null;             // idle 检测定时器
+let _idleEmittedForQ = null;       // 当前题已 emit idle 标记 (每题一次)
+let _lastGoalId = null;            // 上一题 goal_id (topic:bloom_layer)
+
 // v0.51.0: API 封装（Phase 4 架构现代化）
 //   之前 8 个 fetch 调用点散落各函数,现在统一走 api 对象
 //   _fetch: 内部统一处理 HTTP 错误 + JSON 解析
@@ -28,6 +35,11 @@ const api = {
   getState(sid)                       { return this._fetch('/state/' + sid); },
   getReport(sid)                      { return this._fetch('/report/' + sid); },
   getHistory(sid)                     { return this._fetch('/history/' + sid); },
+  // v0.95.0: 4 行为事件端点 (v0.85.0-d stub, best-effort 遥测)
+  emitHint(body)          { return this._fetch('/event/hint', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) }); },
+  emitIdle(body)          { return this._fetch('/event/idle', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) }); },
+  emitGoalChange(body)    { return this._fetch('/event/goal_change', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) }); },
+  emitReflection(body)    { return this._fetch('/event/reflection', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) }); },
 };
 
 // 页面加载时,自动填 localStorage 里的 sid + 加载最近学生列表
@@ -48,6 +60,13 @@ document.addEventListener('DOMContentLoaded', () => {
       if (el) el.textContent = d.version;
     }
   }).catch(e => console.warn('getVersion:', e));
+
+  // v0.95.0: 输入活动重置 idle 检测定时器 (停止输入 IDLE_SECONDS 后 emit idle)
+  const ansEl = document.getElementById('ans');
+  if (ansEl) {
+    ansEl.addEventListener('input', _scheduleIdleDetect);
+    ansEl.addEventListener('keydown', _scheduleIdleDetect);
+  }
 
   try {
     const lastSid = localStorage.getItem('ecos_last_sid');
@@ -95,6 +114,8 @@ async function start(sidOverride) {
     const sidInput = document.getElementById('sid');
     if (sidInput && !sidInput.value) sidInput.value = sid;
   } catch(e) {}
+  // v0.95.0: 新会话 reset goal_change 基线 (避免跨学生误报)
+  _lastGoalId = null;
   // W5+: topbar 显示当前学生 ID
   document.getElementById('current-sid').innerText = sid;
   document.getElementById('login').style.display = 'none';
@@ -233,6 +254,10 @@ function logout() {
   }
   sid = '';
   q = null;
+  // v0.95.0: 退出时 reset 行为事件跟踪状态
+  _lastGoalId = null;
+  _idleEmittedForQ = null;
+  clearTimeout(_idleTimer);
   // 重新加载最近学生
   if (typeof loadRecentStudents === 'function') loadRecentStudents();
 }
@@ -291,6 +316,73 @@ function selectRecent(sid, btn) {
   if (btn) btn.classList.add('selected');
 }
 
+// v0.95.0: 学生请求提示 -> /api/event/hint (每题一次)
+async function askHint() {
+  if (!q) return;
+  const btn = document.getElementById('btnHint');
+  if (btn.disabled) return;
+  try {
+    await api.emitHint({ student_id: sid, problem_id: q.problem_id, hint_level: 1 });
+    btn.disabled = true;
+    btn.innerText = '已请求提示 ✓';
+  } catch(e) {
+    // best-effort 遥测: 失败不打断答题, 但按钮置不可用避免重复请求
+    console.warn('emitHint:', e);
+    btn.disabled = true;
+    btn.innerText = '提示暂不可用';
+  }
+}
+
+// v0.95.0: idle 检测 — 输入活动重置定时器, 停止输入 IDLE_SECONDS 后 emit 一次
+function _scheduleIdleDetect() {
+  clearTimeout(_idleTimer);
+  if (!q) return;
+  // 不在学习 tab / 题目已提交 (btnNext 可见) 后不再检测
+  const studyPanel = document.getElementById('panel-study');
+  if (studyPanel && studyPanel.style.display === 'none') return;
+  if (document.getElementById('btnNext').style.display !== 'none') return;
+  _idleTimer = setTimeout(_emitIdle, IDLE_SECONDS_MS);
+}
+
+function _emitIdle() {
+  if (!q || _idleEmittedForQ === q.problem_id) return;
+  if (document.getElementById('btnNext').style.display !== 'none') return;
+  _idleEmittedForQ = q.problem_id;
+  api.emitIdle({ student_id: sid, idle_seconds: IDLE_SECONDS })
+    .catch(e => console.warn('emitIdle:', e));
+}
+
+// v0.95.0: goal_change — 题目从 (topic, bloom_layer) 切到不同组合时 emit
+function _emitGoalChange(newGoalId) {
+  if (_lastGoalId !== null && newGoalId !== _lastGoalId) {
+    api.emitGoalChange({ student_id: sid, old_goal_id: _lastGoalId, new_goal_id: newGoalId })
+      .catch(e => console.warn('emitGoalChange:', e));
+  }
+  _lastGoalId = newGoalId;
+}
+
+// v0.95.0: 课后反思 -> /api/event/reflection (答完题后可选)
+async function submitReflection() {
+  const input = document.getElementById('reflInput');
+  const text = input.value.trim();
+  if (!text) { input.focus(); return; }
+  const btn = document.getElementById('btnRefl');
+  btn.disabled = true;
+  try {
+    await api.emitReflection({
+      student_id: sid,
+      reflection_text: text,
+      problem_id: q ? q.problem_id : undefined,
+    });
+    btn.innerText = '已记录 ✓';
+    input.disabled = true;
+  } catch(e) {
+    console.warn('emitReflection:', e);
+    btn.innerText = '记录失败，请重试';
+    btn.disabled = false;
+  }
+}
+
 async function loadQ() {
   try {
     const d = await api.getQuestion(sid);
@@ -307,6 +399,10 @@ async function loadQ() {
       return;
     }
     q = d;
+    // v0.95.0: 每题 reset idle 标记 + 检测目标切换 (goal_change)
+    _idleEmittedForQ = null;
+    _scheduleIdleDetect();
+    _emitGoalChange(d.topic + ':' + d.bloom_layer);
     const h = v => String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     document.getElementById('qtext').innerHTML = h(d.problem_text).replace(/\n/g,'<br>');
     document.getElementById('qid').innerText = d.problem_id;
@@ -317,6 +413,15 @@ async function loadQ() {
     document.getElementById('ivbox').style.display = 'none';
     document.getElementById('btnSub').style.display = '';
     document.getElementById('btnNext').style.display = 'none';
+    // v0.95.0: reset hint + 反思区 (hide + 清空 + 恢复可用)
+    const btnHint = document.getElementById('btnHint');
+    if (btnHint) { btnHint.disabled = false; btnHint.innerText = '💡 提示'; }
+    const reflRow = document.getElementById('reflRow');
+    if (reflRow) reflRow.style.display = 'none';
+    const reflInput = document.getElementById('reflInput');
+    if (reflInput) { reflInput.value = ''; reflInput.disabled = false; }
+    const btnRefl = document.getElementById('btnRefl');
+    if (btnRefl) { btnRefl.disabled = false; btnRefl.innerText = '记录反思'; }
   } catch(e) { alert(e.message); }
 }
 
@@ -353,6 +458,10 @@ async function submit() {
     }
 
     document.getElementById('fbox').style.display = 'block';
+    // v0.95.0: 答完题清 idle 定时器 + 显示课后反思区
+    clearTimeout(_idleTimer);
+    const reflRow = document.getElementById('reflRow');
+    if (reflRow) reflRow.style.display = '';
     document.getElementById('fbres').className = 'fb ' + (ok ? 'ok' : 'err');
     document.getElementById('fbres').innerHTML = (ok ? '✅ 正确' : '❌ 错误') + `<div style="margin-top:4px;font-size:12px;color:#6b7280;">AI 评判：${reasoning}</div>`;
     let meta = `K=${d.theta.K}  P=${d.theta.P}  S=${d.theta.S}  C=${d.theta.C}  X=${d.theta.X}`;

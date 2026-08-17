@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ECOS 学生端</title>
-<link rel="stylesheet" href="/student/styles.css?v=0.65.0">
+<link rel="stylesheet" href="/student/styles.css?v=0.95.0">
 </head>
 <body>
 
@@ -93,6 +93,8 @@
         <div class="prob" id="qtext">—</div>
         <textarea class="ta" id="ans" placeholder="输入代码或答案..."></textarea>
         <div class="btns">
+          <!-- v0.95.0: 提示按钮 -> /api/event/hint (每题一次, 解锁 HintFatiguePlugin) -->
+          <button id="btnHint" class="h" onclick="askHint()">💡 提示</button>
           <button id="btnSub" onclick="submit()">提交答案</button>
           <button id="btnNext" class="g" onclick="nextQ()" style="display:none;">下一题 →</button>
         </div>
@@ -102,6 +104,13 @@
       <div class="card" id="fbox" style="display:none;">
         <div class="ch">反馈</div>
         <div class="fb" id="fbres"></div>
+        <!-- v0.95.0: 课后反思 -> /api/event/reflection (答完题后可选, 解锁 v0.91 human feedback) -->
+        <div class="refl-row" id="reflRow" style="display:none;">
+          <textarea class="ta" id="reflInput" placeholder="💭 课后反思（可选）：这道题你学到了什么？还有哪里不清楚？"></textarea>
+          <div class="btns">
+            <button id="btnRefl" class="h" onclick="submitReflection()">记录反思</button>
+          </div>
+        </div>
       </div>
 
       <!-- 干预 -->
@@ -204,6 +213,6 @@
   <!-- /study -->
 </div>
 
-<script src="/student/app.js?v=0.66.0" defer></script>
+<script src="/student/app.js?v=0.95.0" defer></script>
 </body>
 </html>

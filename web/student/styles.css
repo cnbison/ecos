@@ -209,6 +209,11 @@ button:hover { background: #1d4ed8; }
 button.g { background: #16a34a; }
 button.g:hover { background: #15803d; }
 button:disabled { opacity: 0.5; cursor: default; }
+/* v0.95.0: 提示按钮 (琥珀色, 跟提交绿/默认蓝区分) + 课后反思区 */
+button.h { background: #d97706; }
+button.h:hover { background: #b45309; }
+.refl-row { border-top: 1px solid #eee; }
+.refl-row .ta { min-height: 60px; }
 
 /* 反馈 */
 .fb { padding: 10px 12px; font-size: 13px; }

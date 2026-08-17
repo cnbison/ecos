@@ -12,6 +12,42 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.95.0] 2026-08-17
+
+### feat: 学生端接通 4 行为事件端点 (不等 React 小任务) — 解锁 v0.91/v0.92/v0.94 Kernel 投资
+
+> **背景**: v0.85.0-d 建好的 4 个行为事件端点 (`web/api/event_stub.py`: hint / idle / goal_change / reflection) 一直是后端 stub, 学生端 `app.js` **零调用** -- v0.91 人类反馈轨迹 / v0.92 行动历史 / v0.94 HintFatiguePlugin 的"人的行为"数据通道在前端根本没打开 (Kernel 侧全就绪, 应用侧是断的). 这是 v0.95 方向审查结论 4 里性价比最高的单项任务 (不依赖 React), 同时开始积累 LearningDNA "≥50 题 + 交互行为数据" 的启用条件.
+> **验收**: 端到端验证通过 — 前端 4 个 payload 形状经 Flask 端点 → PluginRuntime built-in subscriber → `LCAEngine._cognitive_twin` → `CognitiveTwinAgent.human_feedback` (4 event_type 全进, reflection 文本保留). pytest 1365 → 1377 (+12).
+
+#### MODIFY: web/student/app.js — 4 组行为事件接线 (v0.95.0)
+
+- `api` 对象新增 4 个 best-effort 方法: `emitHint` / `emitIdle` / `emitGoalChange` / `emitReflection` (POST `/event/*`, 跟 event_stub.py 契约逐字段对齐)
+- **askHint()**: 提示按钮 → `/event/hint` `{student_id, problem_id, hint_level:1}`, 每题一次 (请求成功后按钮置"已请求提示 ✓")
+- **idle 检测**: `#ans` input/keydown 重置定时器, 停止输入 20s 后 `/event/idle` `{student_id, idle_seconds:20}`, 每题一次; 学习 tab 外 / 题目已提交后不检测
+- **goal_change**: `loadQ()` 里检测 `topic:bloom_layer` 组合切换 → `/event/goal_change` `{old_goal_id, new_goal_id}`, 新会话 (`start()`) 与退出 (`logout()`) reset 基线避免跨学生误报
+- **submitReflection()**: 课后反思 (答完题后可选) → `/event/reflection` `{student_id, reflection_text, problem_id}`, 记录后按钮"已记录 ✓"
+- 所有 emit 均 `.catch(e => console.warn(...))` — best-effort 遥测失败不打断答题, 但不 silent pass (项目原则)
+
+#### MODIFY: web/student/index.html + styles.css — 提示按钮 + 课后反思区
+
+- 当前题目卡 `.btns` 加 `💡 提示` 按钮 (`#btnHint`, `class="h"` 琥珀色)
+- 反馈卡 `#fbox` 加课后反思区 (`#reflRow` + `#reflInput` + `#btnRefl`, 默认隐藏, 答完题显示)
+- `button.h` (琥珀色, 跟提交绿/默认蓝区分) + `.refl-row` 样式
+- cache-bust `?v=` bump: styles.css 0.65.0 → 0.95.0, app.js 0.66.0 → 0.95.0
+
+#### NEW: tests/test_frontend_event_wiring.py (12 tests)
+
+- grep 契约测试 (无 JS 测试基建): api 4 方法 + 4 端点路径 + 每 event 的 UI 触发点 + 4 payload 跟 event_stub.py 契约逐字段一致 + best-effort 必须 console.warn + index.html 按钮/反思区存在 + cache-bust 已 bump
+- 守护"前端接线不能删" — 后端端点行为已在 test_event_stub.py 覆盖, 本测试补前端侧
+
+#### 文件变更
+
+- MODIFY `web/student/app.js` (4 组接线 + 4 api 方法 + 3 状态变量 + 2 监听)
+- MODIFY `web/student/index.html` (提示按钮 + 反思区 + ?v= bump)
+- MODIFY `web/student/styles.css` (button.h + .refl-row)
+- MODIFY `ecos/__init__.py` (__version__ 0.94.0 → 0.95.0)
+- NEW `tests/test_frontend_event_wiring.py` (12 tests)
+
 ## [v0.95+ 方向修订] 2026-08-17
 
 ### docs: v0.95+ 方向审查与规划 - 验证优先 + 应用层产品化落地 (Bisen 拍板, 无代码变更)
