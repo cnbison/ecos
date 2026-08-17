@@ -12,6 +12,25 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [v0.95+ 方向修订] 2026-08-17
+
+### docs: v0.95+ 方向审查与规划 - 验证优先 + 应用层产品化落地 (Bisen 拍板, 无代码变更)
+
+> **背景**: v0.94.0 Kernel 收口后 (12 版本 v0.83-v0.94, pytest 1365, 缺失清单 0), Bisen 提问 v0.95 方向. 结合 `research/deep-research/ECOS系统性深度分析-混合优化版.md` (1687 行) 全文对照审查得出: **架构方向无偏移** (2.0 蓝图逐项兑现), **但节奏偏移** -- 文档核心结论 "下一阶段应完成科学验证" 滞后 (仍是 3 测试用户 / 1 学科, 三个科学问题无一有规模验证; v0.88 Multi-Domain / v0.91 Human Twin 属文档【推演】分支的工程化).
+
+#### 方向决策 (详见 discussions/2026-08-17-v095方向审查-验证滞后于抽象与应用层产品化规划.md)
+
+- **抽象推演冻结**: Phase 7+ #8+ 不再预排. Plugin SDK 独立打包 / Science-Career 词汇表, 仅需求牵引时启动 (依赖闭包审查: base.py 硬 import ecos.cta.event_log, 不可单独打包, 但 Registry bus duck-typing + Store 纯 stdlib 已刻意解耦)
+- **v0.95**: React 18 + Vite + TS + ECharts 前端底座 + 教师端真实化 (NEW /api/teacher/*, 证据链视图, 换掉 web/teacher 假数据); **并行不等 React**: 学生端 app.js 接通 4 个行为事件端点 (hint/idle/goal_change/reflection, v0.85 建成但前端零调用 -- 解锁 v0.91/v0.92/v0.94 全部 Kernel 投资 + LearningDNA 数据条件)
+- **v0.96**: 学生端产品化改造 (React 重写 + 信息架构三问 + interpretation 通俗化全接 + Motivation Profile 前端首次呈现 + CodeMirror + 移动端)
+- **v0.97**: 家长端 + 验证主线 (三个科学问题跟踪表 + 5-10 学生试点)
+- **v0.98+**: C/X 扩量 / H1 形式化 / Plugin SDK 独立打包 (需求牵引解锁)
+
+#### 文件变更
+
+- NEW `discussions/2026-08-17-v095方向审查-验证滞后于抽象与应用层产品化规划.md` (~230 行)
+- MODIFY `research/00-overview/12-kernel-mapping-current-vs-2.0.md`: §3 演进建议 v0.95.0+ 行修订 + §8.2 新增 "[v0.95+ 方向修订 2026-08-17]" block
+
 ## [0.94.0] 2026-08-13
 
 ### feat: Phase 7+ 抽象推演 #7 — 第一方 Plugin 库 (Kernel-only SDK, 4 sub-commit a/b/c/d)
