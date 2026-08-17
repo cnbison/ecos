@@ -1,15 +1,16 @@
 # ECOS 项目 Makefile
 # v0.55.0-e: pytest 套件自动化入口
 
-.PHONY: help test check lint clean ci
+.PHONY: help test check lint clean ci frontend frontend-dev frontend-build
 
 help:
-	@echo "ECOS v0.55.0+ 开发命令:"
-	@echo "  make test  - 跑 pytest 测试套件 (22/22)"
-	@echo "  make check - 跑 5 项防御性自检 + pytest"
-	@echo "  make lint  - 跑代码风格检查 (暂未启用, v0.56.0+ 计划)"
-	@echo "  make clean - 清理 __pycache__ / .pytest_cache"
-	@echo "  make ci    - CI 入口 (同 check)"
+	@echo "ECOS 开发命令:"
+	@echo "  make test          - 跑 pytest 测试套件"
+	@echo "  make check         - 跑 8 项防御性自检 + 前端段 + pytest"
+	@echo "  make frontend      - 前端最小集 (tsc + eslint + vitest)"
+	@echo "  make frontend-build- 前端 build (vite build → dist, Flask 托管)"
+	@echo "  make frontend-dev  - 前端 dev server (Vite 5174, proxy /api → Flask 5173)"
+	@echo "  make clean         - 清理 __pycache__ / .pytest_cache"
 
 test:
 	python -m pytest tests/ -v
@@ -17,8 +18,14 @@ test:
 check:
 	bash scripts/check_defensive.sh
 
-lint:
-	@echo "TODO v0.56.0+: ruff + black + mypy"
+frontend:
+	cd web/frontend && npm run typecheck && npm run lint && npm test
+
+frontend-build:
+	cd web/frontend && npm run build
+
+frontend-dev:
+	cd web/frontend && npm run dev
 
 clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true

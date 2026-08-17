@@ -65,6 +65,13 @@ Thumbs.db
 /cache/
 /output/
 /checkpoints/
+
+# Frontend (v0.95.1 React/Vite)
+node_modules/
+.vite/
+web/frontend/dist/
+*.tsbuildinfo
+
 *.db
 *.db-shm
 *.db-wal

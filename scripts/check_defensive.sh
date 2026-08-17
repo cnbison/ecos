@@ -16,8 +16,8 @@
 # - v0.78 H3-c4 暴露: BeliefEngine.update() ~46 处直接 mutation (v0.80 拆 4-layer 修)
 #
 # 用法:
-#   bash scripts/check_defensive.sh           # 全部 8 项 (前 8 项静态 + pytest)
-#   bash scripts/check_defensive.sh --static-only   # 仅前 8 项 (pre-commit hook 用, 秒级)
+#   bash scripts/check_defensive.sh           # 全部 8 项静态 + 前端段 + pytest
+#   bash scripts/check_defensive.sh --static-only   # 仅静态 + 前端最小集 (pre-commit hook 用, 秒级)
 #   make check
 set -e
 
@@ -27,8 +27,8 @@ for arg in "$@"; do
         --static-only) STATIC_ONLY=1 ;;
         -h|--help)
             echo "用法: bash scripts/check_defensive.sh [--static-only]"
-            echo "  (default)   跑前 8 项静态检查 + pytest"
-            echo "  --static-only  只跑前 8 项静态检查 (pre-commit hook 用, 不跑 pytest)"
+            echo "  (default)   跑 8 项静态 + 前端段 (tsc/lint/test/build) + pytest"
+            echo "  --static-only  只跑 8 项静态 + 前端最小集 (tsc/lint/test, pre-commit hook 用)"
             exit 0
             ;;
         *)
@@ -43,7 +43,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 echo "═══════════════════════════════════════════════════════════════"
-echo "  ECOS 防御性自检 (8 项 + pytest)"
+echo "  ECOS 防御性自检 (8 项 + 前端段 + pytest)"
 echo "═══════════════════════════════════════════════════════════════"
 echo ""
 
@@ -208,17 +208,54 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
+# ── 前端段 (v0.95.1) ─────────────────────────────────────────────
+# React/Vite 底座不能成 CI 盲区: tsc / eslint / vitest 最小集 (秒级)
+# 静态段也跑 (typecheck + lint + test), 全量段再加 build.
+# 若 web/frontend/package.json 存在但 node_modules 缺失 → fail (提示 npm install),
+# 不允许 silent skip.
+FRONTEND_DIR="web/frontend"
+if [ -f "$FRONTEND_DIR/package.json" ]; then
+    if [ ! -d "$FRONTEND_DIR/node_modules" ]; then
+        echo "  ❌ 前端依赖缺失: 请先运行 cd web/frontend && npm install"
+        exit 1
+    fi
+    echo ""
+    echo "═══════════════════════════════════════════════════════════════"
+    echo "  前端段 (web/frontend): tsc + eslint + vitest"
+    echo "═══════════════════════════════════════════════════════════════"
+    (
+        cd "$FRONTEND_DIR" || exit 1
+        echo "▶ typecheck (tsc -b --noEmit)"
+        npm run typecheck || exit 1
+        echo "▶ lint (eslint . --max-warnings 0)"
+        npm run lint || exit 1
+        echo "▶ test (vitest run)"
+        npm test || exit 1
+    )
+    if [ $? -ne 0 ]; then
+        exit 1
+    fi
+fi
+
 # ── pytest 全量 ──────────────────────────────────────────────────
 if [ "$STATIC_ONLY" = "1" ]; then
     echo ""
     echo "═══════════════════════════════════════════════════════════════"
-    echo "  ⏭️  --static-only, 跳过 pytest"
+    echo "  ⏭️  --static-only, 跳过 pytest + 前端 build"
     echo "═══════════════════════════════════════════════════════════════"
     echo ""
     echo "═══════════════════════════════════════════════════════════════"
     echo "  ✅ 静态检查全部通过"
     echo "═══════════════════════════════════════════════════════════════"
     exit 0
+fi
+
+if [ -f "$FRONTEND_DIR/package.json" ]; then
+    echo ""
+    echo "═══════════════════════════════════════════════════════════════"
+    echo "  前端段 build (vite build → dist, Flask 托管)"
+    echo "═══════════════════════════════════════════════════════════════"
+    (cd "$FRONTEND_DIR" && npm run build) || exit 1
 fi
 
 echo ""

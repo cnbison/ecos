@@ -12,6 +12,50 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.95.2] 2026-08-17
+
+### feat: React 18 + Vite + TS 前端底座 + 教师端 UI 真实化 (v0.95 应用层产品化阶段 1 前端)
+
+> **背景**: v0.95 方向审查决策 — React 前端底座 + 教师端真实化 (换掉 web/teacher/index.html 假数据). 后端 /api/teacher/* (v0.95.1) 就绪后, 本版本搭 React SPA + 消费真 API.
+> **部署形态**: Vite build → web/frontend/dist, Flask 托管 (web/api/app.py teacher_assets 已就绪). dev 模式 Vite 5174 + proxy /api → Flask 5173.
+> **验收**: tsc 0 error + eslint 0 warning + vitest 5 pass + vite build 成功; check_defensive.sh 新增前端段 (不能成 CI 盲区); 端到端 curl 验证 SPA 托管 + roster/detail/evidence/diagnostic/interventions 5 端点真数据.
+
+#### NEW: web/frontend/ — React 18 + Vite 6 + TypeScript 5.6 + TanStack Query + ECharts 5
+
+- `package.json` — react 18.3 / vite 6 / @vitejs/plugin-react / @tanstack/react-query 5 / echarts 5 / react-router-dom 6 / typescript-eslint 8 / vitest 3
+- `vite.config.ts` — base "./" (Flask 托管相对路径), dev 5174 + /api proxy → 5173, manualChunks 拆 echarts/vendor (避免单包 >500kB)
+- `tsconfig.app.json` / `tsconfig.node.json` — strict + noUnusedLocals/Parameters
+- `eslint.config.js` — flat config (typescript-eslint + react-hooks + react-refresh)
+- `src/main.tsx` — QueryClientProvider + HashRouter (Flask 只需托管 /teacher/ + /teacher/assets, hash 路由避免额外 Flask 路由)
+- `src/App.tsx` — 顶栏 + 2 路由: `/` RosterPage, `/students/:id` StudentDetailPage
+- `src/index.css` — 与 legacy student 视觉语言一致 (卡片/表格/badge/5D grid)
+- `src/api/types.ts` — Teacher API 响应类型 (跟 teacher.py 返回契约逐字段对齐)
+- `src/api/client.ts` — fetch 封装 + 5 查询函数 + TEACHER_ENDPOINTS 契约常量
+- `src/components/EChart.tsx` — 最小 ECharts React 封装 (init/resize/dispose)
+- `src/pages/RosterPage.tsx` — 班级列表: 答题/正确率/Bloom 主导/置信/状态 badge (风险·冷启动·正常)/干预数, 点行进入详情
+- `src/pages/StudentDetailPage.tsx` — 单生深潜: 教学建议 banner + 5D θ 雷达图 + Bloom 画像 + 5D 证据链 (每维度 θ/置信/掌握/答题证据可下钻 + 跨维度 misconception/TC) + POMDP 诊断 (belief bar + min_coverage + 冷启动 + 建议, 非 POMDP → 兜底提示) + 干预历史
+- `src/api/client.test.ts` — vitest 最小集 (5 端点契约, check_defensive.sh 前端段)
+
+#### MODIFY: scripts/check_defensive.sh — 新增前端段 (v0.95a 不能成 CI 盲区)
+
+- 静态段 (`--static-only`, pre-commit) 也跑前端最小集: tsc + eslint + vitest (秒级)
+- 全量段 (pre-push) 追加 `vite build` (验证 Flask 托管产物可构建)
+- package.json 存在但 node_modules 缺失 → fail 提示 `npm install` (不 silent skip)
+
+#### MODIFY: Makefile — frontend / frontend-build / frontend-dev targets + help 更新
+
+#### MODIFY: .gitignore — node_modules/ + .vite/ + web/frontend/dist/
+
+#### MODIFY: ecos/__init__.py (__version__ 0.95.1 → 0.95.2)
+
+#### 文件变更
+
+- NEW `web/frontend/` (package.json + tsconfig×3 + vite.config.ts + eslint.config.js + index.html + src/ 9 文件)
+- MODIFY `scripts/check_defensive.sh` (前端段)
+- MODIFY `Makefile` (3 新 target)
+- MODIFY `.gitignore` (前端产物)
+- MODIFY `ecos/__init__.py` (__version__ 0.95.1 → 0.95.2)
+
 ## [0.95.1] 2026-08-17
 
 ### feat: 教师端 API (/api/teacher/*) + TeacherProgressPlugin UI 化 (v0.95 应用层产品化阶段 1 后端)
