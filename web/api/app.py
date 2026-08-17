@@ -37,6 +37,9 @@ app = Flask(__name__, static_folder=None)
 
 # v0.85.0-d: register frontend event stub Blueprint (4 endpoint: hint/idle/goal_change/reflection)
 app.register_blueprint(event_stub_bp)
+# v0.95.1: register Teacher Dashboard Blueprint (/api/teacher/*)
+from web.api.teacher import teacher_bp
+app.register_blueprint(teacher_bp)
 
 # LLM 客户端（全局）
 _llm_client: ECOSLLMClient | None = None
@@ -778,12 +781,45 @@ def student_static(filename: str):
     return response
 
 
+@app.route("/teacher/")
+def teacher_app():
+    """v0.95.1: 教师端 React SPA 入口 (Flask 托管 build 产物).
+
+    dist 存在 → 服务 React build 产物; 否则 fallback 老静态 index.html
+    (v0.95 迁移期兼容, 老假数据页面在 build 前仍可访问).
+    """
+    dist = Path(__file__).parent.parent / "frontend" / "dist"
+    if (dist / "index.html").exists():
+        response = send_from_directory(dist, "index.html")
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
+    # Fallback: 老 teacher/index.html (React build 前)
+    return teacher_static("index.html")
+
+
+@app.route("/teacher/assets/<path:filename>")
+def teacher_assets(filename: str):
+    """v0.95.1: React build 静态资源 (js/css) 服务."""
+    dist = Path(__file__).parent.parent / "frontend" / "dist"
+    if (dist / "assets" / filename).exists():
+        return send_from_directory(dist / "assets", filename)
+    return teacher_static(filename)
+
+
 @app.route("/teacher/<path:filename>")
 def teacher_static(filename: str):
-    """W5 修复：加 Cache-Control: no-cache 头（同上）。"""
-    response = send_from_directory(
-        Path(__file__).parent.parent / "teacher", filename
-    )
+    """W5 修复：加 Cache-Control: no-cache 头（同上）。
+
+    v0.95.1: dist 有同名文件优先 (React build 产物), 否则 legacy web/teacher/.
+    """
+    dist = Path(__file__).parent.parent / "frontend" / "dist"
+    if (dist / filename).exists():
+        directory = dist
+    else:
+        directory = Path(__file__).parent.parent / "teacher"
+    response = send_from_directory(directory, filename)
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"

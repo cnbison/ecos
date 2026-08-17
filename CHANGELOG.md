@@ -12,6 +12,57 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.95.1] 2026-08-17
+
+### feat: 教师端 API (/api/teacher/*) + TeacherProgressPlugin UI 化 (v0.95 应用层产品化阶段 1 后端)
+
+> **背景**: v0.95 方向审查决策 (班级视图优先 + 单生深潜 + 证据链按 5D 维度聚合可下钻, Bisen 拍板 2026-08-17). 教师端 `web/teacher/index.html` 之前是假数据, 本版本打通真数据 API. 数据源**纯 DB 直读** (students 表 JSON 列 + LCAStore), 不 init BeliefEngine — 班级 roster 不需要为每个学生初始化引擎.
+> **验收**: pytest 1365 → 1391 (+26). 教师端 5 端点全部经 Flask test_client 验证, 非 POMDP learner → diagnostic=null 防御性兜底, teacher.py 无 silent pass.
+
+#### NEW: web/api/teacher.py — teacher_bp (5 端点)
+
+- `GET /api/teacher/students` — 班级列表 roster: answered_count / correct_rate / bloom_dominant / overall_confidence / cold_start / most_likely_state / risk / intervention_count / last_active_at
+- `GET /api/teacher/students/<id>` — 学生详情: theta_5d + bloom_profile + overall_confidence + evidence 摘要
+- `GET /api/teacher/students/<id>/evidence` — 证据链按 5D 维度 (K/P/S/C/X) 聚合: 每维度 {label/desc/theta/se/confidence/mastered/response_count/correct_rate/responses} + misconceptions + tc_states, 可下钻
+- `GET /api/teacher/students/<id>/diagnostic` — POMDP 诊断: 插件 report (most_likely_state/belief/min_coverage/cold_start/advice) + pomdp_state_names; 非 POMDP learner → diagnostic null (防御性)
+- `GET /api/teacher/students/<id>/interventions` — 干预历史 (LCAStore.intervention_history)
+- `_get_db()` 读 `ECOS_DB_PATH` env (跟 lca.py 一致, 测试用 temp DB)
+- 证据维度分配复用 `get_question_detail(pid)["a_specialized"]` (Q 矩阵 5D loading), 不重复实现
+
+#### MODIFY: ecos/plugins/first_party/teacher_progress.py — UI 可消费升级 (v0.95.1)
+
+- `_last_min_coverage` → `self._reports: Dict[str, report]` per-student 结构化报告缓存
+- 新增 `_build_report(student_id, diagnostic)` 单一派生逻辑 (on_event 与 ingest_diagnostic 共享, DRY)
+- 新增 `ingest_diagnostic(student_id, diagnostic)` — Teacher API 非 event 路径喂数据入口
+- 新增 `report_for(student_id)` / `get_reports()` — Teacher API 查询入口
+- `on_event` 保留原返回契约 (测试兼容), 现在同时缓存 report + 输出 log
+- `enable()`/`disable()` 清空 `_reports` (生命周期对称)
+
+#### MODIFY: web/api/app.py — teacher_bp 注册 + Flask 托管 Vite build 产物
+
+- `app.register_blueprint(teacher_bp)`
+- `GET /teacher/` + `/teacher/assets/<path:filename>` — 优先服务 `web/frontend/dist/` (Vite build), 否则 fallback legacy `web/teacher/`
+- `teacher_static` 双路径: dist 存在则 dist, 否则 legacy 静态页
+
+#### NEW: tests/test_teacher_api.py (14 tests)
+
+- TestTeacherProgressPluginUI (4): report_for/ingest_diagnostic 共享 report 逻辑 / 字段契约 / enable-disable 清缓存
+- TestRoster (2): 班级列表字段完整 + 冷启动学生 (answered_count=0)
+- TestStudentDetail (2): state 摘要 + 404 未知学生
+- TestEvidenceChain (2): 5D 维度聚合字段契约 + 跨维度 misconception/TC
+- TestDiagnostic (1): 非 POMDP learner → diagnostic null (防御性)
+- TestInterventions (1): 干预历史空列表
+- TestTeacherApiDefensive (2): 无 silent pass grep + blueprint 注册
+- `_seed_temp_db` fixture: ECOS_DB_PATH → temp DB, seed lbc-t1 (3 道题) + lbc-t2 (冷启动), 不 init BeliefEngine
+
+#### 文件变更
+
+- NEW `web/api/teacher.py`
+- MODIFY `web/api/app.py` (teacher_bp + dist 托管)
+- MODIFY `ecos/plugins/first_party/teacher_progress.py` (UI 可消费升级)
+- MODIFY `ecos/__init__.py` (__version__ 0.95.0 → 0.95.1)
+- NEW `tests/test_teacher_api.py` (14 tests)
+
 ## [0.95.0] 2026-08-17
 
 ### feat: 学生端接通 4 行为事件端点 (不等 React 小任务) — 解锁 v0.91/v0.92/v0.94 Kernel 投资
