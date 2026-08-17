@@ -12,6 +12,61 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.96.0] 2026-08-17
+
+### feat: 学生端 React 重写 — 信息架构三问 + 通俗化全接 + 动机层首次呈现 (v0.96 应用层产品化)
+
+> **背景**: v0.95 方向审查决策 — 应用层产品化落地. 教师端 (v0.95.1/2) 就绪后, 本版本重写学生端: 换掉 legacy web/student/* (vanilla JS), 按**信息架构三问** (我在哪 / 我的成长 / 下一步学什么) 重构, interpretation 通俗化层全接, MotivationProfile (v0.87 Kernel) 首次前端呈现.
+> **设计对齐**: 与 Bisen 三问拍板 — 三问默认形态 = 学习首页三卡; 答题页收敛 (题目 + 一句通俗化 + 提交); 移动端响应式重排 (桌面 3 列 → 平板 2 列 → 手机单列 + 底部 Tab). 详见 `discussions/2026-08-17-v096-学生端信息架构三问对齐.md`.
+> **保留约束**: v0.95.0 的 4 行为事件端点 (hint / idle / goal_change / reflection) 全保留; 无 silent pass; 防御性自检全绿.
+> **验收**: tsc 0 error + eslint 0 warning + vitest 5 pass + vite build (双页: teacher + student); check_defensive.sh 1393 pytest 全绿; headless Chrome 冒烟: 登录页 / 首页三卡 / 答题页 (CodeMirror + 题目) / 我在哪 / 成长 (ECharts 折线 + 60 条答题历史) / 设置 5 路由全部渲染.
+
+#### NEW: 后端 — /api/state 暴露 motivation (MotivationProfile 首次前端可消费)
+
+- `web/api/belief.py` — get_student_state 返回新增 `motivation` key: frustration / engagement / confidence (4 位小数) + observation_count (recent_trajectory 长度). 序列化失败 → logger.warning + 中性值兜底 (不 silent pass)
+- `web/api/app.py` — 学生端 SPA 托管路由 (v0.96): `/student/` + `/student/assets/*` + `/` 均 dist 优先 (React build 产物), 无 dist 时 fallback legacy web/student/* (迁移期兼容)
+- `tests/test_state_motivation.py` (新建, 2 测试) — /api/state 含 motivation 4 字段 + 默认学生中性值
+
+#### NEW: web/frontend/src/student/ — 学生端 React SPA (Vite 多页 + 共享工具链)
+
+- `vite.config.ts` — 多页 build (input: teacher index.html + student student.html), manualChunks 拆 echarts/vendor; `__APP_VERSION__` 编译期注入 package.json version (设置页单一权威源, 防 v0.51.4 hardcoded 教训)
+- `student.html` — 学生端入口
+- `src/student/types.ts` — StudentState / Question / JudgeResult / Interpretation / Report / Motivation (跟 app.py + interpretation.py 返回契约逐字段对齐)
+- `src/student/api.ts` — fetchState / fetchReport / fetchQuestion / fetchRecentStudents / judgeAnswer / submitAnswer / emitEvent (4 行为事件, best-effort console.warn) / fetchHistory
+- `src/student/App.tsx` — login gate (localStorage `ecos_last_student_id`) + 顶栏 + 底部导航 (今天/答题/我在哪/成长/设置) + HashRouter 5 路由
+- `src/student/main.tsx` — QueryClientProvider + HashRouter
+- `src/student/index.css` — @import 教师基础 + 学生端专属 (三卡/答题页收敛/动机条/底部 Tab/响应式 media queries: 720px 单列)
+
+#### 页面 (信息架构三问落地)
+
+- `LoginPage.tsx` — 手动输入 / 最近学生快捷选择
+- `HomePage.tsx` — **首页三卡**: 我在哪 (interpretation.overall + Bloom 主导 + 置信) / 我的成长 (mini 5D 条) / 下一步学什么 (next_steps + 开始做题) + 近况感知 (MotivationPanel)
+- `AnswerPage.tsx` — **做题时收敛**: 题目 + 一句通俗化 (report.interpretation.overall) + CodeMirror + 提交; 保留 4 行为事件 (hint 每题一次 / idle 20s / goal_change topic:bloom_layer 切换 / reflection 课后反思); judgeAnswer → submitAnswer (persisted=false → alert); done 兜底
+- `WherePage.tsx` — **我在哪**: 5D 通俗化 (interpretation.five_d: θ + 置信 + 强中弱 tag + comment) + Bloom 阶梯 (主导层 + 6 层条 + 未探测虚线) + TC 关键概念 + LearningDNA 待启用
+- `GrowthPage.tsx` — **我的成长**: 5D 折线 (ECharts, state.trajectory) + 轨迹趋势/Δ5D 芯片 (interpretation.trajectory) + 轨迹快照 + 答题历史 (fetchHistory: 正确率 + 逐条可展开详情)
+- `SettingsPage.tsx` — 当前学生 / 导出学习报告 (JSON) / 退出登录 / 关于 (引擎版本来自 /api/report ecos_version + 前端版本来自 __APP_VERSION__)
+
+#### NEW: 组件
+
+- `src/student/components/CodeEditor.tsx` — CodeMirror 包装 (@uiw/react-codemirror + @codemirror/lang-python, 触屏仍可编辑)
+- `src/student/components/MotivationPanel.tsx` — 动机层首次呈现: engagement / confidence / frustration 3 条 (克制呈现, 不制造焦虑)
+
+#### MODIFY
+
+- `ecos/__init__.py` (__version__ 0.95.2 → 0.96.0)
+- `web/frontend/package.json` (version 0.95.2 → 0.96.0; 新增 @codemirror/lang-python + @uiw/react-codemirror)
+- `web/frontend/tsconfig.node.json` (resolveJsonModule, vite.config.ts 读 package.json)
+- `src/vite-env.d.ts` (声明 __APP_VERSION__)
+- `tests/` 新增 test_state_motivation.py → 1391 → 1393 pytest
+
+#### 文件变更
+
+- NEW `web/frontend/src/student/` (main/App/types/api/index.css + 6 pages + 2 components)
+- NEW `web/frontend/student.html`
+- NEW `tests/test_state_motivation.py`
+- MODIFY `web/api/belief.py` / `web/api/app.py` / `ecos/__init__.py`
+- MODIFY `web/frontend/vite.config.ts` / `package.json` / `tsconfig.node.json` / `src/vite-env.d.ts`
+
 ## [0.95.2] 2026-08-17
 
 ### feat: React 18 + Vite + TS 前端底座 + 教师端 UI 真实化 (v0.95 应用层产品化阶段 1 前端)

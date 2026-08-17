@@ -759,22 +759,60 @@ def index():
     """W5 修复：加 Cache-Control: no-cache 头,避免浏览器缓存旧版 index.html。
     Bisen 反馈：input 默认值是 W5 改动后的逻辑，但浏览器渲染异常，
     根因是浏览器缓存了 W4 之前版本的 JS。
+
+    v0.96: dist/student.html 存在 → React 学生端 SPA; 否则 legacy web/student.
     """
-    response = send_from_directory(
-        Path(__file__).parent.parent / "student", "index.html"
-    )
+    dist = Path(__file__).parent.parent / "frontend" / "dist"
+    if (dist / "student.html").exists():
+        response = send_from_directory(dist, "student.html")
+    else:
+        response = send_from_directory(
+            Path(__file__).parent.parent / "student", "index.html"
+        )
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
     return response
 
 
+@app.route("/student/")
+def student_app():
+    """v0.96: 学生端 React SPA 入口 (Flask 托管 build 产物).
+
+    dist/student.html 存在 → 服务 React build 产物; 否则 fallback 老静态
+    web/student/index.html (v0.96 迁移期兼容, React build 前老页面仍可访问).
+    """
+    dist = Path(__file__).parent.parent / "frontend" / "dist"
+    if (dist / "student.html").exists():
+        response = send_from_directory(dist, "student.html")
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
+    return student_static("index.html")
+
+
+@app.route("/student/assets/<path:filename>")
+def student_assets(filename: str):
+    """v0.96: React build 静态资源 (js/css) 服务."""
+    dist = Path(__file__).parent.parent / "frontend" / "dist"
+    if (dist / "assets" / filename).exists():
+        return send_from_directory(dist / "assets", filename)
+    return student_static(filename)
+
+
 @app.route("/student/<path:filename>")
 def student_static(filename: str):
-    """W5 修复：加 Cache-Control: no-cache 头（同上）。"""
-    response = send_from_directory(
-        Path(__file__).parent.parent / "student", filename
-    )
+    """W5 修复：加 Cache-Control: no-cache 头（同上）。
+
+    v0.96: dist 有同名文件优先 (React build 产物), 否则 legacy web/student/.
+    """
+    dist = Path(__file__).parent.parent / "frontend" / "dist"
+    if (dist / filename).exists():
+        directory = dist
+    else:
+        directory = Path(__file__).parent.parent / "student"
+    response = send_from_directory(directory, filename)
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"

@@ -410,6 +410,26 @@ def get_student_state(student_id: str) -> dict[str, Any]:
     # W3: 探针题状态机字段
     probe = engine.probe_progress(student_id)
 
+    # v0.96: Motivation Profile 3 维当前值 + 观测数 (v0.87 Kernel 侧, 前端首次呈现)
+    motivation = state.motivation
+    try:
+        motivation_payload = {
+            "frustration": round(float(motivation.frustration), 4),
+            "engagement": round(float(motivation.engagement), 4),
+            "confidence": round(float(motivation.confidence), 4),
+            "observation_count": len(motivation.recent_trajectory),
+        }
+    except Exception:
+        _log.warning(
+            "motivation 序列化失败 (sid=%s), fallback 中性值", student_id, exc_info=True
+        )
+        motivation_payload = {
+            "frustration": 0.0,
+            "engagement": 0.5,
+            "confidence": 0.5,
+            "observation_count": 0,
+        }
+
     return {
         "student_id": student_id,
         # 组件1: 5D mean
@@ -443,6 +463,8 @@ def get_student_state(student_id: str) -> dict[str, Any]:
         "misc_history": [],  # 在 trajectory snapshots 中
         # 组件7: overall_confidence
         "overall_confidence": round(state.overall_confidence, 4),
+        # v0.96: Motivation Profile (frustration/engagement/confidence)
+        "motivation": motivation_payload,
         "c_discount_factor": round(
             state.C.discount_factor if hasattr(state.C, "discount_factor") else 1.0, 3
         ),
