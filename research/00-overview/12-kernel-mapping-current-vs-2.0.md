@@ -126,6 +126,9 @@
 | `ecos/cta/belief_updater.py:BeliefUpdator._register_evidence` (v0.83.0-b) | 100% | apply() 注入 evidence_engine 走 Evidence.add 路径, 否则 fallback 到 evidence_ids.append |
 | `scripts/check_no_direct_state_mutation.py` | 100% (v0.83.0-b) | FUNC_ALLOWLIST += add_evidence, 防御性自检 [8] 仍 hard block |
 
+> **接线状态说明 (v0.96.6 核验)**: 上表"100%"指 Evidence / Event Engine **kernel 模块本身**的完整度, **不代表已接入 web 答题流**。
+> web 答题流 (`submit_answer` → `BeliefUpdator`) **未注入 `evidence_engine` / `event_log`**, 产品路径只落 `students` 表 blob 列 (trajectory_summary / response_history / …), 因此答题流中 `evidence_log` / `event_log` / `trajectory_snapshots` 三表为空 (非 bug, 无消费方)。注入点已预留 (`BeliefUpdator.evidence_engine=` 参数, 见 §8.2), 待出现消费方 (家长透明化 / replay 审计) 时接线。
+
 **演进建议**：
 - **v0.77.0**：引入 Evidence Engine（统一 Evidence schema + 关联管理）✅ 2026-08-10 在 v0.83.0-a/b 落地
 - **v0.78.0**：把 calibration_log + response_history + llm_critic_results 统一为 Evidence 流 ✅ 2026-08-10 在 v0.83.0-a 落地
