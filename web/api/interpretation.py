@@ -48,6 +48,17 @@ _BLOOM_LAYER_NAMES = {
     "L6": "创造 (CREATE)",
 }
 
+# v0.96.6: /api/state 的 bloom_profile.dominant 是 BloomLevel 枚举名 ("REMEMBER"),
+# 归一化为 L-code ("L1") 才能命中 _BLOOM_LAYER_NAMES 与前端 WherePage 主导高亮。
+_BLOOM_ENUM_TO_L = {
+    "REMEMBER": "L1",
+    "UNDERSTAND": "L2",
+    "APPLY": "L3",
+    "ANALYZE": "L4",
+    "EVALUATE": "L5",
+    "CREATE": "L6",
+}
+
 
 def _level(theta: float) -> str:
     """5D 维度分档:strong / medium / weak。"""
@@ -106,18 +117,20 @@ def _interp_bloom(state: Dict[str, Any]) -> Dict[str, Any]:
     """Bloom 6 层解读:主导层定位 + 下一层 gap + 未探及层。"""
     bp = state.get("bloom_profile", {}) or {}
     levels = bp.get("bloom_levels", {}) or {}
-    dom = bp.get("dominant", "—")
+    dom = bp.get("dominant", "—") or "—"
+    # v0.96.6: 归一化枚举名 → L-code, dominant 直接给 L-code 供前端主导高亮比对
+    dom_code = _BLOOM_ENUM_TO_L.get(dom, dom)
     dist = state.get("bloom_layer_distance", {}) or {}
     next_layer = dist.get("next")
     gap = dist.get("gap", 0.0)  # next - current(负=未跨越)
 
-    layer_label = _BLOOM_LAYER_NAMES.get(dom, dom)
+    layer_label = _BLOOM_LAYER_NAMES.get(dom_code, dom)
 
     # 未探及层(主层之上的更高层,值仍为 0.5 中性初值)
     unprobed = []
     layer_order = ["L1", "L2", "L3", "L4", "L5", "L6"]
-    if dom in layer_order:
-        dom_idx = layer_order.index(dom)
+    if dom_code in layer_order:
+        dom_idx = layer_order.index(dom_code)
         for higher in layer_order[dom_idx + 1:]:
             if levels.get(higher, 0.5) == 0.5:
                 unprobed.append(higher)
@@ -135,7 +148,7 @@ def _interp_bloom(state: Dict[str, Any]) -> Dict[str, Any]:
     if unprobed:
         parts.append(f"更深的 {','.join(unprobed)} 层尚未探及,样本有限")
     return {
-        "dominant": dom,
+        "dominant": dom_code,
         "dominant_label": layer_label,
         "levels": {k: round(v, 4) for k, v in levels.items()},
         "next_layer": next_layer,

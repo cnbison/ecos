@@ -87,19 +87,21 @@ export default function GrowthPage({ studentId }: { studentId: string }) {
         <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
           {interp.trajectory.trend}（共 {st.trajectory.length} 个轨迹点）
         </div>
-        <div className="delta-chips">
-          {(Object.entries(interp.trajectory.delta_5d) as Array<[string, number]>).map(
-            ([dim, val]) => (
-              <span
-                key={dim}
-                className={`delta-chip ${val > 0.01 ? "up" : val < -0.01 ? "down" : ""}`}
-              >
-                {dim} {val > 0 ? "+" : ""}
-                {val.toFixed(2)}
-              </span>
-            ),
-          )}
-        </div>
+        {interp.trajectory.delta_5d && (
+          <div className="delta-chips">
+            {(Object.entries(interp.trajectory.delta_5d) as Array<[string, number]>).map(
+              ([dim, val]) => (
+                <span
+                  key={dim}
+                  className={`delta-chip ${val > 0.01 ? "up" : val < -0.01 ? "down" : ""}`}
+                >
+                  {dim} {val > 0 ? "+" : ""}
+                  {val.toFixed(2)}
+                </span>
+              ),
+            )}
+          </div>
+        )}
         <p className="muted" style={{ fontSize: 12 }}>
           {interp.trajectory.comment}
         </p>

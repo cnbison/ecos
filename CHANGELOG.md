@@ -12,6 +12,26 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.96.6] 2026-08-18
+
+### fix: 学生端空数据异常 — GrowthPage 崩溃 + interpretation dominant 归一化
+
+> **触发**: Bisen 反馈用 lbc002 登录时界面显示异常/数据为空, 成长 Tab 无显示; lbc001 有数据.
+> **根因一 (前端崩溃)**: `GrowthPage` `Object.entries(interp.trajectory.delta_5d)` — 新鲜学生 (<2 轨迹点) 时后端 `_interp_trajectory` 不产出 `delta_5d` key, `Object.entries(undefined)` 抛 TypeError → 成长页整页渲染为空 (看似"无显示").
+> **修复**: `GrowthPage.tsx` 给 delta-chips 加 `delta_5d &&` guard; 样本不足时仅显示"样本不足 2 个轨迹点"提示.
+> **根因二 (解读中文回退)**: `belief.py` 序列化 `bloom_profile.dominant = dominant_layer.name` (枚举名 "REMEMBER"), 而 `_BLOOM_LAYER_NAMES` 以 "L1".."L6" 为 key → `dominant_label` 永远回退英文; 且 `unprobed_layers` 因枚举名不在 `layer_order` 永远为空; WherePage 主导高亮 `interp.bloom.dominant === lvl` 也永远不命中.
+> **修复**: `interpretation.py` 新增 `_BLOOM_ENUM_TO_L` 归一化枚举名 → L-code, `dominant` 直接输出 L-code, `dominant_label` 命中中文 ("记忆 (REMEMBER)"), `unprobed` 正常计算, WherePage 主导高亮生效.
+> **测试**: 新增 tests/test_interpretation.py 7 个回归 (dominant 归一化 / unprobed 计算 / <2 点无 delta_5d / ≥2 点有 delta_5d / 新鲜学生总评). 全量 pytest 1395 → 1402 passed.
+> **验证**: `npm run build` (tsc+vite) 全绿; 运行中 API 实测 lbc002/lbc001 report 均返回 L-code + 中文 label.
+
+#### MODIFY: web/api/interpretation.py — _BLOOM_ENUM_TO_L 归一化 + unprobed 修复
+
+#### MODIFY: web/frontend/src/student/pages/GrowthPage.tsx — delta_5d guard (空数据不崩溃)
+
+#### MODIFY: tests/test_interpretation.py — 新增 7 回归测试
+
+#### MODIFY: ecos/__init__.py / web/frontend/package.json — 版本 0.96.6
+
 ## [0.96.5] 2026-08-18
 
 ### fix: BloomProfileState.update_dominant 并列取最高层 — 修复成长被低估
