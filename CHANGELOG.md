@@ -12,6 +12,24 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.96.5] 2026-08-18
+
+### fix: BloomProfileState.update_dominant 并列取最高层 — 修复成长被低估
+
+> **触发**: Bisen 确认 "轨迹全 APPLY" 需查数据层 — 采纳"并列取最高层"方案.
+> **根因**: `update_dominant()` 用 `probs.argmax()` (numpy 返回第一个 max), 6 层概率**并列时取最低层**. 真实数据 lbc003: L3/L4/L5 均 1.0, 却永远显示 L3 (APPLY), 成长被严重低估 — 学生已掌握到 L5 但轨迹停在"应用".
+> **修复**: `belief_state.py update_dominant()` — `max_val > 0.5` 时并列取**最高层** (`flatnonzero(probs==max).max()`); 全部 ≤ 中性基线 0.5 (未探及/无信号) 时仍取最低层, 避免全新画像跳 L6.
+> **边界验证** (脚本): 全 0.5→L1; lbc003 场景→L5; 单层 0.6→L1; L1/L2 并列→L2; 仅 L1 答错→L2. 全过.
+> **测试**: 全量 1393→1395 (+2 回归: 并列取最高 / 中性态不跳 L6, tests/test_apply_snapshot.py). 其余 10 个引用 dominant_layer 的测试文件全绿, 未破坏.
+> **注意**: 该改动只影响**新创建**的轨迹快照; 用户已有历史快照 (如 lbc003 的 56 条 APPLY) 不会追溯重算, 继续答题后新快照即体现.
+> **验证**: 全量 pytest 1395 passed.
+
+#### MODIFY: ecos/cta/belief_state.py — update_dominant 并列取最高层 (+ 中性态边界)
+
+#### MODIFY: tests/test_apply_snapshot.py — +2 回归测试 (并列最高 / 中性不跳 L6)
+
+#### MODIFY: ecos/__init__.py / web/frontend/package.json / package-lock.json — 版本 0.96.5
+
 ## [0.96.4] 2026-08-18
 
 ### fix: 成长页 Bloom 层显示原始枚举名 ("APPLY") → 映射 "L3 应用"

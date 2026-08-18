@@ -123,10 +123,18 @@ class BloomProfileState:
         ])
 
     def update_dominant(self) -> None:
-        """根据 6 层概率重新判定 dominant_layer."""
+        """根据 6 层概率重新判定 dominant_layer.
+
+        v0.96.4: 并列(多层同概率)时取**最高层** — 原 argmax 取最低层导致
+        成长被低估 (lbc003: L3/L4/L5 全 1.0 仍显示 L3)。边界: 全部 ≤ 中性
+        基线 0.5 (未探及/无信号) 时仍取最低层, 避免全新画像跳到 L6。
+        """
         probs = self.as_vector()
+        max_val = float(probs.max())
+        max_idxs = np.flatnonzero(probs == max_val)
+        idx = int(max_idxs.max() if max_val > 0.5 else max_idxs.min())
         # BloomLevel 是 1-indexed，对应数组索引 0..5
-        self.dominant_layer = BloomLevel(int(probs.argmax()) + 1)
+        self.dominant_layer = BloomLevel(idx + 1)
 
     def __post_init__(self) -> None:
         """W1（2026-07-17）：初始化时按 6 层概率重新计算 dominant_layer。

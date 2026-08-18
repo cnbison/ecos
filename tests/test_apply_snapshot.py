@@ -102,6 +102,24 @@ def test_apply_snapshot_restores_bloom_profile(baseline_state: BeliefState):
     assert baseline_state.bloom_profile.dominant_layer == BloomLevel.ANALYZE
 
 
+def test_update_dominant_tie_breaks_to_highest_layer(baseline_state: BeliefState):
+    """v0.96.4: 并列概率取最高层 — L3/L4/L5 同值 1.0 → EVALUATE (原 argmax 取 L3, 成长被低估)."""
+    baseline_state.apply_snapshot({"bloom_profile": {
+        "remember": 0.85, "understand": 0.75, "apply": 1.0,
+        "analyze": 1.0, "evaluate": 1.0, "create": 0.65,
+    }})
+    assert baseline_state.bloom_profile.dominant_layer == BloomLevel.EVALUATE
+
+
+def test_update_dominant_neutral_all_zero5_stays_lowest(baseline_state: BeliefState):
+    """v0.96.4 边界: 全部 0.5 中性基线 → 不跳 L6, 取最底层 L1."""
+    baseline_state.apply_snapshot({"bloom_profile": {
+        "remember": 0.5, "understand": 0.5, "apply": 0.5,
+        "analyze": 0.5, "evaluate": 0.5, "create": 0.5,
+    }})
+    assert baseline_state.bloom_profile.dominant_layer == BloomLevel.REMEMBER
+
+
 def test_apply_snapshot_restores_learning_dna(baseline_state: BeliefState):
     """learning_dna 6 字段全恢复."""
     snapshot = {"learning_dna": {
