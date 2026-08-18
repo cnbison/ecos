@@ -8,6 +8,19 @@ import EChart from "../../components/EChart";
 const DIM_ORDER = ["K", "P", "S", "C", "X"] as const;
 const DIM_COLORS = ["#1e40af", "#7c3aed", "#059669", "#ea580c", "#0891b2"];
 
+// v0.96.4: /api 返回 BloomLevel 枚举名 ("APPLY"), 映射为用户可读 "L3 应用"
+const BLOOM_LABEL: Record<string, string> = {
+  REMEMBER: "L1 记忆",
+  UNDERSTAND: "L2 理解",
+  APPLY: "L3 应用",
+  ANALYZE: "L4 分析",
+  EVALUATE: "L5 评价",
+  CREATE: "L6 创造",
+};
+function bloomLabel(v?: string | null): string {
+  return v ? (BLOOM_LABEL[v] ?? v) : "—";
+}
+
 function fmtTs(iso?: string | null): string {
   if (!iso) return "—";
   const m = iso.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
@@ -105,7 +118,7 @@ export default function GrowthPage({ studentId }: { studentId: string }) {
                   {t.theta_5d[di]?.toFixed(2) ?? "—"}
                 </span>
               ))}
-              <span className="traj-bloom">{t.bloom_dominant ?? ""}</span>
+              <span className="traj-bloom">{bloomLabel(t.bloom_dominant)}</span>
             </div>
           ))}
         </div>
@@ -125,7 +138,7 @@ export default function GrowthPage({ studentId }: { studentId: string }) {
             >
               <span className="hist-mark">{h.correct ? "✅" : "❌"}</span>
               <span className="hist-pid">{h.problem_id}</span>
-              <span className="hist-bloom">{h.bloom_level ?? "—"}</span>
+              <span className="hist-bloom">{bloomLabel(h.bloom_level)}</span>
               <span className="hist-ts">{fmtTs(h.timestamp)}</span>
             </button>
             {openDetail === i && (

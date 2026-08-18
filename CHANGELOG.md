@@ -12,6 +12,20 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.96.4] 2026-08-18
+
+### fix: 成长页 Bloom 层显示原始枚举名 ("APPLY") → 映射 "L3 应用"
+
+> **触发**: Bisen 反馈成长页轨迹快照"所有都是 APPLY", 疑为 bug.
+> **根因(显示层)**: `/api/state` 轨迹 `bloom_dominant` 与 `/api/history` 历史 `bloom_level` 直接返回 BloomLevel 枚举名 ("APPLY"/"UNDERSTAND"), 前端原样显示. 旧版 legacy 同样如此, 一直存在.
+> **修复**: GrowthPage 新增 `bloomLabel()` 映射 枚举名 → "L{n} 中文" (REMEMBER→L1 记忆 ... CREATE→L6 创造), 应用于轨迹快照列 + 答题历史列. 题目 `bloom_layer` 本就是 "L3" 格式, 不受影响.
+> **注意(数据层, 未改)**: "所有都是 APPLY" 另一成因是 `BloomProfileState.update_dominant()` 用 `argmax`, 6 层概率**并列时取最低层** (lbc003 中 L3/L4/L5 均 1.0 仍显示 L3); 叠加 demo 题库多为 L3, 轨迹自然全为 APPLY. 改并列取最高层涉及内核语义 + 10 测试文件/26 断言, 待 Bisen 决策.
+> **验证**: `tsc -b --noEmit` + `eslint` 全绿; Vite HMR 生效.
+
+#### MODIFY: web/frontend/src/student/pages/GrowthPage.tsx — bloomLabel() 映射轨迹/历史 Bloom 层
+
+#### MODIFY: ecos/__init__.py / web/frontend/package.json / package-lock.json — 版本 0.96.4
+
 ## [0.96.3] 2026-08-18
 
 ### feat: 学生端「我在哪」页 UI 美化 — 统一三套条样式 + 概览 hero
