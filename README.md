@@ -193,17 +193,24 @@ python experiments/scripts/m2_w1_llm_client_smoke.py         # LLM 客户端
 ### 启动 Web UI 与答题
 
 > Phase 4 起 Product Demo 形态：启动 Flask 后直接在浏览器答题，无需手动跑验证脚本。
-> 路由定义见 `web/api/app.py`：根路径 `/` 直接返回学生端 `index.html`。
+> v0.96 起前端为 React SPA（学生端 + 教师端双页，Vite build → `web/frontend/dist/`，Flask 托管）。
+> **详细使用说明见 [docs/web-ui-quickstart.md](./docs/web-ui-quickstart.md)**。以下为快速入口。
 
 ```bash
-# 启动 Flask（端口 5173，debug 模式，改代码自动重载）
+# 1) 先构建前端产物（dist/ 已 gitignore，首次必须构建一次）
+cd web/frontend && npm install && npm run build && cd ..
+
+# 2) 启动 Flask（端口 5173，debug 模式，改代码自动重载）
 ECOS_DUAL_AGENT_ENABLED=1 python -m web.api.app
 ```
 
 | 入口 | 地址 |
 |---|---|
-| 学生端答题 | `http://localhost:5173/`（根路径，即 `web/student/index.html`）|
-| 教师端 | `http://localhost:5173/teacher/index.html`（`web/teacher/`）|
+| 学生端（React SPA，v0.96） | `http://localhost:5173/`（dist 优先，无 dist 时 fallback 旧版 `web/student/`）|
+| 教师端（React SPA，v0.95） | `http://localhost:5173/teacher/`（dist 优先，无 dist 时 fallback 旧版 `web/teacher/`）|
+
+**前端开发模式（热更新）**：后端照常跑在 5173，另开终端 `cd web/frontend && npm run dev`
+→ Vite 5174（proxy `/api` → Flask 5173），学生端 `http://localhost:5174/student.html`、教师端 `http://localhost:5174/`。
 
 > **`ECOS_DUAL_AGENT_ENABLED`** 默认关闭（`"0"`）。设为 `1` 才走 dual_agent（CTA+LCA 协同）路径；
 > 不设则只走老路径，dual_agent 不启用、v0.69.0 confidence 指标也不跑。
