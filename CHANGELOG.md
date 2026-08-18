@@ -12,6 +12,19 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.96.1] 2026-08-18
+
+### fix: 学生端根路径 `/` 白屏 — 补 `/assets/` 静态路由
+
+> **触发**: Bisen 启动 `ECOS_DUAL_AGENT_ENABLED=1 python -m web.api.app` 后打开 `http://localhost:5173/` 页面空白.
+> **根因**: v0.96 React build 产物用相对 base (`./assets/...`), 根入口 `/` 返回 `dist/student.html`, JS/CSS 解析为 `/assets/...`; 但 Flask 只注册了 `/student/assets/...` 与 `/teacher/assets/...`, **无 `/assets/...` 路由** → 资源 404 → React 不挂载 → 白屏. (`/student/`、`/teacher/` 不受影响).
+> **修复**: `web/api/app.py` 新增 `GET /assets/<path:filename>` 路由服务 `dist/assets/` (带 no-cache 头, 与 student/teacher assets 一致). `__version__` 0.96.0 → 0.96.1.
+> **验证**: `curl` 确认 `/` 200 + `/assets/*.js|css` 全部 200, `/teacher/` 无回归.
+
+#### MODIFY: web/api/app.py — 新增 `root_assets` 路由 (`GET /assets/<path:filename>`)
+
+#### MODIFY: ecos/__init__.py — `__version__` 0.96.0 → 0.96.1
+
 ## [0.96.0-docs] 2026-08-18
 
 ### docs: README.md 全面审查修订 — ECOS 2.0 双内核架构 + 应用层产品化 + 验证主线对齐

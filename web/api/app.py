@@ -801,6 +801,23 @@ def student_assets(filename: str):
     return student_static(filename)
 
 
+@app.route("/assets/<path:filename>")
+def root_assets(filename: str):
+    """v0.96.1: React build 产物在根路径 `/` 下解析为 `/assets/...` (相对 base).
+
+    v0.96.0 只在 `/student/` 下注册了 assets 路由; 根入口 `/` 返回 student.html,
+    但其 JS/CSS 是相对路径 `./assets/...` → `/assets/...` → 404 → 白屏。
+    """
+    dist = Path(__file__).parent.parent / "frontend" / "dist"
+    if (dist / "assets" / filename).exists():
+        response = send_from_directory(dist / "assets", filename)
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
+    return send_from_directory(Path(__file__).parent.parent / "student", filename)
+
+
 @app.route("/student/<path:filename>")
 def student_static(filename: str):
     """W5 修复：加 Cache-Control: no-cache 头（同上）。
