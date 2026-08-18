@@ -35,6 +35,25 @@
 
 - 详见 [discussions/2026-08-17-v095方向审查-验证滞后于抽象与应用层产品化规划.md](discussions/2026-08-17-v095方向审查-验证滞后于抽象与应用层产品化规划.md) 决策 3
 
+## [0.96.0-docs-2] 2026-08-18
+
+### docs: CLAUDE.md 完整重构瘦身 (589 行/54KB → 150 行/11.8KB) + 历史归档 docs/defensive-history.md
+
+> **触发**: Bisen 审查发现 CLAUDE.md 过于庞大 (589 行/54KB), 58% 是历史审计日志而非规则 — 版本进度与 README/CHANGELOG 三处重复 + [8] mutation 审计 + CI gate 起源故事全部内联.
+> **性质**: 纯文档重构, `__version__` 保持 0.96.0 (无功能/修复变更). Bisen 拍板完整重构方案.
+
+#### MODIFY: CLAUDE.md — 瘦身为只含"始终生效协作规则"的协作指南
+
+- **保留**: 项目性质 (一句话 + 权威状态源指针) / 项目背景 / SelfLab 关系 / 用户与协作 / 协作规范 / 核心工作流闭环 / 目录约定要点 / Product Demo 代码约定 / 深度分析存档 / 自动同步推送 / 讨论风格
+- **防御性自检规范凝练**: 入口 (pre-commit/pre-push hooks + CI manual-only) + 8 项自检表 (拦截历史列精简) + 9 条硬规则 (无 silent pass / 版本同步 / commit message 表达 / 不虚标 / LLM judge 不降级 / 架构升级历史状态警告 / judge prompt 必加测试 / 同类模式扫描 / 新依赖同步 pyproject)
+- **删除/外移**: §项目性质 v0.54-v0.94 版本进度叙述 (→ README §当前状态) / [8] mutation 审计日志 + §[9] push 起源 + CI gate 逐条历史 + pytest 分文件清单 (→ docs/defensive-history.md) / Bisen 自定义 Phase 1-4 表 (→ CHANGELOG)
+- 修正陈旧表述: 目录约定 "ecos/ Python 包骨架(未来实现)" → 真实 17 包; 命名约定补 React SPA 主路径 + legacy fallback; H3 状态更新 (v0.86 已通过)
+
+#### NEW: docs/defensive-history.md — 防御性自检历史档案 (archive, 保真不删除)
+
+- 七部分: ①起源 (2026-07-19) ②§[9] push 前必跑起源 (2026-07-28) ③v0.64.1 CI manual 决策 ④8 项自检完整表 + mutation 审计日志 (v0.80→v0.94) ⑤CI gate 逐条历史 (v0.52.0→v0.58.0 含起源故事) ⑥pytest 分文件清单 ⑦未自动化待办
+- 定位: 需要回溯"某条防御规则为什么存在"时按需读取, 不常驻每次会话
+
 ## [0.96.0] 2026-08-17
 
 ### feat: 学生端 React 重写 — 信息架构三问 + 通俗化全接 + 动机层首次呈现 (v0.96 应用层产品化)
