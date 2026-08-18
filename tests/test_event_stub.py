@@ -152,6 +152,55 @@ class TestEndpointBehavior:
         assert received[0].event_type == "hint_requested"
         assert received[0].payload["problem_id"] == "pb-001"
 
+    # ── v0.96.7: hint 内容生成 ────────────────────────────────────────
+
+    def test_hint_returns_rule_generated_content(self, client):
+        """v0.96.7: 真实 problem_id 返回基于元数据的提示 (考查点 + Bloom 层中文)."""
+        resp = client.post("/api/event/hint", json={
+            "student_id": "stu-001",
+            "problem_id": "PB-Q01",  # 变量 L1, 无 misconception
+            "hint_level": 1,
+        })
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["status"] == "logged"
+        assert "hint" in data
+        hint = data["hint"]
+        assert "变量与赋值" in hint          # skill_name
+        assert "L1" in hint and "记忆" in hint  # Bloom 层 + 中文标签
+        # 不泄漏答案 (对照 Q 矩阵 correct_answer)
+        from web.api.qmatrix import get_question_detail
+        assert get_question_detail("PB-Q01")["correct_answer"] == "5"
+        assert "5" not in hint
+        assert "print(x)" not in hint
+
+    def test_hint_includes_misconception_warning(self, client):
+        """v0.96.7: 带 misconception 的题, hint 含误区描述 (M1-M8 权威库)."""
+        resp = client.post("/api/event/hint", json={
+            "student_id": "stu-001",
+            "problem_id": "PB-Q02",  # 变量 L2, misconceptions=["M2"]
+            "hint_level": 1,
+        })
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert "hint" in data
+        hint = data["hint"]
+        assert "常见误区" in hint
+        assert "x=x+1" in hint or "赋值" in hint  # M2 名称/描述
+
+    def test_hint_unknown_problem_returns_fallback(self, client):
+        """v0.96.7: 未知 problem_id → 兜底提示 + status 仍 logged."""
+        resp = client.post("/api/event/hint", json={
+            "student_id": "stu-001",
+            "problem_id": "not-exist-999",
+            "hint_level": 1,
+        })
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["status"] == "logged"
+        assert "hint" in data
+        assert "没有针对性" in data["hint"]
+
     def test_idle_endpoint_emits_event(self, client):
         """POST /api/event/idle emits idle_detected event."""
         reset_default_bus()

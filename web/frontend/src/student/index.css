@@ -601,6 +601,29 @@ textarea.plain {
   resize: vertical;
 }
 
+.hint-box {
+  border: 1px solid var(--border);
+  border-left: 4px solid #f59e0b;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-top: 12px;
+  background: #fffbeb;
+}
+
+.hint-box .hint-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #b45309;
+  margin-bottom: 6px;
+}
+
+.hint-box .hint-text {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text);
+  white-space: pre-wrap;
+}
+
 .feedback-box {
   border: 1px solid var(--border);
   border-radius: 10px;

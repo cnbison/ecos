@@ -12,6 +12,30 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.96.7] 2026-08-18
+
+### feat: 答题页「💡 提示」做成真实提示 — 后端规则生成 + 前端提示卡片
+
+> **触发**: Bisen 询问答题页新增「💡 提示」按钮用途. 原为 v0.85.0-d 行为事件埋点桩 (POST /api/event/hint 只记 hint_requested, 返回 {status:"logged"} 无内容, 前端点完仅显示"已请求提示 ✓"). 采用 Bisen 选定方向"做成真实提示".
+> **设计**: 后端基于题目元数据规则生成**不泄漏答案**的提示: ① 考查点 = `skill_name` + Bloom 层中文标签 ("这道题考查「变量与赋值」(L2 理解)"); ② 常见误区 = `misconceptions` 取前 2 条, M1-M8 用 `PythonBasicsMisconceptionLibrary` 权威库 (name + description), `M-candidate-*` / `M-illinois-*` (C/X 自评题专用) 用事件桩内手动兜底映射 (描述取自 Q 矩阵对应题目上下文); ③ 通用作答建议. **不泄漏 `correct_answer`** (测试断言).
+> **埋点保留**: `/api/event/hint` 仍 emit `hint_requested` → PluginRuntime → HumanFeedback (c 阶段 LCA 消费), 响应新增 `hint` 字段, `status` 仍 "logged".
+> **前端**: `emitEvent` 改为返回响应体 (失败仍 console.warn 不打断答题); AnswerPage 点击后异步取 hint 并渲染 `.hint-box` 提示卡片 (左侧琥珀色竖条 + 浅黄底), 换题重置.
+> **边界**: 未知 problem_id → 兜底通用提示 + status 仍 logged; misconception 库加载失败 → 走兜底映射 (logger.warning, 无 silent pass).
+> **测试**: tests/test_event_stub.py +3 (真实题返回考查点+Bloom 中文 / misconception 题含误区描述 / 未知题兜底). 全量 pytest 1402 → 1405 passed.
+> **验证**: `npm run build` (tsc+vite) + `eslint --max-warnings 0` 全绿.
+
+#### MODIFY: web/api/event_stub.py — _build_hint 规则生成 + /api/event/hint 返回 hint 字段
+
+#### MODIFY: web/frontend/src/student/api.ts — emitEvent 返回响应体
+
+#### MODIFY: web/frontend/src/student/pages/AnswerPage.tsx — 异步取 hint + 渲染提示卡片
+
+#### MODIFY: web/frontend/src/student/index.css — .hint-box 提示卡片样式
+
+#### MODIFY: tests/test_event_stub.py — +3 hint 内容回归测试
+
+#### MODIFY: ecos/__init__.py / web/frontend/package.json / package-lock.json — 版本 0.96.7
+
 ## [0.96.6] 2026-08-18
 
 ### fix: 学生端空数据异常 — GrowthPage 崩溃 + interpretation dominant 归一化

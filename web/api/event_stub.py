@@ -28,6 +28,73 @@ _log = logging.getLogger(__name__)
 # v0.85.0-d: Blueprint for frontend event stub endpoints
 event_stub_bp = Blueprint("event_stub", __name__)
 
+# v0.96.7: Bloom 层中文标签（hint 生成用）
+_BLOOM_LABELS = {
+    "L1": "记忆",
+    "L2": "理解",
+    "L3": "应用",
+    "L4": "分析",
+    "L5": "评价",
+    "L6": "创造",
+}
+
+# v0.96.7: M-candidate-* / M-illinois-* 不在 PythonBasicsMisconceptionLibrary (M1-M8) 内,
+# 手动兜底映射（描述取自 data/python_basics_q_matrix.json 对应题目上下文, 非权威库）。
+_MISC_FALLBACK = {
+    "M-candidate-scope-confusion": "作用域混淆：函数内直接 x = x + 1 会触发 UnboundLocalError，改全局变量要先声明 global。",
+    "M-candidate-mutable-confusion": "可变对象引用混淆：变量是标签不是盒子，b = a 后 b.append 会同时改到 a。",
+    "M-candidate-mutable-default": "可变默认参数陷阱：def f(x, lst=[]) 的 [] 只创建一次，多次调用会累积，改用 lst=None。",
+    "M-candidate-recursion-no-memo": "递归未记忆化：fib(n) 不缓存会重复计算，量大时卡死，加 memo 或改自底向上。",
+    "M-candidate-nested-loop-confusion": "嵌套循环混淆：break 只跳出内层循环，不会跳出外层。",
+    "M-candidate-closure-binding": "闭包延迟绑定：循环内 lambda 捕获的是同一个变量，调用时才取值。",
+    "M-illinois-confidence-avoid-help": "这道题在考察求助行为：先独立思考，再决定是否需要求助。",
+    "M-illinois-tool-avoidance": "这道题在考察工具使用：不确定时查资料/笔记也是学习的一部分。",
+    "M-illinois-overconfidence": "这道题在考察过度自信：做完请再检查一遍，别凭直觉直接提交。",
+    "M-illinois-overdependence": "这道题在考察过度依赖：别每次都查，先凭已有知识试答。",
+    "M-illinois-scaffolding-overdependence": "这道题在考察对讲解的依赖：先自己尝试，再决定是否需要示例。",
+}
+
+
+def _build_hint(problem) -> str:
+    """基于题目元数据生成规则提示（不泄漏 correct_answer）。
+
+    Hint 只取材: skill_name + Bloom 层中文标签 + misconceptions 描述 + 通用作答建议。
+    """
+    bloom = problem.get("bloom_goal_id", "").split("-")[-1]
+    bloom_label = _BLOOM_LABELS.get(bloom, bloom)
+    skill = problem.get("skill_name") or problem.get("topic") or "本题"
+    lines = [f"这道题考查「{skill}」({bloom} {bloom_label})。"]
+
+    misc_codes = problem.get("misconceptions") or []
+    if misc_codes:
+        lines.append("⚠️ 关联常见误区：")
+        lib = None
+        try:
+            from ecos.cta.content.python_basics_misconceptions import (
+                PythonBasicsMisconceptionLibrary,
+            )
+            lib = PythonBasicsMisconceptionLibrary()
+        except Exception:
+            _log.warning(
+                "event_stub: misconception library 加载失败, 用兜底映射",
+                exc_info=True,
+            )
+        for code in misc_codes[:2]:
+            desc = None
+            if lib is not None:
+                entry = lib.get(code)
+                if entry is not None:
+                    desc = f"{entry.name}：{entry.description}"
+            if desc is None:
+                desc = _MISC_FALLBACK.get(code)
+            if desc:
+                lines.append(f"  · {desc}")
+    else:
+        lines.append("先回顾相关概念与示例，再动手作答。")
+
+    lines.append("先写出思路与边界条件，再写代码，别急着提交。")
+    return "\n".join(lines)
+
 
 def _emit_event(student_id: str, event) -> Dict[str, Any]:
     """Helper: emit event to default bus + return {event_id, status}.
@@ -57,11 +124,14 @@ def _emit_event(student_id: str, event) -> Dict[str, Any]:
 def api_event_hint():
     """POST /api/event/hint — frontend 学生请求提示.
 
+    v0.96.7: 除埋点外, 基于题目元数据返回规则生成的 hint 内容（不泄漏答案）。
+
     Request JSON:
         {"student_id": str, "problem_id": str, "hint_level": int (1-3, default 1)}
 
     Returns:
-        {"event_id": str, "student_id": str, "status": "logged"}
+        {"event_id": str, "student_id": str, "status": "logged",
+         "hint": str}  # v0.96.7: 规则生成提示; problem 未知时返回通用兜底提示
 
     Emits:
         LearningEvent(event_type="hint_requested", payload={problem_id, hint_level})
@@ -78,7 +148,22 @@ def api_event_hint():
             problem_id=problem_id,
             hint_level=hint_level,
         )
-        return jsonify(_emit_event(student_id, event))
+        result = _emit_event(student_id, event)
+
+        from web.api.qmatrix import get_question_detail
+        problem = get_question_detail(problem_id)
+        if problem is None:
+            _log.warning(
+                "event_stub: hint 请求 problem_id=%r 不在 Q 矩阵, 返回兜底提示",
+                problem_id,
+            )
+            result["hint"] = (
+                "这道题暂时没有针对性的提示。先通读题目、回顾相关概念，"
+                "把思路写出来再作答。"
+            )
+        else:
+            result["hint"] = _build_hint(problem)
+        return jsonify(result)
     except (KeyError, TypeError, ValueError) as e:
         return jsonify({"error": f"Bad request: {e}"}), 400
     except Exception as e:

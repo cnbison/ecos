@@ -21,6 +21,7 @@ export default function AnswerPage({ studentId }: { studentId: string }) {
     misc_id?: string;
   } | null>(null);
   const [hintUsed, setHintUsed] = useState(false);
+  const [hint, setHint] = useState<string | null>(null);
   const [reflection, setReflection] = useState("");
   const [reflectionSent, setReflectionSent] = useState(false);
 
@@ -57,6 +58,7 @@ export default function AnswerPage({ studentId }: { studentId: string }) {
     setAnswer("");
     setResult(null);
     setHintUsed(false);
+    setHint(null);
     setReflection("");
     setReflectionSent(false);
     lastInput.current = Date.now();
@@ -82,14 +84,19 @@ export default function AnswerPage({ studentId }: { studentId: string }) {
     resetIdle();
   };
 
-  const onHint = () => {
+  const onHint = async () => {
     if (hintUsed || !q) return;
     setHintUsed(true);
-    void emitEvent("hint", {
+    const res = await emitEvent("hint", {
       student_id: studentId,
       problem_id: q.problem_id,
       hint_level: 1,
     });
+    const h = (res as { hint?: string } | undefined)?.hint;
+    setHint(
+      h ??
+        "提示已记录。先通读题目、回顾这道题考查的概念，把思路写出来再作答。",
+    );
   };
 
   const onSubmit = async () => {
@@ -184,6 +191,12 @@ export default function AnswerPage({ studentId }: { studentId: string }) {
             {judging ? "AI 评判中…" : "提交答案"}
           </button>
         </div>
+        {hint && (
+          <div className="hint-box">
+            <div className="hint-title">💡 提示</div>
+            <div className="hint-text">{hint}</div>
+          </div>
+        )}
       </div>
 
       {result && (

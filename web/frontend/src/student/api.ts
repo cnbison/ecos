@@ -75,13 +75,15 @@ export function submitAnswer(body: {
 }
 
 // v0.95.0: 4 行为事件 (best-effort 遥测, 失败 console.warn 不打断答题 — 不 silent pass)
+// v0.96.7: 返回响应体 (hint 端点携带规则生成的提示内容), 失败仍不打断答题
 export async function emitEvent(
   kind: "hint" | "idle" | "goal_change" | "reflection",
   payload: Record<string, unknown>,
-): Promise<void> {
+): Promise<Record<string, unknown> | undefined> {
   try {
-    await postJson(`/api/event/${kind}`, payload);
+    return await postJson(`/api/event/${kind}`, payload);
   } catch (e) {
     console.warn(`emitEvent ${kind} 失败:`, e);
+    return undefined;
   }
 }
