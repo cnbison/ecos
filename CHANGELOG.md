@@ -12,6 +12,29 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.96.0-docs] 2026-08-18
+
+### docs: README.md 全面审查修订 — ECOS 2.0 双内核架构 + 应用层产品化 + 验证主线对齐
+
+> **触发**: Bisen 审查发现 README 多章节严重滞后 (文档结构 / K12-only 定位 / 未体现 ECOS 2.0 / State-based Cognitive Kernel / Cognitive Runtime / 当前状态停在 v0.94).
+> **性质**: 纯文档修订, `__version__` 保持 0.96.0 (无功能/修复变更).
+
+#### MODIFY: README.md — 全面修订 (对齐 v0.96.0 现状 + ECOS 2.0 蓝图 + 方向审查)
+
+- **badges**: status/version 升级 v0.94.0-d → v0.96.0, 新增 pytest 1393 badge
+- **标题/导语**: 补 ECOS 2.0 双内核定位 — State-based Cognitive Kernel + Cognitive Runtime + 教育( K12 )第一垂直领域; 明确双 Agent ( CTA/LCA ) 是教育映射层的通俗叙事, 底座是状态优先计算
+- **核心架构**: 保留双 Agent 互校图 (教育映射层) + 新增 ECOS 2.0 底座图 (Runtime 8 plan API + Kernel 5 引擎 6 对象 + Domain Layer + React 应用层)
+- **文档结构 (L88 重写)**: ecos/ 由"未来实现"占位 → 真实 17 包 (cta 4 层 / lca 4 层 / twin / domain / dual_agent / evaluation / event / evidence / goal / metrics / motivation / persistence / plugins / runtime / session / bloom); 新增 web/ (api/frontend/student/teacher) + tests + scripts + githooks + docs + Makefile
+- **当前状态**: v0.94.0 → v0.96.0 (2026-08-18); Kernel 深化进度 (v0.83-v0.94) 收口表述 + 新增应用层产品化进度 (v0.95 教师端 / v0.96 学生端); H3 标注"小样本"
+- **三个科学问题跟踪表 (新增)**: ①Twin 准确性 ②Policy 有效性 ③长期增益 — 方向审查决策 3 的"验证欠债显式化"落地, 与缺失清单同机制维护
+- **累计产出**: pytest 958 → 1393, 303 commits
+- **下一步**: "v0.95+ 准备中" → "v0.97+ 验证主线" (家长端 + 试点 + LearningDNA), 抽象推演冻结表述
+- **footer**: v0.94.0 → v0.96.0
+
+#### MODIFY: research/00-overview/12-kernel-mapping-current-vs-2.0.md — §8.2 补三问跟踪表 (方向审查决策 3, 与 README 同步)
+
+- 详见 [discussions/2026-08-17-v095方向审查-验证滞后于抽象与应用层产品化规划.md](discussions/2026-08-17-v095方向审查-验证滞后于抽象与应用层产品化规划.md) 决策 3
+
 ## [0.96.0] 2026-08-17
 
 ### feat: 学生端 React 重写 — 信息架构三问 + 通俗化全接 + 动机层首次呈现 (v0.96 应用层产品化)

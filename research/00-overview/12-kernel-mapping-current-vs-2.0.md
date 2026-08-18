@@ -698,6 +698,14 @@ v0.84.0-d 在 LCA 4-layer 之外, 引入 Plugin Runtime 雏形 (kernel-mapping �
 > - **v0.98+ (需求牵引解锁)**: C/X 主导题扩量 (5 -> 20+); H1 形式化验证 (视试点缩放); Plugin SDK 独立打包 / Multi-Domain 落地.
 > - 详见 [discussions/2026-08-17-v095方向审查-验证滞后于抽象与应用层产品化规划.md](../../discussions/2026-08-17-v095方向审查-验证滞后于抽象与应用层产品化规划.md).
 
+> **三问跟踪表 (2026-08-18 落地, 方向审查决策 3 — 验证欠债显式化, 度量什么就会推进什么)**: 与 README.md §当前状态 同步维护, 像缺失清单一样逐条更新.
+>
+> | # | 科学问题 | 当前证据 | 目标 | 状态 |
+> |---|---------|---------|------|------|
+> | ① | **Twin 是否准确？** | 3 测试用户 (lbc001/002/003), 1 学科 (Python), 5D 均非零 + H3-c4 fingerprint | 小规模试点 5-10 学生 (lbc004+) + H1 数据收集方案 | 🔴 未规模验证 |
+> | ② | **Policy 是否有效？** | H3 真 A/B 3-way 通过 (v0.86), 小样本 | 试点内 Policy AB 对照, 复现 H3 | 🟡 通过未复现 |
+> | ③ | **是否具有长期增益？** | LearningDNA 仍"待启用", 无纵向数据 | LearningDNA ≥50 题启用 + 3 年数据护城河积累 | 🔴 未启动 |
+
 > **[v0.87.0 完成 2026-08-11]**: 缺失清单 3→1 (Motivation Profile / POMDP Policy 全部落地). Phase 6+ Kernel 扩展第 2 个版本 4 sub-commit 全部完成 (a=Motivation schema/b=Motivation Runtime+c=POMDP 雏形/d=POMDP 集成 3-way A/B). pytest 898 → 958 (+60, +6.7%).
 
 > **[v0.83.0 更新 2026-08-10]**: Evidence Engine + Runtime API 100% 落地. 4 sub-commits a/b/c/d. 63 新增 tests (15+14+16+18, pytest 673 → 736, +9.4%). 详情见 §1.4/§1.5/§5.
