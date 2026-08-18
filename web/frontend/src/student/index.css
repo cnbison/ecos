@@ -166,42 +166,156 @@ button:disabled {
 }
 
 /* ── 我在哪 (WherePage) ──────────────────────────────────── */
+/* 顶部整体概览 hero */
+.where-hero {
+  background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 60%);
+  border: 1px solid #dbeafe;
+}
+
+.where-hero-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.where-hero-head h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.where-hero-conf {
+  font-size: 12px;
+  color: var(--muted);
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+
+.where-hero-overall {
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--text);
+  margin: 12px 0 14px;
+}
+
+.where-hero-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 12px;
+}
+
+.chip strong {
+  color: var(--text);
+}
+
+.chip.ok {
+  background: #e7f6ec;
+  border-color: #b7e4c7;
+}
+
+.chip.ok strong {
+  color: #15803d;
+}
+
+/* 区块标题 */
+.sec-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.sec-head h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.sec-sub {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* 统一进度条 (5D / Bloom / TC 共用) */
+.track {
+  height: 10px;
+  border-radius: 5px;
+  background: #eef1f6;
+  overflow: hidden;
+}
+
+.track .fill {
+  height: 100%;
+  border-radius: 5px;
+  background: var(--accent);
+  transition: width 0.3s;
+}
+
+.track .fill.unprobed {
+  background: repeating-linear-gradient(
+    45deg,
+    #dbe2ec 0,
+    #dbe2ec 4px,
+    #eef1f6 4px,
+    #eef1f6 8px
+  );
+}
+
+/* 5D 维度行 */
 .where-5d {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
 }
 
-.where-5d-head {
+.dim-row-head {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-bottom: 6px;
 }
 
-.where-5d-head .f-name {
+.dim-badge {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.dim-name {
+  font-size: 13px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.dim-val {
+  margin-left: auto;
+  font-weight: 600;
   font-size: 13px;
   color: var(--text);
 }
 
-.where-5d-head .val {
-  margin-left: auto;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.where-5d-row .track {
-  height: 10px;
-  border-radius: 5px;
-  background: #eef1f6;
-  overflow: hidden;
-  margin-bottom: 6px;
-}
-
-.where-5d-row .fill {
-  height: 10px;
-  border-radius: 5px;
-  background: var(--accent);
+.dim-comment {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted);
 }
 
 .report-tag {
@@ -238,24 +352,23 @@ button:disabled {
   color: #6b7280;
 }
 
-/* Bloom 阶梯条 (WherePage / HomePage 成长卡共用) */
+/* Bloom 六层 */
 .bloom-rows {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-top: 10px;
+  gap: 8px;
 }
 
 .bloom-rows .br {
   display: grid;
-  grid-template-columns: 28px 40px 1fr 44px;
+  grid-template-columns: 28px 44px 1fr 44px;
   gap: 8px;
   align-items: center;
   font-size: 12px;
 }
 
 .bloom-rows .b-lbl {
-  font-weight: 600;
+  font-weight: 700;
   color: var(--muted);
 }
 
@@ -263,28 +376,9 @@ button:disabled {
   color: var(--text);
 }
 
-.bloom-rows .fill {
+.bloom-rows .track {
   height: 8px;
   border-radius: 4px;
-  background: #eef1f6;
-}
-
-.bloom-rows .fill > div {
-  height: 8px;
-  border-radius: 4px;
-  background: var(--accent);
-}
-
-.bloom-rows .unprobed-bar {
-  height: 8px;
-  border-radius: 4px;
-  background: repeating-linear-gradient(
-    45deg,
-    #dbe2ec 0,
-    #dbe2ec 4px,
-    #eef1f6 4px,
-    #eef1f6 8px
-  );
 }
 
 .bloom-rows .pct {
@@ -292,32 +386,54 @@ button:disabled {
   color: var(--muted);
 }
 
+/* 主导层高亮 (保持网格对齐, 不外加边框) */
+.bloom-rows .br.dominant .b-lbl,
+.bloom-rows .br.dominant .b-name,
+.bloom-rows .br.dominant .pct {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.bloom-rows .br.dominant .track .fill {
+  background: linear-gradient(90deg, var(--accent), #60a5fa);
+}
+
 /* 通用行 (TC / 设置) */
 .row {
   display: grid;
-  grid-template-columns: 1fr 1fr 88px;
+  grid-template-columns: 1fr 1fr 92px;
   gap: 10px;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   font-size: 13px;
 }
 
-.row .track {
-  height: 10px;
-  border-radius: 5px;
-  background: #eef1f6;
-  overflow: hidden;
-}
-
-.row .fill {
-  height: 10px;
-  border-radius: 5px;
-  background: var(--accent);
+.row .row-label {
+  color: var(--text);
+  font-weight: 600;
 }
 
 .row .val {
   text-align: right;
   color: var(--muted);
+}
+
+/* 区块内说明文字 / 空状态 */
+.where-comment {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--muted);
+}
+
+.empty-state {
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+  background: #fafbfc;
 }
 
 /* ── 我的成长 (GrowthPage) ───────────────────────────────── */

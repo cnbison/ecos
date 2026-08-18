@@ -12,6 +12,27 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.96.3] 2026-08-18
+
+### feat: 学生端「我在哪」页 UI 美化 — 统一三套条样式 + 概览 hero
+
+> **触发**: Bisen 反馈「我在哪」Tab 页 UI 不美观、散乱.
+> **根因**: 5D / Bloom / TC 三个区块原本用三套不同的条/布局实现 (`.where-5d-row` / `.br` / `.row`), 视觉语言不统一; 页面无整体概览, 直接以密集条状开头, 缺少焦点.
+> **改进**:
+> - 新增顶部**整体概览 hero**: 整体解读 + 画像置信度 + Bloom 主导/下一层 chips.
+> - 全页统一 **`.track`/`.fill`** 进度条 (5D/Bloom/TC 共用), 唯一 `.track .fill.unprobed` 斜纹空态.
+> - **5D 每维独立主题色** (K 蓝/P 绿/S 琥珀/C 紫/X 青): 彩色字母徽章 + 对应色进度条, 打破单色堆叠.
+> - **Bloom** 主导层高亮: 文字+进度条渐变色 (用 `interp.bloom.dominant` 代码位而非中文 label, 修正 `.includes(lvl)` 失效风险); 未探及层斜纹空态.
+> - **区块标题**统一 `sec-head` + 副标题; TC 空态改虚线 empty-state; LearningDNA 保留"待启用"冷标签.
+> - 版本: ecos/frontend 0.96.2 → 0.96.3.
+> **验证**: `tsc -b --noEmit` + `eslint` 全绿; Vite dev HMR 已确认新类名/标记生效.
+
+#### MODIFY: web/frontend/src/student/pages/WherePage.tsx — hero + 5D 分色 + Bloom 主导高亮 (dominant 修正)
+
+#### MODIFY: web/frontend/src/student/index.css — 统一 track/fill + hero/chip/sec-head/dim-row/empty-state 样式
+
+#### MODIFY: ecos/__init__.py / web/frontend/package.json / package-lock.json — 版本 0.96.3
+
 ## [0.96.2] 2026-08-18
 
 ### fix: 学生端桌面端无导航入口 + 首页「成长」文案非链接
