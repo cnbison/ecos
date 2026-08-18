@@ -525,9 +525,16 @@ textarea.plain {
   transition: width 0.3s;
 }
 
-/* ── 底部导航 (移动端) ───────────────────────────────────── */
+/* ── 内联跳转链接 ───────────────────────────────────────── */
+.go-link {
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* ── 底部导航 (全尺寸显示, v0.96.1 修复桌面端无导航入口) ───── */
 .bottom-nav {
-  display: none;
+  display: flex;
   position: fixed;
   bottom: 0;
   left: 0;
@@ -581,7 +588,8 @@ textarea.plain {
 }
 
 @media (min-width: 721px) {
-  .bottom-nav {
-    display: none;
+  .content {
+    padding: 20px;
+    padding-bottom: 72px; /* 给底部 Tab 留空间 */
   }
 }

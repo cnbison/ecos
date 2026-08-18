@@ -1,6 +1,7 @@
 // v0.96: 答题页 (做题时收敛 — 题目 + 一句通俗化 + 提交; 5D/Bloom 收敛到"我在哪")
 // 保留 v0.95.0 的 4 行为事件: hint / idle / goal_change / reflection
 import { useCallback, useEffect, useRef, useState } from "react";
+import { NavLink } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { emitEvent, fetchQuestion, fetchReport, judgeAnswer, submitAnswer } from "../api";
 import type { Question } from "../types";
@@ -152,7 +153,10 @@ export default function AnswerPage({ studentId }: { studentId: string }) {
       <div className="answer-page">
         <div className="card">
           <h2>🎉 所有题目已完成</h2>
-          <p className="muted">去看看你的成长吧。</p>
+          <p className="muted">
+            去看看你的成长吧。
+            <NavLink className="go-link" to="/growth">→ 成长</NavLink>
+          </p>
         </div>
       </div>
     );

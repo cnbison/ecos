@@ -1,6 +1,6 @@
 // v0.96: 首页三卡 — 信息架构三问 (我在哪 / 我的成长 / 下一步学什么)
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import { fetchReport, fetchState } from "../api";
 import MotivationPanel from "../components/MotivationPanel";
 
@@ -58,7 +58,8 @@ export default function HomePage({ studentId }: { studentId: string }) {
             })}
           </div>
           <div className="muted" style={{ fontSize: 13, marginTop: 8 }}>
-            已作答 {st.trajectory.length} 题 · 成长见「成长」页
+            已作答 {st.trajectory.length} 题 ·{" "}
+            <NavLink className="go-link" to="/growth">成长见「成长」页</NavLink>
           </div>
         </section>
 

@@ -12,6 +12,27 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.96.2] 2026-08-18
+
+### fix: 学生端桌面端无导航入口 + 首页「成长」文案非链接
+
+> **触发**: Bisen 反馈 v0.96 学生端内容比旧版三 Tab 界面少太多, 且首页"成长见「成长」页"无链接入口.
+> **根因**: `.bottom-nav` 仅 `@media (max-width: 720px)` 显示, 桌面端 (>720px) `display: none` 且无任何顶部导航替代 → 桌面浏览器**只有首页可见**, 答题/我在哪/成长/设置全部无法到达 → 观感"内容少太多" + "没有链接入口". 属 v0.96 移动优先构建的桌面端遗漏.
+> **修复**:
+> - `index.css`: bottom-nav 改为全尺寸 `display: flex`; 桌面端 `.content` 补 `padding: 20px + padding-bottom: 72px` 防固定导航遮挡.
+> - `HomePage.tsx`: "已作答 N 题 · 成长见「成长」页" → `NavLink` 跳 `/growth` (新增 `.go-link` 样式).
+> - `AnswerPage.tsx`: "去看看你的成长吧" → 追加 `→ 成长` `NavLink` 跳 `/growth`.
+> - 版本: ecos 0.96.1 → 0.96.2, frontend package.json 0.96.0 → 0.96.2 (重新对齐).
+> **验证**: `tsc -b --noEmit` + `eslint` 全绿; Vite dev HMR 已生效.
+
+#### MODIFY: web/frontend/src/student/index.css — bottom-nav 全尺寸 + .go-link + 桌面端 content 留白
+
+#### MODIFY: web/frontend/src/student/pages/HomePage.tsx — 「成长」文案改 NavLink
+
+#### MODIFY: web/frontend/src/student/pages/AnswerPage.tsx — 完成态追加「→ 成长」链接
+
+#### MODIFY: ecos/__init__.py / web/frontend/package.json — 版本 0.96.2 (对齐)
+
 ## [0.96.1] 2026-08-18
 
 ### fix: 学生端根路径 `/` 白屏 — 补 `/assets/` 静态路由
