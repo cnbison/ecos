@@ -12,6 +12,30 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.96.9] 2026-08-19
+
+### fix: /api/answer 不持久化 — 状态更新落到 skill_id 幽灵学生 (Observation 无 student_id)
+
+> **触发**: Bisen 用 lbc002 答题, 系统永远记录 45 次 (实际 46), 轨迹快照/答题历史无新数据; 同时观察 MiniMax-M3 无 token 消耗.
+> **根因**: `Observation` 没有 `student_id` 字段, `LearningEvent.from_observation` 的 fallback (`student_id or skill_id`) 落到 **skill_id** (如 "python.loops"). `/api/answer` 经 Plugin 路径 (v0.85.0-d) 时, `PluginRuntime._handle_response_submitted` 用 `event.student_id`(=skill_id) 调 `state_factory` → `_get_or_create_student` 创建**幽灵学生**, 幽灵 state 被更新, 真实学生 (lbc002) 的 warmup/trajectory/theta 永远不更新; `save_student_state` 只写 `last_active_at=now` → 表现"persisted=True 却无记录". DB 冒烟证实幽灵行: `python.loops` / `cross_subject` 的 `last_active_at` 与 lbc002 答题时间精确同步.
+> **judge 无 token**: 实测 `/api/judge` 确实调 MiniMax-M3 (4.6s 返回 judged=True) — 是控制台延迟/看错, 非代码问题.
+> **修复 (3 处)**: ① `event_log.py` `from_observation`/`from_response_submitted` 加显式 `student_id` 参数 (缺省走旧 fallback 向后兼容); ② `belief.py:_update_via_plugin_or_legacy` 传真实 student_id; ③ `FeatureExtractor.extract` + `belief_engine.update` 传导 `log_event` — replay/simulate 不再污染 event_log (旧实现无条件 emit, 被 skill_id 错标掩盖).
+> **测试**: 新增 `test_plugin_sdk.py::TestResponseSubmittedStudentIdRouting` 2 回归 (事件携带真实 student_id / sid-aware factory 下更新真实学生不建幽灵); 更新 `test_learning_event_unification.py` 双写断言 (事件关联真实 student_id). 全量 pytest 1405 → 1407 passed.
+> **验证**: 运行中服务器端到端 — lbc002 warmup 45→47, 轨迹 45→47 (新轨迹点今日 + 新 theta); 独立进程复现脚本 BEFORE 不更新 / AFTER 更新.
+> **数据影响**: 7/28 后 (含今天) 真实答题内容未持久化已丢失; DB 有 skill_id 幽灵学生行 (`python.loops`/`cross_subject`/`student_demo` 等) — 清理待 Bisen 决策. 详见 discussions/2026-08-19-v0969-幽灵学生bug-answer不持久化.md.
+
+#### MODIFY: ecos/cta/event_log.py — from_observation/from_response_submitted 加 student_id 显式参数
+
+#### MODIFY: web/api/belief.py — _update_via_plugin_or_legacy 传真实 student_id
+
+#### MODIFY: ecos/cta/feature_extractor.py + belief_engine.py — extract 传导 log_event (replay/simulate 不污染 event_log)
+
+#### MODIFY: tests/test_plugin_sdk.py — +2 回归 (TestResponseSubmittedStudentIdRouting)
+
+#### MODIFY: tests/test_learning_event_unification.py — 双写断言改真实 student_id
+
+#### MODIFY: ecos/__init__.py / web/frontend/package.json / package-lock.json — 版本 0.96.9
+
 ## [0.96.8] 2026-08-19
 
 ### fix: 学生端答题提交 HTTP 400 — /api/judge 字段名不匹配 (user_answer vs student_answer)

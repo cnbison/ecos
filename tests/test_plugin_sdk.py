@@ -51,10 +51,15 @@ def _make_obs(skill_id: str = "python.variables") -> Observation:
 
 
 def _make_response_submitted_event(student_id: str, obs: Observation) -> LearningEvent:
-    """Build a response_submitted LearningEvent for tests."""
+    """Build a response_submitted LearningEvent for tests.
+
+    v0.96.9: 显式传 student_id — Observation 无 student_id 字段, 旧 fallback
+    会落到 skill_id, plugin subscriber 更新到幽灵学生.
+    """
     return LearningEvent.from_response_submitted(
         obs,
         source="test_plugin_sdk",
+        student_id=student_id,
     )
 
 
@@ -224,9 +229,78 @@ class TestPluginPathEndToEnd:
         event = _make_response_submitted_event("python.variables", obs)
         bus.publish("response_submitted", event)
 
-        # event.student_id derives from observation.skill_id (fallback)
-        # since Observation has no student_id field, event.student_id = "python.variables"
+        # event.student_id 显式传入 (v0.96.9 修复, 不再 fallback 到 skill_id)
         assert factory_calls == ["python.variables"]
+
+
+# ── v0.96.9 regression: response_submitted 必须带真实 student_id ─────────────
+
+
+class TestResponseSubmittedStudentIdRouting:
+    """v0.96.9 幽灵学生 bug 回归测试.
+
+    背景: Observation 没有 student_id 字段, from_observation 的 fallback
+    `student_id or skill_id` 落到 skill_id (如 "python.loops"). /api/answer 经
+    Plugin 路径时, subscriber 用 event.student_id (=skill_id) 调 state_factory
+    创建/更新一个幽灵学生, 真实学生的 warmup / trajectory / theta 永远不更新,
+    但 save_student_state 只写 last_active_at → 表现"答了题没记录, 却 persisted=True".
+    """
+
+    def test_event_carries_real_student_id_not_skill_id(self):
+        """from_response_submitted 显式 student_id 优先, 不落到 skill_id."""
+        obs = _make_obs(skill_id="python.loops")
+        event = LearningEvent.from_response_submitted(
+            obs, source="test", student_id="stu-real-001",
+        )
+        assert event.student_id == "stu-real-001"
+        assert event.student_id != obs.skill_id
+
+    def test_update_via_plugin_path_updates_real_student_not_phantom(self):
+        """sid-aware state_factory: 更新落在真实学生上, 不创建 skill_id 幽灵学生."""
+        from web.api.belief import _update_via_plugin_or_legacy
+
+        real_sid = "stu-real-002"
+        engine = BeliefEngine()
+        real_state = engine.create_initial_state(real_sid)
+        initial_warmup = engine._warmup_count.get(real_sid, 0)
+        initial_traj_len = len(real_state.trajectory.snapshots)
+
+        created = {}
+
+        def sid_aware_factory(sid):
+            # 模拟 _get_or_create_student: 真实学生返回共享 (engine, state);
+            # 其他 sid (bug 时会是 skill_id) 新建一个状态
+            if sid == real_sid:
+                return engine, real_state
+            if sid not in created:
+                created[sid] = (
+                    BeliefEngine(),
+                    BeliefEngine().create_initial_state(sid),
+                )
+            return created[sid]
+
+        bus = EventBus()
+        runtime = PluginRuntime(bus=bus, state_factory=sid_aware_factory)
+        runtime.start()
+        try:
+            obs = _make_obs(skill_id="python.loops")
+            _update_via_plugin_or_legacy(
+                engine=engine, state=real_state, obs=obs, student_id=real_sid,
+            )
+        finally:
+            runtime.stop()
+
+        # 真实学生状态必须被更新 (warmup + trajectory)
+        assert engine._warmup_count.get(real_sid, 0) == initial_warmup + 1, (
+            "真实学生 warmup 应 +1 (旧 bug: 更新落到 skill_id 幽灵学生)"
+        )
+        assert len(real_state.trajectory.snapshots) == initial_traj_len + 1, (
+            "真实学生 trajectory 应 +1 (旧 bug: 无新轨迹点)"
+        )
+        # 不能创建 skill_id 命名的幽灵学生
+        assert "python.loops" not in created, (
+            "不应创建 skill_id 幽灵学生 (旧 bug: state_factory 被 skill_id 调用)"
+        )
 
 
 # ── Legacy fallback path (1 test) ──────────────────────────────────────────

@@ -508,9 +508,13 @@ def _update_via_plugin_or_legacy(
     from ecos.event import get_default_bus
 
     # 构造 event
+    # v0.96.9: 显式传 student_id — Observation 无 student_id 字段,
+    #   旧 fallback 落到 skill_id, plugin subscriber 会更新到幽灵学生
+    #   (如 "python.loops"), 真实学生 state 永远不更新 (见 discussions 2026-08-19)
     event = LearningEvent.from_response_submitted(
         obs,
         source="web_api_belief_submit_answer",
+        student_id=student_id,
     )
 
     # Publish 到 bus

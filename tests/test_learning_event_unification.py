@@ -222,12 +222,17 @@ class TestFeatureExtractorDoubleWrite:
         # In-memory cache populated
         assert len(result["history"]) == 1
 
-        # EventLog also has the response_submitted event (student_id from observation.skill_id)
-        events = event_log.load_events("python.variables")
+        # EventLog also has the response_submitted event.
+        # v0.96.9: event 关联真实 student_id (extract 传入的 "stu-001"),
+        # 不再 fallback 到 observation.skill_id (旧 bug → 幽灵学生)
+        events = event_log.load_events("stu-001")
         assert len(events) == 1
         assert events[0].event_type == "response_submitted"
         assert events[0].source == "feature_extractor"
         assert events[0].payload["problem_id"] == "pb-test-001"
+        assert events[0].student_id == "stu-001"
+        # 幽灵行为移除: skill_id 不应关联到事件
+        assert len(event_log.load_events("python.variables")) == 0
 
     def test_emit_failure_does_not_break_extraction(self, caplog):
         """If event_log.emit raises, FeatureExtractor still completes extraction."""

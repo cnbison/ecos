@@ -161,6 +161,7 @@ class LearningEvent:
         source: str = "belief_updater",
         event_type: Any = LearningEventType.OBSERVATION,
         event_id: Optional[str] = None,
+        student_id: Optional[str] = None,
     ) -> "LearningEvent":
         """Construct LearningEvent from an Observation (v0.84.0-a factory).
 
@@ -173,14 +174,21 @@ class LearningEvent:
             event_type: LearningEventType enum or string. Default OBSERVATION.
                         Pass RESPONSE_SUBMITTED to mark a "pre-judge" submission.
             event_id: optional pre-generated event_id (matches StateEngine.commit).
+            student_id: explicit student_id override. 缺省时退到 observation
+                       .student_id → .skill_id (老行为, 兼容 legacy callers).
+                       v0.96.9 修复: Observation 无 student_id 字段, 旧 fallback
+                       会落到 skill_id (如 "python.loops"), 使 plugin subscriber
+                       用错 student_id 更新到幽灵学生 (见 discussions 2026-08-19).
 
         Returns:
             LearningEvent with payload=observation.to_dict().
         """
         # Resolve event_type (accept both enum and string)
         evt_type = LearningEventType.from_value(event_type).value
-        # student_id: try .student_id, fall back to .skill_id (some legacy callers)
-        student_id = getattr(observation, "student_id", None) or getattr(observation, "skill_id", "")
+        # student_id: 显式传入优先; 否则 try .student_id, fall back to .skill_id
+        # (Observation 无 student_id 字段 — v0.96.9 起调用方显式传 student_id)
+        if student_id is None:
+            student_id = getattr(observation, "student_id", None) or getattr(observation, "skill_id", "")
         return cls(
             event_id=event_id or _make_event_id(),
             student_id=str(student_id),
@@ -240,6 +248,7 @@ class LearningEvent:
         observation: Any,
         source: str = "feature_extractor",
         event_id: Optional[str] = None,
+        student_id: Optional[str] = None,
     ) -> "LearningEvent":
         """Construct LearningEvent for response_submitted (v0.84.0-a factory).
 
@@ -252,6 +261,9 @@ class LearningEvent:
             observation: Observation dataclass.
             source: who produced (default "feature_extractor").
             event_id: optional pre-generated event_id.
+            student_id: explicit student_id. v0.96.9: Observation 无 student_id
+                       字段, 旧 fallback 会落到 skill_id → plugin subscriber
+                       更新错学生 (幽灵学生 bug). 调用方必须传真实 student_id.
 
         Returns:
             LearningEvent with event_type="response_submitted".
@@ -261,6 +273,7 @@ class LearningEvent:
             source=source,
             event_type=LearningEventType.RESPONSE_SUBMITTED,
             event_id=event_id,
+            student_id=student_id,
         )
 
     # ── v0.85.0-a: judge_completed factory ───────────────────────────────────

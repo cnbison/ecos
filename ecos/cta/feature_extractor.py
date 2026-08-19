@@ -50,6 +50,7 @@ class FeatureExtractor:
         student_id: str,
         observation: "Observation",
         ctx: "ObservationContext",
+        log_event: bool = True,
     ) -> Dict[str, Any]:
         """Append to response_history, return history + last entry.
 
@@ -87,14 +88,17 @@ class FeatureExtractor:
             history = self._response_history[student_id]
 
         # v0.84.0-a: response_history 双写到 event_log (event_type="response_submitted")
+        # v0.96.9: log_event=False (replay/simulate) 时不 emit —
+        #   旧实现无条件 emit, 被 skill_id 错标掩盖; student_id 修正后污染暴露
         # 防御性自检 [1]: emit 失败不能阻断主流程 (response_history 已 in-memory)
-        if self._event_log is not None:
+        if self._event_log is not None and log_event:
             try:
                 # Lazy import to avoid circular dep at module load
                 from .event_log import LearningEvent
                 event = LearningEvent.from_response_submitted(
                     observation,
                     source="feature_extractor",
+                    student_id=student_id,
                 )
                 self._event_log.log_event(event)
             except Exception:

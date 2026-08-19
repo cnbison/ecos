@@ -360,7 +360,12 @@ class BeliefEngine:
         ctx = self._observation_engine.run(student_id, observation, self.config)
 
         # Layer 2: FeatureExtractor (response_history accumulation, maxlen=100)
-        feat = self._feature_extractor.extract(student_id, observation, ctx)
+        # v0.96.9: log_event 传给 extract — replay/simulate(log_event=False) 时不 emit
+        #   response_submitted, 避免污染 event_log (旧实现无条件 emit, student_id
+        #   修正前被 skill_id 错标掩盖)
+        feat = self._feature_extractor.extract(
+            student_id, observation, ctx, log_event=log_event,
+        )
 
         # Layer 3: InferenceEngine (BKT + MIRT + Bloom + LLM critic + TC -> InferenceResult, NO mutation)
         result = self._inference_engine.run(state, observation, ctx, feat["history"])
