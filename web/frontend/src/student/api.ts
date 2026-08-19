@@ -55,7 +55,7 @@ export function fetchHistory(sid: string): Promise<{
 export function judgeAnswer(body: {
   student_id: string;
   problem_id: string;
-  user_answer: string;
+  student_answer: string;
 }): Promise<JudgeResult> {
   return postJson<JudgeResult>("/api/judge", body);
 }

@@ -106,7 +106,7 @@ export default function AnswerPage({ studentId }: { studentId: string }) {
       const jd = await judgeAnswer({
         student_id: studentId,
         problem_id: q.problem_id,
-        user_answer: answer,
+        student_answer: answer,
       });
       if (!jd.judged || jd.correct === undefined) {
         window.alert(jd.error ?? "AI 评判失败，请重试或跳过此题");

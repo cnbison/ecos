@@ -12,6 +12,21 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.96.8] 2026-08-19
+
+### fix: 学生端答题提交 HTTP 400 — /api/judge 字段名不匹配 (user_answer vs student_answer)
+
+> **触发**: Bisen 反馈答题页 (`/student.html#/answer`) 提交答案后报 `POST /api/judge 失败: HTTP 400`.
+> **根因**: React 学生端 `judgeAnswer` 发送 body 字段 `user_answer`, 但后端 `/api/judge` 读的是 `student_answer` (web/api/app.py:369). 字段缺失 → `data.get("student_answer","")` 取到空串 → `if not student_answer` → 400 "答案不能为空". legacy `web/student/app.js:440` 与 tests (test_judge_retry.py / test_judge_rubric.py) 均用 `student_answer`, 是 v0.96 学生端 React 重写时引入的字段名漂移.
+> **修复**: `api.ts` `judgeAnswer` 参数 + `AnswerPage.tsx` 调用处改为 `student_answer`. (`/api/answer` 仍读 `user_answer`, 前端 `submitAnswer` 保持不变 — 后端两路由字段命名不一致, 前端已各自对齐.)
+> **验证**: `tsc -b --noEmit` 全绿; dist 为 git-ignored, Vite dev (5174) HMR 直接生效.
+
+#### MODIFY: web/frontend/src/student/api.ts — judgeAnswer body 字段 user_answer → student_answer
+
+#### MODIFY: web/frontend/src/student/pages/AnswerPage.tsx — judgeAnswer 调用字段同步
+
+#### MODIFY: ecos/__init__.py / web/frontend/package.json / package-lock.json — 版本 0.96.8
+
 ## [0.96.7] 2026-08-18
 
 ### feat: 答题页「💡 提示」做成真实提示 — 后端规则生成 + 前端提示卡片
