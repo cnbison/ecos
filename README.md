@@ -183,7 +183,9 @@ prototypes/            # 架构原型
 Makefile               # 快捷命令（test / check / frontend-dev / frontend-build / frontend）
 ```
 
-## 当前状态（2026-08-18，v0.96.0）— **🚀 应用层产品化（React 双端）+ 验证主线启动**
+## 当前状态（2026-08-22）— **⏸️ 已搁置：迁移重启为 CogMirror**（最后活跃 v0.96.9, 2026-08-19）
+
+> **2026-08-22 搁置标记**: ecos 暂时搁置（恢复条件未定）, 从 ECOS 选择性迁移重启为独立新项目 **CogMirror** —— 抛开 K12, 面向**成年自学者**的 Python 学习认知教练: 帮其在学 Python 时随时看清真实认知状态（哪里真会 / 哪里是伪自信 / 卡在哪个概念）。CogMirror 独立目录见 `/Users/loubicheng/project/CogMirror`（v0.1.0 重新计版, MVP 无 LLM 依赖, 81 pytest 全绿, 尚无真实用户验证）。本段以下为搁置前 v0.96 快照, 保留作历史参考。详见 [discussions/2026-08-22-CogMirror迁移-ecos搁置.md](discussions/2026-08-22-CogMirror迁移-ecos搁置.md)。
 
 > **Bisen 路线（2026-08-17 方向审查拍板）**: Kernel 深化收口（v0.83-v0.94 共 12 版本, pytest 1365, 缺失清单 0）后, 重心切换:
 > **从"Kernel 深化/抽象推演"→"验证优先 + 应用层产品化落地"**。抽象推演冻结（Plugin SDK 独立打包等只在真实需求牵引时启动）。
@@ -317,8 +319,10 @@ ECOS_DUAL_AGENT_ENABLED=1 python -m web.api.app
 
 ## 下一步（v0.97+ 验证主线）
 
-**当前状态**: v0.96.0 应用层产品化 (React 双端) 全部完成, 方向审查收口 (Kernel 收口 + 抽象推演冻结 + 验证欠债显式化)。
-下一阶段: **v0.97 家长端 + 验证主线** (per [discussions/2026-08-17-v095方向审查-验证滞后于抽象与应用层产品化规划.md](discussions/2026-08-17-v095方向审查-验证滞后于抽象与应用层产品化规划.md) §四).
+> **⏸️ 2026-08-22 已冻结**: ecos 暂时搁置, 本表任务随 ecos 一并冻结, 恢复条件未定。相关验证/产品化工作已迁移重启到 **CogMirror** (面向成年自学者的 Python 学习认知教练), 见 [discussions/2026-08-22-CogMirror迁移-ecos搁置.md](discussions/2026-08-22-CogMirror迁移-ecos搁置.md)。
+
+**搁置前状态**: v0.96.0 应用层产品化 (React 双端) 全部完成, 方向审查收口 (Kernel 收口 + 抽象推演冻结 + 验证欠债显式化)。
+下一阶段 (冻结前规划): **v0.97 家长端 + 验证主线** (per [discussions/2026-08-17-v095方向审查-验证滞后于抽象与应用层产品化规划.md](discussions/2026-08-17-v095方向审查-验证滞后于抽象与应用层产品化规划.md) §四).
 
 | 优先级 | 任务 | 触发条件 | 详见 |
 |--------|------|---------|------|

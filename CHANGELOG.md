@@ -12,6 +12,16 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [搁置] 2026-08-22 — ecos 暂停, 迁移重启 CogMirror
+
+> 纯文档标记, 未 bump 版本号。ecos 最后活跃版本 v0.96.9 (2026-08-19)。
+
+**决策**: Bisen 决定 ecos 暂时搁置 (恢复条件未定), 从 ECOS 选择性迁移重启为独立新项目 **CogMirror** —— 抛开 K12, 面向**成年自学者**的 Python 学习认知教练: 帮其在学 Python 时随时看清真实认知状态 (哪里真会 / 哪里是伪自信 / 卡在哪个概念)。
+
+**CogMirror 要点**: 版本号 v0.1.0 重新开始; MVP 无 LLM 依赖 (静态题库 + 确定性判分); 只做"做题"一种交互、只服务 Python 一科; 不做双 Agent 互校 (H3 显著反向 p<0.0001) / POMDP·PBVI / Multi-Domain·插件化·B端 / 游戏化; 命名 user_id, 成人向合规 (可导出可删除); 进度双线汇报 (工程 vs 验证); 81 pytest 全绿, 尚无真实用户验证。详见 [discussions/2026-08-22-CogMirror迁移-ecos搁置.md](discussions/2026-08-22-CogMirror迁移-ecos搁置.md)。
+
+**标记**: git tag `ecos-paused-cogmirror-v0.96.9`; README 当前状态横幅 + 下一步段顺延。v0.97 家长端 + 验证主线等原定路线随 ecos 一并冻结。
+
 ## [0.96.9] 2026-08-19
 
 ### fix: /api/answer 不持久化 — 状态更新落到 skill_id 幽灵学生 (Observation 无 student_id)
