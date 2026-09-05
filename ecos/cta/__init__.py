@@ -57,6 +57,12 @@ from .l1_evolution import (
     EvolutionConfig,
     replay_mastery_view,
 )
+from .calibration_view import (
+    CalibrationCurve,
+    CalibrationView,
+    calibration_view,
+    expected_accuracy,
+)
 from .l2_mirt import (
     BiFactorMIRT5D,
     MIRTConfig,
@@ -105,6 +111,11 @@ __all__ = [
     "BKTEvolutionLayer",
     "EvolutionConfig",
     "replay_mastery_view",
+    # Calibration view (v0.97.2 自评校准)
+    "CalibrationCurve",
+    "CalibrationView",
+    "calibration_view",
+    "expected_accuracy",
     # L2 MIRT
     "BiFactorMIRT5D",
     "MIRTConfig",
