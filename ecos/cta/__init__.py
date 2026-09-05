@@ -55,6 +55,7 @@ from .l1_evolution import (
     BKTParams,
     BKTEvolutionLayer,
     EvolutionConfig,
+    replay_mastery_view,
 )
 from .l2_mirt import (
     BiFactorMIRT5D,
@@ -103,6 +104,7 @@ __all__ = [
     "BKTParams",
     "BKTEvolutionLayer",
     "EvolutionConfig",
+    "replay_mastery_view",
     # L2 MIRT
     "BiFactorMIRT5D",
     "MIRTConfig",

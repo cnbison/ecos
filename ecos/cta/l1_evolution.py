@@ -14,10 +14,14 @@ Phase 5+ 才实现 DKT / DKVMN / FSRS 间隔调度。
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
-from typing import Dict
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -150,6 +154,12 @@ class BKTEvolutionLayer:
         """应用 Ebbinghaus 间隔效应衰减.
 
         P(L) → P(L) · e^(-days/decay_constant)
+
+        ⚠️ v0.97.1: 本方法在产品路径是 dead code, 且**禁止激活**——in-place 乘法
+        是破坏性衰减, 重入即双重衰减 (p · e^(-t/τ) 再乘 e^(-t/τ))。衰减应通过
+        模块级 replay_mastery_view() 的无状态视图读时计算 (decayed = peak ·
+        e^(-days/τ), 不落盘、不污染 state)。本方法仅保留给显式知晓风险的
+        离线实验调用。
         """
         if skill_id not in self.skill_models or days_since_last <= 0:
             return self.get_mastery(skill_id)
@@ -165,3 +175,132 @@ class BKTEvolutionLayer:
 
     def all_skills(self) -> list[str]:
         return list(self.skill_models.keys())
+
+
+def replay_mastery_view(
+    history: List[Dict[str, Any]],
+    config: EvolutionConfig | None = None,
+    now: Optional[datetime] = None,
+) -> Dict[str, Dict[str, Any]]:
+    """无状态重放视图：从响应历史推导 per-skill BKT 峰值 + 衰减视图 (v0.97.1).
+
+    对应: docs/wiring-audit-2026-09-05.md A 类 (bjork_spacing / ca_scaffolding
+    接线的数据供给); CogMirror P3 方案 (BKT 不持久化, 峰值由重放推导, 衰减是
+    读时计算不是状态)。
+
+    语义:
+      - **只读**: 内部用一次性 throwaway BKTModel 重放, 不触碰任何 engine.l1
+        或 BeliefState —— 同输入同输出, 幂等。
+      - **峰值**: 重放全程 max(p_init, 各次 update 后的 p_mastered)。
+        峰值下限 = p_init (不会为 0; 注意 p_learn 转移使全错序列 p 缓慢
+        上升, 此时峰值 = 末次值)。
+      - **衰减视图**: decayed = peak · e^(-days_since/τ), τ 取
+        EvolutionConfig.get_decay_constant(skill_id)。**不修改任何持久状态**,
+        避免双重衰减陷阱 (见 BKTEvolutionLayer.apply_decay docstring)。
+      - **streaks**: 末尾连续对/错计数 (ca_scaffolding fade/restore 输入)。
+      - **时间**: last_ts 取该 skill 最后一条带 timestamp 的条目 (append 序
+        最后回溯); 无 timestamp → days_since=0, decayed=peak (保守: 无时间
+        证据不衰减)。now 可注入 (可测试性), 默认 datetime.now()。
+
+    Args:
+        history: FeatureExtractor.get_history(student_id) 的响应历史
+            (DB restore 路径经 set_history 恢复, 重启存活)。
+            条目需含 skill_id + correct (+ timestamp); v0.97.1 前的
+            老条目缺 skill_id → 跳过并 warning 计数 (不猜不映射)。
+        config: EvolutionConfig (None = 默认)。
+        now: 衰减计算基准时间 (None = 当前时间)。
+
+    Returns:
+        {skill_id: {"peak": float, "current": float, "decayed": float,
+                    "days_since": float, "last_ts": datetime|None,
+                    "streak_success": int, "streak_fail": int,
+                    "n_observations": int}}
+    """
+    config = config or EvolutionConfig()
+    now = now or datetime.now()
+
+    # 按 skill 分组 (保持 append 序; 老条目缺 skill_id 跳过)
+    skipped = 0
+    per_skill: Dict[str, List[Dict[str, Any]]] = {}
+    for h in history:
+        sid = h.get("skill_id")
+        if not sid:
+            skipped += 1
+            continue
+        per_skill.setdefault(sid, []).append(h)
+    if skipped:
+        logger.warning(
+            "replay_mastery_view: %d/%d 条历史缺 skill_id (v0.97.1 前老数据), "
+            "跳过不参与重放 (不猜不映射)",
+            skipped, len(history),
+        )
+
+    views: Dict[str, Dict[str, Any]] = {}
+    for sid, entries in per_skill.items():
+        params = config.get_params(sid)
+        model = BKTModel(sid, params)  # throwaway, 只读重放
+        peak = params.p_init
+        for e in entries:
+            p = model.update(_entry_correct(e))
+            peak = max(peak, p)
+        current = model.p_mastered
+
+        # 末尾连续对/错 (两者互斥: 有 streak_success 则 streak_fail=0)
+        streak_success = 0
+        for e in reversed(entries):
+            if _entry_correct(e):
+                streak_success += 1
+            else:
+                break
+        streak_fail = 0
+        for e in reversed(entries):
+            if not _entry_correct(e):
+                streak_fail += 1
+            else:
+                break
+
+        last_ts = _entry_last_timestamp(entries)
+        if last_ts is None:
+            days_since = 0.0
+            decayed = peak
+        else:
+            days_since = max(0.0, (now - last_ts).total_seconds() / 86400.0)
+            tau = config.get_decay_constant(sid)
+            decayed = peak * float(np.exp(-days_since / tau))
+
+        views[sid] = {
+            "peak": peak,
+            "current": current,
+            "decayed": decayed,
+            "days_since": days_since,
+            "last_ts": last_ts,
+            "streak_success": streak_success,
+            "streak_fail": streak_fail,
+            "n_observations": len(entries),
+        }
+    return views
+
+
+def _entry_correct(entry: Dict[str, Any]) -> bool:
+    """条目 → 是否答对. 优先 correct 字段; 老条目缺 correct 时 score>=0.6 兜底
+    (与 FeatureExtractor Step 3 MIRT 的兼容约定一致)."""
+    correct = entry.get("correct")
+    if correct is None:
+        return float(entry.get("score", 0)) >= 0.6
+    return bool(correct)
+
+
+def _entry_last_timestamp(entries: List[Dict[str, Any]]) -> Optional[datetime]:
+    """append 序倒序找第一条带 timestamp 的条目; 缺失/解析失败 → None."""
+    for e in reversed(entries):
+        raw = e.get("timestamp")
+        if not raw:
+            continue
+        try:
+            return datetime.fromisoformat(raw)
+        except (TypeError, ValueError):
+            logger.warning(
+                "replay_mastery_view: timestamp 解析失败 (%r), 该条目视为无时间",
+                raw, exc_info=True,
+            )
+    return None

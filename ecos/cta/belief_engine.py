@@ -45,7 +45,7 @@ from .belief_updater import BeliefUpdator
 from .event_log import EventLog
 from .feature_extractor import FeatureExtractor
 from .inference_engine import InferenceEngine, ObservationContext
-from .l1_evolution import BKTEvolutionLayer, EvolutionConfig
+from .l1_evolution import BKTEvolutionLayer, EvolutionConfig, replay_mastery_view
 from .l2_mirt import BiFactorMIRT5D, MIRTConfig, MIRTItemParams
 from .observation_engine import ObservationEngine
 from .state_engine import StateEngine, get_default_engine
@@ -380,6 +380,24 @@ class BeliefEngine:
     def get_bkt_mastery(self, skill_id: str) -> float:
         """便捷接口：获取 BKT 当前掌握概率."""
         return self.l1.get_mastery(skill_id)
+
+    def decayed_mastery_view(
+        self,
+        student_id: str,
+        now: Optional[datetime] = None,
+    ) -> Dict[str, Dict[str, Any]]:
+        """便捷接口：per-skill 无状态重放视图 (peak/decayed/streaks, v0.97.1).
+
+        只读: 从 FeatureExtractor response_history (DB restore 路径已恢复,
+        重启存活) 重放推导, 不触碰 engine.l1 / BeliefState。供 LCA planner
+        的 bjork_spacing / ca_scaffolding 消费 (经 CTAInput.skill_mastery_view)。
+        语义详见 ecos.cta.l1_evolution.replay_mastery_view。
+        """
+        return replay_mastery_view(
+            self._feature_extractor.get_history(student_id),
+            config=self.config.evolution_config,
+            now=now,
+        )
 
     def get_theta(self, state: BeliefState) -> np.ndarray:
         """便捷接口：获取当前 5D θ."""
