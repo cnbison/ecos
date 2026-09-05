@@ -328,7 +328,7 @@ ECOS_DUAL_AGENT_ENABLED=1 python -m web.api.app
 
 | 优先级 | 任务 | 触发条件 | 详见 |
 |--------|------|---------|------|
-| **P0** | **全量 built≠wired 接线审计**: 扫描全仓"定义无 caller / 实例化无调用", 登记结果; 3 项已知实例 — ① `cta/l1_evolution.py` `apply_decay` 零调用者 ② `BjorkSpacingEffect` 在 `lca/planner.py:130` 实例化后从未调用 ③ web 答题流未注入 Evidence/Event Engine。①② 接线有前置缺口: BKT/l1 不持久化 + 原地乘法双重衰减陷阱（解法 = 无状态视图 + 历史重放推导峰值） | 恢复即启动 | [2026-09-05 讨论 §二](discussions/2026-09-05-CogMirror迁移适用性分析-与built-unwired接线审计.md) |
+| **P0** | ~~全量 built≠wired 接线审计~~ **✅ 已完成 (2026-09-05)**: 全仓 715 个函数/方法扫描, 结果 **Tier A 死代码候选 47 + Tier B 产品路径未接线 72 + 孤儿实例属性 2**, 已知三项实例均扩大（报告 §七）。后续接线动作的前置缺口: BKT/l1 不持久化 + 原地乘法双重衰减陷阱（解法 = 无状态视图 + 历史重放推导峰值）; 复跑工具 `python scripts/wiring_audit.py` | ✅ 完成; 接线动作待黄金回归基建后 | [审计报告](docs/wiring-audit-2026-09-05.md) |
 | **P0** | **v0.97 家长端 + 验证主线**: a. ParentEngagementPlugin 落地家长端 (engagement 演化 + 家校协同建议); b. Evidence/Event Engine 注入答题流（= 接线审计实例 ③, 触发条件随家长端出现）; c. 小规模真实试点 5-10 学生 (lbc004+), 定义 H1/Twin 准确性数据收集方案; d. LearningDNA 启用条件推进 (≥50 题) | 接线审计完成 | [方向审查 §四](discussions/2026-08-17-v095方向审查-验证滞后于抽象与应用层产品化规划.md) |
 | P1 | **A3 式黄金回归基建**: 合成学习者序列黄金集 + 基线快照 + 容差断言, 先固化"当前引擎行为"再改引擎; 第一版只覆盖 deterministic 段 (belief 更新 → 干预选择 → 建议), LLM judge 层后置 | 接线审计后、任何引擎改动前 | 同上 §四 |
 | P1 | **观测层补学生自评**: 答题 UI 自评控件 + DB 列 → 9D Confidence 维度获得第二证据源（自报 vs LLM 推断互校; CogMirror A1 校准曲线算法可借鉴） | 黄金回归基建后 | 同上 §三/§四 |

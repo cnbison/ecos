@@ -12,6 +12,20 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [恢复] 2026-09-05 — ecos 恢复开发 + built≠wired 全量接线审计
+
+> 恢复期第一批 commit（纯文档 + 审计脚本, 未 bump 版本号, 不改任何产品行为）。
+
+**恢复决策**: Bisen 判断"基于外部认知架构的学校教育"值得进一步推进, ecos 恢复开发（搁置 14 天, 2026-08-22 → 09-05, 期间无代码变更）。CogMirror 并行继续, 兼任 ECOS 确定性算法试验场。README 状态横幅解冻 + 下一步表并入恢复期 backlog（接线审计 → 黄金回归 → 学生自评观测 → A2 reconcile, Bisen 认可排序）。
+
+**审计结果**（恢复期 backlog P0 #1, 工具 `scripts/wiring_audit.py` + 人工复核, 报告 `docs/wiring-audit-2026-09-05.md`）:
+- ecos/ 全部 715 个函数/方法: **Tier A 死代码候选 47 (6.6%) / Tier B 产品路径未接线 72 (10.1%, 含 12 个 `__all__` 导出 SDK API) / 产品路径已接线 ~596 (83.4%)**
+- 已知三项实例全部扩大: ① `BKTEvolutionLayer` 管理面 5 方法整面死代码（apply_decay/get_model/reset_skill/all_skills/BKTModel.accuracy）② L3 两个效应对象孤儿实例化（bjork_spacing + ca_scaffolding, 且发现"存在性断言测试掩盖接线缺失"模式: test_planner.py:75-76 断言 not None 但全仓零方法调用）③ persistence 同族 8 方法未接线（save_intervention/save_evidence 重复死路径/save_bloom_goal/load_trajectory_snapshots 等, 与答题流不落三表互为因果）
+- 新发现 headline: `ExplanationCritic.explain`（LLM critic 解释能力）零调用; `VersionCompatibility` 协议协商零调用; Runtime 3 个 plan_*_aware API 产品路径未接
+- 处置建议: A 类引擎能力待黄金回归基建后接线; B 类 persistence 随 v0.97 家长端; C 类协议/诊断逐项决策; D 类 SDK 表面（17 项）保留; Tier B 不处置按版本跟踪趋势; 暂不升格防御自检第 9 项（误报三型中"存在性断言"无法静态消除）, 恢复期每版本手工复跑对比差集
+
+**误报方法论**（记录供复用）: 构造器注入 / 懒加载 property / `__getattr__` 转发 + 存在性断言三型, 修正后孤儿属性从 34 → 2。
+
 ## [搁置] 2026-08-22 — ecos 暂停, 迁移重启 CogMirror
 
 > 纯文档标记, 未 bump 版本号。ecos 最后活跃版本 v0.96.9 (2026-08-19)。
