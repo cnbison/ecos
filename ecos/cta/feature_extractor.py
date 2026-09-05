@@ -70,11 +70,15 @@ class FeatureExtractor:
         #   v0.52.2: 加 ai_reasoning (Bisen 反馈 partial credit 缺失, 短期先存 AI reasoning
         #     留 Phase 5 partial credit 训练用历史数据)
         #   v0.54.0: 加 score 字段 (partial credit)
+        #   v0.97.1: 加 skill_id (replay_mastery_view 重放推导 BKT 峰值的主键;
+        #     之前只有 problem_id, per-skill 重放缺归属。老条目无此键 →
+        #     重放侧跳过 + 计数, 不猜不映射)
         #   向后兼容老数据: load 时 _get_or_create_student 会把 3-tuple 迁移成 dict
         #                  老 dict 没 score 字段, Step 3 MIRT 用 h.get("score", h.get("correct", 0)) 兜底
         history = self._response_history.setdefault(student_id, [])
         history.append({
             "problem_id": problem_id,
+            "skill_id": observation.skill_id,
             "correct": int(ctx.correct),  # 派生自 score >= 0.6, 保留兼容
             "score": float(ctx.score),  # v0.54.0 partial credit
             "bloom_level": str(ctx.bloom_level.name if hasattr(ctx.bloom_level, "name") else ctx.bloom_level),

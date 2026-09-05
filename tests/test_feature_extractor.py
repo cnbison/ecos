@@ -122,6 +122,17 @@ def test_extract_records_wrong_answer(extractor):
     assert result["history_entry"]["correct"] == 0  # 0.0 < 0.6
 
 
+# ── skill_id (v0.97.1: replay_mastery_view 重放主键) ───────────────────
+
+
+def test_extract_history_entry_records_skill_id(extractor):
+    """v0.97.1: history_entry 需带 skill_id (replay 推导 per-skill 峰值的主键)."""
+    obs = _make_observation()
+    ctx = _make_ctx()
+    result = extractor.extract("lbc", obs, ctx)
+    assert result["history_entry"]["skill_id"] == "addition"
+
+
 # ── maxlen=100 ─────────────────────────────────────────────────────────
 
 
