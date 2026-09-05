@@ -183,9 +183,11 @@ prototypes/            # 架构原型
 Makefile               # 快捷命令（test / check / frontend-dev / frontend-build / frontend）
 ```
 
-## 当前状态（2026-08-22）— **⏸️ 已搁置：迁移重启为 CogMirror**（最后活跃 v0.96.9, 2026-08-19）
+## 当前状态（2026-09-05）— **▶️ 已恢复开发：基于外部认知架构的学校教育方向**（搁置 14 天后重启）
 
-> **2026-08-22 搁置标记**: ecos 暂时搁置（恢复条件未定）, 从 ECOS 选择性迁移重启为独立新项目 **CogMirror** —— 抛开 K12, 面向**成年自学者**的 Python 学习认知教练: 帮其在学 Python 时随时看清真实认知状态（哪里真会 / 哪里是伪自信 / 卡在哪个概念）。CogMirror 独立目录见 `/Users/loubicheng/project/CogMirror`（v0.1.0 重新计版, MVP 无 LLM 依赖, 81 pytest 全绿, 尚无真实用户验证）。本段以下为搁置前 v0.96 快照, 保留作历史参考。详见 [discussions/2026-08-22-CogMirror迁移-ecos搁置.md](discussions/2026-08-22-CogMirror迁移-ecos搁置.md)。
+> **2026-09-05 恢复标记**: ecos 恢复开发——负责人判断**基于外部认知架构的学校教育**值得进一步推进。搁置期 2026-08-22 → 09-05（无代码变更, 本段 v0.96 状态快照仍准确）。恢复期 backlog 见 §下一步（首项 = built≠wired 接线审计, 3 项已知实例）。恢复决策与适用性分析见 [discussions/2026-09-05-CogMirror迁移适用性分析-与built-unwired接线审计.md](discussions/2026-09-05-CogMirror迁移适用性分析-与built-unwired接线审计.md)。
+>
+> **历史**: 2026-08-22 曾搁置并选择性迁移重启为独立项目 **CogMirror**（抛开 K12, 面向**成年自学者**的 Python 学习认知教练, 无 LLM 依赖）。ecos 恢复后两项目**并行**——CogMirror 兼任 ECOS 确定性算法的廉价试验场（A1/A2/A4 类无 LLM 统计层先在单人环境验证, 再决定进 ECOS kernel）。详见 [discussions/2026-08-22-CogMirror迁移-ecos搁置.md](discussions/2026-08-22-CogMirror迁移-ecos搁置.md)。
 
 > **Bisen 路线（2026-08-17 方向审查拍板）**: Kernel 深化收口（v0.83-v0.94 共 12 版本, pytest 1365, 缺失清单 0）后, 重心切换:
 > **从"Kernel 深化/抽象推演"→"验证优先 + 应用层产品化落地"**。抽象推演冻结（Plugin SDK 独立打包等只在真实需求牵引时启动）。
@@ -317,19 +319,23 @@ ECOS_DUAL_AGENT_ENABLED=1 python -m web.api.app
 
 > `.env` 文件会在 `from_env()` 调用时自动加载，无需手动 `source`。
 
-## 下一步（v0.97+ 验证主线）
+## 下一步（恢复期 backlog, 2026-09-05 解冻并更新）
 
-> **⏸️ 2026-08-22 已冻结**: ecos 暂时搁置, 本表任务随 ecos 一并冻结, 恢复条件未定。相关验证/产品化工作已迁移重启到 **CogMirror** (面向成年自学者的 Python 学习认知教练), 见 [discussions/2026-08-22-CogMirror迁移-ecos搁置.md](discussions/2026-08-22-CogMirror迁移-ecos搁置.md)。
+> **2026-09-05 解冻**: ecos 恢复开发, 本表解冻并并入恢复期 backlog（接线审计 → 黄金回归 → 学生自评 → A2 reconcile, Bisen 2026-09-05 认可排序）。搁置前规划 v0.97 家长端保留, 与接线审计天然汇合（家长透明化 = Evidence/Event Engine 注入答题流的预设触发条件, 见 [kernel-mapping §1.4](research/00-overview/12-kernel-mapping-current-vs-2.0.md)）。
 
 **搁置前状态**: v0.96.0 应用层产品化 (React 双端) 全部完成, 方向审查收口 (Kernel 收口 + 抽象推演冻结 + 验证欠债显式化)。
-下一阶段 (冻结前规划): **v0.97 家长端 + 验证主线** (per [discussions/2026-08-17-v095方向审查-验证滞后于抽象与应用层产品化规划.md](discussions/2026-08-17-v095方向审查-验证滞后于抽象与应用层产品化规划.md) §四).
+恢复期新增依据: [discussions/2026-09-05-CogMirror迁移适用性分析-与built-unwired接线审计.md](discussions/2026-09-05-CogMirror迁移适用性分析-与built-unwired接线审计.md)（built≠wired 三项清单 + CogMirror A1-A4/B1-B2 适用性映射）。
 
 | 优先级 | 任务 | 触发条件 | 详见 |
 |--------|------|---------|------|
-| **P0** | **v0.97 家长端 + 验证主线**: a. ParentEngagementPlugin 落地家长端 (engagement 演化 + 家校协同建议); b. 三问跟踪表进 README ✅ (本文件已含); c. 小规模真实试点 5-10 学生 (lbc004+), 定义 H1/Twin 准确性数据收集方案; d. LearningDNA 启用条件推进 (≥50 题) | v0.96.0 完成 | [方向审查 §四](discussions/2026-08-17-v095方向审查-验证滞后于抽象与应用层产品化规划.md) |
-| P1 | H1 形式化验证 (原设 50-100 学生, 视试点结果缩放) | 试点完成 | 同上 |
+| **P0** | **全量 built≠wired 接线审计**: 扫描全仓"定义无 caller / 实例化无调用", 登记结果; 3 项已知实例 — ① `cta/l1_evolution.py` `apply_decay` 零调用者 ② `BjorkSpacingEffect` 在 `lca/planner.py:130` 实例化后从未调用 ③ web 答题流未注入 Evidence/Event Engine。①② 接线有前置缺口: BKT/l1 不持久化 + 原地乘法双重衰减陷阱（解法 = 无状态视图 + 历史重放推导峰值） | 恢复即启动 | [2026-09-05 讨论 §二](discussions/2026-09-05-CogMirror迁移适用性分析-与built-unwired接线审计.md) |
+| **P0** | **v0.97 家长端 + 验证主线**: a. ParentEngagementPlugin 落地家长端 (engagement 演化 + 家校协同建议); b. Evidence/Event Engine 注入答题流（= 接线审计实例 ③, 触发条件随家长端出现）; c. 小规模真实试点 5-10 学生 (lbc004+), 定义 H1/Twin 准确性数据收集方案; d. LearningDNA 启用条件推进 (≥50 题) | 接线审计完成 | [方向审查 §四](discussions/2026-08-17-v095方向审查-验证滞后于抽象与应用层产品化规划.md) |
+| P1 | **A3 式黄金回归基建**: 合成学习者序列黄金集 + 基线快照 + 容差断言, 先固化"当前引擎行为"再改引擎; 第一版只覆盖 deterministic 段 (belief 更新 → 干预选择 → 建议), LLM judge 层后置 | 接线审计后、任何引擎改动前 | 同上 §四 |
+| P1 | **观测层补学生自评**: 答题 UI 自评控件 + DB 列 → 9D Confidence 维度获得第二证据源（自报 vs LLM 推断互校; CogMirror A1 校准曲线算法可借鉴） | 黄金回归基建后 | 同上 §三/§四 |
+| P1 | H1 形式化验证 (原设 50-100 学生, 视试点结果缩放) | 试点完成 | 方向审查 §四 |
 | P1 | C/X 主导题扩量 (从各 5 道到 20+ 道) | lbc001/lbc003 答完现有 C/X 题 | [C/X 重新设计路线图](discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md) |
 | P1 | LearningDNA 真实实现 | ≥50 题 + 交互行为数据 | — |
+| P2 | **A2 reconcile**: per-misconception 证据驱动权重（evidence_log 原料已就位）, 用学生后续同 skill 表现校准 LLM critic 检测置信度 | 学生自评观测落地后 | 同上 §四 |
 | P2 | Plugin SDK 独立打包 / Science-Career 词汇表 / Multi-Domain 落地 | 真实需求牵引 (第二个接入方/领域) | 方向审查结论 3 |
 
 ## 关联项目
@@ -337,6 +343,9 @@ ECOS_DUAL_AGENT_ENABLED=1 python -m web.api.app
 - **SelfLab（兄弟项目）**：[github.com/cnbison/SelfLab](https://github.com/cnbison/SelfLab)
   - SGE（Self Genesis Engine）—— AI 自我涌现引擎
   - 共享 7 个认知科学工具箱
+- **CogMirror（衍生项目, 2026-08-22 从 ECOS 迁移重启）**：本地目录 `/Users/loubicheng/project/CogMirror`
+  - 面向成年自学者的 Python 学习认知教练——无 LLM 依赖（静态题库 + 确定性判分）, 与 ECOS 设计取舍相反但互补
+  - 兼任 ECOS 确定性算法的廉价试验场（校准曲线 / 证据驱动权重 / 间隔衰减先在单人环境验证）
 
 ## 维护者
 
