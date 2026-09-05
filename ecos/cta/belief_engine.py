@@ -71,6 +71,10 @@ class Observation:
         correct_answer: 正确答案（供 LLM Critic 感知层使用）
         timestamp: 观测时间
         response_time_sec: 答题耗时（秒；M2 W1 不使用）
+        self_confidence: 学生提交前自评置信度 0.0-1.0（v0.97.2, pre-outcome
+            自报, 4 档语义化映射; None = 未自评/老调用方, 全路径不变）。
+            C 维度 Confidence 的第二证据源（自报 vs LLM 推断互校）,
+            本期只采集, 校准消费走 calibration_view 无状态视图。
     """
 
     skill_id: str
@@ -87,6 +91,8 @@ class Observation:
     ai_reasoning: str = ""
     timestamp: datetime = field(default_factory=datetime.now)
     response_time_sec: float = 0.0
+    # v0.97.2: 提交前自评置信度（Optional, None = 未自评; 校准视图输入源）
+    self_confidence: Optional[float] = None
 
     # v0.81.0-b: EventLog payload serialization (mirrors BeliefState.to_dict pattern)
     def to_dict(self) -> Dict[str, Any]:
@@ -104,6 +110,8 @@ class Observation:
             "ai_reasoning": self.ai_reasoning,
             "timestamp": self.timestamp.isoformat(),
             "response_time_sec": float(self.response_time_sec),
+            # v0.97.2: None 序列化为 null（老 payload 无此键, from_dict get 兜底）
+            "self_confidence": self.self_confidence,
         }
 
     @classmethod
@@ -137,6 +145,10 @@ class Observation:
             ai_reasoning=d.get("ai_reasoning", ""),
             timestamp=timestamp,
             response_time_sec=float(d.get("response_time_sec", 0.0)),
+            # v0.97.2: 老 payload 无此键 / null -> None（未自评）
+            self_confidence=(
+                float(d["self_confidence"]) if d.get("self_confidence") is not None else None
+            ),
         )
 
 

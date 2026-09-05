@@ -73,6 +73,7 @@ class FeatureExtractor:
         #   v0.97.1: 加 skill_id (replay_mastery_view 重放推导 BKT 峰值的主键;
         #     之前只有 problem_id, per-skill 重放缺归属。老条目无此键 →
         #     重放侧跳过 + 计数, 不猜不映射)
+        #   v0.97.2: 加 self_confidence (提交前自评, calibration_view 校准视图的输入源)
         #   向后兼容老数据: load 时 _get_or_create_student 会把 3-tuple 迁移成 dict
         #                  老 dict 没 score 字段, Step 3 MIRT 用 h.get("score", h.get("correct", 0)) 兜底
         history = self._response_history.setdefault(student_id, [])
@@ -81,6 +82,9 @@ class FeatureExtractor:
             "skill_id": observation.skill_id,
             "correct": int(ctx.correct),  # 派生自 score >= 0.6, 保留兼容
             "score": float(ctx.score),  # v0.54.0 partial credit
+            # v0.97.2: 提交前自评 (calibration_view 输入源; None = 未自评,
+            #   老条目无此键 → 校准侧跳过, 不猜不映射)
+            "self_confidence": observation.self_confidence,
             "bloom_level": str(ctx.bloom_level.name if hasattr(ctx.bloom_level, "name") else ctx.bloom_level),
             "user_answer": observation.user_answer,
             "correct_answer": observation.correct_answer,

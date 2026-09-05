@@ -487,6 +487,22 @@ def api_submit_answer():
         bloom_layer = data.get("bloom_layer", "L2")
         explanation_text = data.get("explanation_text", "")
         reasoning = data.get("reasoning", "")
+        # v0.97.2: 提交前自评置信度 (optional, None = 未自评)
+        #   非数字 → warning + 记为未自评 (诚实降级; 自评是观测数据不是 state,
+        #   丢一处自评 ≠ 污染任何引擎输入, 但必须留痕不 silent)
+        raw_self_conf = data.get("self_confidence")
+        self_confidence = None
+        if raw_self_conf is not None:
+            try:
+                sc = float(raw_self_conf)
+            except (TypeError, ValueError):
+                sc = None
+                _log.warning(
+                    "/api/answer: self_confidence 非数字 (%r), 记为未自评",
+                    raw_self_conf,
+                )
+            if sc is not None and 0.0 <= sc <= 1.0:
+                self_confidence = sc
 
         result = submit_answer(
             student_id=student_id,
@@ -501,6 +517,8 @@ def api_submit_answer():
             ai_reasoning=reasoning,
             # v0.54.0-e: partial credit score
             score=score,
+            # v0.97.2: 提交前自评 (None = 未自评)
+            self_confidence=self_confidence,
         )
         result["reasoning"] = reasoning
 

@@ -552,6 +552,9 @@ def submit_answer(
     #   优先级高于 correct: score >= 0.6 派生 correct=True
     #   老调用方不传 score 时, fallback: correct=True → score=1.0, else 0.0
     score: float = 0.0,
+    # v0.97.2: 提交前自评置信度 0.0-1.0 (None = 未自评/老调用方)
+    #   只采集进 history_entry + event_log payload, 本期不参与任何引擎更新
+    self_confidence: float | None = None,
 ) -> dict[str, Any]:
     """提交答案 → BeliefEngine.update() → 返回干预建议(如果需要)。
 
@@ -606,6 +609,7 @@ def submit_answer(
         user_answer=user_answer,
         correct_answer=correct_answer,
         ai_reasoning=ai_reasoning,  # v0.52.2: 存 AI reasoning
+        self_confidence=self_confidence,  # v0.97.2: 提交前自评
     )
 
     # v0.84.0-d: Plugin SDK 雏形 - produce event, Runtime subscriber 处理

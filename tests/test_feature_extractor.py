@@ -133,6 +133,26 @@ def test_extract_history_entry_records_skill_id(extractor):
     assert result["history_entry"]["skill_id"] == "addition"
 
 
+# ── self_confidence (v0.97.2: 提交前自评, calibration_view 输入源) ─────
+
+
+def test_extract_history_entry_self_confidence_none_by_default(extractor):
+    """v0.97.2: 未自评 (None) 时 history_entry 键存在且为 None, 老行为不变."""
+    obs = _make_observation()
+    ctx = _make_ctx()
+    result = extractor.extract("lbc", obs, ctx)
+    assert result["history_entry"]["self_confidence"] is None
+
+
+def test_extract_history_entry_records_self_confidence(extractor):
+    """v0.97.2: 自评值透传进 history_entry (float 原样, 不猜不映射)."""
+    obs = _make_observation()
+    obs.self_confidence = 0.7
+    ctx = _make_ctx()
+    result = extractor.extract("lbc", obs, ctx)
+    assert result["history_entry"]["self_confidence"] == 0.7
+
+
 # ── maxlen=100 ─────────────────────────────────────────────────────────
 
 
