@@ -12,6 +12,35 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.97.2] 2026-09-05 — 学生自评观测 + 校准视图（恢复期 backlog P1）
+
+> 恢复期 backlog: 观测层补学生自评（黄金回归基建 v0.97.0 → BKT 视图 v0.97.1 之后）。方案经 Bisen 拍板（2026-09-05 讨论）: **A 只读校准视图 + 4 档语义化自评 + 强制无默认**。C 维度本期不接自评信号, 等 v0.98 试点数据回来再定（与 A2 reconcile 同批数据）。**黄金回归基线零 diff**（self_confidence=None 路径与 v0.97.1 完全一致; baseline 只快照 belief state 数值维度, history_entry / event payload 不入基线）。
+
+### add: kernel 观测通路 self_confidence（a 段）
+
+- **MODIFY `ecos/cta/belief_engine.py`**: `Observation.self_confidence: Optional[float] = None`（提交前自评, pre-outcome; None = 未自评/老调用方全路径不变）; `to_dict`/`from_dict` 序列化（老 payload 无键 → None 不炸; event_log payload 经 `from_response_submitted` 自动携带）
+- **MODIFY `ecos/cta/feature_extractor.py`**: history_entry 加 `self_confidence` 键（复刻 v0.97.1a skill_id 模式; 老条目无此键由消费侧跳过）
+- **MODIFY `web/api/belief.py` + `web/api/app.py`**: `submit_answer(self_confidence=None)` + `/api/answer` 接收（非数字 → warning + 记为未自评, 无 silent pass; 越界值丢弃不 clamp 映射）
+- 本期只采集, 不参与任何引擎更新
+- 单测 `tests/test_self_confidence_observation.py` 9 项 + `test_feature_extractor.py` +2（序列化 roundtrip / 老 payload 兼容 / submit_answer 端到端透传）
+
+### add: calibration_view 无状态自评校准视图（b 段, CogMirror A1 移植）
+
+- **NEW `ecos/cta/calibration_view.py`**: `bucket_confidence` + `CalibrationCurve` + `CalibrationView` + `calibration_view(history)` 纯函数 + `expected_accuracy(view, conf)`（A2 reconcile 查询入口, MIN_BUCKET_N=5 诚实回退）; 同 replay_mastery_view 模式: 读时派生, 不持久化, 不触碰 BeliefState
+- 本地化: 输入 = response_history 条目, self_confidence None/缺键跳过（不猜不映射）; 判对 = correct 字段优先 + score≥0.6 兜底（与 `_entry_correct` 兼容约定一致）; Laplace 平滑 `(correct+1)/(n+2)` 保留（试点桶稀疏兜底）
+- **移植偏差修正**: CogMirror 源模式 `int(c/0.1)` 浮点截断使 0.7→"0.6"、0.3→"0.2" 落错桶（CogMirror 连续滑条未踩中; ECOS 4 档映射 0.9/0.7/0.5/0.3 全踩中）→ +1e-9 epsilon 修正; **bug 待回馈 CogMirror 侧**
+- `SELF_CONFIDENCE_SCALE` 文档化锚点（4 档映射, 改映射须同步 AnswerPage.tsx）; `cta/__init__.py` 导出
+- 单测 `tests/test_calibration_view.py` 41 项（对齐 CogMirror test_calibration 语义覆盖 + 移植修正回归）
+
+### add: web 接线 — 学生端自评控件 + 教师端校准卡（c 段）
+
+- **MODIFY `web/frontend/src/student/pages/AnswerPage.tsx`**: 提交前自评 4 档语义化控件, 强制无默认（未选提交 disabled）; pre-outcome 时机（判分结果前选择才有校准意义, 测元认知不测情绪）
+- **MODIFY `web/api/teacher.py`**: 新端点 `GET /api/teacher/students/<id>/calibration`（DB 直读 response_history → calibration_view 派生; 只读不 init BeliefEngine; 无自评数据 → has_data False 不造曲线）
+- **MODIFY `web/frontend/src/pages/StudentDetailPage.tsx`**: 校准卡（校准曲线图 + 完全校准对角参考线 + 分桶表: 自评档/题数/答对率/校准比; 数据不足诚实文案）
+- **MODIFY `web/frontend/src/student/api.ts` + `api/client.ts` + `api/types.ts`**: 类型与端点契约同步
+- 单测 `tests/test_teacher_api.py` +3（老数据不造曲线 / 0.7 落 "0.7" 桶 API 级回归 / 404）
+- 版本 bump 0.97.1 → 0.97.2; pytest 1443 → **1493** (+50); 前端 tsc + eslint + vitest 全绿
+
 ## [0.97.1] 2026-09-05 — BKT 无状态视图 + L3 效应接线（接线审计 A 类首两例）
 
 > 恢复期 backlog: 接线审计 A 类接线动作（黄金回归基建 v0.97.0 之后）。方案经 Bisen 审批（Option A: BKT 不持久化, 峰值由重放推导, 衰减 = 读时计算视图）。**黄金回归基线零 diff**（新行为全部走可选注入, no-view 路径与 v0.97.0 完全一致）。

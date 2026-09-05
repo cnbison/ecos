@@ -4,8 +4,8 @@
 > 基于"**学生认知数字孪生 + AI 学习教练**"双 Agent 共进化架构
 > v0.95+ 演进为 **ECOS 2.0 双内核架构**：**State-based Cognitive Kernel（状态优先的通用认知内核）** + **Cognitive Runtime（领域无关的认知运行时）**——教育（K12）是第一个垂直落地领域
 
-[![Status](https://img.shields.io/badge/status-v0.96.0--prod-brightgreen)]()
-[![Version](https://img.shields.io/badge/version-0.96.0-blue)]()
+[![Status](https://img.shields.io/badge/status-v0.97.2--recovery--obs-brightgreen)]()
+[![Version](https://img.shields.io/badge/version-0.97.2-blue)]()
 [![Tests](https://img.shields.io/badge/pytest-1393-brightgreen)]()
 [![License](https://img.shields.io/badge/license-MIT-green)]()
 
@@ -332,11 +332,11 @@ ECOS_DUAL_AGENT_ENABLED=1 python -m web.api.app
 | **P0** | ~~接线审计 A 类首两例~~ **✅ 已完成 (v0.97.1, 2026-09-05)**: `replay_mastery_view` 无状态重放视图（BKT 不持久化, 峰值重放推导 + 衰减读时计算, Option A）+ planner 接线 `bjork_spacing`/`ca_scaffolding`（孤儿转真实消费, spacing 阈值承接 CogMirror P3, scaffolding ±0.2 有界增量失败优先）+ web 两处 CTAInput 注入 view（失败降级 legacy 规则）。**黄金回归基线零 diff**（新行为全走可选注入）; `apply_decay` 保持 dead code + 禁止激活标注 | ✅ 完成; 阈值 0.7/0.55/0.15/±0.2 为先验值, v0.98 试点数据回来后校准 | [CHANGELOG §0.97.1](CHANGELOG.md) |
 | **P0** | **v0.98 家长端 + 验证主线**（原 v0.97, 因 v0.97.0 被黄金回归基建占用顺延）: a. ParentEngagementPlugin 落地家长端 (engagement 演化 + 家校协同建议); b. Evidence/Event Engine 注入答题流（= 接线审计实例 ③, 触发条件随家长端出现）; c. 小规模真实试点 5-10 学生 (lbc004+), 定义 H1/Twin 准确性数据收集方案; d. LearningDNA 启用条件推进 (≥50 题) | 接线审计完成 | [方向审查 §四](discussions/2026-08-17-v095方向审查-验证滞后于抽象与应用层产品化规划.md) |
 | P1 | ~~A3 式黄金回归基建~~ **✅ 已完成 (v0.97.0, 2026-09-05)**: `tests/golden/` 5 条合成学习者序列 + `baseline.json` 基线快照 + 容差断言 (atol 1e-8) + 证伪自检 3 项 (seeded drift 必被抓到 / BLAS 微漂移不误报 / 双跑全等抓 RNG 泄漏)。覆盖 deterministic 段 (做题 → 5D/BKT/Bloom/TC 更新 → LCA 干预选择), LLM judge/critic 层后置。基线更新流程: `ECOS_GOLDEN_REGEN=1` + 文档化 diff, 禁止静默覆盖 | ✅ 完成; 后续所有引擎改动跑 `pytest -m regression` | [tests/test_golden_regression.py](tests/test_golden_regression.py) |
-| P1 | **观测层补学生自评**: 答题 UI 自评控件 + DB 列 → 9D Confidence 维度获得第二证据源（自报 vs LLM 推断互校; CogMirror A1 校准曲线算法可借鉴） | 黄金回归基建后 | 同上 §三/§四 |
+| P1 | ~~观测层补学生自评~~ **✅ 已完成 (v0.97.2, 2026-09-05)**: 学生端 4 档语义化自评 (强制无默认, pre-outcome) → `self_confidence` 进 Observation/history_entry/event_log; CogMirror A1 校准曲线移植为 `calibration_view` 无状态视图 (教师端展示自报 vs 实绩互校曲线; 移植时修正 CogMirror 浮点截断落错桶 bug, 待回馈)。**C 维度本期不接自评信号**, 校准接法等 v0.98 试点数据 (与 A2 reconcile 同批); `expected_accuracy` 已备好作 A2 查询入口 | 黄金回归基建后 | [CHANGELOG §0.97.2](CHANGELOG.md) |
 | P1 | H1 形式化验证 (原设 50-100 学生, 视试点结果缩放) | 试点完成 | 方向审查 §四 |
 | P1 | C/X 主导题扩量 (从各 5 道到 20+ 道) | lbc001/lbc003 答完现有 C/X 题 | [C/X 重新设计路线图](discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md) |
 | P1 | LearningDNA 真实实现 | ≥50 题 + 交互行为数据 | — |
-| P2 | **A2 reconcile**: per-misconception 证据驱动权重（evidence_log 原料已就位）, 用学生后续同 skill 表现校准 LLM critic 检测置信度 | 学生自评观测落地后 | 同上 §四 |
+| P2 | **A2 reconcile**: per-misconception 证据驱动权重（evidence_log 原料已就位）, 用学生后续同 skill 表现校准 LLM critic 检测置信度 | 学生自评观测落地后（✅ v0.97.2; `calibration_view.expected_accuracy` 作查询入口） | 同上 §四 |
 | P2 | Plugin SDK 独立打包 / Science-Career 词汇表 / Multi-Domain 落地 | 真实需求牵引 (第二个接入方/领域) | 方向审查结论 3 |
 
 ## 关联项目
@@ -360,4 +360,4 @@ ECOS_DUAL_AGENT_ENABLED=1 python -m web.api.app
 ---
 
 **创建日期**：2026-06-24
-**当前版本**：v0.96.0（2026-08-18 应用层产品化 React 双端：教师端 v0.95 + 学生端 v0.96；Kernel 深化 v0.83-v0.94 收口；验证主线 v0.97 启动）
+**当前版本**：v0.97.2（2026-09-05 恢复期：接线审计 → 黄金回归基建 v0.97.0 → BKT 视图+L3 接线 v0.97.1 → 学生自评观测+校准视图 v0.97.2；下一步 v0.98 家长端 + 验证主线）
