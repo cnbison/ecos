@@ -19,6 +19,7 @@ Teacher Dashboard 数据源 (全部只读, 不 mutate Kernel state, 防御性自
   GET /api/teacher/students/<student_id>/evidence — 证据链 (按 5D 维度聚合 + 下钻)
   GET /api/teacher/students/<student_id>/diagnostic  — POMDP 诊断 (belief/coverage/advice)
   GET /api/teacher/students/<student_id>/interventions — 干预历史
+  GET /api/teacher/students/<student_id>/calibration  — 自评校准视图 (v0.97.2)
 """
 from __future__ import annotations
 
@@ -561,6 +562,58 @@ def api_teacher_student_interventions(student_id: str):
             student_id, exc_info=True,
         )
         return jsonify({"error": "干预历史获取失败"}), 500
+
+
+@teacher_bp.route("/api/teacher/students/<student_id>/calibration")
+def api_teacher_student_calibration(student_id: str):
+    """自评校准视图 (v0.97.2): 自报 vs 实绩互校 — "系统为什么这么判断" 的 C 维度补充面.
+
+    数据源 = students.response_history (DB 直读, 含 v0.97.2 self_confidence);
+    计算 = calibration_view 无状态纯函数 (CogMirror A1 移植, 读时派生,
+    不持久化)。无自评数据 → has_data False + curves 空 (前端展示"数据不足",
+    不造曲线)。
+
+    Returns:
+        {student_id, has_data, n_total, n_self_assessed, n_skipped,
+         curves: [{bucket, n, correct, predicted, actual_rate,
+                   correction_factor}]}
+    """
+    try:
+        row = _load_student_row(student_id)
+        if row is None:
+            return jsonify({"error": "学生不存在"}), 404
+
+        history = _json_field(row, "response_history")
+        if not isinstance(history, list):
+            history = []
+
+        from ecos.cta.calibration_view import calibration_view
+
+        view = calibration_view([h for h in history if isinstance(h, dict)])
+        return jsonify({
+            "student_id": student_id,
+            "has_data": view.has_data,
+            "n_total": view.n_total,
+            "n_self_assessed": view.n_self_assessed,
+            "n_skipped": view.n_skipped,
+            "curves": [
+                {
+                    "bucket": c.bucket,
+                    "n": c.n,
+                    "correct": c.correct,
+                    "predicted": round(c.predicted, 4),
+                    "actual_rate": round(c.actual_rate, 4),
+                    "correction_factor": round(c.correction_factor, 4),
+                }
+                for c in view.curves
+            ],
+        })
+    except Exception:
+        _log.warning(
+            "teacher: /api/teacher/students/%s/calibration 失败",
+            student_id, exc_info=True,
+        )
+        return jsonify({"error": "校准视图获取失败"}), 500
 
 
 __all__ = [

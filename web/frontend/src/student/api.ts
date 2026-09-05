@@ -70,6 +70,8 @@ export function submitAnswer(body: {
   user_answer: string;
   correct_answer: string;
   reasoning: string;
+  // v0.97.2: 提交前自评 (4 档语义化映射, 强制无默认; 未选不允许提交)
+  self_confidence: number;
 }): Promise<{ student_id: string }> {
   return postJson<{ student_id: string }>("/api/answer", body);
 }

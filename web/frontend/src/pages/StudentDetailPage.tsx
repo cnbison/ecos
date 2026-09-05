@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
 import {
+  fetchCalibration,
   fetchDiagnostic,
   fetchEvidence,
   fetchInterventions,
@@ -30,6 +31,11 @@ export default function StudentDetailPage() {
   const interventions = useQuery({
     queryKey: ["interventions", id],
     queryFn: () => fetchInterventions(id),
+    enabled: !!id,
+  });
+  const calibration = useQuery({
+    queryKey: ["calibration", id],
+    queryFn: () => fetchCalibration(id),
     enabled: !!id,
   });
 
@@ -81,6 +87,17 @@ export default function StudentDetailPage() {
           <p className="muted">
             该学生当前无 POMDP 后验 (非 POMDP policy 或 LCA 状态不足), 诊断不可用。
           </p>
+        )}
+      </div>
+
+      <div className="card">
+        <h2>自评校准 — 学生觉得自己会 vs 实际答对</h2>
+        {calibration.isLoading ? (
+          <p className="muted">加载校准视图…</p>
+        ) : calibration.isError ? (
+          <div className="error-box">校准视图加载失败</div>
+        ) : (
+          <CalibrationViewCard data={calibration.data!} />
         )}
       </div>
 
@@ -245,6 +262,76 @@ function DimCard({ dim, d }: { dim: string; d: DimensionEvidence }) {
           ))
         )}
       </details>
+    </div>
+  );
+}
+
+// v0.97.2: 自评校准视图 (CogMirror A1 移植; 读时派生, 不持久化)
+function CalibrationViewCard({
+  data,
+}: {
+  data: NonNullable<import("../api/types").CalibrationResponse>;
+}) {
+  if (!data.has_data) {
+    return (
+      <p className="muted">
+        自评数据不足 (自评 {data.n_self_assessed}/{data.n_total} 题, 每档需 ≥5 题才能出校准曲线)。
+        学生答题时提交"把握程度"后此处逐步呈现。
+      </p>
+    );
+  }
+  const chart: Parameters<typeof EChart>[0]["option"] = {
+    // 校准曲线: x = 自评标称置信度 (桶中点), y = 实际答对率; 对角线 = 完全校准
+    xAxis: { type: "value", min: 0, max: 1, name: "自评" },
+    yAxis: { type: "value", min: 0, max: 1, name: "实际答对率" },
+    series: [
+      {
+        type: "line",
+        data: data.curves.map((c) => [c.predicted, c.actual_rate]),
+        symbolSize: 10,
+        itemStyle: { color: "#2563eb" },
+      },
+      {
+        // 完全校准参考线 (自评 = 实绩)
+        type: "line",
+        data: [[0, 0], [1, 1]],
+        symbol: "none",
+        lineStyle: { type: "dashed", color: "#9ca3af" },
+        tooltip: { show: false },
+      },
+    ],
+  };
+  return (
+    <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
+      <div style={{ flex: "1 1 320px", minWidth: 280 }}>
+        <EChart option={chart} height={260} />
+      </div>
+      <div style={{ flex: "1 1 300px" }}>
+        <p className="muted" style={{ marginBottom: 6 }}>
+          自评 {data.n_self_assessed}/{data.n_total} 题 (未自评 {data.n_skipped})。
+          点在对角线下方 = 该档自评偏高 (伪自信), 上方 = 偏低 (欠自信)。
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>自评档</th>
+              <th>题数</th>
+              <th>答对率</th>
+              <th>校准比</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.curves.map((c) => (
+              <tr key={c.bucket}>
+                <td>{c.bucket}</td>
+                <td>{c.n}</td>
+                <td>{(c.actual_rate * 100).toFixed(0)}%</td>
+                <td>{c.correction_factor.toFixed(2)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

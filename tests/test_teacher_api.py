@@ -292,6 +292,58 @@ class TestInterventions:
         assert resp.get_json()["interventions"] == []
 
 
+class TestCalibration:
+    """v0.97.2: 自评校准视图端点 (calibration_view 无状态派生, DB 直读)."""
+
+    def test_calibration_no_self_assessment_data(self, client):
+        """lbc-t1 历史无 self_confidence (v0.97.2 前老数据) → has_data False
+        + 全部计入 n_skipped, 不造曲线."""
+        resp = client.get("/api/teacher/students/lbc-t1/calibration")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["student_id"] == "lbc-t1"
+        assert data["has_data"] is False
+        assert data["curves"] == []
+        assert data["n_total"] == 3
+        assert data["n_skipped"] == 3
+        assert data["n_self_assessed"] == 0
+
+    def test_calibration_with_self_confidence(self, client):
+        """带 self_confidence 的 history → 分桶正确 (0.7 落 "0.7" 桶,
+        浮点截断修正回归) + has_data False (n < 5 诚实回退)."""
+        from ecos.persistence.db import Database
+        db = Database(str(TEST_DB))
+        history = [
+            {"problem_id": "PB-Q01", "correct": True, "score": 1.0,
+             "self_confidence": 0.7, "bloom_level": "L1",
+             "timestamp": "2026-09-05T10:00:00"},
+            {"problem_id": "PB-Q02", "correct": False, "score": 0.3,
+             "self_confidence": 0.7, "bloom_level": "L2",
+             "timestamp": "2026-09-05T10:05:00"},
+        ]
+        db.upsert_student("lbc-t3", subject="python")
+        db.conn.execute(
+            "UPDATE students SET response_history=? WHERE student_id=?",
+            (json.dumps(history), "lbc-t3"),
+        )
+        db.conn.commit()
+
+        resp = client.get("/api/teacher/students/lbc-t3/calibration")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["n_self_assessed"] == 2
+        assert data["n_skipped"] == 0
+        assert [c["bucket"] for c in data["curves"]] == ["0.7"]  # 非 "0.6"
+        assert data["curves"][0]["n"] == 2
+        assert data["curves"][0]["correct"] == 1
+        assert data["curves"][0]["actual_rate"] == pytest.approx(0.5)  # (1+1)/(2+2)
+        assert data["has_data"] is False  # n=2 < MIN_BUCKET_N
+
+    def test_calibration_404_for_unknown(self, client):
+        resp = client.get("/api/teacher/students/no-such-student/calibration")
+        assert resp.status_code == 404
+
+
 # ── 防御性 (2 tests) ─────────────────────────────────────────────────────────
 
 

@@ -9,6 +9,16 @@ import CodeEditor from "../components/CodeEditor";
 
 const IDLE_SECONDS = 20;
 
+// v0.97.2: 提交前自评 4 档语义化 (强制无默认) → 数值映射。
+// 映射锚点与 ecos/cta/calibration_view.py SELF_CONFIDENCE_SCALE 保持同步;
+// 值决定校准曲线的桶 (0.1 宽), 改映射 = 改桶语义, 须两侧同步。
+const SELF_CONFIDENCE_OPTIONS: { label: string; value: number }[] = [
+  { label: "肯定会对", value: 0.9 },
+  { label: "应该会", value: 0.7 },
+  { label: "不确定", value: 0.5 },
+  { label: "可能不会", value: 0.3 },
+];
+
 export default function AnswerPage({ studentId }: { studentId: string }) {
   const [answer, setAnswer] = useState("");
   const [judging, setJudging] = useState(false);
@@ -24,6 +34,8 @@ export default function AnswerPage({ studentId }: { studentId: string }) {
   const [hint, setHint] = useState<string | null>(null);
   const [reflection, setReflection] = useState("");
   const [reflectionSent, setReflectionSent] = useState(false);
+  // v0.97.2: 提交前自评 (null = 未选, 强制无默认)
+  const [selfConf, setSelfConf] = useState<number | null>(null);
 
   const goalBaseline = useRef<string | null>(null);
   const idleTimer = useRef<number | null>(null);
@@ -61,6 +73,7 @@ export default function AnswerPage({ studentId }: { studentId: string }) {
     setHint(null);
     setReflection("");
     setReflectionSent(false);
+    setSelfConf(null);
     lastInput.current = Date.now();
   }, [q?.problem_id, studentId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -100,7 +113,7 @@ export default function AnswerPage({ studentId }: { studentId: string }) {
   };
 
   const onSubmit = async () => {
-    if (!q || !answer.trim()) return;
+    if (!q || !answer.trim() || selfConf === null) return;
     setJudging(true);
     try {
       const jd = await judgeAnswer({
@@ -122,6 +135,7 @@ export default function AnswerPage({ studentId }: { studentId: string }) {
         user_answer: answer,
         correct_answer: "",
         reasoning: jd.reasoning ?? "",
+        self_confidence: selfConf,
       });
       if (res && (res as { persisted?: boolean }).persisted === false) {
         window.alert("⚠️ 持久化失败，刷新后此题结果可能丢失");
@@ -183,12 +197,34 @@ export default function AnswerPage({ studentId }: { studentId: string }) {
           <div className="one-liner">💡 {report.data.interpretation.overall}</div>
         )}
         <CodeEditor value={answer} onChange={onAnswerChange} />
+        {/* v0.97.2: 提交前自评 (pre-outcome, 看到判分结果前选择才有校准意义) */}
+        <div className="self-conf-row" style={{ margin: "10px 0" }}>
+          <div className="muted" style={{ fontSize: 13, marginBottom: 6 }}>
+            提交前先猜一猜：这道题你觉得自己能做对吗？
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {SELF_CONFIDENCE_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                className={`chip${selfConf === opt.value ? " ok" : ""}`}
+                onClick={() => setSelfConf(opt.value)}
+                disabled={!!result}
+              >
+                {selfConf === opt.value ? "✓ " : ""}{opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="btns" style={{ display: "flex", gap: 10 }}>
           <button className="amber" onClick={onHint} disabled={hintUsed}>
             {hintUsed ? "已请求提示 ✓" : "💡 提示"}
           </button>
-          <button onClick={onSubmit} disabled={judging || !answer.trim()}>
-            {judging ? "AI 评判中…" : "提交答案"}
+          <button
+            onClick={onSubmit}
+            disabled={judging || !answer.trim() || selfConf === null}
+            title={selfConf === null ? "先选一个把握程度" : undefined}
+          >
+            {selfConf === null ? "先选把握程度 → 提交" : judging ? "AI 评判中…" : "提交答案"}
           </button>
         </div>
         {hint && (

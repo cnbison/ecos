@@ -117,3 +117,22 @@ export interface InterventionsResponse {
   student_id: string;
   interventions: Array<Record<string, unknown>>;
 }
+
+// v0.97.2: 自评校准视图 (teacher.py /calibration)
+export interface CalibrationCurvePoint {
+  bucket: string;
+  n: number;
+  correct: number;
+  predicted: number;
+  actual_rate: number;
+  correction_factor: number;
+}
+
+export interface CalibrationResponse {
+  student_id: string;
+  has_data: boolean;
+  n_total: number;
+  n_self_assessed: number;
+  n_skipped: number;
+  curves: CalibrationCurvePoint[];
+}
