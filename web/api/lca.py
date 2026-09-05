@@ -179,6 +179,30 @@ def _save_lca_state(student_id: str) -> None:
         )
 
 
+# ─── skill_mastery_view (v0.97.1) ─────────────────────────────────────────
+
+
+def _get_skill_mastery_view(student_id: str):
+    """获取 per-skill 无状态重放视图 (peak/decayed/streaks, v0.97.1).
+
+    数据源: per-student BeliefEngine 的 response_history (DB 恢复路径已还原,
+    重启存活)。供 planner 的 bjork_spacing / ca_scaffolding 数据驱动接线。
+
+    防御性自检 [1]: 获取失败 → warning + None → planner 走 legacy 规则
+    (view 是增强, 不是主链路依赖, 失败不得阻断 select_intervention)。
+    """
+    try:
+        from web.api.belief import _get_or_create_student
+        engine = _get_or_create_student(student_id)["engine"]
+        return engine.decayed_mastery_view(student_id)
+    except Exception:
+        _log.warning(
+            "获取 skill_mastery_view 失败 (sid=%s), planner 走 legacy 规则",
+            student_id, exc_info=True,
+        )
+        return None
+
+
 # ─── Public API (跟 belief.py / app.py 调用契约) ───────────────────────────
 
 
@@ -261,6 +285,7 @@ def _legacy_select_intervention(
         cta_input = CTAInput(
             student_id=student_id,
             belief_state=belief_state,
+            skill_mastery_view=_get_skill_mastery_view(student_id),
         )
         result = engine.select_intervention(cta_input)
         # v0.57.0: 立即落盘 (select 改了 bandit._arm_fingerprints + _last_arm, 不落盘会丢)

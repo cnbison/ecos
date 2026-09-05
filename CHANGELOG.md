@@ -12,6 +12,35 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.97.1] 2026-09-05 — BKT 无状态视图 + L3 效应接线（接线审计 A 类首两例）
+
+> 恢复期 backlog: 接线审计 A 类接线动作（黄金回归基建 v0.97.0 之后）。方案经 Bisen 审批（Option A: BKT 不持久化, 峰值由重放推导, 衰减 = 读时计算视图）。**黄金回归基线零 diff**（新行为全部走可选注入, no-view 路径与 v0.97.0 完全一致）。
+
+### add: replay_mastery_view 无状态重放视图（数据供给）
+
+- **NEW `ecos/cta/l1_evolution.py: replay_mastery_view(history, config, now)`** 模块级纯函数: throwaway BKTModel 重放 per-skill (skill_id, correct) 序列 → `{peak, current, decayed, days_since, last_ts, streak_success, streak_fail, n_observations}`; 只读不触碰 engine.l1 / BeliefState（幂等, 同输入同输出）; `decayed = peak · e^(-days/τ)`（τ = EvolutionConfig.get_decay_constant, 默认 30d）; 无 timestamp 保守不衰减; 老条目缺 skill_id 跳过 + warning（不猜不映射）; correct 缺失时 score≥0.6 兜底
+- **MODIFY `ecos/cta/feature_extractor.py`**: history_entry 补 `skill_id` 字段（v0.97.1 前只有 problem_id, per-skill 重放缺归属; 老条目无此键由消费侧兼容）
+- **MODIFY `ecos/cta/belief_engine.py`**: `BeliefEngine.decayed_mastery_view(student_id, now)` 薄 facade（数据源 = FeatureExtractor response_history, DB 恢复路径已还原 → 重启存活）; `cta/__init__.py` 导出
+- **MODIFY `apply_decay` docstring**: 加禁止激活标注（in-place 乘法双重衰减陷阱, 被无状态视图取代; 产品路径保持 dead code）
+- 单测 `tests/test_replay_mastery_view.py` 14 项（幂等 / 峰值≠当前 / 30 天衰减数学 / 无时间戳保守 / 老数据跳过 / streaks / per-skill 隔离 / facade 只读保证）
+
+### add: planner 接线 bjork_spacing + ca_scaffolding（孤儿对象转真实消费）
+
+- **MODIFY `ecos/lca/cta_input.py`**: CTAInput 加可选 `skill_mastery_view`（None → legacy 规则, 向后兼容）
+- **MODIFY `ecos/lca/planner.py`** Step 4: 有 view 时 spacing 走 per-skill 数据驱动（`peak≥0.7` 且 `decayed<0.55` 或掉幅 `≥0.15`, 阈值承接 CogMirror P3 先验, v0.98 试点后校准）→ `bjork_spacing.get_review_schedule` 真实调用, 时间表（isoformat）进 PlanDecision.review_schedule; scaffolding 走跨 skill streaks（失败优先不叠加）→ ±0.2 有界增量 PlanDecision.scaffolding_adjust; 无 view 时 `_should_review_spaced` legacy 规则原样
+- **MODIFY `ecos/lca/experiment_designer.py`**: scaffolding_adjust 叠加 CLT 映射（clamp [0,1], fade 是调制不是接管, CLT 主导不变）; review_schedule 写入 `Intervention.metadata["review_schedule"]`（全 JSON 可序列化, v0.98 家长端/教师后台展示用）
+- 单测 `tests/test_planner_view_wiring.py` 14 项（no-view 回退 / 触发与不误触发 / 失败优先 / clamp / designer 消费 + JSON 安全）
+- `test_planner.py:75-76` 存在性断言掩盖模式由本版真实调用断言补齐
+
+### add: web 产品路径注入
+
+- **MODIFY `web/api/lca.py`**: `_get_skill_mastery_view(student_id)` helper（per-student engine 取视图; 失败 → warning + None → planner 走 legacy 规则, 增强不阻断主链路）+ `_legacy_select_intervention` CTAInput 注入
+- **MODIFY `web/api/plugin_runtime.py`**: `_handle_request_intervention` CTAInput 同步注入（Plugin 路径与 legacy 路径行为一致）
+- 单测 `tests/test_web_view_wiring.py` 3 项（视图数据正确 / 失败降级 None / legacy 路径真实传递断言）
+- `scripts/wiring_audit.py` 复跑: bjork_spacing / ca_scaffolding 孤儿实例清零; `decayed_mastery_view` Tier B（test-only）清除
+
+pytest 1411 → **1443** (+32: 14 + 14 + 3 + 1)。
+
 ## [0.97.0] 2026-09-05 — A3 式黄金回归基建（恢复期 backlog P1）
 
 > 恢复期第一个功能版本。原 v0.97 家长端顺延为 v0.98。

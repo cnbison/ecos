@@ -110,3 +110,16 @@ Tier B = "kernel 跑在应用前面"的量化。分包统计：l4_optimization 8
 - 实例 #1（apply_decay）→ **扩大**为 BKTEvolutionLayer 管理面 5 方法整面死代码
 - 实例 #2（BjorkSpacingEffect）→ **扩大**为 L3 两个效应对象（+ CAScaffoldingDecay），且发现"存在性断言测试掩盖"模式
 - 实例 #3（Evidence/Event 未注入答题流）→ **同族扩大**：6 个 db.py 写/读方法 + 2 个 store 扫描方法与之互为因果
+
+## 八、处置状态更新（v0.97.1, 2026-09-05）
+
+A 类首两例已接线（黄金回归基建 v0.97.0 之后, 方案经 Bisen 审批 Option A: BKT 不持久化）:
+
+| 原审计项 | 处置结果 |
+|---|---|
+| 实例 #1 `apply_decay` | 保持 dead code + docstring 禁止激活标注（in-place 双重衰减陷阱）。衰减改为读时计算: `l1_evolution.replay_mastery_view()` 无状态视图（`decayed = peak · e^(-days/τ)`, 不落盘不污染 state） |
+| 实例 #2 `bjork_spacing` + `ca_scaffolding` | 孤儿清零。数据供给 = `BeliefEngine.decayed_mastery_view`（CTAInput 可选 `skill_mastery_view` 注入, 失败降级 legacy 规则）; spacing 走 `get_review_schedule` 真实调用（阈值 0.7/0.55/0.15 承接 CogMirror P3, v0.98 试点后校准）; scaffolding 走 streaks ±0.2 有界增量（失败优先, CLT 映射主导不变）。`test_planner.py:75-76` 存在性断言掩盖模式由 `tests/test_planner_view_wiring.py` 真实调用断言补齐 |
+
+**黄金回归基线零 diff**: 新行为全部走可选注入, no-view 路径与 v0.97.0 一致——基线断言在这里同时充当"向后兼容未破坏"的回归证据。产品路径注入点: `web/api/lca.py:_legacy_select_intervention` + `web/api/plugin_runtime.py:_handle_request_intervention`（各 1 行 CTAInput 构造改动）。
+
+A 类剩余项（`ExplanationCritic.explain` 等 12 项）与 B/C 类处置时机不变（见 §六）。

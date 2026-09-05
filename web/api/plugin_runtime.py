@@ -296,7 +296,19 @@ class PluginRuntime:
         _, state = self._state_factory(student_id)
 
         # Construct CTAInput (跟 web/api/lca.py:select_intervention 一致)
-        cta_input = CTAInput(student_id=student_id, belief_state=state)
+        # v0.97.1: 注入 skill_mastery_view (bjork_spacing/ca_scaffolding 数据驱动;
+        #   获取失败 → None → planner 走 legacy 规则, 不阻断 Plugin 路径)
+        try:
+            from web.api.lca import _get_skill_mastery_view
+            view = _get_skill_mastery_view(student_id)
+        except Exception:
+            _log.warning(
+                "Plugin 路径获取 skill_mastery_view 失败 (sid=%s), planner 走 legacy 规则",
+                student_id, exc_info=True,
+            )
+            view = None
+        cta_input = CTAInput(student_id=student_id, belief_state=state,
+                             skill_mastery_view=view)
 
         # Get LCAEngine + Runtime.plan
         lca_engine = self._lca_engine_factory()
