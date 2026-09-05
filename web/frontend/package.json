@@ -1,7 +1,7 @@
 {
   "name": "ecos-frontend",
   "private": true,
-  "version": "0.96.9",
+  "version": "0.97.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

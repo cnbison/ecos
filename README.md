@@ -329,8 +329,8 @@ ECOS_DUAL_AGENT_ENABLED=1 python -m web.api.app
 | 优先级 | 任务 | 触发条件 | 详见 |
 |--------|------|---------|------|
 | **P0** | ~~全量 built≠wired 接线审计~~ **✅ 已完成 (2026-09-05)**: 全仓 715 个函数/方法扫描, 结果 **Tier A 死代码候选 47 + Tier B 产品路径未接线 72 + 孤儿实例属性 2**, 已知三项实例均扩大（报告 §七）。后续接线动作的前置缺口: BKT/l1 不持久化 + 原地乘法双重衰减陷阱（解法 = 无状态视图 + 历史重放推导峰值）; 复跑工具 `python scripts/wiring_audit.py` | ✅ 完成; 接线动作待黄金回归基建后 | [审计报告](docs/wiring-audit-2026-09-05.md) |
-| **P0** | **v0.97 家长端 + 验证主线**: a. ParentEngagementPlugin 落地家长端 (engagement 演化 + 家校协同建议); b. Evidence/Event Engine 注入答题流（= 接线审计实例 ③, 触发条件随家长端出现）; c. 小规模真实试点 5-10 学生 (lbc004+), 定义 H1/Twin 准确性数据收集方案; d. LearningDNA 启用条件推进 (≥50 题) | 接线审计完成 | [方向审查 §四](discussions/2026-08-17-v095方向审查-验证滞后于抽象与应用层产品化规划.md) |
-| P1 | **A3 式黄金回归基建**: 合成学习者序列黄金集 + 基线快照 + 容差断言, 先固化"当前引擎行为"再改引擎; 第一版只覆盖 deterministic 段 (belief 更新 → 干预选择 → 建议), LLM judge 层后置 | 接线审计后、任何引擎改动前 | 同上 §四 |
+| **P0** | **v0.98 家长端 + 验证主线**（原 v0.97, 因 v0.97.0 被黄金回归基建占用顺延）: a. ParentEngagementPlugin 落地家长端 (engagement 演化 + 家校协同建议); b. Evidence/Event Engine 注入答题流（= 接线审计实例 ③, 触发条件随家长端出现）; c. 小规模真实试点 5-10 学生 (lbc004+), 定义 H1/Twin 准确性数据收集方案; d. LearningDNA 启用条件推进 (≥50 题) | 接线审计完成 | [方向审查 §四](discussions/2026-08-17-v095方向审查-验证滞后于抽象与应用层产品化规划.md) |
+| P1 | ~~A3 式黄金回归基建~~ **✅ 已完成 (v0.97.0, 2026-09-05)**: `tests/golden/` 5 条合成学习者序列 + `baseline.json` 基线快照 + 容差断言 (atol 1e-8) + 证伪自检 3 项 (seeded drift 必被抓到 / BLAS 微漂移不误报 / 双跑全等抓 RNG 泄漏)。覆盖 deterministic 段 (做题 → 5D/BKT/Bloom/TC 更新 → LCA 干预选择), LLM judge/critic 层后置。基线更新流程: `ECOS_GOLDEN_REGEN=1` + 文档化 diff, 禁止静默覆盖 | ✅ 完成; 后续所有引擎改动跑 `pytest -m regression` | [tests/test_golden_regression.py](tests/test_golden_regression.py) |
 | P1 | **观测层补学生自评**: 答题 UI 自评控件 + DB 列 → 9D Confidence 维度获得第二证据源（自报 vs LLM 推断互校; CogMirror A1 校准曲线算法可借鉴） | 黄金回归基建后 | 同上 §三/§四 |
 | P1 | H1 形式化验证 (原设 50-100 学生, 视试点结果缩放) | 试点完成 | 方向审查 §四 |
 | P1 | C/X 主导题扩量 (从各 5 道到 20+ 道) | lbc001/lbc003 答完现有 C/X 题 | [C/X 重新设计路线图](discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md) |

@@ -58,3 +58,8 @@ dev = [
 where = ["."]
 include = ["ecos*"]
 exclude = ["experiments*", "research*", "tests*"]
+
+[tool.pytest.ini_options]
+markers = [
+    "regression: 黄金回归基线测试 (tests/test_golden_regression.py, v0.97.0)",
+]

@@ -12,6 +12,21 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.97.0] 2026-09-05 — A3 式黄金回归基建（恢复期 backlog P1）
+
+> 恢复期第一个功能版本。原 v0.97 家长端顺延为 v0.98。
+
+### add: 黄金回归测试基建（借鉴 CogMirror P1 / PersonalAGI gauntlet_regression 模式）
+
+- **NEW `tests/golden/sequences.py`**: 5 条合成学习者黄金序列（全对 / 全错 / partial credit 全谱混合 / 单 skill liminal 跨越 / 20 步密集单 skill）, timestamp 显式固定（CogMirror P1 复核教训）, explanation_text 恒空（与产品路径 LLM-free 段一致）
+- **NEW `tests/golden/baseline.json`**: 数值摘要基线快照（per-step 5D 四元组 + final theta/bloom/BKT/TC + LCA 干预选择）, 不存整份 state 序列化（避免无关字段假回归）
+- **NEW `tests/test_golden_regression.py`**: 意图断言（5 序列人工行为窗口: 全对 BKT>0.6+Bloom 访问层抬升, 全错 Bloom 压低+TC pre_liminal, 混合 BKT 分化, liminal 序列 post_liminal 1.0, 密集 dominant>=ANALYZE） + 基线容差断言（atol 1e-8 吸收 BLAS 微漂移, 首版从严 FAIL） + **证伪自检 3 项**（1e-3 seeded drift 必被抓到 / 1e-12 不误报 / 同序列双跑全等抓 RNG 泄漏）
+- **MODIFY `pyproject.toml`**: 新增 `[tool.pytest.ini_options]` markers 注册 `regression`（pytest 8 告警规避）
+- 覆盖范围 = deterministic 段（做题 → 5D/BKT/Bloom/TC 更新 → LCA select_intervention, `llm_client=None`）; LLM judge/critic 层后置（已有 test_judge_* 系列; mock LLM 黄金序列会固化 prompt 偶然形态）
+- 基线更新纪律: `ECOS_GOLDEN_REGEN=1 python -m pytest tests/test_golden_regression.py` 重生成 → **必须带文档化 diff 提交, 禁止静默覆盖**
+- 这是接线审计 A 类接线动作（bjork_spacing/ca_scaffolding/apply_decay 接线）的行为护栏: 任何引擎改动前后跑 `pytest -m regression`
+- pytest 1407 → **1411** (+4)
+
 ## [恢复] 2026-09-05 — ecos 恢复开发 + built≠wired 全量接线审计
 
 > 恢复期第一批 commit（纯文档 + 审计脚本, 未 bump 版本号, 不改任何产品行为）。
