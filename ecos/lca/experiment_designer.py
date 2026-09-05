@@ -269,7 +269,13 @@ class ExperimentDesigner:
                 # (NOVICE/DEVELOPING 已经有高 scaffolding, 这里不重复)
 
             # Step 3: scaffolding_level 与 CLTLevel 对齐
+            #   v0.97.1: 叠加 planner 的 CA streaks 有界增量 (fade 是调制不是
+            #   接管, CLT 主导不变; None = 未提供 view / streaks 未达阈值)
             scaffolding = self.config.scaffolding_by_clt[clt_level]
+            if plan.scaffolding_adjust is not None:
+                scaffolding = max(
+                    0.0, min(1.0, scaffolding + plan.scaffolding_adjust)
+                )
 
             # Step 4: quantity 调整 (按 InterventionType)
             quantity = self.config.quantity_by_type[itype]
@@ -297,6 +303,13 @@ class ExperimentDesigner:
                 bjork_triggers=bjork,
                 expected_gain=0.0,  # 由 LCAEngine 在 select 阶段补全 (Evaluator 估算)
                 expected_risk=0.0,
+                # v0.97.1: 间隔复习时间表 (planner 经 BjorkSpacingEffect 生成,
+                # isoformat 字符串, 教师后台/前端展示用; 空 = 未触发)
+                metadata=(
+                    {"review_schedule": dict(plan.review_schedule)}
+                    if plan.review_schedule
+                    else {}
+                ),
             )
             candidates.append(intervention)
         return candidates
