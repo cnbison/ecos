@@ -220,6 +220,12 @@ class BeliefEngine:
         #   production: web/api/belief.py attaches EventLog.from_sqlite(DB_PATH)
         #   tests: None (default) or EventLog.in_memory()
         event_log: Optional[EventLog] = None,
+        # v0.98.0 (b-a): EvidenceEngine injection (接线审计实例 ③ 收口)
+        #   kernel-mapping §1.4 预留点真正接通: BeliefUpdator.__init__ 早已收
+        #   evidence_engine (v0.83.0-b), 但本层一直未透传, 生产答题流不触发。
+        #   默认 None -> 现有全部调用方 (golden / session / dual_agent / runtime)
+        #   行为不变, 走 legacy evidence_ids.append 路径。
+        evidence_engine: Optional[Any] = None,
     ) -> None:
         self.config = config or BeliefEngineConfig()
         self.llm_client = llm_client
@@ -246,7 +252,10 @@ class BeliefEngine:
             misconception_library_str=misconception_library_str,
         )
         # v0.81.0-b: BeliefUpdator now owns event_log (sole logging site)
-        self._belief_updater = BeliefUpdator(self._state_engine, event_log)
+        # v0.98.0 (b-a): 透传 evidence_engine (构造期注入, 默认 None = legacy 路径)
+        self._belief_updater = BeliefUpdator(
+            self._state_engine, event_log, evidence_engine,
+        )
         self._event_log = event_log  # keep ref for replay() / simulate() introspection
 
         # LLM Critic（M2 W3，延迟初始化）- kept on facade for backward compat (perception_critic / misc_detector properties)

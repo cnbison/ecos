@@ -158,7 +158,11 @@ class EvidenceEngine:
         self._cache[evidence_id] = evidence
 
         # Auto-prune 警告 (v0.83.0-a 仅警告, 不实际 prune)
-        if self.config.auto_prune_days > 0 or self.config.max_per_student > 0:
+        # v0.98.0 (b-a): gate 修复 — 原条件 `auto_prune_days > 0 or max_per_student > 0`
+        #   把无关的 auto_prune_days 也当触发条件, 且 max_per_student=0 (unlimited)
+        #   时 count > 0 恒真会刷警告。改为仅 max_per_student > 0 才做 count 扫描。
+        #   (web 注入传 max_per_student=0 -> 每次 add 零扫描, 否则 5 dim x 3 表全扫/submit)
+        if self.config.max_per_student > 0:
             try:
                 count = len(self.query_by_student(evidence.student_id, limit=10**6))
                 if count > self.config.max_per_student:

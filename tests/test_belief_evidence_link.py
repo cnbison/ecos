@@ -228,6 +228,161 @@ class TestDefensiveCheck:
 
 
 # ──────────────────────────────────────────────────────────────────────
+# 6. v0.98.0 (b-a): BeliefEngine 透传 + dim 标记 + gate 修复 + replay 抑制
+# ──────────────────────────────────────────────────────────────────────
+
+
+class TestV098EvidenceWiring:
+    """v0.98.0 (b-a): 接线审计实例 ③ kernel 侧收口.
+
+    - BeliefEngine.__init__ 新增 evidence_engine 参数并透传 BeliefUpdator
+    - _register_evidence payload 加 dim 标记 (per-dim 5 行可区分)
+    - add 返回 0 (写库失败) 不关联 state
+    - EvidenceEngine.add count gate 修复 (max_per_student=0 零扫描)
+    - replay/simulate (log_event=False) 抑制 evidence 写库
+    - 默认 None 走 legacy 路径 (golden 结构性零 diff)
+    """
+
+    @pytest.fixture
+    def engine_and_state(self):
+        from ecos.cta.belief_engine import BeliefEngine, BeliefEngineConfig
+        from ecos.cta.l1_evolution import EvolutionConfig
+        from ecos.cta.l2_mirt import MIRTConfig
+
+        config = BeliefEngineConfig(
+            evolution_config=EvolutionConfig(),
+            mirt_config=MIRTConfig(
+                prior_mean=[0.0] * 5,
+                prior_cov=None,
+                default_a_specialized=[0.8] * 5,
+                default_a_general=0.5,
+                default_difficulty=0.0,
+            ),
+        )
+        engine = BeliefEngine(config=config, llm_client=None)
+        return engine, engine.create_initial_state("test_v098_student")
+
+    def test_belief_engine_forwards_evidence_engine(self):
+        """BeliefEngine(evidence_engine=mock) 透传到 _belief_updater."""
+        from ecos.cta.belief_engine import BeliefEngine, BeliefEngineConfig
+        from ecos.cta.l1_evolution import EvolutionConfig
+        from ecos.cta.l2_mirt import MIRTConfig
+
+        mock_engine = MagicMock()
+        config = BeliefEngineConfig(evolution_config=EvolutionConfig())
+        engine = BeliefEngine(
+            config=config, llm_client=None, evidence_engine=mock_engine,
+        )
+        assert engine._belief_updater.evidence_engine is mock_engine
+
+    def test_belief_engine_default_none_legacy_path(self, engine_and_state):
+        """默认不传 evidence_engine -> BeliefUpdator.evidence_engine is None
+        (golden / session / dual_agent / runtime 现有调用方行为不变)."""
+        engine, _ = engine_and_state
+        assert engine._belief_updater.evidence_engine is None
+
+    def test_register_evidence_payload_has_dim_marker(self, engine_and_state):
+        """_register_evidence payload 含 dim 字段, 5 次 dim 调用互不覆盖."""
+        from ecos.cta.belief_updater import BeliefUpdator
+        from ecos.cta.state_engine import get_default_engine
+
+        mock_engine = MagicMock()
+        captured = []
+
+        def capture_add(ev):
+            captured.append(dict(ev.payload))
+            return 100 + len(captured)
+
+        mock_engine.add.side_effect = capture_add
+        updater = BeliefUpdator(
+            state_engine=get_default_engine(), evidence_engine=mock_engine,
+        )
+
+        observation = MagicMock()
+        observation.to_dict.return_value = {
+            "problem_id": "p1", "correct": True, "score": 1.0,
+        }
+        for dim in ("K", "P", "S", "C", "X"):
+            updater._register_evidence(dim, 0, observation, engine_and_state[1])
+
+        assert len(captured) == 5
+        assert [p["dim"] for p in captured] == ["K", "P", "S", "C", "X"]
+        # dim 标记不覆盖原 payload 键
+        assert all(p["problem_id"] == "p1" for p in captured)
+
+    def test_register_evidence_skips_add_evidence_on_zero(self, engine_and_state):
+        """add 返回 0 (FK 写库失败被吞) -> 跳过 state.add_evidence."""
+        from ecos.cta.belief_updater import BeliefUpdator
+        from ecos.cta.state_engine import get_default_engine
+
+        mock_engine = MagicMock()
+        mock_engine.add.return_value = 0
+        updater = BeliefUpdator(
+            state_engine=get_default_engine(), evidence_engine=mock_engine,
+        )
+        observation = MagicMock()
+        observation.to_dict.return_value = {"problem_id": "p1", "score": 1.0}
+
+        updater._register_evidence("K", 0, observation, engine_and_state[1])
+        assert engine_and_state[1].K.evidence_ids == []
+
+    def test_add_gate_disabled_no_scan(self):
+        """EvidenceConfig(max_per_student=0) -> add 时零 count 扫描 (gate 修复)."""
+        import sqlite3
+
+        from ecos.evidence import Evidence, EvidenceSource
+        from ecos.evidence.evidence_engine import EvidenceConfig, EvidenceEngine
+        from ecos.persistence.db import Database, SCHEMA_SQL
+
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        conn.executescript(SCHEMA_SQL)
+        db = Database.__new__(Database)
+        db._conn = conn
+        engine = EvidenceEngine(
+            config=EvidenceConfig(max_per_student=0), db=db,
+        )
+        ev = Evidence(
+            source=EvidenceSource.RESPONSE_HISTORY,
+            student_id="gate_test_student",
+            timestamp=datetime.now(),
+            payload={"score": 1.0},
+            confidence=0.9,
+        )
+        evidence_id = engine.add(ev)
+        assert evidence_id > 0
+        # gate 关闭: query_by_student count 扫描不触发 (无异常且 add 正常返回)
+
+    def test_apply_suppresses_evidence_on_replay(self, engine_and_state):
+        """apply(log_event=False) 抑制 Evidence Engine 写库 (replay 语义一致)."""
+        from ecos.cta.belief_updater import BeliefUpdator
+        from ecos.cta.inference_engine import InferenceResult
+        from ecos.cta.state_engine import get_default_engine
+
+        mock_engine = MagicMock()
+        mock_engine.add.return_value = 1
+        updater = BeliefUpdator(
+            state_engine=get_default_engine(), evidence_engine=mock_engine,
+        )
+        result = InferenceResult(
+            theta_mean=None, theta_cov=None,
+            dim_updates={"K": {
+                "theta": 0.1, "se": 1.0, "mastery_prob": 0.2,
+                "mastered": False, "confidence": 0.5,
+                "evidence_id": 7, "last_updated": datetime.now(),
+            }},
+            bloom_field_updates={},
+        )
+        observation = MagicMock()
+        observation.to_dict.return_value = {"problem_id": "p1", "score": 1.0}
+
+        updater.apply(engine_and_state[1], result, observation, {}, log_event=False)
+        assert mock_engine.add.call_count == 0
+        # legacy in-memory 关联仍发生 (replay state 可用)
+        assert 7 in engine_and_state[1].K.evidence_ids
+
+
+# ──────────────────────────────────────────────────────────────────────
 # 入口
 # ──────────────────────────────────────────────────────────────────────
 

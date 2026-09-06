@@ -93,7 +93,10 @@ class BeliefUpdator:
             # v0.83.0-b: 如果 evidence_engine 注入, 走 Evidence Engine 路径
             #   (Evidence Engine.add 创建新 evidence, state.add_evidence 关联)
             #   否则 fallback 到原 evidence_ids.append(updates["evidence_id"])
-            if self.evidence_engine is not None:
+            # v0.98.0 (b-a): log_event=False (replay/simulate) 时抑制 Evidence
+            #   Engine 写库 — 与 event_log 抑制语义一致, replay 不污染 evidence_log
+            #   (legacy append 分支只动 in-memory state, 无需抑制)。
+            if self.evidence_engine is not None and log_event:
                 self._register_evidence(
                     dim_char, updates["evidence_id"], observation, state,
                 )
@@ -236,6 +239,12 @@ class BeliefUpdator:
             else:
                 payload = {"_raw": str(observation)}
 
+            # v0.98.0 (b-a): payload 加 dim 标记 — per-dim 5 行 evidence_log 行
+            #   payload 原本全同无法区分维度 (Bisen 拍板保留 per-dim 5 行 + dim 标记)。
+            #   dict() 拷贝: 5 次 dim 调用共享同一 to_dict() 返回值, 原地改会互相覆盖。
+            payload = dict(payload)
+            payload["dim"] = dim
+
             # confidence 从 history_entry 派生 (mastery_prob 或 score)
             confidence = float(payload.get("score", 0.5) or 0.5)
 
@@ -248,6 +257,15 @@ class BeliefUpdator:
                 problem_id=payload.get("problem_id"),
             )
             new_evidence_id = self.evidence_engine.add(ev)
+            # v0.98.0 (b-a): add 返回 0 = 写库失败 (如 FK 违反被 _add_to_evidence_log
+            #   吞掉), 不关联到 state, 避免 evidence_ids 指向不存在的行。
+            if new_evidence_id == 0:
+                logger.warning(
+                    "BeliefUpdator._register_evidence: add 返回 0 (写库失败), "
+                    "跳过 state.add_evidence (dim=%s, sid=%s)",
+                    dim, state.student_id,
+                )
+                return
             # v0.83.0-b: state.add_evidence 是 allowlist 入口 (跟 append_trajectory_snapshot 模式一致)
             state.add_evidence(dim, new_evidence_id)
         except Exception as e:
