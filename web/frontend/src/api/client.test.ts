@@ -28,4 +28,16 @@ describe("teacher API endpoint contract", () => {
       "/api/teacher/students/lbc001/interventions",
     );
   });
+
+  it("calibration path (v0.97.2)", () => {
+    expect(TEACHER_ENDPOINTS.calibration("lbc001")).toBe(
+      "/api/teacher/students/lbc001/calibration",
+    );
+  });
+
+  it("misconceptions path (v0.97.3)", () => {
+    expect(TEACHER_ENDPOINTS.misconceptions("lbc001")).toBe(
+      "/api/teacher/students/lbc001/misconceptions",
+    );
+  });
 });

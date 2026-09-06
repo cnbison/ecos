@@ -136,3 +136,23 @@ export interface CalibrationResponse {
   n_skipped: number;
   curves: CalibrationCurvePoint[];
 }
+
+// v0.97.3: per-misconception 证据视图 (teacher.py /misconceptions, A2 reconcile 校准)
+export interface MisconceptionEvidenceItem {
+  misc_id: string;
+  name: string;
+  description: string;
+  correction_strategy: string;
+  success_count: number;
+  failure_count: number;
+  total: number;
+  laplace_confidence: number;
+  quarantined: boolean;
+  last_updated: string;
+}
+
+export interface MisconceptionsResponse {
+  student_id: string;
+  has_data: boolean;
+  items: MisconceptionEvidenceItem[];
+}

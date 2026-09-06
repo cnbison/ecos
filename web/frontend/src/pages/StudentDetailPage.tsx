@@ -5,6 +5,7 @@ import {
   fetchDiagnostic,
   fetchEvidence,
   fetchInterventions,
+  fetchMisconceptions,
   fetchStudentDetail,
 } from "../api/client";
 import type { DimensionEvidence, EvidenceResponse } from "../api/types";
@@ -36,6 +37,12 @@ export default function StudentDetailPage() {
   const calibration = useQuery({
     queryKey: ["calibration", id],
     queryFn: () => fetchCalibration(id),
+    enabled: !!id,
+  });
+  // v0.97.3: per-misconception 证据 (A2 reconcile 校准后 LLM 检测可信度)
+  const misconceptions = useQuery({
+    queryKey: ["misconceptions", id],
+    queryFn: () => fetchMisconceptions(id),
     enabled: !!id,
   });
 
@@ -98,6 +105,17 @@ export default function StudentDetailPage() {
           <div className="error-box">校准视图加载失败</div>
         ) : (
           <CalibrationViewCard data={calibration.data!} />
+        )}
+      </div>
+
+      <div className="card">
+        <h2>per-misconception 证据 — A2 闭环校准后的 LLM 检测可信度</h2>
+        {misconceptions.isLoading ? (
+          <p className="muted">加载 per-misc 证据…</p>
+        ) : misconceptions.isError ? (
+          <div className="error-box">per-misc 证据加载失败</div>
+        ) : (
+          <MisconceptionsCard data={misconceptions.data!} />
         )}
       </div>
 
@@ -365,6 +383,85 @@ function PomdpView({
           <dd>{diagnostic.report?.advice ?? "—"}</dd>
         </dl>
       </div>
+    </div>
+  );
+}
+
+// v0.97.3: per-misconception 证据卡
+//   - A2 闭环校准后的 LLM 检测可信度 (CogMirror A2 移植 + ECOS 适配)
+//   - success = 检测被证实的次数 (后续仍错/重触发), failure = 检测被证伪
+//   - Laplace 置信度 (s+1)/(s+f+2); quarantined = 长期被证伪, 查询辅助
+//   - 本期不挂 C 维度折扣 (v0.97.2 拍板纪律: C 等试点数据, 试点回来同批接)
+function MisconceptionsCard({
+  data,
+}: {
+  data: NonNullable<import("../api/types").MisconceptionsResponse>;
+}) {
+  if (!data.has_data) {
+    return (
+      <p className="muted">
+        暂无 A2 证据。学生在答题中触发 LLM misconception 检测 + 完成后续同 skill 答题后,
+        此处逐步呈现每条 misconception 的证据可信度 (Laplace 校准后)。
+      </p>
+    );
+  }
+  return (
+    <div>
+      <p className="muted" style={{ marginBottom: 8 }}>
+        每条 LLM 检测到的 misconception 在后续同 skill 答题中的"被证实 / 被证伪"次数。
+        Laplace 置信度越接近 1 表示该检测模式对该学生越可靠; quarantined 标记的检测模式
+        已长期被证伪, 教师可降低对它的关注。数据不进入 BeliefState (v0.97.2 拍板纪律)。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>名称 / 描述</th>
+            <th>证实</th>
+            <th>证伪</th>
+            <th>Laplace 置信度</th>
+            <th>状态</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.items.map((it) => (
+            <tr key={it.misc_id}>
+              <td>
+                <code>{it.misc_id}</code>
+              </td>
+              <td>
+                <strong>{it.name}</strong>
+                {it.description && (
+                  <div className="muted" style={{ fontSize: "0.85em" }}>
+                    {it.description}
+                  </div>
+                )}
+              </td>
+              <td>{it.success_count}</td>
+              <td>{it.failure_count}</td>
+              <td>
+                <span
+                  style={{
+                    color: it.laplace_confidence >= 0.6 ? "#16a34a" : it.laplace_confidence < 0.3 ? "#dc2626" : "#6b7280",
+                    fontWeight: 600,
+                  }}
+                >
+                  {it.laplace_confidence.toFixed(2)}
+                </span>
+              </td>
+              <td>
+                {it.quarantined ? (
+                  <span style={{ color: "#dc2626" }}>已隔离 (≤0.3, ≥3 证据)</span>
+                ) : it.laplace_confidence >= 0.6 ? (
+                  <span style={{ color: "#16a34a" }}>可信</span>
+                ) : (
+                  <span className="muted">观察中</span>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

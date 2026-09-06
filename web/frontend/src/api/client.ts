@@ -4,6 +4,7 @@ import type {
   DiagnosticResponse,
   EvidenceResponse,
   InterventionsResponse,
+  MisconceptionsResponse,
   RosterResponse,
   StudentDetail,
 } from "./types";
@@ -41,6 +42,11 @@ export function fetchCalibration(id: string): Promise<CalibrationResponse> {
   return getJson<CalibrationResponse>(`/api/teacher/students/${encodeURIComponent(id)}/calibration`);
 }
 
+// v0.97.3: per-misconception 证据视图 (A2 reconcile 校准后 LLM 检测可信度)
+export function fetchMisconceptions(id: string): Promise<MisconceptionsResponse> {
+  return getJson<MisconceptionsResponse>(`/api/teacher/students/${encodeURIComponent(id)}/misconceptions`);
+}
+
 // 供 vitest 校验的端点契约 (跟 teacher.py 路由逐条对应)
 export const TEACHER_ENDPOINTS = {
   roster: "/api/teacher/students",
@@ -49,4 +55,5 @@ export const TEACHER_ENDPOINTS = {
   diagnostic: (id: string) => `/api/teacher/students/${id}/diagnostic`,
   interventions: (id: string) => `/api/teacher/students/${id}/interventions`,
   calibration: (id: string) => `/api/teacher/students/${id}/calibration`,
+  misconceptions: (id: string) => `/api/teacher/students/${id}/misconceptions`,
 } as const;

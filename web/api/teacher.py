@@ -616,6 +616,69 @@ def api_teacher_student_calibration(student_id: str):
         return jsonify({"error": "校准视图获取失败"}), 500
 
 
+@teacher_bp.route("/api/teacher/students/<student_id>/misconceptions")
+def api_teacher_student_misconceptions(student_id: str):
+    """per-misconception 证据视图 (v0.97.3): A2 reconcile 校准后的 LLM 检测可信度.
+
+    数据源 = misconception_evidence 表 (b 段答题流 reconcile 写入);
+    计算 = 读时派生 (无状态, 同 v0.97.1 replay_mastery_view / v0.97.2
+    calibration_view 模式)。evidence 全空 → 返回空列表, 前端展示
+    "无 A2 证据, A2 闭环未触发"。
+
+    与 calibration 卡的关系: calibration 是"学生自评"的可信度 (C 维度
+    自报面), misconceptions 是"LLM 检测 misconception"的可信度 (LLM critic
+    检测面)。两个 view 一起 = C 维度双证据源, A2 闭环前 (本期不挂
+    BeliefState) 仅展示给教师看, 不进 BeliefState (v0.97.2 拍板纪律)。
+
+    Returns:
+        {student_id, has_data, items: [{misc_id, name, description,
+            success_count, failure_count, total, laplace_confidence,
+            quarantined, last_updated}]}
+    """
+    try:
+        row = _load_student_row(student_id)
+        if row is None:
+            return jsonify({"error": "学生不存在"}), 404
+
+        from ecos.cta.misconception_reconcile import (
+            MisconceptionEvidenceTracker,
+            load_tracker_for_student,
+        )
+        from ecos.cta.content import PythonBasicsMisconceptionLibrary
+
+        tracker = load_tracker_for_student(_get_db(), student_id)
+        lib = PythonBasicsMisconceptionLibrary()
+        items = []
+        for ev_row in tracker.all_evidence():
+            entry = lib.get(ev_row.misc_id)
+            items.append({
+                "misc_id": ev_row.misc_id,
+                "name": entry.name if entry else ev_row.misc_id,
+                "description": entry.description if entry else "",
+                "correction_strategy": entry.correction_strategy if entry else "",
+                "success_count": ev_row.success_count,
+                "failure_count": ev_row.failure_count,
+                "total": ev_row.total,
+                "laplace_confidence": round(
+                    ev_row.laplace_confidence(), 4
+                ),
+                "quarantined": tracker.quarantined(ev_row.misc_id),
+                "last_updated": ev_row.last_updated,
+            })
+
+        return jsonify({
+            "student_id": student_id,
+            "has_data": len(items) > 0,
+            "items": items,
+        })
+    except Exception:
+        _log.warning(
+            "teacher: /api/teacher/students/%s/misconceptions 失败",
+            student_id, exc_info=True,
+        )
+        return jsonify({"error": "per-misconception 证据视图获取失败"}), 500
+
+
 __all__ = [
     "teacher_bp",
     "DIMENSION_LABELS",
