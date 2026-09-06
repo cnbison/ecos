@@ -40,6 +40,9 @@ app.register_blueprint(event_stub_bp)
 # v0.95.1: register Teacher Dashboard Blueprint (/api/teacher/*)
 from web.api.teacher import teacher_bp
 app.register_blueprint(teacher_bp)
+# v0.98.0 (a-b): register Parent Dashboard Blueprint (/api/parent/*, 只读)
+from web.api.parent import parent_bp
+app.register_blueprint(parent_bp)
 
 # LLM 客户端（全局）
 _llm_client: ECOSLLMClient | None = None
