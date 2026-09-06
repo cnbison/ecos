@@ -81,7 +81,8 @@
 - `55f67b5` v0.97.3 (a): misconception_reconcile 纯算法核心 + DB 持久化 — CogMirror A2 移植
 - `353b5cc` v0.97.3 (b): 答题流注入 A2 reconcile — session 窗口, 不挂 BeliefState
 - `a5564eb` v0.97.3 (c): web 接线 — 教师端 per-misconception 证据卡
-- (待) v0.97.3 (d): docs 收口 — CHANGELOG + README backlog P2 打勾 + 状态徽章 (本次提交)
+- `2f1a938` v0.97.3 (d): docs 收口 — CHANGELOG + README backlog P2 打勾 + 状态徽章
+- `d1e395a` v0.97.3 (a-fix): ON DELETE CASCADE — 修复 v0.64 test fixture FK 阻断 (silent try/except: pass 漏掉)
 
 ## 关联
 
