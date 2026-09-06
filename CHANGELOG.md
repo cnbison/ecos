@@ -12,6 +12,55 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.98.0] 2026-09-06 — 家长端 + Evidence/Event Engine 注入答题流（恢复期 backlog P0, 接线审计实例 ③ 收口）
+
+> 恢复期 backlog P0「v0.98 家长端 + 验证主线」a/b/c 三项（方案经 Bisen 拍板 2026-09-06: **方案一 b → a**——先接线再落家长端读真数据; 四项决策: per-dim 5 行不聚合 / judge_completed 不同批 / H1 方案文档落 discussions/ / 家长端不放校准卡）。**黄金回归基线零 diff**（kernel 接线全走可选注入, `BeliefEngine(llm_client=None)` 默认路径行为不变）。commit 链: b-a → b-b → b-c → a-a → a-b → a-c → d。
+
+### add: kernel 接线 —— EvidenceEngine 预留注入点接通（b-a, 接线审计实例 ③ kernel 侧）
+
+- **MODIFY `ecos/cta/belief_engine.py`**: `__init__` 新增 `evidence_engine: Optional[Any] = None` 参数, 透传 `BeliefUpdator`（kernel-mapping §1.4 预留点; 默认 None → 现有全部调用方行为不变, golden 结构性零 diff）
+- **MODIFY `ecos/cta/belief_updater.py`**: `_register_evidence` payload 加 `dim` 标记（拷贝防 5 次 dim 调用互覆, per-dim 5 行可区分）; `add` 返 0（FK 写库失败被吞）跳过 `state.add_evidence`; apply 的 evidence 分支加 `log_event` 条件（replay/simulate 抑制, 与 event_log 语义一致）
+- **MODIFY `ecos/evidence/evidence_engine.py`**: **count gate bug 修复**（:166 `auto_prune_days > 0 or max_per_student > 0` 默认恒真 → 每次 add 三表全扫 ×5 dim/submit; 修为 `max_per_student > 0` 才扫描）
+- 单测 `tests/test_belief_evidence_link.py` +6（透传 / 默认 None legacy / dim 标记 / 0 跳过关联 / gate 关闭零扫描 / replay 抑制）; pytest 1544 → **1550**
+
+### add: web 注入 —— 答题流落 evidence_log + event_log（b-b, 实例 ③ web 侧）
+
+- **MODIFY `web/api/belief.py`**: 两处 `BeliefEngine` 构造（DB 恢复路径 + 全新路径）注入 module 级 lazy singleton `EvidenceEngine` + `EventLog.from_sqlite`（**EventLogConfig 默认无 retention, 显式传 max_per_student=5000 / retention_days=90 / auto_prune_on_log=True**）。其余 4 个实例化点（dual_agent/ecos_session/orchestrator/runtime api）不注入——独立会话/replay 语义。**CALIBRATION_LOG 不接**（防污染 H3 ECE 数据源 compute_h3_ece.py, 与 v0.97.2 自评纪律一致）
+- 答题流每 submit 落: evidence_log per-dim 5 行（payload 含 dim）+ event_log 2 行（response_submitted + observation, 设计内两类）
+- **FK CASCADE（硬规则 #8 同类扫描发现第二处同族 bug）**: evidence_log + event_log 补 `ON DELETE CASCADE`（v0.97.3 a-fix 同族——无 CASCADE 的 FK 阻断 v0.64 测试 fixture 清表, silent try/except pass 掩盖）。`ecos/persistence/db.py` DDL 提取为 `_EVENT_LOG_SCHEMA`/`_EVIDENCE_LOG_SCHEMA` 常量 + init_schema 两段 rename-rebuild-copy 迁移（老 dev DB 幂等升级, 已有行保留）; `ecos/cta/event_log.py` `_EVENT_LOG_DDL` 同步。同族其余 interventions/calibration_log 本期无新写路径不动
+- 单测 NEW `tests/test_web_evidence_injection.py` 13 项（注入行为 8 + CASCADE 迁移 5）; pytest 1550 → **1563**
+
+### remove: 死路径收口（b-c）
+
+- **DELETE `ecos/persistence/db.py` `save_evidence`**（重复死路径, 全仓零引用断言通过; evidence_log 唯一写入口 = EvidenceEngine._add_to_evidence_log; load_evidence 保留）
+- `ecos/evidence/evidence.py` / `evidence_engine.py` docstring 同步; **MODIFY `docs/wiring-audit-2026-09-05.md`** 新增 §九（实例 ③ 收口 + 顺带修 2 项 + B 类同族其余 8 项「继续 dead code」标注）
+
+### add: ParentEngagementPlugin 复活 + evolution 读取路径（a-a）
+
+- **MODIFY `ecos/lca/orchestrator.py`**: 新增 `get_pomdp_evolution(student_id)`——**evolution 断层补线**（POMDPDiagnostic.to_dict 不含 evolution, v0.93.0-c 留在 POMDPPolicy._evolution, 消费方拿不到）
+- **MODIFY `ecos/runtime/api.py`**: 第 9 Runtime API `diagnose_pomdp_evolution`（跟 diagnose_pomdp 并列, `__all__` 导出）
+- **MODIFY `ecos/plugins/first_party/parent_engagement.py`** metadata 1.0.0 → 1.1.0: pull 模式 UI 可消费复活（仿 TeacherProgressPlugin v0.95.1）——双喂入路径（on_event 订阅 / ingest_diagnostic API pull 共享 _build_report DRY）+ `ingest_evolution` 喂第 9 API 结果 + `report_for`/`get_reports` 查询 + `_reports` 缓存（enable/disable 对称清零）+ `_build_advice` 规则表驱动（不调 LLM deterministic; cold_start / 负面状态单次 warning 持续 attention（窗口 SUSTAINED_ENGAGED_WINDOW=3）/ state_changed / sustained_engaged; 阈值先验值待试点校准）; on_event 原行为保留（3 个既有测试零改动通过）
+- **MODIFY `docs/plugin_library.md` §5.2** 同步（双喂入 + advice 结构 + 用法）
+- 单测 `tests/test_first_party_plugins.py` +6 + NEW `tests/test_pomdp_evolution_api.py` 4 项; pytest 1563 → **1573**
+
+### add: 家长端 API + 前端第三入口（a-b / a-c）
+
+- **NEW `web/api/parent.py`** `parent_bp`: `GET /api/parent/students`（只读 roster）+ `GET /api/parent/students/<id>/overview`（单聚合四卡: engagement + five_d + interventions——**db.load_intervention_history 接线**（wiring-audit B 类 dead code 接活））。**严禁 `_get_or_create_student`**（v0.96.9 幽灵学生教训: 学生不存在 404 且不产生 DB 行, 测试断言行数不变）; 不放校准视图/misconceptions（教师专业视图）; engagement 双路径（plugin 缓存 → miss 时 diagnose_pomdp + diagnose_pomdp_evolution 按需诊断 → ingest 双喂入）
+- **MODIFY `web/api/app.py`**: 注册 parent_bp + `/parent/` 三条 route（仿 /teacher/, dist 优先 fallback web/parent/ 占位页）
+- **NEW `web/frontend/parent.html` + `src/parent/`**（React SPA 第三入口, QueryClient 同构）: roster 选择视图 → 四卡（EngagementCard 状态+K=10 轨迹+state_changed 徽标 / AdviceCard severity 三色 / FiveDOverviewCard / InterventionHistoryCard）; **无校准卡**。CSS class 与 index.css 对齐（badge ok/cold/attention, 防御自检 #4）
+- **MODIFY `web/frontend/vite.config.ts`**: build input 加 parent（三入口多页）
+- 单测 NEW `tests/test_parent_api.py` 10 项（roster 3 + overview 4 + 按需 2 + route 服务 1）; 前端 vitest +3; pytest 1573 → **1583**
+
+### docs: H1/Twin 数据收集方案（c 项设计交付）
+
+- **NEW `discussions/2026-09-06-v098-H1-Twin-数据收集方案.md`**: H1（5D state 预测效度, 证伪条件 ECE 不收敛/AUC≤0.55）+ H1-T（Twin vs 人工标注 κ, 证伪 κ≤0.2）+ 指标公式（ECE 沿用 compute_h3_ece.py 口径）+ 数据源映射表（本次接线 = 直接消费方）+ 采集协议（5-10 学生 lbc004+ / ≥50 题 / 4 周 / 每周人工标注）+ retention 与隐私（event_log 90 天 ✅; evidence_log 无 retention 标开放项）+ 验收标准 + 5 个开放问题
+- **MODIFY `README.md`**: backlog P0 a/b/c 打勾 + 试点执行单列新 P0 行 + 状态徽章 + 当前版本 v0.98.0
+
+### 校验
+
+- 版本 bump 0.97.3 → 0.98.0（双源: `ecos/__init__.py` + `web/frontend/package.json`）; pytest 1544 → **1583** (+39); golden 零 diff（每 commit 实跑）; 前端 tsc + eslint + vitest + build 全绿; 防御性自检 8 项静态 + 前端段全绿
+- 开放项: evidence_log 保留窗口 / 家长建议阈值校准 / C 维度折扣接线（confidence_for → BeliefState）——均等 v0.98 试点数据（见 H1 方案 §七）
+
 ## [0.97.3] 2026-09-05 — A2 reconcile per-misconception 证据驱动权重（恢复期 backlog P2）
 
 > 恢复期 backlog: A2 reconcile（学生自评观测 v0.97.2 + calibration_view.expected_accuracy 查询入口落地后）。方案经 Bisen 拍板 (2026-09-05 讨论 Option A): **CogMirror A2 移植 + 答题流 session 窗口 + 教师端展示 + C 维度折扣暂不挂 BeliefState** (与 v0.97.2 拍板纪律"等试点数据"一致, 试点回来同批接)。**黄金回归基线零 diff** (新行为全部走可选注入, 老 submit_answer 路径与 v0.97.2 完全一致, no-misc 命中时 DB 不写)。

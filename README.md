@@ -4,9 +4,9 @@
 > 基于"**学生认知数字孪生 + AI 学习教练**"双 Agent 共进化架构
 > v0.95+ 演进为 **ECOS 2.0 双内核架构**：**State-based Cognitive Kernel（状态优先的通用认知内核）** + **Cognitive Runtime（领域无关的认知运行时）**——教育（K12）是第一个垂直落地领域
 
-[![Status](https://img.shields.io/badge/status-v0.97.3--recovery--A2--reconcile-brightgreen)]()
-[![Version](https://img.shields.io/badge/version-0.97.3-blue)]()
-[![Tests](https://img.shields.io/badge/pytest-1393-brightgreen)]()
+[![Status](https://img.shields.io/badge/status-v0.98.0--parent--H1--plan-brightgreen)]()
+[![Version](https://img.shields.io/badge/version-0.98.0-blue)]()
+[![Tests](https://img.shields.io/badge/pytest-1583-brightgreen)]()
 [![License](https://img.shields.io/badge/license-MIT-green)]()
 
 ---
@@ -49,7 +49,7 @@
   - Plugin SDK（v0.85/0.94）：Plugin 不碰状态、只产 Event——AST 扫描强制 0 mutation site
 
 - **应用层（React 三端 SPA）** —— 验证链路呈现面
-  - v0.95 教师端（证据链视图"系统为什么这么判断"）→ v0.96 学生端（信息架构三问 + 通俗化全接）→ v0.97 家长端（规划中）
+  - v0.95 教师端（证据链视图"系统为什么这么判断"）→ v0.96 学生端（信息架构三问 + 通俗化全接）→ v0.98 家长端（engagement 四卡, 只读透明化）
 
 **一句话**：ECOS 不是"一个会出题判分的 K12 应用"，而是一个**可承载教育（乃至更广领域）认知状态演化与策略学习的操作系统**——K12 学生是第一个使用者，双 Agent 互校是第一个落地范式。
 
@@ -330,7 +330,8 @@ ECOS_DUAL_AGENT_ENABLED=1 python -m web.api.app
 |--------|------|---------|------|
 | **P0** | ~~全量 built≠wired 接线审计~~ **✅ 已完成 (2026-09-05)**: 全仓 715 个函数/方法扫描, 结果 **Tier A 死代码候选 47 + Tier B 产品路径未接线 72 + 孤儿实例属性 2**, 已知三项实例均扩大（报告 §七）。后续接线动作的前置缺口: BKT/l1 不持久化 + 原地乘法双重衰减陷阱（解法 = 无状态视图 + 历史重放推导峰值）; 复跑工具 `python scripts/wiring_audit.py` | ✅ 完成; 接线动作待黄金回归基建后 | [审计报告](docs/wiring-audit-2026-09-05.md) |
 | **P0** | ~~接线审计 A 类首两例~~ **✅ 已完成 (v0.97.1, 2026-09-05)**: `replay_mastery_view` 无状态重放视图（BKT 不持久化, 峰值重放推导 + 衰减读时计算, Option A）+ planner 接线 `bjork_spacing`/`ca_scaffolding`（孤儿转真实消费, spacing 阈值承接 CogMirror P3, scaffolding ±0.2 有界增量失败优先）+ web 两处 CTAInput 注入 view（失败降级 legacy 规则）。**黄金回归基线零 diff**（新行为全走可选注入）; `apply_decay` 保持 dead code + 禁止激活标注 | ✅ 完成; 阈值 0.7/0.55/0.15/±0.2 为先验值, v0.98 试点数据回来后校准 | [CHANGELOG §0.97.1](CHANGELOG.md) |
-| **P0** | **v0.98 家长端 + 验证主线**（原 v0.97, 因 v0.97.0 被黄金回归基建占用顺延）: a. ParentEngagementPlugin 落地家长端 (engagement 演化 + 家校协同建议); b. Evidence/Event Engine 注入答题流（= 接线审计实例 ③, 触发条件随家长端出现）; c. 小规模真实试点 5-10 学生 (lbc004+), 定义 H1/Twin 准确性数据收集方案; d. LearningDNA 启用条件推进 (≥50 题) | 接线审计完成 | [方向审查 §四](discussions/2026-08-17-v095方向审查-验证滞后于抽象与应用层产品化规划.md) |
+| **P0** | ~~v0.98 家长端 + 验证主线 a/b/c~~ **✅ 已完成 (v0.98.0, 2026-09-06)**: a. ParentEngagementPlugin 复活 (pull 模式 UI 可消费) + evolution 读取路径 (Runtime 第 9 API `diagnose_pomdp_evolution`) + 家长端 API + 前端第三入口 `/parent/` 四卡 (无校准卡); b. Evidence/Event Engine 注入答题流（**接线审计实例 ③ 收口**, 构造期接通 kernel-mapping §1.4 预留点, 答题流落 evidence_log per-dim 5 行 + event_log 2 行, CALIBRATION_LOG 不接防污染 ECE 数据源; 顺带修 count gate bug + evidence_log/event_log FK CASCADE）+ 死路径收口 (删 db.save_evidence); c. H1/Twin 数据收集方案文档交付 | ✅ 完成; c 的**试点执行**待启动 (5-10 学生 lbc004+, 4 周, 见方案 §四); 家长建议阈值/衰减等先验值待试点校准 | [CHANGELOG §0.98.0](CHANGELOG.md) · [H1 方案](discussions/2026-09-06-v098-H1-Twin-数据收集方案.md) |
+| **P0** | **v0.98 试点执行** (c 项落地动作): 小规模真实试点 5-10 学生 (lbc004+), 按 H1/Twin 数据收集方案采集 4 周; d. LearningDNA 启用条件推进 (≥50 题, 与试点题量对齐) | 方案文档 ✅; 执行需 Bisen 启动 | [H1 方案 §四](discussions/2026-09-06-v098-H1-Twin-数据收集方案.md) |
 | P1 | ~~A3 式黄金回归基建~~ **✅ 已完成 (v0.97.0, 2026-09-05)**: `tests/golden/` 5 条合成学习者序列 + `baseline.json` 基线快照 + 容差断言 (atol 1e-8) + 证伪自检 3 项 (seeded drift 必被抓到 / BLAS 微漂移不误报 / 双跑全等抓 RNG 泄漏)。覆盖 deterministic 段 (做题 → 5D/BKT/Bloom/TC 更新 → LCA 干预选择), LLM judge/critic 层后置。基线更新流程: `ECOS_GOLDEN_REGEN=1` + 文档化 diff, 禁止静默覆盖 | ✅ 完成; 后续所有引擎改动跑 `pytest -m regression` | [tests/test_golden_regression.py](tests/test_golden_regression.py) |
 | P1 | ~~观测层补学生自评~~ **✅ 已完成 (v0.97.2, 2026-09-05)**: 学生端 4 档语义化自评 (强制无默认, pre-outcome) → `self_confidence` 进 Observation/history_entry/event_log; CogMirror A1 校准曲线移植为 `calibration_view` 无状态视图 (教师端展示自报 vs 实绩互校曲线; 移植时修正 CogMirror 浮点截断落错桶 bug, 待回馈)。**C 维度本期不接自评信号**, 校准接法等 v0.98 试点数据 (与 A2 reconcile 同批); `expected_accuracy` 已备好作 A2 查询入口 | 黄金回归基建后 | [CHANGELOG §0.97.2](CHANGELOG.md) |
 | P1 | H1 形式化验证 (原设 50-100 学生, 视试点结果缩放) | 试点完成 | 方向审查 §四 |
@@ -360,4 +361,4 @@ ECOS_DUAL_AGENT_ENABLED=1 python -m web.api.app
 ---
 
 **创建日期**：2026-06-24
-**当前版本**：v0.97.3（2026-09-05 恢复期：接线审计 → 黄金回归基建 v0.97.0 → BKT 视图+L3 接线 v0.97.1 → 学生自评观测+校准视图 v0.97.2 → A2 reconcile per-misconception 证据驱动权重 v0.97.3；下一步 v0.98 家长端 + 验证主线）
+**当前版本**：v0.98.0（2026-09-06 恢复期：接线审计 → 黄金回归基建 v0.97.0 → v0.97.1 BKT 视图+L3 接线 → v0.97.2 学生自评+校准视图 → v0.97.3 A2 reconcile → v0.98.0 家长端 + Evidence/Event 注入答题流（接线审计实例 ③ 收口）+ H1/Twin 数据收集方案；下一步 = 试点执行）
