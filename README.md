@@ -4,8 +4,8 @@
 > 基于"**学生认知数字孪生 + AI 学习教练**"双 Agent 共进化架构
 > v0.95+ 演进为 **ECOS 2.0 双内核架构**：**State-based Cognitive Kernel（状态优先的通用认知内核）** + **Cognitive Runtime（领域无关的认知运行时）**——教育（K12）是第一个垂直落地领域
 
-[![Status](https://img.shields.io/badge/status-v0.97.2--recovery--obs-brightgreen)]()
-[![Version](https://img.shields.io/badge/version-0.97.2-blue)]()
+[![Status](https://img.shields.io/badge/status-v0.97.3--recovery--A2--reconcile-brightgreen)]()
+[![Version](https://img.shields.io/badge/version-0.97.3-blue)]()
 [![Tests](https://img.shields.io/badge/pytest-1393-brightgreen)]()
 [![License](https://img.shields.io/badge/license-MIT-green)]()
 
@@ -336,7 +336,7 @@ ECOS_DUAL_AGENT_ENABLED=1 python -m web.api.app
 | P1 | H1 形式化验证 (原设 50-100 学生, 视试点结果缩放) | 试点完成 | 方向审查 §四 |
 | P1 | C/X 主导题扩量 (从各 5 道到 20+ 道) | lbc001/lbc003 答完现有 C/X 题 | [C/X 重新设计路线图](discussions/2026-07-22-Phase5-Q矩阵CX重新设计路线图.md) |
 | P1 | LearningDNA 真实实现 | ≥50 题 + 交互行为数据 | — |
-| P2 | **A2 reconcile**: per-misconception 证据驱动权重（evidence_log 原料已就位）, 用学生后续同 skill 表现校准 LLM critic 检测置信度 | 学生自评观测落地后（✅ v0.97.2; `calibration_view.expected_accuracy` 作查询入口） | 同上 §四 |
+| P2 | ~~A2 reconcile~~ **✅ 已完成 (v0.97.3, 2026-09-05)**: per-misconception 证据驱动权重 — CogMirror A2 移植 (Laplace 置信度 + PredictionReconciler 计数) + `misconception_evidence` 表 + 答题流 session 窗口注入 reconcile (CogMirror 5.7 方案) + 教师端 per-misc 证据卡 (C 维度双证据源: 自评面 calibration + LLM 检测面 misconceptions)。**C 维度折扣暂不挂 BeliefState** — v0.97.2 拍板"等试点数据", 试点回来同批接 `confidence_for()` 接法; 试点校准前 Laplace 折扣无可验证基准 | 学生自评观测落地后（✅ v0.97.2） | [CHANGELOG §0.97.3](CHANGELOG.md) |
 | P2 | Plugin SDK 独立打包 / Science-Career 词汇表 / Multi-Domain 落地 | 真实需求牵引 (第二个接入方/领域) | 方向审查结论 3 |
 
 ## 关联项目
@@ -360,4 +360,4 @@ ECOS_DUAL_AGENT_ENABLED=1 python -m web.api.app
 ---
 
 **创建日期**：2026-06-24
-**当前版本**：v0.97.2（2026-09-05 恢复期：接线审计 → 黄金回归基建 v0.97.0 → BKT 视图+L3 接线 v0.97.1 → 学生自评观测+校准视图 v0.97.2；下一步 v0.98 家长端 + 验证主线）
+**当前版本**：v0.97.3（2026-09-05 恢复期：接线审计 → 黄金回归基建 v0.97.0 → BKT 视图+L3 接线 v0.97.1 → 学生自评观测+校准视图 v0.97.2 → A2 reconcile per-misconception 证据驱动权重 v0.97.3；下一步 v0.98 家长端 + 验证主线）

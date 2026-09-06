@@ -12,6 +12,39 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.97.3] 2026-09-05 — A2 reconcile per-misconception 证据驱动权重（恢复期 backlog P2）
+
+> 恢复期 backlog: A2 reconcile（学生自评观测 v0.97.2 + calibration_view.expected_accuracy 查询入口落地后）。方案经 Bisen 拍板 (2026-09-05 讨论 Option A): **CogMirror A2 移植 + 答题流 session 窗口 + 教师端展示 + C 维度折扣暂不挂 BeliefState** (与 v0.97.2 拍板纪律"等试点数据"一致, 试点回来同批接)。**黄金回归基线零 diff** (新行为全部走可选注入, 老 submit_answer 路径与 v0.97.2 完全一致, no-misc 命中时 DB 不写)。
+
+### add: misconception_reconcile 纯算法核心 + DB 持久化（a 段, CogMirror A2 移植）
+
+- **NEW `ecos/cta/misconception_reconcile.py`**: `MisconceptionEvidenceTracker` (per-student, in-memory 缓存) + `record_success/failure` + `reconcile(evidence_rows)` 纯函数 + `quarantined()` + `confidence_for(misc_id)` (C 维度折扣接入点, 暂不挂 BeliefState) + `MisconceptionEvidenceRow` 数据类; 沿用 CogMirror 5.1/5.6 验收语义 (Laplace `(s+1)/(s+f+2)`, 反复持续 > 0.6, 克服回落 < 0.6, PredictionReconciler 模式: 仍错/重触发=success, 答对=failure)
+- ECOS 适配差异 (vs CogMirror):
+  - **多人**: tracker 按 student_id 实例化 (CogMirror 单人全局态)
+  - **reconcile 输入**: EvidenceEngine 反查 + parse misc_hits JSON
+  - **correct 字段优先** score ≥ 0.6 兜底 (与 calibration_view / `_entry_correct` 兼容约定一致)
+  - **持久化走自己** `misconception_evidence` 表, 不旁路 evidence_log (A2 是 derived 状态, 走自己表干净)
+  - **不挂 C 折扣** (v0.97.2 拍板纪律)
+- **MODIFY `ecos/persistence/db.py`**: 新表 `misconception_evidence` (PK=(student_id, misc_id) upsert 幂等 + index) + 3 方法 `save/load/delete_misconception_evidence`
+- **MODIFY `ecos/cta/__init__.py`**: 导出 4 个公开符号 (`MisconceptionEvidenceRow` / `MisconceptionEvidenceTracker` / `load_tracker_for_student` / `reconcile_for_student`)
+- **MODIFY `ecos/cta/belief_engine.py`**: 加 `@property feature_extractor` 暴露 `_feature_extractor` (与 `perception_critic` / `misc_detector` 同款 pattern)
+- 单测 `tests/test_misconception_reconcile.py` 34 项 (Laplace 数学 3 + reconcile 分支 9 + quarantine 3 + data class 6 + DB 往返 9 + 工厂 4 + 防御性自检 [1] silent pass 扫描 1)
+
+### add: 答题流注入 A2 reconcile — session 窗口（b 段）
+
+- **MODIFY `web/api/belief.py`**: `submit_answer` 末尾注入 reconcile 段, 读 `engine.feature_extractor.get_history(student_id)` 当 session 窗口 (in-memory, maxlen=100, 进程重启 = 天然 session 边界, 对齐 CogMirror 5.7 方案: 跨会话语义不成立, 全量历史会重复计数); misc_id 来自 `updated_state.C.misconception_hits` (engine.update 内部 `_llm_critic_misconception` 已 append, v0.52.0 BUG 2.2 修复的产物); 排序按 timestamp 升序
+- 调 `reconcile_for_student(_get_db(), sid, rows)`: 加载 -> reconcile -> 落库, 失败返回 -1 (防御性自检 [1] 兼容: 失败 warning, 不污染 evidence_log, 不阻断主流程)
+- 单测 `tests/test_belief_reconcile_integration.py` 7 项 (端到端 overcome->failure / persistent->success / no-misc->no-op / 失败兜底不阻断 / session 窗口不污染老 evidence / 时序错乱排序 / 防御自检 [1] silent pass 回归)
+
+### add: web 接线 — 教师端 per-misconception 证据卡（c 段）
+
+- **NEW `web/api/teacher.py`**: `GET /api/teacher/students/<id>/misconceptions` 端点 (DB 直读 `misconception_evidence` 表 + 读时派生 evidence view, 无状态, 同 v0.97.1 mastery view / v0.97.2 calibration view 模式); 字段含 `misc_id` / `name` / `description` / `correction_strategy` (来自 `PythonBasicsMisconceptionLibrary`) / `success_count` / `failure_count` / `total` / `laplace_confidence` / `quarantined` / `last_updated`; 库找不到的 misc_id (库升级/老数据) -> name fallback 到 misc_id
+- **NEW `web/frontend/src/pages/StudentDetailPage.tsx`**: `MisconceptionsCard` 组件 — 表格 + 三色置信度 (≥0.6 绿, <0.3 红, 中间灰) + 4 档状态 (可信/观察中/已隔离/无数据)
+- **MODIFY `web/frontend/src/api/{client,types}.ts`**: `fetchMisconceptions` + `MisconceptionsResponse` / `MisconceptionEvidenceItem` 类型 + 端点契约 `misconceptions: (id) => /api/teacher/students/<id>/misconceptions`
+- 单测 `tests/test_teacher_misconceptions_api.py` 7 项 (空数据 / 404 / 元数据 / quarantined 阈值 / 未知 misc_id 兜底 / 排序 / 内部失败 500)
+- **MODIFY `web/frontend/src/api/client.test.ts`**: 端点契约 +2 (calibration 旧 + misconceptions 新)
+- 版本 bump 0.97.2 → 0.97.3; pytest 1493 → **1541** (+48, 含 c 段 API 7 + b 段集成 7 + a 段 34); 前端 tsc + eslint + vitest 全绿; 防御性自检 8 项静态 + 前端段全绿
+
 ## [0.97.2] 2026-09-05 — 学生自评观测 + 校准视图（恢复期 backlog P1）
 
 > 恢复期 backlog: 观测层补学生自评（黄金回归基建 v0.97.0 → BKT 视图 v0.97.1 之后）。方案经 Bisen 拍板（2026-09-05 讨论）: **A 只读校准视图 + 4 档语义化自评 + 强制无默认**。C 维度本期不接自评信号, 等 v0.98 试点数据回来再定（与 A2 reconcile 同批数据）。**黄金回归基线零 diff**（self_confidence=None 路径与 v0.97.1 完全一致; baseline 只快照 belief state 数值维度, history_entry / event payload 不入基线）。
