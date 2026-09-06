@@ -198,6 +198,8 @@ CREATE INDEX IF NOT EXISTS idx_event_log_student ON event_log(student_id, timest
 # v0.97.3: misconception_evidence 表 (P2 A2 reconcile 持久化).
 #   CogMirror A2 同款, ECOS 多人版加 student_id 区分. PK = (student_id, misc_id)
 #   保证 save_misconception_evidence 多次调用 upsert 不重复.
+#   v0.97.3 (a-fix): ON DELETE CASCADE — misconception_evidence 是 derived 状态,
+#   学生删除时证据随同清理. 避免遗留 FK 阻断 test fixture 清理 (test_v064 兼容).
 _MISCONCEPTION_EVIDENCE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS misconception_evidence (
     student_id TEXT NOT NULL,
@@ -206,7 +208,7 @@ CREATE TABLE IF NOT EXISTS misconception_evidence (
     failure_count INTEGER NOT NULL DEFAULT 0,
     last_updated TEXT NOT NULL,
     PRIMARY KEY (student_id, misc_id),
-    FOREIGN KEY (student_id) REFERENCES students(student_id)
+    FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_misconception_evidence_student
@@ -276,6 +278,19 @@ class Database:
         #   是因为这是 derived 状态, 走自己表干净, 跟 calibration_log 同样模式)
         with self.tx() as _:
             self.conn.executescript(_MISCONCEPTION_EVIDENCE_SCHEMA)
+        # v0.97.3 (a-fix): 老 v0.97.3 (a) 表无 ON DELETE CASCADE, 阻断 test fixture
+        #   清学生行 (silent try/except: pass 漏掉). 一次性迁移: rename→drop→recreate.
+        #   SQLite 不支持 ALTER TABLE 加 ON DELETE CASCADE, 只能重建.
+        with self.tx() as _:
+            cur = self.conn.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='misconception_evidence'"
+            )
+            row = cur.fetchone()
+            if row is not None and "ON DELETE CASCADE" not in (row[0] or ""):
+                # 老表: rename + drop + 按新 schema 重建 (空表 OK, 跟 evidence_log 不共享数据)
+                self.conn.execute("ALTER TABLE misconception_evidence RENAME TO _mevidence_old")
+                self.conn.execute("DROP TABLE _mevidence_old")
+                self.conn.executescript(_MISCONCEPTION_EVIDENCE_SCHEMA)
         # W5 (2026-07-18): 增量 schema 迁移,加 warmup_count / probe_due_in / probe_count / response_history
         # v0.47.9: 加 theta_cov (5x5 MIRT 后验协方差矩阵,JSON 序列化)
         #   Bisen 反馈: 重启后 theta_se 全是 1.0,因为 theta_cov 不存 DB → 走 np.eye(5) 默认

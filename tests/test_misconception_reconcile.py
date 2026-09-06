@@ -16,6 +16,7 @@ from ecos.cta.misconception_reconcile import (
     reconcile_for_student,
 )
 from ecos.persistence.db import Database, DatabaseConfig
+from ecos.persistence.db import Database, DatabaseConfig
 
 
 def _row(skill_id, misc_id, score, correct=None, ts="2026-09-05T10:00:00"):
@@ -321,3 +322,107 @@ def test_no_silent_pass_in_misconception_reconcile():
     src = inspect.getsource(mod)
     lines = [ln for ln in src.splitlines() if "pass" in ln and "except" in ln]
     assert not lines, f"发现 except: pass 静默吞错, 防御性自检 [1] 违规: {lines}"
+
+
+# ─── v0.97.3 (a-fix) ON DELETE CASCADE 迁移 ────────────────────────
+# 老 v0.97.3 (a) 建表无 CASCADE, 阻断 test fixture 清学生行 (silent try/except: pass
+# 漏掉), 导致 test_v064_mastery_prob_after 历史累积 fail. 一次性迁移: 检测老 schema
+# → rename + drop + 重建. 验证幂等 + 真的 CASCADE.
+
+
+def test_init_schema_migrates_legacy_misconception_evidence_to_cascade():
+    """老 v0.97.3 (a) 建表无 CASCADE → init_schema 自动迁移到 CASCADE."""
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "legacy.db")
+        # 模拟老 v0.97.3 (a) schema: 显式建表无 CASCADE
+        import sqlite3
+        conn = sqlite3.connect(path)
+        conn.executescript("""
+            CREATE TABLE students (
+                student_id TEXT PRIMARY KEY,
+                created_at TEXT NOT NULL,
+                last_active_at TEXT NOT NULL,
+                grade_level INTEGER,
+                subject TEXT,
+                anonymized_id TEXT,
+                theta TEXT,
+                mastery TEXT,
+                evolution_state TEXT,
+                warmup_count INTEGER DEFAULT 0,
+                probe_due_in INTEGER DEFAULT 8,
+                probe_count INTEGER DEFAULT 0,
+                response_history TEXT,
+                theta_cov TEXT,
+                cognitive_twin TEXT
+            );
+            CREATE TABLE misconception_evidence (
+                student_id TEXT NOT NULL,
+                misc_id TEXT NOT NULL,
+                success_count INTEGER NOT NULL DEFAULT 0,
+                failure_count INTEGER NOT NULL DEFAULT 0,
+                last_updated TEXT NOT NULL,
+                PRIMARY KEY (student_id, misc_id),
+                FOREIGN KEY (student_id) REFERENCES students(student_id)
+            );
+        """)
+        conn.commit()
+        conn.close()
+
+        # 触发 init_schema 迁移
+        db = Database(DatabaseConfig(db_path=path))
+        try:
+            db.init_schema()
+            # 验证 schema 含 ON DELETE CASCADE
+            cur = db.conn.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='misconception_evidence'"
+            )
+            sql = cur.fetchone()[0]
+            assert "ON DELETE CASCADE" in sql, f"迁移后 schema 应含 CASCADE, 实际: {sql}"
+        finally:
+            db.close()
+
+
+def test_init_schema_migration_idempotent_on_already_migrated_db():
+    """已迁移 DB (有 CASCADE) → init_schema 不应破坏."""
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "fresh.db")
+        db = Database(DatabaseConfig(db_path=path))
+        try:
+            db.init_schema()  # 第一次: 建表含 CASCADE
+            # 第二次: 应不破坏
+            db.init_schema()
+            cur = db.conn.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='misconception_evidence'"
+            )
+            sql = cur.fetchone()[0]
+            assert "ON DELETE CASCADE" in sql
+            # 仍能正常 upsert
+            db.upsert_student("stu_001")
+            db.save_misconception_evidence("stu_001", [
+                {"misc_id": "M1", "success_count": 1, "failure_count": 0, "last_updated": "2026-09-05T10:00:00"}
+            ])
+            rows = db.load_misconception_evidence("stu_001")
+            assert len(rows) == 1 and rows[0]["misc_id"] == "M1"
+        finally:
+            db.close()
+
+
+def test_misconception_evidence_cascades_on_student_delete():
+    """CASCADE: 删除 students 行 → misconception_evidence 自动清理."""
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "cascade.db")
+        db = Database(DatabaseConfig(db_path=path))
+        try:
+            db.init_schema()
+            db.upsert_student("stu_X")
+            db.save_misconception_evidence("stu_X", [
+                {"misc_id": "M1", "success_count": 1, "failure_count": 0, "last_updated": "2026-09-05T10:00:00"}
+            ])
+            assert len(db.load_misconception_evidence("stu_X")) == 1
+            # 删除学生
+            db.conn.execute("DELETE FROM students WHERE student_id = ?", ("stu_X",))
+            db.conn.commit()
+            # CASCADE 应清掉 evidence
+            assert db.load_misconception_evidence("stu_X") == []
+        finally:
+            db.close()
