@@ -25,9 +25,11 @@ export default defineConfig({
     emptyOutDir: true,
     rollupOptions: {
       // v0.96: 多页 — teacher SPA (index.html) + student SPA (student.html), 共享一套工具链
+      // v0.98.0 (a-c): + parent SPA (parent.html) 第三入口
       input: {
         teacher: "index.html",
         student: "student.html",
+        parent: "parent.html",
       },
       output: {
         manualChunks: {

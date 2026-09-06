@@ -276,6 +276,17 @@ class TestEngagementOnDemand:
         assert result is None
 
 
+# ── 前端 route 服务 (1 test) ─────────────────────────────────────────────────
+
+
+class TestParentFrontendRoutes:
+    def test_parent_route_serves_placeholder_pre_build(self, client):
+        """/parent/ 可访问 (dist build 前 fallback web/parent/index.html 占位页)."""
+        resp = client.get("/parent/")
+        assert resp.status_code == 200
+        assert "ECOS 家长端".encode("utf-8") in resp.data
+
+
 # ── 入口 ─────────────────────────────────────────────────────────────────────
 
 

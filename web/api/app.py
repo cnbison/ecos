@@ -902,6 +902,50 @@ def teacher_static(filename: str):
     return response
 
 
+# ─── v0.98.0 (a-c): 家长端 React SPA 入口 (仿 /teacher/ 三条 route) ───────────
+
+
+@app.route("/parent/")
+def parent_app():
+    """v0.98.0: 家长端 React SPA 入口 (Flask 托管 build 产物).
+
+    dist/parent.html 存在 → 服务 React build 产物; 否则 fallback
+    web/parent/index.html 静态占位页 (build 前).
+    """
+    dist = Path(__file__).parent.parent / "frontend" / "dist"
+    if (dist / "parent.html").exists():
+        response = send_from_directory(dist, "parent.html")
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
+    return parent_static("index.html")
+
+
+@app.route("/parent/assets/<path:filename>")
+def parent_assets(filename: str):
+    """v0.98.0: 家长端 React build 静态资源 (js/css) 服务."""
+    dist = Path(__file__).parent.parent / "frontend" / "dist"
+    if (dist / "assets" / filename).exists():
+        return send_from_directory(dist / "assets", filename)
+    return parent_static(filename)
+
+
+@app.route("/parent/<path:filename>")
+def parent_static(filename: str):
+    """v0.98.0: 家长端静态文件 (dist 优先, fallback web/parent/), no-cache 头."""
+    dist = Path(__file__).parent.parent / "frontend" / "dist"
+    if (dist / filename).exists():
+        directory = dist
+    else:
+        directory = Path(__file__).parent.parent / "parent"
+    response = send_from_directory(directory, filename)
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
+
+
 if __name__ == "__main__":
     # v0.85.0-d: Production activation — 注册 PluginRuntime subscriber
     # 启动后, /api/answer / /api/dual_agent / /api/lca / /api/judge 全部走
