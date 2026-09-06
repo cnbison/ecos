@@ -13,7 +13,7 @@
 
 设计原则:
   - EvidenceEngine 是 2.0 §1.4 Engine 之一, 不持有 Belief state
-  - 复用 db.save_evidence (existing evidence_log) / db.save_calibration (existing calibration_log)
+  - 复用 evidence_log 表 (经 _add_to_evidence_log 直写 SQL) / db.save_calibration (existing calibration_log)
   - 复用 EventLog (v0.81 已有) for EVENT_LOG 源
   - LLM_CRITIC / MISCONCEPTION / PARTIAL_CREDIT: 派生自 RESPONSE_HISTORY payload (filter by sub-source 字段)
 """
@@ -77,7 +77,7 @@ class EvidenceEngine:
         # engine.attach_to_belief(evidence, state, dim="K")
 
     集成 5+ 来源 (现有 3 张表, 不破坏 schema):
-      - RESPONSE_HISTORY: 落 evidence_log 表 (db.save_evidence)
+      - RESPONSE_HISTORY: 落 evidence_log 表 (经 _add_to_evidence_log 直写 SQL)
       - CALIBRATION_LOG:  落 calibration_log 表 (db.save_calibration)
       - EVENT_LOG:        落 event_log 表 (EventLog.log_event)
       - LLM_CRITIC:       派生自 RESPONSE_HISTORY payload (filter by "source_subtype" 字段)
@@ -125,7 +125,7 @@ class EvidenceEngine:
         """添加 Evidence, 返回 evidence_id.
 
         落表策略 (按 source 路由):
-          - RESPONSE_HISTORY: 落 evidence_log (走 db.save_evidence)
+          - RESPONSE_HISTORY: 落 evidence_log (经 _add_to_evidence_log 直写 SQL)
           - CALIBRATION_LOG:  落 calibration_log (走 db.save_calibration)
           - EVENT_LOG:        落 event_log (走 EventLog.log_event, 仅当 enable_event_log_integration=True)
           - LLM_CRITIC / MISCONCEPTION / PARTIAL_CREDIT:
@@ -346,8 +346,9 @@ class EvidenceEngine:
     def _add_to_evidence_log(self, evidence: Evidence) -> int:
         """落 evidence_log 表 (RESPONSE_HISTORY + LLM_CRITIC + MISCONCEPTION + PARTIAL_CREDIT).
 
-        v0.83.0-a: 直接写 SQL (不走 db.save_evidence), 因为 db.save_evidence
-                    强制 timestamp=now, 不接受 evidence.timestamp.
+        v0.83.0-a: 直接写 SQL (不走 Database 级 save_evidence——该方法已于
+                    v0.98.0 删除, 因重复死路径), 因为它强制 timestamp=now,
+                    不接受 evidence.timestamp.
                     Evidence Engine 接受任意历史 timestamp (用于 replay/simulate).
         """
         ts_str = evidence.timestamp.isoformat()

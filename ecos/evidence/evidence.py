@@ -10,7 +10,8 @@
   - 4 派生字段: problem_id / skill_id / goal_id / state_delta (从 payload 提取, 索引加速)
   - EvidenceSource 枚举: 5+ 来源 (RESPONSE_HISTORY / CALIBRATION_LOG / PARTIAL_CREDIT /
     LLM_CRITIC / MISCONCEPTION / EVENT_LOG)
-  - 5+ 来源 通过 db.save_evidence / save_calibration / event_log 落表 (不破坏现有 schema)
+  - 5+ 来源 通过 EvidenceEngine._add_to_evidence_log / save_calibration / event_log 落表
+    (不破坏现有 schema; db.save_evidence 已于 v0.98.0 删除——重复死路径)
 """
 
 from __future__ import annotations

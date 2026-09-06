@@ -48,7 +48,7 @@
 | 位置 | 方法 | 说明 |
 |---|---|---|
 | `persistence/db.py:519,573` | `save_intervention` / `load_intervention_history` | 干预历史持久化零调用 |
-| `persistence/db.py:587` | `save_evidence` | **重复死路径**：EvidenceEngine 有自己的 evidence_log 写入；此 Database 级方法零调用 |
+| `persistence/db.py:587` | `save_evidence` | ~~重复死路径~~ **已删除（v0.98.0 (b-c)）**：EvidenceEngine 有自己的 evidence_log 写入（`_add_to_evidence_log` 直写 SQL）；此 Database 级方法零调用，删除时全仓零引用断言通过 |
 | `persistence/db.py:831,873` | `save_bloom_goal` / `load_bloom_goals` | Bloom 目标持久化零调用 |
 | `persistence/db.py:930` | `load_trajectory_snapshots` | 与"答题流不落 trajectory_snapshots 表"（kernel-mapping §1.4）互为因果——写入端在但读出端死 |
 | `persistence/dual_agent_store.py:316`、`lca_store.py:372` | `get_all_students_with_*_state` | 全学生状态扫描零调用（教师端 roster 走的是别的路径） |
@@ -123,3 +123,15 @@ A 类首两例已接线（黄金回归基建 v0.97.0 之后, 方案经 Bisen 审
 **黄金回归基线零 diff**: 新行为全部走可选注入, no-view 路径与 v0.97.0 一致——基线断言在这里同时充当"向后兼容未破坏"的回归证据。产品路径注入点: `web/api/lca.py:_legacy_select_intervention` + `web/api/plugin_runtime.py:_handle_request_intervention`（各 1 行 CTAInput 构造改动）。
 
 A 类剩余项（`ExplanationCritic.explain` 等 12 项）与 B/C 类处置时机不变（见 §六）。
+
+## 九、处置状态更新（v0.98.0, 2026-09-06）
+
+**已知实例 #3 收口**（Evidence/Event Engine 注入答题流，commit 链 b-a/b-b/b-c）：
+
+| 审计项 | 处置结果 |
+|---|---|
+| 实例 #3 Evidence/Event 未注入答题流 | **接线完成**。kernel 侧：`BeliefEngine.__init__` 补 `evidence_engine` 参数透传 `BeliefUpdator`（kernel-mapping §1.4 预留点接通）；web 侧：`web/api/belief.py` 两处构造注入 `EvidenceEngine + EventLog`（module 级 lazy singleton，event_log retention 显式配置 90 天/5000 条）。答题流现在每 submit 落 evidence_log per-dim 5 行（payload 含 dim 标记）+ event_log 2 行（response_submitted + observation）。CALIBRATION_LOG 不接（防污染 H3 ECE 数据源，v0.97.2 纪律） |
+| 顺带修（硬规则 #8 同类扫描） | `EvidenceEngine.add` count gate bug（`auto_prune_days > 0 or max_per_student > 0` 默认恒真 → 每次 add 三表全扫）；evidence_log + event_log FK 补 `ON DELETE CASCADE`（v0.97.3 a-fix 同族第二处，v0.64 测试暴露） |
+| B 类 `save_evidence` | **已删除**（重复死路径，全仓零引用）。同族其余 8 项（save_intervention/load_intervention_history/save_bloom_goal/load_bloom_goals/load_trajectory_snapshots/2 个 store 扫描/delete_plugin/set_enabled）**继续 dead code**——其中 load_intervention_history 由 v0.98 家长端 (a-b) 接线（见 C5），其余待 v0.98 试点后决策 |
+
+A 类剩余项（`ExplanationCritic.explain` 等 12 项）与 C 类处置时机不变（见 §六）。

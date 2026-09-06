@@ -686,56 +686,9 @@ class Database:
         return [dict(r) for r in rows]
 
     # ─── Evidence Log ────────────────────────────────────────────────────────
-
-    def save_evidence(self, student_id: str, data: dict) -> int:
-        """保存证据记录，返回 evidence_id（MVP 直接接收 dict）。"""
-        now = datetime.now().isoformat()
-        with self.tx() as _:
-            cur = self.conn.execute(
-                """
-                INSERT INTO evidence_log (
-                    student_id, problem_id, timestamp,
-                    raw_response, raw_response_time, raw_explanation, raw_reflection,
-                    llm_critic_input, llm_critic_output, llm_critic_temperature, llm_critic_tokens,
-                    structured_correctness, structured_explanation_quality,
-                    structured_confusion_signals, structured_self_evaluation,
-                    state_before_update, state_after_update, state_delta,
-                    misc_hits, tc_signals, quality_score
-                ) VALUES (
-                    :sid, :pid, :ts,
-                    :raw, :rtime, :expl, :refl,
-                    :llm_in, :llm_out, :llm_temp, :llm_tokens,
-                    :correct, :qual,
-                    :confusion, :self_eval,
-                    :before, :after, :delta,
-                    :misc, :tc, :quality
-                )
-                """,
-                dict(
-                    sid=student_id,
-                    pid=data.get("problem_id", ""),
-                    ts=now,
-                    raw=data.get("raw_response", ""),
-                    rtime=data.get("raw_response_time", 0.0),
-                    expl=data.get("raw_explanation", ""),
-                    refl=data.get("raw_reflection", ""),
-                    llm_in=data.get("llm_critic_input", ""),
-                    llm_out=data.get("llm_critic_output", ""),
-                    llm_temp=data.get("llm_critic_temperature"),
-                    llm_tokens=data.get("llm_critic_tokens"),
-                    correct=int(data.get("structured_correctness", 0)),
-                    qual=data.get("structured_explanation_quality", 0.0),
-                    confusion=json.dumps(data.get("structured_confusion_signals", [])),
-                    self_eval=data.get("structured_self_evaluation", 0.0),
-                    before=data.get("state_before_update", ""),
-                    after=data.get("state_after_update", ""),
-                    delta=data.get("state_delta", 0.0),
-                    misc=json.dumps(data.get("misc_hits", [])),
-                    tc=json.dumps(data.get("tc_signals", [])),
-                    quality=data.get("quality_score", 0.0),
-                ),
-            )
-            return cur.lastrowid or 0
+    # v0.98.0 (b-c): save_evidence 已删除（重复死路径，零调用）——
+    # evidence_log 唯一写入口 = EvidenceEngine._add_to_evidence_log（直写 SQL），
+    # 读取走下方 load_evidence。见 docs/wiring-audit-2026-09-05.md §三.B。
 
     def load_evidence(
         self, student_id: str, limit: int = 100, offset: int = 0
