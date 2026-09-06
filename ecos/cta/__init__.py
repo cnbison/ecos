@@ -63,6 +63,12 @@ from .calibration_view import (
     calibration_view,
     expected_accuracy,
 )
+from .misconception_reconcile import (
+    MisconceptionEvidenceRow,
+    MisconceptionEvidenceTracker,
+    load_tracker_for_student,
+    reconcile_for_student,
+)
 from .l2_mirt import (
     BiFactorMIRT5D,
     MIRTConfig,
@@ -116,6 +122,11 @@ __all__ = [
     "CalibrationView",
     "calibration_view",
     "expected_accuracy",
+    # Misconception reconcile (v0.97.3 P2 A2 reconcile)
+    "MisconceptionEvidenceRow",
+    "MisconceptionEvidenceTracker",
+    "load_tracker_for_student",
+    "reconcile_for_student",
     # L2 MIRT
     "BiFactorMIRT5D",
     "MIRTConfig",

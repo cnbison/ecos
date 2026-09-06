@@ -195,6 +195,24 @@ CREATE TABLE IF NOT EXISTS event_log (
 CREATE INDEX IF NOT EXISTS idx_event_log_student ON event_log(student_id, timestamp);
 """
 
+# v0.97.3: misconception_evidence 表 (P2 A2 reconcile 持久化).
+#   CogMirror A2 同款, ECOS 多人版加 student_id 区分. PK = (student_id, misc_id)
+#   保证 save_misconception_evidence 多次调用 upsert 不重复.
+_MISCONCEPTION_EVIDENCE_SCHEMA = """
+CREATE TABLE IF NOT EXISTS misconception_evidence (
+    student_id TEXT NOT NULL,
+    misc_id TEXT NOT NULL,
+    success_count INTEGER NOT NULL DEFAULT 0,
+    failure_count INTEGER NOT NULL DEFAULT 0,
+    last_updated TEXT NOT NULL,
+    PRIMARY KEY (student_id, misc_id),
+    FOREIGN KEY (student_id) REFERENCES students(student_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_misconception_evidence_student
+    ON misconception_evidence(student_id);
+"""
+
 
 # ─── Database ─────────────────────────────────────────────────────────────────
 
@@ -253,6 +271,11 @@ class Database:
         """初始化数据库 schema（幂等）."""
         with self.tx() as _:
             self.conn.executescript(SCHEMA_SQL)
+        # v0.97.3: P2 A2 reconcile misconception_evidence 表 (per-student per-misc
+        #   成功/失败计数, PK=(student_id, misc_id) upsert 幂等; 不放 evidence_log
+        #   是因为这是 derived 状态, 走自己表干净, 跟 calibration_log 同样模式)
+        with self.tx() as _:
+            self.conn.executescript(_MISCONCEPTION_EVIDENCE_SCHEMA)
         # W5 (2026-07-18): 增量 schema 迁移,加 warmup_count / probe_due_in / probe_count / response_history
         # v0.47.9: 加 theta_cov (5x5 MIRT 后验协方差矩阵,JSON 序列化)
         #   Bisen 反馈: 重启后 theta_se 全是 1.0,因为 theta_cov 不存 DB → 走 np.eye(5) 默认
@@ -825,6 +848,100 @@ class Database:
             (student_id,),
         ).fetchone()
         return int(row[0]) if row else 0
+
+    # ─── Misconception Evidence (v0.97.3, P2 A2 reconcile) ──────────────────
+
+    def save_misconception_evidence(
+        self,
+        student_id: str,
+        rows: list[dict],
+    ) -> int:
+        """v0.97.3: 落 per-misconception 证据 (CogMirror A2 移植, ECOS 多人版).
+
+        Args:
+            student_id: 学生 ID
+            rows: list of dict, 每条含 misc_id / success_count / failure_count
+                  / last_updated (MisconceptionEvidenceTracker.dump() 格式)
+
+        Returns:
+            实际写入/更新行数 (UPSERT: PK=(student_id, misc_id) 已存在则覆盖
+            计数并更新 last_updated; 不存在则插入)
+        """
+        if not rows:
+            return 0
+        written = 0
+        with self.tx() as _:
+            for r in rows:
+                misc_id = r.get("misc_id")
+                if not misc_id:
+                    continue
+                self.conn.execute(
+                    """
+                    INSERT INTO misconception_evidence (
+                        student_id, misc_id, success_count, failure_count, last_updated
+                    ) VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT(student_id, misc_id) DO UPDATE SET
+                        success_count = excluded.success_count,
+                        failure_count = excluded.failure_count,
+                        last_updated = excluded.last_updated
+                    """,
+                    (
+                        student_id,
+                        misc_id,
+                        int(r.get("success_count", 0)),
+                        int(r.get("failure_count", 0)),
+                        r.get("last_updated", "") or datetime.now().isoformat(),
+                    ),
+                )
+                written += 1
+        return written
+
+    def load_misconception_evidence(
+        self,
+        student_id: str,
+        misc_id: str | None = None,
+    ) -> list[dict]:
+        """v0.97.3: 加载 per-misconception 证据 (web 答题流注入 + 教师端展示用).
+
+        Args:
+            student_id: 学生 ID
+            misc_id: 可选, 只查单条 misc (None = 该学生全部)
+
+        Returns:
+            list of dict, 每条含 misc_id / success_count / failure_count /
+            last_updated (与 save_misconception_evidence 输出一致, 可直接
+            喂给 MisconceptionEvidenceTracker.load())
+        """
+        if misc_id is not None:
+            rows = self.conn.execute(
+                """SELECT misc_id, success_count, failure_count, last_updated
+                   FROM misconception_evidence
+                   WHERE student_id = ? AND misc_id = ?
+                   ORDER BY misc_id""",
+                (student_id, misc_id),
+            ).fetchall()
+        else:
+            rows = self.conn.execute(
+                """SELECT misc_id, success_count, failure_count, last_updated
+                   FROM misconception_evidence
+                   WHERE student_id = ?
+                   ORDER BY misc_id""",
+                (student_id,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def delete_misconception_evidence(self, student_id: str) -> int:
+        """v0.97.3: 清除某学生全部 per-misconception 证据 (合规删除 / 测试用).
+
+        Returns:
+            删除行数
+        """
+        with self.tx() as _:
+            cur = self.conn.execute(
+                "DELETE FROM misconception_evidence WHERE student_id = ?",
+                (student_id,),
+            )
+            return cur.rowcount or 0
 
     # ─── Bloom Goals ───────────────────────────────────────────────────────────
 
