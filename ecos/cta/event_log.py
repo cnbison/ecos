@@ -936,7 +936,9 @@ CREATE TABLE IF NOT EXISTS event_log (
     source TEXT NOT NULL,
     event_type TEXT NOT NULL,
     payload_json TEXT NOT NULL,
-    FOREIGN KEY (student_id) REFERENCES students(student_id)
+    -- v0.98.0 (b-b): ON DELETE CASCADE — derived 状态随父表清理
+    --   (v0.97.3 a-fix 同款语义; 老 DB 由 persistence/db.py init_schema 迁移)
+    FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_event_log_student ON event_log(student_id, timestamp);

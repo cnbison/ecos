@@ -20,7 +20,9 @@ import numpy as np
 
 from ecos.cta.belief_engine import BeliefEngine, BeliefEngineConfig, Observation
 from ecos.cta.belief_state import BloomLevel, BeliefState
+from ecos.cta.event_log import EventLog, EventLogConfig
 from ecos.cta.misconception_reconcile import reconcile_for_student
+from ecos.evidence import EvidenceConfig, EvidenceEngine
 
 _log = logging.getLogger(__name__)
 from ecos.cta.content import PYTHON_BASICS_MISCONCEPTION_LIBRARY_STR
@@ -32,13 +34,62 @@ from ecos.persistence.db import Database
 # 数据库实例(全局单例)
 _db: Database | None = None
 
+# v0.98.0 (b-b): 生产 DB 路径单一来源 (_get_db 与 _get_web_event_log 共用;
+#   测试 monkeypatch 此常量 + 重置下方两个单例缓存实现隔离)
+_WEB_DB_PATH = "web/ecos.db"
+
 
 def _get_db() -> Database:
     global _db
     if _db is None:
-        _db = Database("web/ecos.db")
+        _db = Database(_WEB_DB_PATH)
         _db.init_schema()
     return _db
+
+
+# ──────────────────────────────────────────────────────────────────────
+# v0.98.0 (b-b): EvidenceEngine + EventLog 共享单例 (接线审计实例 ③ web 侧)
+#   构造期注入 BeliefEngine (kernel-mapping §1.4 预留点):
+#     - evidence_engine -> BeliefUpdator._register_evidence (RESPONSE_HISTORY
+#       落 evidence_log, per-dim 5 行 + dim 标记)
+#     - event_log -> FeatureExtractor emit (response_submitted)
+#       + BeliefUpdator.apply (observation), 每 submit 2 行 (设计内)
+#   retention: event_log 显式配置 (默认 EventLogConfig 无 retention 会无限膨胀);
+#     evidence_engine max_per_student=0 (unlimited) -> add 零 count 扫描
+#     (gate 修复后 0 = 关闭), evidence_log retention 标 H1 方案开放项。
+#   测试隔离: monkeypatch 重置这两个全局 None + monkeypatch _get_db。
+# ──────────────────────────────────────────────────────────────────────
+_web_event_log: EventLog | None = None
+_evidence_engine: EvidenceEngine | None = None
+
+# v0.98.0 (b-b): event_log retention 先验值 (H1 方案文档同批标注, 试点可调)
+_EVENT_LOG_MAX_PER_STUDENT = 5000
+_EVENT_LOG_RETENTION_DAYS = 90
+
+
+def _get_web_event_log() -> EventLog:
+    global _web_event_log
+    if _web_event_log is None:
+        _web_event_log = EventLog.from_sqlite(
+            _WEB_DB_PATH,
+            config=EventLogConfig(
+                max_per_student=_EVENT_LOG_MAX_PER_STUDENT,
+                retention_days=_EVENT_LOG_RETENTION_DAYS,
+                auto_prune_on_log=True,
+            ),
+        )
+    return _web_event_log
+
+
+def _get_evidence_engine() -> EvidenceEngine:
+    global _evidence_engine
+    if _evidence_engine is None:
+        _evidence_engine = EvidenceEngine(
+            config=EvidenceConfig(max_per_student=0),
+            db=_get_db(),
+            event_log=_get_web_event_log(),
+        )
+    return _evidence_engine
 
 
 # 全局状态映射(student_id → {engine, state})
@@ -66,11 +117,14 @@ def _get_or_create_student(student_id: str) -> dict:
             # v0.49.3: 传 llm_client 给 BeliefEngine, 避免 misc_detector / perception_critic
             #   在 self.llm is None 时崩 (NoneType has no attribute chat_json)
             # v0.52.0: 传 misconception_library_str (BUG 2.1 修复)
+            # v0.98.0 (b-b): 注入 evidence_engine + event_log (实例 ③, DB 恢复路径)
             from web.api.app import get_llm
             engine = BeliefEngine(
                 config=config,
                 llm_client=get_llm(),
                 misconception_library_str=PYTHON_BASICS_MISCONCEPTION_LIBRARY_STR,
+                event_log=_get_web_event_log(),
+                evidence_engine=_get_evidence_engine(),
             )
             state = engine.create_initial_state(student_id)
 
@@ -333,11 +387,14 @@ def _get_or_create_student(student_id: str) -> dict:
             # v0.49.3: 传 llm_client 给 BeliefEngine, 避免 misc_detector / perception_critic
             #   在 self.llm is None 时崩 (NoneType has no attribute chat_json)
             # v0.52.0: 传 misconception_library_str (BUG 2.1 修复)
+            # v0.98.0 (b-b): 注入 evidence_engine + event_log (实例 ③, 全新路径)
             from web.api.app import get_llm
             engine = BeliefEngine(
                 config=config,
                 llm_client=get_llm(),
                 misconception_library_str=PYTHON_BASICS_MISCONCEPTION_LIBRARY_STR,
+                event_log=_get_web_event_log(),
+                evidence_engine=_get_evidence_engine(),
             )
             state = engine.create_initial_state(student_id)
             _STUDENT_STATES[student_id] = {"engine": engine, "state": state}

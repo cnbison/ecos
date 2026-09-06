@@ -24,6 +24,62 @@ _log = logging.getLogger(__name__)
 
 # ─── Schema SQL ───────────────────────────────────────────────────────────────
 
+# v0.98.0 (b-b): event_log DDL 独立常量 — 供 init_schema 老 schema 迁移重建用。
+#   v0.98.0 (b-b): ON DELETE CASCADE — event_log 是 derived 状态 (答题流接线后
+#   开始有数据), 学生删除时事件随同清理 (v0.97.3 a-fix 同款语义, 硬规则 #8:
+#   evidence_log 修完后同类扫描发现 event_log 同病)。
+_EVENT_LOG_SCHEMA = """
+CREATE TABLE IF NOT EXISTS event_log (
+    event_id TEXT PRIMARY KEY,
+    student_id TEXT NOT NULL,
+    timestamp TEXT NOT NULL,
+    source TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_event_log_student ON event_log(student_id, timestamp);
+"""
+
+# v0.98.0 (b-b): evidence_log DDL 独立常量 — 供 init_schema 老 schema 迁移重建用
+#   (SQLite 不支持 ALTER TABLE 加 ON DELETE CASCADE, 只能重建)。
+#   v0.98.0 (b-b): ON DELETE CASCADE — evidence_log 是 derived 状态, 学生删除时
+#   证据随同清理 (v0.97.3 a-fix 同款语义)。答题流接线后本表开始有数据,
+#   无 CASCADE 会阻断 test fixture 清学生行 (test_v064 复发教训, 硬规则 #8)。
+_EVIDENCE_LOG_SCHEMA = """
+CREATE TABLE IF NOT EXISTS evidence_log (
+    evidence_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    student_id TEXT NOT NULL,
+    problem_id TEXT,
+    timestamp TEXT NOT NULL,
+
+    raw_response TEXT,
+    raw_response_time REAL,
+    raw_explanation TEXT,
+    raw_reflection TEXT,
+    llm_critic_input TEXT,
+    llm_critic_output TEXT,
+    llm_critic_temperature REAL,
+    llm_critic_tokens INTEGER,
+    structured_correctness INTEGER,
+    structured_explanation_quality REAL,
+    structured_confusion_signals TEXT,
+    structured_self_evaluation REAL,
+    state_before_update TEXT,
+    state_after_update TEXT,
+    state_delta REAL,
+    misc_hits TEXT,
+    tc_signals TEXT,
+    quality_score REAL,
+
+    FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_evidence_student ON evidence_log(student_id, timestamp);
+CREATE INDEX IF NOT EXISTS idx_evidence_problem ON evidence_log(problem_id);
+"""
+
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS students (
     student_id TEXT PRIMARY KEY,
@@ -84,37 +140,6 @@ CREATE TABLE IF NOT EXISTS interventions (
 
 CREATE INDEX IF NOT EXISTS idx_interventions_student ON interventions(student_id, timestamp);
 CREATE INDEX IF NOT EXISTS idx_interventions_bloom ON interventions(bloom_target);
-
-CREATE TABLE IF NOT EXISTS evidence_log (
-    evidence_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    student_id TEXT NOT NULL,
-    problem_id TEXT,
-    timestamp TEXT NOT NULL,
-
-    raw_response TEXT,
-    raw_response_time REAL,
-    raw_explanation TEXT,
-    raw_reflection TEXT,
-    llm_critic_input TEXT,
-    llm_critic_output TEXT,
-    llm_critic_temperature REAL,
-    llm_critic_tokens INTEGER,
-    structured_correctness INTEGER,
-    structured_explanation_quality REAL,
-    structured_confusion_signals TEXT,
-    structured_self_evaluation REAL,
-    state_before_update TEXT,
-    state_after_update TEXT,
-    state_delta REAL,
-    misc_hits TEXT,
-    tc_signals TEXT,
-    quality_score REAL,
-
-    FOREIGN KEY (student_id) REFERENCES students(student_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_evidence_student ON evidence_log(student_id, timestamp);
-CREATE INDEX IF NOT EXISTS idx_evidence_problem ON evidence_log(problem_id);
 
 CREATE TABLE IF NOT EXISTS calibration_log (
     calibration_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -181,19 +206,11 @@ CREATE TABLE IF NOT EXISTS trajectory_snapshots (
 
 CREATE INDEX IF NOT EXISTS idx_trajectory_student ON trajectory_snapshots(student_id, timestamp);
 CREATE INDEX IF NOT EXISTS idx_trajectory_type ON trajectory_snapshots(snapshot_type);
-
-CREATE TABLE IF NOT EXISTS event_log (
-    event_id TEXT PRIMARY KEY,
-    student_id TEXT NOT NULL,
-    timestamp TEXT NOT NULL,
-    source TEXT NOT NULL,
-    event_type TEXT NOT NULL,
-    payload_json TEXT NOT NULL,
-    FOREIGN KEY (student_id) REFERENCES students(student_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_event_log_student ON event_log(student_id, timestamp);
 """
+
+# v0.98.0 (b-b): evidence_log DDL 从 SCHEMA_SQL 拆出为 _EVIDENCE_LOG_SCHEMA
+#   (内容不变, 拼回保持单一入口语义不变)
+SCHEMA_SQL = SCHEMA_SQL + _EVENT_LOG_SCHEMA + _EVIDENCE_LOG_SCHEMA
 
 # v0.97.3: misconception_evidence 表 (P2 A2 reconcile 持久化).
 #   CogMirror A2 同款, ECOS 多人版加 student_id 区分. PK = (student_id, misc_id)
@@ -291,6 +308,54 @@ class Database:
                 self.conn.execute("ALTER TABLE misconception_evidence RENAME TO _mevidence_old")
                 self.conn.execute("DROP TABLE _mevidence_old")
                 self.conn.executescript(_MISCONCEPTION_EVIDENCE_SCHEMA)
+        # v0.98.0 (b-b): event_log 老 schema 无 ON DELETE CASCADE, 同 v0.97.3 (a-fix)
+        #   阻断 test fixture 清学生行。一次性迁移: rename→rebuild→搬数据→drop。
+        with self.tx() as _:
+            cur = self.conn.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='event_log'"
+            )
+            row = cur.fetchone()
+            if row is not None and "ON DELETE CASCADE" not in (row[0] or ""):
+                self.conn.execute("ALTER TABLE event_log RENAME TO _event_log_old")
+                self.conn.execute("DROP INDEX IF EXISTS idx_event_log_student")
+                self.conn.executescript(_EVENT_LOG_SCHEMA)
+                self.conn.execute(
+                    "INSERT INTO event_log "
+                    "(event_id, student_id, timestamp, source, event_type, payload_json) "
+                    "SELECT event_id, student_id, timestamp, source, event_type, payload_json "
+                    "FROM _event_log_old"
+                )
+                self.conn.execute("DROP TABLE _event_log_old")
+        # v0.98.0 (b-b): evidence_log 老 schema 无 ON DELETE CASCADE, 同 v0.97.3 (a-fix)
+        #   阻断 test fixture 清学生行。一次性迁移: rename→recreate→搬数据→drop
+        #   (答题流接线后本表开始有数据, 迁移保留已有行)。
+        #   SQLite 不支持 ALTER TABLE 加 ON DELETE CASCADE, 只能重建。
+        with self.tx() as _:
+            cur = self.conn.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='evidence_log'"
+            )
+            row = cur.fetchone()
+            if row is not None and "ON DELETE CASCADE" not in (row[0] or ""):
+                self.conn.execute("ALTER TABLE evidence_log RENAME TO _evidence_old")
+                # rename 后旧索引名仍被 _evidence_old 占用, 先删旧索引,
+                # 否则下方 IF NOT EXISTS 会跳过新表索引建
+                self.conn.execute("DROP INDEX IF EXISTS idx_evidence_student")
+                self.conn.execute("DROP INDEX IF EXISTS idx_evidence_problem")
+                self.conn.executescript(_EVIDENCE_LOG_SCHEMA)
+                # 按新旧表交集列拷贝 (不假设老表列数与顺序一致)
+                new_cols = [r[1] for r in self.conn.execute(
+                    "PRAGMA table_info(evidence_log)"
+                )]
+                old_cols = {r[1] for r in self.conn.execute(
+                    "PRAGMA table_info(_evidence_old)"
+                )}
+                common = [c for c in new_cols if c in old_cols]
+                col_list = ", ".join(common)
+                self.conn.execute(
+                    f"INSERT INTO evidence_log ({col_list}) "
+                    f"SELECT {col_list} FROM _evidence_old"
+                )
+                self.conn.execute("DROP TABLE _evidence_old")
         # W5 (2026-07-18): 增量 schema 迁移,加 warmup_count / probe_due_in / probe_count / response_history
         # v0.47.9: 加 theta_cov (5x5 MIRT 后验协方差矩阵,JSON 序列化)
         #   Bisen 反馈: 重启后 theta_se 全是 1.0,因为 theta_cov 不存 DB → 走 np.eye(5) 默认
