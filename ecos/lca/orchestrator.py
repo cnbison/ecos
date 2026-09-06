@@ -719,6 +719,50 @@ class LCAEngine:
         # lazy collect
         return self._collect_pomdp_diagnostic(student_id)
 
+    def get_pomdp_evolution(
+        self,
+        student_id: str,
+    ) -> Optional[list]:
+        """v0.98.0 (a-a): 拿 per-student POMDP 演化序列 (K=10 timed snapshots).
+
+        evolution 断层补线: POMDPDiagnostic.to_dict() 不含 evolution
+        (v0.93.0-c 时 evolution 留在 POMDPPolicy._evolution, 未进 diagnostic),
+        plugin / Parent API 拿到 diagnostic 后无法读演化 → 此方法补读取路径.
+
+        Args:
+            student_id: 学生 ID
+
+        Returns:
+            List[POMDPDiagnostic] (frozen dataclass, FIFO cap K=10) 或 None:
+              - 缓存 miss + 非 POMDP policy / learner 不存在 → 返 None + _log.warning
+              - 与 get_pomdp_diagnostic 同款防御性 (自检 [1]: 派生异常 → warning + None)
+
+        防御性自检 [8]: 只读 POMDPPolicy._evolution 拷贝, 0 新 mutation site.
+        """
+        if self.policy_learner.config.policy_type != "pomdp":
+            _log.warning(
+                "LCAEngine.get_pomdp_evolution: student_id=%s policy_type=%s 不是 POMDP, 返 None",
+                student_id, self.policy_learner.config.policy_type,
+            )
+            return None
+
+        learner = self.policy_learner._learners.get(student_id)
+        if learner is None or learner.pomdp is None:
+            _log.warning(
+                "LCAEngine.get_pomdp_evolution: student_id=%s POMDP learner 不存在, 返 None",
+                student_id,
+            )
+            return None
+
+        try:
+            return learner.pomdp.get_evolution()
+        except Exception as e:  # noqa: BLE001
+            _log.warning(
+                "LCAEngine.get_pomdp_evolution: get_evolution 失败 (sid=%s, err=%s), skip",
+                student_id, e, exc_info=True,
+            )
+            return None
+
     def _collect_pomdp_diagnostic(
         self,
         student_id: str,

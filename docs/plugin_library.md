@@ -165,11 +165,15 @@ result = plugin.on_event(event)  # 触发计数 + 阈值检查
 
 **订阅 topic**: `pomdp_diagnostic_updated` (Plugin-internal, v0.93.0-b)
 
-**核心逻辑**:
+**核心逻辑** (v0.98.0 (a-a) 复活为 UI 可消费, 仿 TeacherProgressPlugin v0.95.1):
 - 读 `event.payload.diagnostic` (POMDPDiagnostic.to_dict())
 - 派生当前状态: `most_likely_state` → 状态名 (`Engaged` / `Frustrated` / `Bored` / `Confused`)
 - 读 `evolution` (K=10 timed snapshots, v0.93.0-c) 派生最近状态序列
 - 状态变化检测: 跟上一 snapshot 比, 标记 `state_changed=True`
+- **双喂入路径**: `on_event(event)` (订阅) 或 `ingest_diagnostic(student_id, diagnostic)` (API 层经 Runtime.diagnose_pomdp 喂入) 共享 `_build_report` 单一派生逻辑 (DRY)
+- **evolution 断层补线**: POMDPDiagnostic.to_dict() 不含 evolution (留在 POMDPPolicy._evolution), API 层经 `Runtime.diagnose_pomdp_evolution` (第 9 Runtime API) 拿序列后 `ingest_evolution(student_id, evolution)` 更新 report
+- **规则表驱动建议** (`_build_advice`, 不调 LLM, deterministic): 按 current_state / 持续窗口 (SUSTAINED_ENGAGED_WINDOW=3) / cold_start / state_changed 产出中文建议条目 (trigger + severity: info / warning / attention); 阈值为先验值, v0.98 试点校准
+- 报告缓存到 `self._reports[student_id]`, `report_for()` / `get_reports()` 查询
 
 **返回 result**:
 ```python
@@ -180,15 +184,30 @@ result = plugin.on_event(event)  # 触发计数 + 阈值检查
     "recent_states": ["Engaged", "Bored", "Frustrated"],
     "evolution_count": 3,
     "state_changed": True,
+    "cold_start": False,
+    "advice": [
+        {"trigger": "state=frustrated", "severity": "warning",
+         "message": "出现 Frustrated 状态, 建议了解题目难度是否过高"},
+        {"trigger": "state_changed", "severity": "info",
+         "message": "学习状态发生变化 (当前: Frustrated), 可与学生聊聊近况"},
+    ],
+    "updated_at": "2026-09-06T00:00:00",
 }
 ```
 
 **用法** (跟 v0.93 `use_case_parent_engagement_dashboard` 升级):
 ```python
 from ecos.plugins.first_party import ParentEngagementPlugin
+from ecos.runtime.api import diagnose_pomdp, diagnose_pomdp_evolution
 plugin = ParentEngagementPlugin()
 plugin.enable()
-result = plugin.on_event(event)  # 读 diagnostic + 派生 state 信息
+result = plugin.on_event(event)  # 读 diagnostic + 派生 report + 缓存
+# 或 API 层 pull 路径:
+diagnostic = diagnose_pomdp(student_id, lca_engine=lca)
+report = plugin.ingest_diagnostic(student_id, diagnostic)
+evolution = diagnose_pomdp_evolution(student_id, lca_engine=lca)
+plugin.ingest_evolution(student_id, evolution)
+parent_report = plugin.report_for(student_id)
 ```
 
 ### 5.3 TeacherProgressPlugin (教师 progress review)

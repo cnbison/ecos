@@ -343,3 +343,115 @@ def test_plugin_registry_register_all_three_first_party():
     assert len(sub_ids["teacher_progress"]) == 1
 
     registry.unsubscribe_all(bus)
+
+# ──────────────────────────────────────────────────────────────────────
+# ParentEngagementPlugin v0.98.0 (a-a): UI 可消费复活 (6 tests)
+# ──────────────────────────────────────────────────────────────────────
+
+
+def test_parent_engagement_ingest_diagnostic_and_report_for():
+    """ingest_diagnostic (pull 路径) → report_for 查询, 与 on_event 同构."""
+    plugin = ParentEngagementPlugin()
+    plugin.enable()
+
+    diagnostic = _make_diagnostic(coverage_value=10, most_likely_state=0)
+    report = plugin.ingest_diagnostic("stu_a", diagnostic)
+
+    assert report["current_state"] == "Engaged"
+    assert report["cold_start"] is False
+    assert plugin.report_for("stu_a") is report
+    assert "stu_a" in plugin.get_reports()
+    # get_reports 返 copy
+    assert plugin.get_reports() is not plugin._reports
+    plugin.disable()
+    # disable 清零 (跟 enable 对称)
+    assert plugin.report_for("stu_a") is None
+
+
+def test_parent_engagement_ingest_evolution_updates_report():
+    """ingest_evolution 喂 Runtime.diagnose_pomdp_evolution 结果 → recent_states 更新."""
+    plugin = ParentEngagementPlugin()
+    plugin.enable()
+
+    plugin.ingest_diagnostic("stu_b", _make_diagnostic(most_likely_state=1))
+    evolution = [
+        _make_diagnostic(most_likely_state=0),
+        _make_diagnostic(most_likely_state=1),
+        _make_diagnostic(most_likely_state=1),
+    ]
+    report = plugin.ingest_evolution("stu_b", evolution)
+
+    assert report is not None
+    assert report["recent_states"] == ["Engaged", "Frustrated", "Frustrated"]
+    assert report["evolution_count"] == 3
+    assert plugin.report_for("stu_b")["recent_states"] == report["recent_states"]
+    plugin.disable()
+
+
+def test_parent_engagement_ingest_evolution_without_report_returns_none():
+    """无已有 report 时 ingest_evolution 返 None (evolution 单独无 current_state 语义)."""
+    plugin = ParentEngagementPlugin()
+    plugin.enable()
+    assert plugin.ingest_evolution("stu_nobody", [_make_diagnostic()]) is None
+    plugin.disable()
+
+
+def test_parent_engagement_advice_rules_negative_and_sustained():
+    """_build_advice 规则表: 负面状态单次 warning / 持续 attention / 持续投入正向."""
+    plugin = ParentEngagementPlugin()
+    plugin.enable()
+
+    # 单次 Frustrated → warning
+    r1 = plugin.ingest_diagnostic("stu_c", _make_diagnostic(most_likely_state=1))
+    fr_advice = [a for a in r1["advice"] if a["trigger"] == "state=frustrated"]
+    assert len(fr_advice) == 1 and fr_advice[0]["severity"] == "warning"
+
+    # 连续 3 次 Frustrated (ingest_evolution 补序列) → attention
+    plugin.ingest_evolution("stu_c", [
+        _make_diagnostic(most_likely_state=1),
+        _make_diagnostic(most_likely_state=1),
+        _make_diagnostic(most_likely_state=1),
+    ])
+    r2 = plugin.report_for("stu_c")
+    fr2 = [a for a in r2["advice"] if a["trigger"] == "state=frustrated"]
+    assert fr2[0]["severity"] == "attention"
+
+    # 持续投入 → 正向 info
+    plugin2 = ParentEngagementPlugin()
+    plugin2.enable()
+    plugin2.ingest_diagnostic("stu_d", _make_diagnostic(most_likely_state=0))
+    plugin2.ingest_evolution("stu_d", [
+        _make_diagnostic(most_likely_state=0),
+        _make_diagnostic(most_likely_state=0),
+        _make_diagnostic(most_likely_state=0),
+    ])
+    pos = [a for a in plugin2.report_for("stu_d")["advice"]
+           if a["trigger"] == "sustained_engaged"]
+    assert len(pos) == 1 and pos[0]["severity"] == "info"
+
+
+def test_parent_engagement_advice_cold_start_and_deterministic():
+    """cold_start 进 advice (info) + advice deterministic (不调 LLM, 同输入同输出)."""
+    plugin = ParentEngagementPlugin()
+    plugin.enable()
+
+    r = plugin.ingest_diagnostic(
+        "stu_e", _make_diagnostic(coverage_value=2, most_likely_state=0)
+    )
+    assert r["cold_start"] is True
+    cs = [a for a in r["advice"] if a["trigger"] == "cold_start"]
+    assert len(cs) == 1 and cs[0]["severity"] == "info"
+
+    # deterministic: 再喂一次同输入, advice 内容一致 (updated_at 除外)
+    r2 = plugin.ingest_diagnostic(
+        "stu_e", _make_diagnostic(coverage_value=2, most_likely_state=0)
+    )
+    a1 = [a for a in r["advice"] if a["trigger"] == "cold_start"][0]
+    a2 = [a for a in r2["advice"] if a["trigger"] == "cold_start"][0]
+    assert a1 == a2
+    plugin.disable()
+
+
+def test_parent_engagement_version_bumped_to_110():
+    """metadata version 1.0.0 → 1.1.0 (v0.98.0 UI 可消费升级)."""
+    assert ParentEngagementPlugin().metadata.version == "1.1.0"

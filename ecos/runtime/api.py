@@ -588,6 +588,28 @@ def diagnose_pomdp(student_id: str, **kwargs) -> Any:
     return lca.get_pomdp_diagnostic(student_id)
 
 
+def diagnose_pomdp_evolution(student_id: str, **kwargs) -> Any:
+    """v0.98.0 (a-a): 拿 POMDP 演化序列 (Runtime API 第 9 个, 跟 diagnose_pomdp 并列).
+
+    读取 POMDPPolicy._evolution (K=10 FIFO timed snapshots, v0.93.0-c),
+    补 evolution 断层: POMDPDiagnostic.to_dict() 不含 evolution,
+    消费方 (ParentEngagementPlugin / Parent API) 需要 diagnostic 之外的演化序列.
+
+    Args:
+        student_id: 学生 ID
+        **kwargs:
+            lca_engine: Optional[LCAEngine]  (默认 singleton)
+
+    Returns:
+        List[POMDPDiagnostic] (0 <= N <= 10), 或 None:
+        非 POMDP policy / learner 不存在 / 派生失败
+
+    v0.98.0 Parent Dashboard 消费: engagement 状态时间线渲染.
+    """
+    lca = kwargs.get("lca_engine") or _get_default_lca_engine()
+    return lca.get_pomdp_evolution(student_id)
+
+
 def _run_twin_consistency_check(
     student_id: str,
     state: Any,
@@ -645,4 +667,5 @@ __all__ = [
     "plan_human_feedback_aware",
     "plan_action_aware",
     "diagnose_pomdp",
+    "diagnose_pomdp_evolution",
 ]
