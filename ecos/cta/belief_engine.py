@@ -321,6 +321,14 @@ class BeliefEngine:
         """v0.80.0-b: delegates to InferenceEngine (kept for backward compat)."""
         return self._inference_engine.misc_detector
 
+    @property
+    def feature_extractor(self) -> "FeatureExtractor":
+        """v0.97.3 (b): 暴露 FeatureExtractor 供 A2 reconcile 答题流注入读取
+        response_history (session 窗口 = in-memory cache, maxlen=100).
+        与 perception_critic / misc_detector 同款 pattern.
+        """
+        return self._feature_extractor
+
     def create_initial_state(self, student_id: str) -> BeliefState:
         """创建新学生的初始 BeliefState."""
         state = BeliefState(student_id=student_id)

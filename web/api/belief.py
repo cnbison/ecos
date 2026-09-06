@@ -20,6 +20,7 @@ import numpy as np
 
 from ecos.cta.belief_engine import BeliefEngine, BeliefEngineConfig, Observation
 from ecos.cta.belief_state import BloomLevel, BeliefState
+from ecos.cta.misconception_reconcile import reconcile_for_student
 
 _log = logging.getLogger(__name__)
 from ecos.cta.content import PYTHON_BASICS_MISCONCEPTION_LIBRARY_STR
@@ -652,6 +653,51 @@ def submit_answer(
         if h.trigger_problem_id == problem_id:
             latest_misc = h
             break
+
+    # v0.97.3 (b): A2 reconcile 答题流注入.
+    #   用 session 窗口 (engine.feature_extractor.get_history) 喂 reconcile:
+    #     - skill_id 来自 history_entry (v0.97.1 已加)
+    #     - misc_id 来自 state.C.misconception_hits (problem_id -> misc_id map)
+    #     - correct/score 来自 history_entry
+    #   失败兜底: 不污染 evidence_log; 不阻断主流程 (防御性自检 [1])
+    try:
+        history_rows = engine.feature_extractor.get_history(student_id) or []
+        if history_rows:
+            # problem_id -> misc_id map (整个 session 累积; miscs 历史)
+            misc_by_pid = {
+                h.trigger_problem_id: h.misc_id
+                for h in getattr(updated_state.C, "misconception_hits", [])
+                if h.trigger_problem_id and h.misc_id
+            }
+            reconcile_rows = []
+            for entry in history_rows:
+                pid = entry.get("problem_id")
+                if not pid:
+                    continue
+                rec = {
+                    "skill_id": entry.get("skill_id"),
+                    "misc_id": misc_by_pid.get(pid),  # None if 没命中
+                    "score": entry.get("score", 0.0),
+                    "correct": bool(entry.get("correct", False)),
+                    "timestamp": entry.get("timestamp"),
+                }
+                reconcile_rows.append(rec)
+            # 排序保证时间升序 (CogMirror 5.7 方案: 跨会话语义不成立,
+            #   in-memory history 天然 session 窗口; 排序确保 reconcile 顺序正确)
+            reconcile_rows.sort(key=lambda r: r.get("timestamp") or "")
+            updated = reconcile_for_student(_get_db(), student_id, reconcile_rows)
+            if updated > 0:
+                _log.info(
+                    "A2 reconcile (b 段): student=%s updated=%d misc evidence",
+                    student_id, updated,
+                )
+    except Exception:
+        # 防御性自检 [1]: reconcile 失败必须 warning, 不 silent pass
+        _log.warning(
+            "submit_answer: A2 reconcile 失败 (student=%s, problem=%s), "
+            "本轮 misc evidence 计数未更新, 不影响主流程",
+            student_id, problem_id, exc_info=True,
+        )
 
     # 构建响应
     theta = updated_state.theta_mean
