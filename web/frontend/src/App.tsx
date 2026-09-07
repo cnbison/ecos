@@ -9,7 +9,7 @@ export default function App() {
         <Link to="/" className="brand">
           ECOS 教师端
         </Link>
-        <span className="topbar-sub">v0.95.2 · 证据链视图 · POMDP 诊断</span>
+        <span className="topbar-sub">v{__APP_VERSION__} · 证据链视图 · POMDP 诊断</span>
       </header>
       <main className="content">
         <Routes>
