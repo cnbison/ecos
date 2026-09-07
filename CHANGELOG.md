@@ -12,6 +12,39 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.98.5] 2026-09-07 — 测试/生产库隔离收口 + 生产库测试数据清理
+
+> **根因修复**：本地 pytest 经 `get_db()` 等单例默认路径直写生产库 `web/ecos.db`，累积 38 个 test_* 学生 + 1170 条测试 evidence。本轮统一 `ECOS_DB_PATH` 环境变量 + conftest 自动隔离，并清空生产库用户数据（黄金重放数据先行导出为 fixture）。pytest 1585 → **1585**（全绿，且全量跑完后生产库 0 写入实证）；防御性自检全绿。
+
+### fix（根因：测试直写生产库）
+
+- **MODIFY `ecos/persistence/db.py`**: `get_db()` 默认路径支持 `ECOS_DB_PATH` 环境变量覆盖（此前硬编码 `web/ecos.db`）
+- **MODIFY `ecos/persistence/dual_agent_store.py`**: `get_dual_agent_store()` 同上
+- **MODIFY `web/api/belief.py`**: `_get_db()` / `_get_web_event_log()` 调用时读 `ECOS_DB_PATH`（保留 `_WEB_DB_PATH` monkeypatch 约定）
+- **MODIFY `web/api/lca.py`** / **`web/api/dual_agent.py`**: store 初始化改调用时读 env（import 时固化会使 pytest 收集期的 env 覆盖失效）
+- **MODIFY `web/api/app.py`**: `/api/students/recent` 的 `Database("web/ecos.db")` 硬编码改走 env
+- **MODIFY `ecos/evidence/evidence_engine.py`**: 修复潜在 ImportError —— import 不存在的 `get_default_database` → 改 `get_db()`
+
+### add
+
+- **NEW `tests/fixtures/lbc_response_history.json`**: lbc001(60)/lbc002(47)/lbc003(56) response_history 黄金重放数据，删号前从生产库导出
+- **MODIFY `tests/conftest.py`**: 新增 autouse fixture `isolated_ecos_db`（每测试独立 tmp DB + 重置持久化/web 层单例缓存；尊重 module 级 fixture 自设的隔离路径）+ session 级 `lbc_history` fixture
+- **NEW `lbc_history` 消费**：`test_cold_start_fallback` / `test_linucb_penalty_limit` / `test_v075_difficulty_feature` / `test_platt_scaler` / `test_v0753_linucb_decay` 的 lbc003 重放改从 fixture 加载（此前 `sqlite3.connect("web/ecos.db")` 直读生产库）
+- **MODIFY `test_judge_retry.py`**: `Database("web/ecos.db")` × 8 处改走 `ECOS_DB_PATH`，lbc001 隔离库自动建最小行
+- **MODIFY `test_dual_agent_integration.py`**: 校验查询改走隔离库
+
+### 数据清理（生产库 web/ecos.db）
+
+- **删除前全量备份**：`web/ecos.db.bak.2026-09-07`（171MB，integrity_check ok）
+- **清空全部 38 个学生**（33 个零答题测试账号 + 5 个 pytest 写入的有数据测试账号 + lbc001/002/003 残留派生数据——原始答题轨迹 v0.96.9 已随 `.bak.2026-08-20` 处理，残留为无源派生态）+ 全部子表（evidence 1170 / event 468 / calibration 69 / dual_state 8 / lca_state 6）+ 孤儿行（`test_web_view_student`、`t_da_int_*`）
+- **VACUUM 后 171MB → 160KB**；`PRAGMA foreign_key_check` 空
+- **回归保障**：黄金重放数据已 fixture 化，CI 不再依赖本地 DB 状态（v0.753 测试此前 `pytest.skip` 的分支在干净环境也能跑）
+
+### 校验
+
+- 版本双源 bump: `ecos/__init__.py` + `web/frontend/package.json` → **0.98.5**
+- pytest **1585 全绿**；全量跑完实证生产库 0 新增写入（根因修复闭环）
+
 ## [0.98.4] 2026-09-07 — web-ui P1 优化②（家长端 URL 状态 + 教师班级列表移动端卡片化）
 
 > 继续执行 P1 剩余项中反差最大的两项。pytest 1585 不变；前端 vitest 24 → **36** (+12)；防御性自检全绿。
