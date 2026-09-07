@@ -12,6 +12,29 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.98.2] 2026-09-07 — web-ui P0 优化（响应式 bug / 版本号 / 共享组件 / a11y / 家长建议样式）
+
+> 基于 `docs/web-ui-review-2026-09-07.md` 审阅结论，先执行低投入高回报的 P0 批次。pytest 1585 不变；前端 vitest 10 → **17** (+7)；防御性自检全绿。
+
+### fix
+
+- **MODIFY `web/frontend/src/student/index.css`**: 删除 `@media (max-width: 720px)` 里的 `.topbar { display: none; }`——该规则通过 `@import "../index.css"` 泄漏到教师/家长端，导致移动端顶部品牌栏整个消失；改为移动端压缩 topbar padding/字号，保持可见
+- **MODIFY `web/frontend/src/index.css`**: 新增全局 `:focus-visible` 焦点环（按钮/链接/输入框/表格行），修复全站键盘导航不可见问题
+
+### refactor
+
+- **MODIFY `web/frontend/src/App.tsx` + `src/parent/App.tsx`**: topbar 副标题版本号从硬编码（`v0.95.2` / `v0.98.0`）改为 `v{__APP_VERSION__}`，与 `package.json` 单一源同步
+- **NEW `web/frontend/src/components/ui/{EmptyState,SectionHeader,ClickableRow}.tsx` + `uiHelpers.ts` + `uiHelpers.test.ts`**: 抽取共享 UI 组件雏形，为后续三端样式统一提供地基
+- **MODIFY `web/frontend/src/pages/RosterPage.tsx` + `src/parent/pages/ParentHomePage.tsx`**: 可点击表格行改用 `ClickableRow`（`role="button"`、`tabIndex={0}`、Enter/Space 触发、`aria-label`），满足基础 a11y
+- **MODIFY `web/frontend/src/pages/StudentDetailPage.tsx` + `src/parent/components/Cards.tsx` + `src/parent/pages/ParentHomePage.tsx`**: 统一使用 `EmptyState` 组件替换各模块的 `<p className="muted">` 空状态
+- **MODIFY `web/frontend/src/parent/components/Cards.tsx`**: `AdviceCard` 建议列表从 pill badge 包长文本改为 `<li>` + 左色条 + severity 圆点，提升长建议可读性
+- **MODIFY `web/frontend/src/student/pages/AnswerPage.tsx` + `src/student/index.css`**: 自评 chip 选中态从 `.ok` 浅绿改为 `.selected` 主色填充 + 白字，明确区分未选/选中/禁用
+
+### 校验
+
+- 版本双源 bump: `ecos/__init__.py` + `web/frontend/package.json` → **0.98.2**
+- 前端 tsc + eslint + vitest + build 全绿；`make check` 8 项静态 + 前端段 + pytest 1585 全绿
+
 ## [0.98.1] 2026-09-07 — fix: 生产 Plugin 路径 evidence/event 落库恢复（v0.98.0 接线回归）
 
 > 端到端实测发现（docs/e2e-test-guide.md §7）：生产答题流（PluginRuntime 已 start）下 evidence_log/event_log 恒 0 行（calibration_log 正常）—— v0.98.0 b-b 的注入只被 legacy 路径消费，1583 项测试全绿却未覆盖生产路径。pytest 1583 → **1585**，golden 零 diff。
