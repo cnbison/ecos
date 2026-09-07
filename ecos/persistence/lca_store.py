@@ -31,6 +31,7 @@
 from __future__ import annotations
 
 import json
+import os
 import logging
 import sqlite3
 from contextlib import contextmanager
@@ -390,13 +391,17 @@ class LCAStore:
 _store: Optional[LCAStore] = None
 
 
-def get_lca_store(db_path: str = "web/ecos.db") -> LCAStore:
+def get_lca_store(db_path: Optional[str] = None) -> LCAStore:
     """获取 LCAStore 全局单例 (lazy init).
 
     防御性自检 [1]: init 失败必须 warning, 不能 silent pass.
+
+    v0.98.5 修: 默认路径支持 ECOS_DB_PATH 环境变量覆盖 (跟 get_db /
+    get_dual_agent_store 同一约定), 防止 pytest 经单例直写生产库.
     """
     global _store
     if _store is None:
+        db_path = db_path or os.environ.get("ECOS_DB_PATH", "web/ecos.db")
         try:
             _store = LCAStore(db_path=db_path)
         except Exception:

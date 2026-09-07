@@ -20,6 +20,7 @@
 
 - **MODIFY `ecos/persistence/db.py`**: `get_db()` 默认路径支持 `ECOS_DB_PATH` 环境变量覆盖（此前硬编码 `web/ecos.db`）
 - **MODIFY `ecos/persistence/dual_agent_store.py`**: `get_dual_agent_store()` 同上
+- **MODIFY `ecos/persistence/lca_store.py`**: `get_lca_store()` 同上（a-fix 补漏：第三单例，v0.98.5-a 后 pre-push 实测仍在生产库留下 lbc002 + test_web_view_student 残留后定位）
 - **MODIFY `web/api/belief.py`**: `_get_db()` / `_get_web_event_log()` 调用时读 `ECOS_DB_PATH`（保留 `_WEB_DB_PATH` monkeypatch 约定）
 - **MODIFY `web/api/lca.py`** / **`web/api/dual_agent.py`**: store 初始化改调用时读 env（import 时固化会使 pytest 收集期的 env 覆盖失效）
 - **MODIFY `web/api/app.py`**: `/api/students/recent` 的 `Database("web/ecos.db")` 硬编码改走 env

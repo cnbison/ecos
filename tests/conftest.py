@@ -17,7 +17,8 @@ import pytest
 
 # ─── DB 隔离 (v0.98.5, 防御性自检 [8] 同类模式收口) ──────────────────────────
 #
-# 根因: get_db() / get_dual_agent_store() / belief._get_db() 等默认路径
+# 根因: get_db() / get_dual_agent_store() / get_lca_store() / belief._get_db()
+#   等默认路径
 #   硬编码 "web/ecos.db" (生产库), 本地 pytest 直写生产库 → test_* 学生
 #   污染 (2026-09-07 清理过一轮, 见 CHANGELOG v0.98.5)。
 # 修法: 生产代码统一支持 ECOS_DB_PATH 环境变量; 本 fixture 对**每个测试**
@@ -43,9 +44,11 @@ def isolated_ecos_db(tmp_path, monkeypatch):
     # 重置持久化单例缓存 (上一测试创建的实例指向已删除的 tmp DB)
     import ecos.persistence.db as db_mod
     import ecos.persistence.dual_agent_store as store_mod
+    import ecos.persistence.lca_store as lca_store_mod
 
     monkeypatch.setattr(db_mod, "_db_instance", None)
     monkeypatch.setattr(store_mod, "_store", None)
+    monkeypatch.setattr(lca_store_mod, "_store", None)
 
     # web 层单例缓存 (belief / lca / dual_agent) — 容错: 模块未必被 import
     try:
