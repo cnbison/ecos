@@ -218,3 +218,72 @@ dt {
 dd {
   margin: 0;
 }
+
+/* v0.98.2-P0: 共享 UI 组件样式 (EmptyState / SectionHeader / uiHelpers) */
+.empty-state {
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  padding: 24px 16px;
+  text-align: center;
+  background: #fafbfc;
+  color: var(--muted);
+}
+
+.empty-state-icon {
+  font-size: 24px;
+  margin-bottom: 8px;
+  line-height: 1;
+}
+
+.empty-state-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.empty-state-desc {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.section-header-main {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.section-header h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.section-header-sub {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.ui-border-ok {
+  border-color: var(--ok);
+}
+
+.ui-border-warn {
+  border-color: var(--warn);
+}
+
+.ui-border-danger {
+  border-color: var(--danger);
+}
+
+.ui-border-muted {
+  border-color: var(--muted);
+}
