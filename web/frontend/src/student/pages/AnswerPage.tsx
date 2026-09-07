@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import Icon from "../../components/ui/Icon";
+import { Check, Lightbulb, MessageSquare, PartyPopper, X } from "../../components/ui/icons";
 import { emitEvent, fetchQuestion, fetchReport, judgeAnswer, submitAnswer } from "../api";
 import type { Question } from "../types";
 import CodeEditor from "../components/CodeEditor";
@@ -138,7 +140,7 @@ export default function AnswerPage({ studentId }: { studentId: string }) {
         self_confidence: selfConf,
       });
       if (res && (res as { persisted?: boolean }).persisted === false) {
-        window.alert("⚠️ 持久化失败，刷新后此题结果可能丢失");
+        window.alert("持久化失败，刷新后此题结果可能丢失");
       }
       setResult({
         correct: jd.correct,
@@ -173,7 +175,7 @@ export default function AnswerPage({ studentId }: { studentId: string }) {
     return (
       <div className="answer-page">
         <div className="card">
-          <h2>🎉 所有题目已完成</h2>
+          <h2><Icon icon={PartyPopper} size={22} /> 所有题目已完成</h2>
           <p className="muted">
             去看看你的成长吧。
             <NavLink className="go-link" to="/growth">→ 成长</NavLink>
@@ -194,7 +196,9 @@ export default function AnswerPage({ studentId }: { studentId: string }) {
         </div>
         <div className="prob">{q!.problem_text}</div>
         {report.data && (
-          <div className="one-liner">💡 {report.data.interpretation.overall}</div>
+          <div className="one-liner">
+            <Icon icon={Lightbulb} size={16} /> {report.data.interpretation.overall}
+          </div>
         )}
         <CodeEditor value={answer} onChange={onAnswerChange} />
         {/* v0.97.2: 提交前自评 (pre-outcome, 看到判分结果前选择才有校准意义) */}
@@ -210,14 +214,22 @@ export default function AnswerPage({ studentId }: { studentId: string }) {
                 onClick={() => setSelfConf(opt.value)}
                 disabled={!!result}
               >
-                {selfConf === opt.value ? "✓ " : ""}{opt.label}
+                {selfConf === opt.value ? <><Icon icon={Check} size={14} /> </> : null}{opt.label}
               </button>
             ))}
           </div>
         </div>
         <div className="btns" style={{ display: "flex", gap: 10 }}>
           <button className="amber" onClick={onHint} disabled={hintUsed}>
-            {hintUsed ? "已请求提示 ✓" : "💡 提示"}
+            {hintUsed ? (
+              <>
+                已请求提示 <Icon icon={Check} size={14} />
+              </>
+            ) : (
+              <>
+                <Icon icon={Lightbulb} size={16} /> 提示
+              </>
+            )}
           </button>
           <button
             onClick={onSubmit}
@@ -229,7 +241,7 @@ export default function AnswerPage({ studentId }: { studentId: string }) {
         </div>
         {hint && (
           <div className="hint-box">
-            <div className="hint-title">💡 提示</div>
+            <div className="hint-title"><Icon icon={Lightbulb} size={16} /> 提示</div>
             <div className="hint-text">{hint}</div>
           </div>
         )}
@@ -238,7 +250,7 @@ export default function AnswerPage({ studentId }: { studentId: string }) {
       {result && (
         <div className="feedback-box">
           <div className="verdict" style={{ color: result.correct ? "var(--ok)" : "var(--danger)" }}>
-            {result.correct ? "✅ 正确" : "❌ 错误"} · 得分 {(result.score * 100).toFixed(0)}%
+            {result.correct ? <><Icon icon={Check} size={18} /> 正确</> : <><Icon icon={X} size={18} /> 错误</>} · 得分 {(result.score * 100).toFixed(0)}%
           </div>
           <div className="reasoning">AI 评判：{result.reasoning || "—"}</div>
           <div className="refl-row">
@@ -247,11 +259,19 @@ export default function AnswerPage({ studentId }: { studentId: string }) {
               value={reflection}
               onChange={(e) => setReflection(e.target.value)}
               disabled={reflectionSent}
-              placeholder="💭 课后反思（可选）：这道题你学到了什么？还有哪里不清楚？"
+              placeholder="课后反思（可选）：这道题你学到了什么？还有哪里不清楚？"
             />
             <div style={{ marginTop: 10, display: "flex", gap: 10 }}>
               <button className="amber" onClick={onReflection} disabled={reflectionSent || !reflection.trim()}>
-                {reflectionSent ? "已记录 ✓" : "记录反思"}
+                {reflectionSent ? (
+                  <>
+                    已记录 <Icon icon={Check} size={14} />
+                  </>
+                ) : (
+                  <>
+                    <Icon icon={MessageSquare} size={16} /> 记录反思
+                  </>
+                )}
               </button>
               <button className="green" onClick={onNext}>
                 下一题 →

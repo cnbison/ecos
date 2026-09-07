@@ -1,6 +1,8 @@
 // v0.96.3: 我在哪 — 5D/Bloom/TC/LearningDNA 通俗化呈现 (interpretation 全接)
 // 视觉统一: 顶部概览 hero + 5D 每维独立色 + 全页统一 track/fill 条样式
 import { useQuery } from "@tanstack/react-query";
+import Icon from "../../components/ui/Icon";
+import { BarChart, Brain, Dna, MapPin, Target } from "../../components/ui/icons";
 import { fetchReport, fetchState } from "../api";
 
 const DIM_ORDER = ["K", "P", "S", "C", "X"] as const;
@@ -49,13 +51,13 @@ export default function WherePage({ studentId }: { studentId: string }) {
       {/* 顶部整体概览 */}
       <section className="card where-hero">
         <div className="where-hero-head">
-          <h2>📍 我在哪</h2>
+          <h2><Icon icon={MapPin} size={20} /> 我在哪</h2>
           <span className="where-hero-conf">画像置信 {(st.overall_confidence * 100).toFixed(0)}%</span>
         </div>
         <p className="where-hero-overall">{interp.overall}</p>
         <div className="where-hero-chips">
           <span className="chip ok">
-            🎯 Bloom 主导 · <strong>{interp.bloom.dominant_label || "—"}</strong>
+            <Icon icon={Target} size={14} /> Bloom 主导 · <strong>{interp.bloom.dominant_label || "—"}</strong>
           </span>
           {interp.bloom.next_layer && (
             <span className="chip">
@@ -69,7 +71,7 @@ export default function WherePage({ studentId }: { studentId: string }) {
       {/* 五项能力 */}
       <section className="card">
         <div className="sec-head">
-          <h2>📊 五项能力</h2>
+          <h2><Icon icon={BarChart} size={20} /> 五项能力</h2>
           <span className="sec-sub">认知状态 5 维</span>
         </div>
         <div className="where-5d">
@@ -106,7 +108,7 @@ export default function WherePage({ studentId }: { studentId: string }) {
       {/* 认知深度 (Bloom) */}
       <section className="card">
         <div className="sec-head">
-          <h2>🎯 认知深度</h2>
+          <h2><Icon icon={Target} size={20} /> 认知深度</h2>
           <span className="sec-sub">Bloom 六层</span>
         </div>
         <div className="bloom-rows">
@@ -138,7 +140,7 @@ export default function WherePage({ studentId }: { studentId: string }) {
       {/* 阈值概念 TC */}
       <section className="card">
         <div className="sec-head">
-          <h2>🧠 关键概念掌握</h2>
+          <h2><Icon icon={Brain} size={20} /> 关键概念掌握</h2>
           <span className="sec-sub">阈值概念 TC</span>
         </div>
         <p className="where-comment">{interp.tc.comment}</p>
@@ -161,7 +163,7 @@ export default function WherePage({ studentId }: { studentId: string }) {
       {/* LearningDNA 待启用 */}
       <section className="card">
         <div className="sec-head">
-          <h2>🧬 学习特质</h2>
+          <h2><Icon icon={Dna} size={20} /> 学习特质</h2>
           <span className="badge cold">待启用</span>
         </div>
         <p className="where-comment">

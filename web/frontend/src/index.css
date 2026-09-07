@@ -88,6 +88,9 @@ tr.clickable:focus-visible {
 .card h2 {
   margin: 0 0 14px;
   font-size: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 table {

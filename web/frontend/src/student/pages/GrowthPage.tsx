@@ -2,6 +2,8 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { EChartsOption } from "echarts";
+import Icon from "../../components/ui/Icon";
+import { BookOpen, Check, Clock, TrendingUp, X } from "../../components/ui/icons";
 import { fetchHistory, fetchReport, fetchState } from "../api";
 import EChart from "../../components/EChart";
 
@@ -78,7 +80,7 @@ export default function GrowthPage({ studentId }: { studentId: string }) {
   return (
     <div className="growth-page">
       <section className="card">
-        <h2>📈 5D 成长曲线</h2>
+        <h2><Icon icon={TrendingUp} size={20} /> 5D 成长曲线</h2>
         {lineOption ? (
           <EChart option={lineOption} height={280} />
         ) : (
@@ -108,7 +110,7 @@ export default function GrowthPage({ studentId }: { studentId: string }) {
       </section>
 
       <section className="card">
-        <h2>🕒 轨迹快照</h2>
+        <h2><Icon icon={Clock} size={20} /> 轨迹快照</h2>
         <div className="traj-list">
           {st.trajectory.length === 0 && <div className="muted">暂无轨迹</div>}
           {[...st.trajectory].reverse().map((t, i) => (
@@ -127,7 +129,7 @@ export default function GrowthPage({ studentId }: { studentId: string }) {
       </section>
 
       <section className="card">
-        <h2>📚 答题历史</h2>
+        <h2><Icon icon={BookOpen} size={20} /> 答题历史</h2>
         <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
           共 {hist.total} 题 · 正确率 {(hist.correct_rate * 100).toFixed(0)}%
         </div>
@@ -138,7 +140,7 @@ export default function GrowthPage({ studentId }: { studentId: string }) {
               className={`hist-row ${h.correct ? "correct" : "wrong"}`}
               onClick={() => setOpenDetail(openDetail === i ? null : i)}
             >
-              <span className="hist-mark">{h.correct ? "✅" : "❌"}</span>
+              <span className="hist-mark">{h.correct ? <Icon icon={Check} size={16} /> : <Icon icon={X} size={16} />}</span>
               <span className="hist-pid">{h.problem_id}</span>
               <span className="hist-bloom">{bloomLabel(h.bloom_level)}</span>
               <span className="hist-ts">{fmtTs(h.timestamp)}</span>

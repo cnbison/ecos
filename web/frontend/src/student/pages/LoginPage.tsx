@@ -1,6 +1,8 @@
 // v0.96: 登录页 (最近学生快捷选择 + 手动输入)
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import Icon from "../../components/ui/Icon";
+import { BookOpen } from "../../components/ui/icons";
 import { fetchRecentStudents } from "../api";
 
 export default function LoginPage({ onLogin }: { onLogin: (sid: string) => void }) {
@@ -28,7 +30,7 @@ export default function LoginPage({ onLogin }: { onLogin: (sid: string) => void 
       </button>
 
       <div className="recent-list">
-        <div className="recent-label">📚 最近学生</div>
+        <div className="recent-label"><Icon icon={BookOpen} size={16} /> 最近学生</div>
         <div className="recent-btns">
           {(recent.data?.students ?? []).map((s) => (
             <button key={s} className="ghost" onClick={() => onLogin(s)}>

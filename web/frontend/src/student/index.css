@@ -704,6 +704,10 @@ textarea.plain {
 
 .bottom-nav a {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
   text-align: center;
   font-size: 12px;
   color: var(--muted);

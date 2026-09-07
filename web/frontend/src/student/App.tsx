@@ -1,6 +1,8 @@
 // v0.96: 学生端 App shell — 登录门 + 底部导航 (信息架构三问落地)
 import { useEffect, useState } from "react";
 import { NavLink, Route, Routes, useNavigate } from "react-router-dom";
+import Icon from "../components/ui/Icon";
+import { Home, MapPin, Pencil, Settings, TrendingUp, User } from "../components/ui/icons";
 import LoginPage from "./pages/LoginPage";
 import HomePage from "./pages/HomePage";
 import AnswerPage from "./pages/AnswerPage";
@@ -39,7 +41,9 @@ export default function App() {
     <div className="app">
       <header className="student-topbar">
         <strong>ECOS 学习</strong>
-        <span className="sid">👤 {studentId}</span>
+        <span className="sid">
+          <Icon icon={User} size={14} /> {studentId}
+        </span>
       </header>
       <main className="content">
         <Routes>
@@ -52,12 +56,20 @@ export default function App() {
       </main>
       <nav className="bottom-nav">
         <NavLink to="/" end>
-          🏠 今天
+          <Icon icon={Home} size={18} /> 今天
         </NavLink>
-        <NavLink to="/answer">✏️ 答题</NavLink>
-        <NavLink to="/where">📍 我在哪</NavLink>
-        <NavLink to="/growth">📈 成长</NavLink>
-        <NavLink to="/settings">⚙️ 设置</NavLink>
+        <NavLink to="/answer">
+          <Icon icon={Pencil} size={18} /> 答题
+        </NavLink>
+        <NavLink to="/where">
+          <Icon icon={MapPin} size={18} /> 我在哪
+        </NavLink>
+        <NavLink to="/growth">
+          <Icon icon={TrendingUp} size={18} /> 成长
+        </NavLink>
+        <NavLink to="/settings">
+          <Icon icon={Settings} size={18} /> 设置
+        </NavLink>
       </nav>
     </div>
   );

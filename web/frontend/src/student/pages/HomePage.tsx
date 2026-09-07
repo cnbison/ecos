@@ -1,6 +1,8 @@
 // v0.96: 首页三卡 — 信息架构三问 (我在哪 / 我的成长 / 下一步学什么)
 import { useQuery } from "@tanstack/react-query";
 import { NavLink, useNavigate } from "react-router-dom";
+import Icon from "../../components/ui/Icon";
+import { MapPin, Target, TrendingUp } from "../../components/ui/icons";
 import { fetchReport, fetchState } from "../api";
 import MotivationPanel from "../components/MotivationPanel";
 
@@ -31,7 +33,7 @@ export default function HomePage({ studentId }: { studentId: string }) {
       <div className="home-cards">
         {/* 卡 1: 我在哪 */}
         <section className="home-card">
-          <h3>📍 我在哪</h3>
+          <h3><Icon icon={MapPin} size={18} /> 我在哪</h3>
           <p className="overall">{interp.overall}</p>
           <div className="muted" style={{ fontSize: 13, marginTop: 12 }}>
             Bloom 主导 {interp.bloom.dominant_label} · 置信{" "}
@@ -41,7 +43,7 @@ export default function HomePage({ studentId }: { studentId: string }) {
 
         {/* 卡 2: 我的成长 */}
         <section className="home-card">
-          <h3>📈 我的成长</h3>
+          <h3><Icon icon={TrendingUp} size={18} /> 我的成长</h3>
           <div className="mini-5d">
             {DIM_ORDER.map((d) => {
               const v = st.theta[d];
@@ -65,7 +67,7 @@ export default function HomePage({ studentId }: { studentId: string }) {
 
         {/* 卡 3: 下一步学什么 */}
         <section className="home-card">
-          <h3>🎯 下一步学什么</h3>
+          <h3><Icon icon={Target} size={18} /> 下一步学什么</h3>
           <ul className="next-steps">
             {nextSteps.length === 0 && <li className="muted">样本不足，先答几道题建立画像</li>}
             {nextSteps.map((s, i) => (

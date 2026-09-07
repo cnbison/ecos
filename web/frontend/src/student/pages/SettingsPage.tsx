@@ -1,6 +1,8 @@
 // v0.96: 设置 — 退出登录 / 导出学习报告 / 关于
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import Icon from "../../components/ui/Icon";
+import { Info, Settings, Upload, User } from "../../components/ui/icons";
 import { fetchReport } from "../api";
 
 export default function SettingsPage({
@@ -41,14 +43,14 @@ export default function SettingsPage({
   return (
     <div className="settings-page" style={{ maxWidth: 520 }}>
       <section className="card">
-        <h2>⚙️ 设置</h2>
+        <h2><Icon icon={Settings} size={20} /> 设置</h2>
         <div className="row" style={{ marginBottom: 14 }}>
           <span>当前学生</span>
-          <span className="val">👤 {studentId}</span>
+          <span className="val"><Icon icon={User} size={16} /> {studentId}</span>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <button className="ghost" onClick={exportReport} disabled={exporting}>
-            {exporting ? "导出中…" : "📤 导出学习报告 (JSON)"}
+            {exporting ? "导出中…" : <><Icon icon={Upload} size={16} /> 导出学习报告 (JSON)</>}
           </button>
           <button
             style={{ background: "var(--danger)", color: "#fff" }}
@@ -60,7 +62,7 @@ export default function SettingsPage({
       </section>
 
       <section className="card">
-        <h2>ℹ️ 关于</h2>
+        <h2><Icon icon={Info} size={20} /> 关于</h2>
         <div className="muted" style={{ fontSize: 13, lineHeight: 1.8 }}>
           <div>ECOS 学习端 · 学生版 v{__APP_VERSION__}</div>
           <div>
