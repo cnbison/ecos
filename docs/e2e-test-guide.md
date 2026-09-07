@@ -109,7 +109,7 @@ sqlite3 web/ecos.db "SELECT json_extract(raw_response,'$.dim'), COUNT(*) FROM ev
 sqlite3 web/ecos.db "SELECT event_type, COUNT(*) FROM event_log WHERE student_id='lbcE2E' GROUP BY 1;"
 ```
 
-> ⚠️ **当前生产路径下这一步会失败**：见 [§7 已知问题](#7-已知问题)。`calibration_log` 应正常写入，`event_log` 与 `evidence_log` 在生产会偏 0 —— 这正是「必须测、且必须看出落库」的原因。修前若要确认链路其余部分，可临时用 pytest 的 **legacy 路径**验证（见 §7）。
+> ⚠️ **历史教训**：v0.98.0 曾在生产路径（Plugin）下这一步失败——`calibration_log` 正常但 `event_log`/`evidence_log` 恒 0，且 1583 项测试全绿（测试只走了 legacy 路径）。v0.98.1 已修复并补上 Plugin 路径回归测试（见 [§7](#7-已知问题与历史回归)）。这一步请保留为常设验收项：**「测试环境通过」不等于「生产路径通过」**。
 
 ---
 
@@ -142,17 +142,19 @@ sqlite3 web/ecos.db "SELECT event_type, COUNT(*) FROM event_log WHERE student_id
 | `/api/judge` 返回 422 | LLM key 缺失/失效；失败不污染 state，可刷新重试 |
 | 学生端「题目加载失败」 | `/api/state` 冷启动慢，等 1–2s 刷新 |
 | 学生端是旧版 vanilla JS 页面 | `dist` 缺失，跑 `make frontend-build` |
-| 教师/家长端证据卡空 | 见 §7 —— 生产 evidence/event 未落库所致，非 UI 问题 |
+| 教师/家长端证据卡空 | 先查 §4 落库；若 evidence_log 为 0，答题流没写库，非 UI 问题 |
 | 改前端不生效 | dev 模式须 5173 + 5174 同时跑 |
 
 ---
 
-## 7. 已知问题（如实标注）
+## 7. 已知问题与历史回归
 
-**生产答题流（Plugin 路径）下 `event_log` / `evidence_log` 不落库**（2026-09 发现，待修）。
+**[已修复 v0.98.1] 生产答题流（Plugin 路径）下 `event_log` / `evidence_log` 不落库**（2026-09-07 发现并修复）。
 
-- **现象**：`ECOS_DUAL_AGENT_ENABLED=1 python -m web.api.app`（生产、PluginRuntime 已 start）时答题，`calibration_log` 正常写入，但 `evidence_log` 与 `event_log` 对真实学生恒为 0。
-- **根因**：`web/api/plugin_runtime.py` 的 `_handle_response_submitted` 调 `update_belief(..., log_event=False)`（原意为「FeatureExtractor 已 emit response_submitted，避免重复」）。但 `log_event` 这个开关同时门控了三处写入——FeatureExtractor 写 `response_submitted`、BeliefUpdater 写 `observation`、以及 v0.98.0 新增的 `evidence_log` 写入（`belief_updater.py` Step 3 的 `if self.evidence_engine is not None and log_event:`）。于是 `log_event=False` 从「不重复 event_log」被放大成「不写任何 event + evidence」。
-- **为什么测试没抓到**：`tests/test_web_evidence_injection.py` 在**无 PluginRuntime subscriber** 的环境下跑，走的是 legacy 路径（`log_event=True`），日志正常；而生产默认走 Plugin 路径，`log_event=False`，恰好绕过。
-- **影响**：v0.98.0 试点的 H1 数据收集（依赖 `evidence_log`/`event_log` 零人工自动采集）会在生产下采集不到数据。
-- **临时验证方式**（修前）：在未启动 PluginRuntime 的测试/脚本环境中直接调 `BeliefEngine.update`（legacy 路径，`log_event=True`），可看到 5 行 `evidence_log` + 2 行 `event_log` 落库——证明内核写入逻辑本身正常，断点在接线层。
+这条回归保留在此，因为它正是本指南存在意义的活例子——**1583 项 pytest 全绿，端到端一跑就现形**：
+
+- **现象**：生产形态（`python -m web.api.app` 启动即激活 PluginRuntime）下答题，`calibration_log` 正常写入，但 `evidence_log` 与 `event_log` 对真实学生恒为 0。
+- **根因**：`web/api/plugin_runtime.py` 的 `_handle_response_submitted` 调 `update_belief(..., log_event=False)`，旧注释认为「FeatureExtractor 已 emit response_submitted，避免重复」——但那混淆了两个 sink：`bus.publish` 是 EventBus 内存广播（不落库），FeatureExtractor 写的是 `event_log` 持久化行，本不重复。而 `log_event` 这个开关同时门控三处写入（FeatureExtractor emit / BeliefUpdater observation / v0.98.0 新增 evidence_log），`False` 把落库一并抑制。
+- **为什么测试没抓到**：`tests/test_web_evidence_injection.py` 把 `_update_via_plugin_or_legacy` monkeypatch 成 `engine.update` 直调——**测试只走了 legacy 路径**，而生产默认走 Plugin 路径，恰好绕过。v0.98.1 补上了真实 PluginRuntime subscriber 的回归测试。
+- **影响**：若未修复，试点的 H1 数据收集（依赖 `evidence_log`/`event_log` 零人工自动采集）会在生产下采集不到数据。
+- **常设教训**：任何「接线收口」类改动，验收必须覆盖**生产实际走的路径**，而非只覆盖测试注入的路径；§4 的落库核对请保留为常设验收项。
