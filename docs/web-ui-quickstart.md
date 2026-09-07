@@ -1,7 +1,8 @@
 # ECOS Web UI 启动与访问指南
 
-> **适用范围**: v0.95/v0.96 起的 React SPA 形态 — 前端 Vite build → `web/frontend/dist/` → Flask 托管（学生端 + 教师端双页）。
+> **适用范围**: v0.95/v0.96 起的 React SPA 形态 — 前端 Vite build → `web/frontend/dist/` → Flask 托管（学生端 + 教师端 + 家长端三页）。
 > 本文是 README §启动 Web UI 的详细版；路由实现见 `web/api/app.py`。
+> 启动之后**如何确认整条链路真通了**（答题流 + 数据落库 + 三端验收）见 [_端到端测试指南_](e2e-test-guide.md)。
 
 ## 0. 前置条件
 
@@ -62,6 +63,7 @@ Vite 5174（proxy `/api` → Flask 5173），改前端代码即时生效，无�
 |---|---|---|
 | 学生端 | `http://localhost:5173/` | v0.96 React SPA；dist 缺失时 fallback 旧版 `web/student/` |
 | 教师端 | `http://localhost:5173/teacher/` | v0.95 React SPA；dist 缺失时 fallback 旧版 `web/teacher/` |
+| 家长端 | `http://localhost:5173/parent/` | v0.98 React SPA；dist 缺失时 fallback 旧版 `web/parent/` |
 
 ### 形态 B（Vite dev）
 
@@ -69,6 +71,7 @@ Vite 5174（proxy `/api` → Flask 5173），改前端代码即时生效，无�
 |---|---|
 | 学生端 | `http://localhost:5174/student.html` |
 | 教师端 | `http://localhost:5174/` |
+| 家长端 | `http://localhost:5174/parent.html` |
 
 ## 4. Makefile 快捷方式
 
@@ -91,7 +94,7 @@ Vite 5174（proxy `/api` → Flask 5173），改前端代码即时生效，无�
 
 ## 6. 目录/产物说明
 
-- `web/frontend/` — React 18 + Vite 6 + TS 前端（多页 build：`index.html` 教师端 + `student.html` 学生端）
-- `web/frontend/dist/` — build 产物（gitignore，Flask 托管源；`index.html` / `student.html` + `assets/`）
-- `web/api/app.py` — Flask 路由：`/api/*` + 静态托管（`/` `/student/` `/teacher/`，均 dist 优先 + legacy fallback）
-- `web/student/` / `web/teacher/` — 旧版 vanilla JS 页面（迁移期兼容，dist 缺失时兜底）
+- `web/frontend/` — React 18 + Vite 6 + TS 前端（多页 build：`index.html` 教师端 + `student.html` 学生端 + `parent.html` 家长端）
+- `web/frontend/dist/` — build 产物（gitignore，Flask 托管源；`index.html` / `student.html` / `parent.html` + `assets/`）
+- `web/api/app.py` — Flask 路由：`/api/*` + 静态托管（`/` `/student/` `/teacher/` `/parent/`，均 dist 优先 + legacy fallback）
+- `web/student/` / `web/teacher/` / `web/parent/` — 旧版 vanilla JS 页面（迁移期兼容，dist 缺失时兜底）
