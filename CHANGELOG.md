@@ -12,6 +12,28 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.98.3] 2026-09-07 — web-ui P1 优化（教师详情页重排 + Lucide 图标 + 学生端 emoji 替换）
+
+> P0 视觉变化不明显，先执行反差最大的 P1 两项：教师详情页首屏聚焦、三端 emoji 统一换 Lucide SVG。pytest 1585 不变；前端 vitest 17 → **24** (+7)；防御性自检全绿。
+
+### add
+
+- **NEW `web/frontend/src/components/ui/{Icon.tsx,icons.ts,iconMap.ts,iconMap.test.ts}`**: 引入 `lucide-react` 并统一导出常用图标，提供 `Icon` 尺寸/描边封装与 emoji → Lucide 映射
+- **NEW `web/frontend/src/components/ui/CollapsibleSection.tsx` + `CollapsibleSection.test.ts`**: 可折叠区块组件（标题 + 副标题 + 展开/折叠按钮），默认折叠；vitest 用 `react-dom/server` 在 node 环境渲染验证
+
+### refactor
+
+- **MODIFY `web/frontend/src/components/ui/EmptyState.tsx`**: `icon` prop 从 `string`（emoji）改为 `ReactNode`，支持 Lucide SVG 组件
+- **MODIFY `web/frontend/src/pages/StudentDetailPage.tsx`**: 教师详情页重排——首屏固定「状态横幅 / 5D θ 雷达 / 5D 证据链」；POMDP 诊断、自评校准、per-misconception 证据、干预历史四模块收入 `CollapsibleSection` 默认折叠；所有卡片标题改用 `SectionHeader`
+- **MODIFY `web/frontend/src/student/App.tsx` + `student/pages/{Home,Answer,Growth,Where,Settings,Login}Page.tsx`**: 学生端顶栏、底部导航、首页三卡、答题页、成长页、我在哪页、设置页、登录页的主要 emoji 替换为 Lucide 图标
+- **MODIFY `web/frontend/src/index.css`**: `.card h2` 统一 `display: flex; align-items: center; gap: 8px`，保证图标与标题文字垂直对齐
+- **MODIFY `web/frontend/src/student/index.css`**: 底部导航改为 `flex column` 图标+标签布局
+
+### 校验
+
+- 版本双源 bump: `ecos/__init__.py` + `web/frontend/package.json` → **0.98.3**
+- 前端 tsc + eslint + vitest + build 全绿；`make check` 8 项静态 + 前端段 + pytest 1585 全绿
+
 ## [0.98.2] 2026-09-07 — web-ui P0 优化（响应式 bug / 版本号 / 共享组件 / a11y / 家长建议样式）
 
 > 基于 `docs/web-ui-review-2026-09-07.md` 审阅结论，先执行低投入高回报的 P0 批次。pytest 1585 不变；前端 vitest 10 → **17** (+7)；防御性自检全绿。
