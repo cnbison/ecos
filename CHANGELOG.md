@@ -12,6 +12,28 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.98.4] 2026-09-07 — web-ui P1 优化②（家长端 URL 状态 + 教师班级列表移动端卡片化）
+
+> 继续执行 P1 剩余项中反差最大的两项。pytest 1585 不变；前端 vitest 24 → **36** (+12)；防御性自检全绿。
+
+### add
+
+- **NEW `web/frontend/src/parent/urlState.ts` + `urlState.test.ts`**: 纯函数 helper 读取/校验/构建 `?student=<id>` query 参数
+- **NEW `web/frontend/src/components/ui/useMediaQuery.ts`**: 响应式 media-query hook，监听 `(max-width: 720px)`
+- **NEW `web/frontend/src/pages/RosterPage.test.ts`**: 模块 SSR-safe + 卡片结构断言
+
+### refactor
+
+- **MODIFY `web/frontend/src/parent/main.tsx`**: 包 `<HashRouter>`，与教师/学生入口同构
+- **MODIFY `web/frontend/src/parent/pages/ParentHomePage.tsx`**: 用 `useSearchParams` 替换本地 `useState`；学生选择/返回列表同步 URL；非法 `student` 参数自动清空并回列表视图
+- **MODIFY `web/frontend/src/pages/RosterPage.tsx`**: `<720px` 时渲染卡片列表，宽屏保留表格；空状态统一用 `EmptyState`
+- **MODIFY `web/frontend/src/index.css`**: 新增 `.roster-cards` / `.roster-card` / `.roster-card-grid` 样式（全部加前缀，避免泄漏到 parent/student）
+
+### 校验
+
+- 版本双源 bump: `ecos/__init__.py` + `web/frontend/package.json` → **0.98.4**
+- 前端 tsc + eslint + vitest + build 全绿；`make check` 8 项静态 + 前端段 + pytest 1585 全绿
+
 ## [0.98.3] 2026-09-07 — web-ui P1 优化（教师详情页重排 + Lucide 图标 + 学生端 emoji 替换）
 
 > P0 视觉变化不明显，先执行反差最大的 P1 两项：教师详情页首屏聚焦、三端 emoji 统一换 Lucide SVG。pytest 1585 不变；前端 vitest 17 → **24** (+7)；防御性自检全绿。

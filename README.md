@@ -4,8 +4,8 @@
 > 基于"**学生认知数字孪生 + AI 学习教练**"双 Agent 共进化架构
 > v0.95+ 演进为 **ECOS 2.0 双内核架构**：**State-based Cognitive Kernel（状态优先的通用认知内核）** + **Cognitive Runtime（领域无关的认知运行时）**——教育（K12）是第一个垂直落地领域
 
-[![Status](https://img.shields.io/badge/status-v0.98.3--ui--polish-brightgreen)]()
-[![Version](https://img.shields.io/badge/version-0.98.3-blue)]()
+[![Status](https://img.shields.io/badge/status-v0.98.4--ui--polish-brightgreen)]()
+[![Version](https://img.shields.io/badge/version-0.98.4-blue)]()
 [![Tests](https://img.shields.io/badge/pytest-1585-brightgreen)]()
 [![License](https://img.shields.io/badge/license-MIT-green)]()
 
@@ -361,4 +361,4 @@ ECOS_DUAL_AGENT_ENABLED=1 python -m web.api.app
 ---
 
 **创建日期**：2026-06-24
-**当前版本**：v0.98.3（2026-09-07 恢复期：接线审计 → 黄金回归基建 v0.97.0 → v0.97.1 BKT 视图+L3 接线 → v0.97.2 学生自评+校准视图 → v0.97.3 A2 reconcile → v0.98.0 家长端 + Evidence/Event 注入答题流（接线审计实例 ③ 收口）+ H1/Twin 数据收集方案 → v0.98.1 fix 生产 Plugin 路径 evidence/event 落库恢复 → v0.98.2 web-ui P0 优化（响应式 bug / 版本号 / 共享组件 / a11y / 家长建议样式）→ v0.98.3 web-ui P1 优化（教师详情页重排 + Lucide 图标 + 学生端 emoji 替换）；下一步 = 试点执行）
+**当前版本**：v0.98.4（2026-09-07 恢复期：接线审计 → 黄金回归基建 v0.97.0 → v0.97.1 BKT 视图+L3 接线 → v0.97.2 学生自评+校准视图 → v0.97.3 A2 reconcile → v0.98.0 家长端 + Evidence/Event 注入答题流（接线审计实例 ③ 收口）+ H1/Twin 数据收集方案 → v0.98.1 fix 生产 Plugin 路径 evidence/event 落库恢复 → v0.98.2 web-ui P0 优化（响应式 bug / 版本号 / 共享组件 / a11y / 家长建议样式）→ v0.98.3 web-ui P1 优化（教师详情页重排 + Lucide 图标 + 学生端 emoji 替换）→ v0.98.4 web-ui P1 优化②（家长端 URL 状态 + 教师班级列表移动端卡片化）；下一步 = 试点执行）
