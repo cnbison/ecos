@@ -206,7 +206,7 @@ export default function AnswerPage({ studentId }: { studentId: string }) {
             {SELF_CONFIDENCE_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
-                className={`chip${selfConf === opt.value ? " ok" : ""}`}
+                className={`chip${selfConf === opt.value ? " selected" : ""}`}
                 onClick={() => setSelfConf(opt.value)}
                 disabled={!!result}
               >

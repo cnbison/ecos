@@ -230,6 +230,24 @@ button:disabled {
   color: #15803d;
 }
 
+/* v0.98.2-P0: 自评 chip 选中态 —— 明确区分未选/选中/禁用 */
+.chip.selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.chip.selected:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: -3px;
+}
+
+button.chip:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* 区块标题 */
 .sec-head {
   display: flex;
