@@ -275,6 +275,67 @@ dd {
   color: var(--muted);
 }
 
+.section-header-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* v0.98.3-P1: 可折叠区块 */
+.collapsible-section {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  margin-bottom: 18px;
+  overflow: hidden;
+}
+
+.collapsible-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.collapsible-header:hover {
+  background: #f8fafc;
+}
+
+.collapsible-title {
+  flex: 0 0 auto;
+}
+
+.collapsible-subtitle {
+  flex: 1 1 auto;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.collapsible-chevron {
+  flex-shrink: 0;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+}
+
+.collapsible-body {
+  padding: 0 18px 18px;
+  border-top: 1px solid var(--border);
+}
+
 .ui-border-ok {
   border-color: var(--ok);
 }

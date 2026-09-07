@@ -8,6 +8,8 @@ export {
   Brain,
   Check,
   CheckCircle,
+  ChevronDown,
+  ChevronUp,
   ClipboardList,
   Clock,
   Dna,
