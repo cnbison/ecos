@@ -10,7 +10,9 @@ import {
 } from "../api/client";
 import type { DimensionEvidence, EvidenceResponse } from "../api/types";
 import EChart from "../components/EChart";
+import CollapsibleSection from "../components/ui/CollapsibleSection";
 import EmptyState from "../components/ui/EmptyState";
+import SectionHeader from "../components/ui/SectionHeader";
 import { BarChart, ClipboardList } from "../components/ui/icons";
 
 export default function StudentDetailPage() {
@@ -60,21 +62,22 @@ export default function StudentDetailPage() {
       </Link>
 
       <div className="card">
-        <h2>
-          {d.student_id}{" "}
-          <span className="muted">
-            · {d.answered_count} 题 · 正确率{" "}
-            {d.answered_count ? `${(d.correct_rate * 100).toFixed(1)}%` : "—"} · 置信{" "}
-            {d.overall_confidence.toFixed(2)}
-          </span>
-        </h2>
+        <SectionHeader
+          title={d.student_id}
+          subtitle={`${d.answered_count} 题 · 正确率 ${
+            d.answered_count ? `${(d.correct_rate * 100).toFixed(1)}%` : "—"
+          } · 置信 ${d.overall_confidence.toFixed(2)}`}
+        />
         {d.report && <ReportBanner report={d.report} />}
       </div>
 
       <Theta5DCard detail={d} />
 
       <div className="card">
-        <h2>5D 证据链 — “系统为什么这么判断”</h2>
+        <SectionHeader
+          title="5D 证据链"
+          subtitle="系统为什么这么判断"
+        />
         {evidence.isLoading ? (
           <p className="muted">加载证据链…</p>
         ) : evidence.isError ? (
@@ -84,8 +87,7 @@ export default function StudentDetailPage() {
         )}
       </div>
 
-      <div className="card">
-        <h2>POMDP 诊断</h2>
+      <CollapsibleSection title="POMDP 诊断" subtitle="认知状态后验与策略建议">
         {diagnostic.isLoading ? (
           <p className="muted">加载诊断…</p>
         ) : diagnostic.isError ? (
@@ -99,10 +101,9 @@ export default function StudentDetailPage() {
             description="该学生当前无 POMDP 后验 (非 POMDP policy 或 LCA 状态不足), 诊断不可用。"
           />
         )}
-      </div>
+      </CollapsibleSection>
 
-      <div className="card">
-        <h2>自评校准 — 学生觉得自己会 vs 实际答对</h2>
+      <CollapsibleSection title="自评校准" subtitle="学生觉得自己会 vs 实际答对">
         {calibration.isLoading ? (
           <p className="muted">加载校准视图…</p>
         ) : calibration.isError ? (
@@ -110,10 +111,9 @@ export default function StudentDetailPage() {
         ) : (
           <CalibrationViewCard data={calibration.data!} />
         )}
-      </div>
+      </CollapsibleSection>
 
-      <div className="card">
-        <h2>per-misconception 证据 — A2 闭环校准后的 LLM 检测可信度</h2>
+      <CollapsibleSection title="per-misconception 证据" subtitle="A2 闭环校准后的 LLM 检测可信度">
         {misconceptions.isLoading ? (
           <p className="muted">加载 per-misc 证据…</p>
         ) : misconceptions.isError ? (
@@ -121,10 +121,9 @@ export default function StudentDetailPage() {
         ) : (
           <MisconceptionsCard data={misconceptions.data!} />
         )}
-      </div>
+      </CollapsibleSection>
 
-      <div className="card">
-        <h2>干预历史</h2>
+      <CollapsibleSection title="干预历史" subtitle="系统与教师生成的学习安排">
         {interventions.isLoading ? (
           <p className="muted">加载干预历史…</p>
         ) : interventions.data?.interventions.length ? (
@@ -155,7 +154,7 @@ export default function StudentDetailPage() {
             description="系统或教师尚未为该学生生成学习安排。"
           />
         )}
-      </div>
+      </CollapsibleSection>
     </div>
   );
 }
@@ -197,7 +196,7 @@ function Theta5DCard({
   };
   return (
     <div className="card">
-      <h2>能力画像 (5D θ)</h2>
+      <SectionHeader title="能力画像 (5D θ)" />
       <div style={{ display: "flex", gap: 24, alignItems: "center", flexWrap: "wrap" }}>
         <div style={{ flex: "1 1 320px", minWidth: 280 }}>
           <EChart option={radar} height={240} />
