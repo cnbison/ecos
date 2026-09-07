@@ -5,7 +5,9 @@ import type {
   FiveDOverview,
   InterventionItem,
 } from "../api";
-import { severityBadgeClass, stateBadgeClass, stateLabel } from "../ui";
+import EmptyState from "../../components/ui/EmptyState";
+import { severityBorderClass, severityColor } from "../../components/ui/uiHelpers";
+import { stateBadgeClass, stateLabel } from "../ui";
 
 const DIM_LABELS: Record<string, string> = {
   K: "知识",
@@ -21,7 +23,11 @@ export function EngagementCard({ engagement }: { engagement: EngagementReport | 
     return (
       <div className="card">
         <h2>学习状态</h2>
-        <p className="muted">画像建立中, 暂无状态数据 (学生答题后逐步生成)</p>
+        <EmptyState
+          icon="📈"
+          title="画像建立中"
+          description="暂无状态数据，学生答题后逐步生成。"
+        />
       </div>
     );
   }
@@ -49,7 +55,11 @@ export function EngagementCard({ engagement }: { engagement: EngagementReport | 
           ))}
         </p>
       ) : (
-        <p className="muted">暂无演化轨迹 (需要更多答题数据)</p>
+        <EmptyState
+          icon="🐾"
+          title="暂无演化轨迹"
+          description="需要更多答题数据才能生成状态轨迹。"
+        />
       )}
     </div>
   );
@@ -62,12 +72,24 @@ export function AdviceCard({ engagement }: { engagement: EngagementReport | null
     <div className="card">
       <h2>给家长的建议</h2>
       {advice.length === 0 ? (
-        <p className="muted">暂无建议 (学生答题后生成)</p>
+        <EmptyState
+          icon="💡"
+          title="暂无建议"
+          description="学生答题后，系统会根据 Engagement 状态生成可操作建议。"
+        />
       ) : (
-        <ul>
+        <ul className="advice-list">
           {advice.map((a, i) => (
-            <li key={i} style={{ marginBottom: 6 }}>
-              <span className={severityBadgeClass(a.severity)}>{a.message}</span>
+            <li
+              key={i}
+              className={`advice-item ${severityBorderClass(a.severity)}`}
+            >
+              <span
+                className="advice-dot"
+                style={{ background: severityColor(a.severity) }}
+                aria-hidden="true"
+              />
+              <span className="advice-text">{a.message}</span>
             </li>
           ))}
         </ul>
@@ -114,7 +136,11 @@ export function InterventionHistoryCard({
     <div className="card">
       <h2>学习安排记录 ({interventions.length})</h2>
       {interventions.length === 0 ? (
-        <p className="muted">暂无干预记录</p>
+        <EmptyState
+          icon="📋"
+          title="暂无学习安排"
+          description="教师或系统尚未为该学生下发学习安排。"
+        />
       ) : (
         <table>
           <thead>

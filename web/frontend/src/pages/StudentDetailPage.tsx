@@ -10,6 +10,7 @@ import {
 } from "../api/client";
 import type { DimensionEvidence, EvidenceResponse } from "../api/types";
 import EChart from "../components/EChart";
+import EmptyState from "../components/ui/EmptyState";
 
 export default function StudentDetailPage() {
   const { id = "" } = useParams();
@@ -91,9 +92,11 @@ export default function StudentDetailPage() {
         ) : diagnostic.data?.diagnostic ? (
           <PomdpView diagnostic={diagnostic.data} />
         ) : (
-          <p className="muted">
-            该学生当前无 POMDP 后验 (非 POMDP policy 或 LCA 状态不足), 诊断不可用。
-          </p>
+          <EmptyState
+            icon="📊"
+            title="暂无 POMDP 诊断"
+            description="该学生当前无 POMDP 后验 (非 POMDP policy 或 LCA 状态不足), 诊断不可用。"
+          />
         )}
       </div>
 
@@ -145,7 +148,11 @@ export default function StudentDetailPage() {
             </tbody>
           </table>
         ) : (
-          <p className="muted">暂无干预记录。</p>
+          <EmptyState
+            icon="📋"
+            title="暂无干预记录"
+            description="系统或教师尚未为该学生生成学习安排。"
+          />
         )}
       </div>
     </div>

@@ -11,6 +11,8 @@ import {
   FiveDOverviewCard,
   InterventionHistoryCard,
 } from "../components/Cards";
+import ClickableRow from "../../components/ui/ClickableRow";
+import EmptyState from "../../components/ui/EmptyState";
 import { formatCorrectRate, stateBadgeClass, stateLabel } from "../ui";
 
 export default function ParentHomePage() {
@@ -36,7 +38,11 @@ export default function ParentHomePage() {
           我的孩子 <span className="muted">({students.length} 人)</span>
         </h2>
         {students.length === 0 ? (
-          <p className="muted">暂无学生数据</p>
+          <EmptyState
+            icon="👨‍👩‍👧"
+            title="暂无学生数据"
+            description="家长账号关联的学生答题后会在此显示。"
+          />
         ) : (
           <table>
             <thead>
@@ -49,10 +55,10 @@ export default function ParentHomePage() {
             </thead>
             <tbody>
               {students.map((s) => (
-                <tr
+                <ClickableRow
                   key={s.student_id}
-                  className="clickable"
                   onClick={() => setSelectedId(s.student_id)}
+                  ariaLabel={`查看 ${s.student_id} 学习概览`}
                 >
                   <td>
                     <strong>{s.student_id}</strong>
@@ -68,7 +74,7 @@ export default function ParentHomePage() {
                       {stateLabel(s.current_state)}
                     </span>
                   </td>
-                </tr>
+                </ClickableRow>
               ))}
             </tbody>
           </table>

@@ -2,6 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { fetchRoster } from "../api/client";
 import type { RosterStudent } from "../api/types";
+import ClickableRow from "../components/ui/ClickableRow";
+import EmptyState from "../components/ui/EmptyState";
 
 export default function RosterPage() {
   const navigate = useNavigate();
@@ -39,10 +41,10 @@ export default function RosterPage() {
           </thead>
           <tbody>
             {students.map((s: RosterStudent) => (
-              <tr
+              <ClickableRow
                 key={s.student_id}
-                className="clickable"
                 onClick={() => navigate(`/students/${s.student_id}`)}
+                ariaLabel={`查看 ${s.student_id} 详情`}
               >
                 <td>
                   <strong>{s.student_id}</strong>
@@ -59,12 +61,16 @@ export default function RosterPage() {
                   <StatusBadge s={s} />
                 </td>
                 <td>{s.intervention_count}</td>
-              </tr>
+              </ClickableRow>
             ))}
             {students.length === 0 && (
               <tr>
-                <td colSpan={7} className="muted">
-                  暂无学生
+                <td colSpan={7}>
+                  <EmptyState
+                    icon="👥"
+                    title="暂无学生"
+                    description="学生答题后班级列表会逐步填充。"
+                  />
                 </td>
               </tr>
             )}
