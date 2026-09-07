@@ -545,7 +545,8 @@ def _update_via_plugin_or_legacy(
       1. 构造 LearningEvent (event_type="response_submitted", payload=Observation.to_dict())
       2. bus.publish("response_submitted", event)
       3. Runtime subscriber (PluginRuntime._handle_response_submitted) 收到 event,
-         内部调 Runtime.update_belief -> BeliefEngine.update(state, obs, log_event=False)
+         内部调 Runtime.update_belief -> BeliefEngine.update(state, obs, log_event=True)
+         (v0.98.1: 曾误传 log_event=False 抑制 evidence/event 落库, 已修复)
       4. state 被 mutate in place, 返回同一对象
 
     Legacy 路径 (PluginRuntime 未 start 或 bus 无 subscriber):

@@ -198,6 +198,81 @@ def test_evidence_engine_singleton_reuses_instance(wired_env):
 
 
 # ──────────────────────────────────────────────────────────────────────
+# v0.98.1: Plugin 路径 (生产默认) evidence/event 落库回归
+#
+# 根因: _handle_response_submitted 曾传 log_event=False (语义过载误解,
+# 见 web/api/plugin_runtime.py 注释), 生产 Plugin 路径下 evidence_log /
+# event_log 恒 0 行。上方 test_submit_writes_* 系列把 _update_via_plugin_
+# or_legacy monkeypatch 成 engine.update 直调 (legacy 路径), 全绿却没覆盖
+# 生产路径 —— 本类启动真实 PluginRuntime subscriber 走完整 bus.publish 链。
+# ──────────────────────────────────────────────────────────────────────
+
+
+def test_plugin_path_writes_evidence_and_event_logs(wired_env):
+    """PluginRuntime 已 start (生产形态) 答题 -> evidence_log + event_log 照常落库.
+
+    完整生产链: submit_answer -> bus.publish("response_submitted") ->
+    PluginRuntime._handle_response_submitted -> Runtime.update_belief ->
+    engine.update(log_event=True) -> FeatureExtractor/BeliefUpdator 落库。
+    dim_updates 需 len(history) >= 2, 连答 2 题 (同 test_submit_writes_*)。"""
+    from ecos.event import get_default_bus
+    from web.api.plugin_runtime import PluginRuntime
+
+    db = wired_env
+    rt = PluginRuntime(state_factory=belief_api._get_or_create_student)
+    rt.start()
+    try:
+        belief_api._get_or_create_student("stu_v098_plugin")
+        for pid in ("prob_001", "prob_002"):
+            belief_api.submit_answer(
+                student_id="stu_v098_plugin", problem_id=pid,
+                skill_id="math.frac", correct=True, bloom_layer="L3", score=1.0,
+            )
+
+        # evidence_log: 第 2 题起 per-dim 5 行 (含 dim 标记)
+        rows = db.load_evidence("stu_v098_plugin", limit=50)
+        assert len(rows) >= 5
+        dims = {json.loads(r["raw_response"]).get("dim") for r in rows}
+        assert {"K", "P", "S", "C", "X"} <= dims
+
+        # event_log: response_submitted + observation 两类都在
+        event_log = belief_api._get_web_event_log()
+        types = {e.event_type for e in event_log.load_events("stu_v098_plugin")}
+        assert {"response_submitted", "observation"} <= types
+    finally:
+        rt.stop()  # 退订, 防污染其他测试的 default bus
+
+
+def test_plugin_path_state_evidence_ids_bound_to_persisted_rows(wired_env):
+    """Plugin 路径下 state 维度 evidence_ids 指向已落库行 (非 in-memory 空 append).
+
+    修复前 log_event=False 走 dim_state.evidence_ids.append 分支 (库 0 行);
+    修复后走 _register_evidence, ids 与 evidence_log 实际行一一对应。"""
+    from ecos.event import get_default_bus
+    from web.api.plugin_runtime import PluginRuntime
+
+    db = wired_env
+    rt = PluginRuntime(state_factory=belief_api._get_or_create_student)
+    rt.start()
+    try:
+        student = belief_api._get_or_create_student("stu_v098_bind")
+        for pid in ("prob_001", "prob_002"):
+            belief_api.submit_answer(
+                student_id="stu_v098_bind", problem_id=pid,
+                skill_id="math.frac", correct=True, bloom_layer="L3", score=1.0,
+            )
+        ids = student["state"].K.evidence_ids
+        assert ids, "Plugin 路径下 K 维 evidence_ids 不应为空"
+        for eid in ids:
+            row = db.conn.execute(
+                "SELECT evidence_id FROM evidence_log WHERE evidence_id=?", (eid,)
+            ).fetchone()
+            assert row is not None, f"evidence_id={eid} 未落库 (in-memory 幽灵 id)"
+    finally:
+        rt.stop()
+
+
+# ──────────────────────────────────────────────────────────────────────
 # v0.98.0 (b-b): evidence_log CASCADE 迁移 (v0.97.3 a-fix 同类, 硬规则 #8)
 # ──────────────────────────────────────────────────────────────────────
 

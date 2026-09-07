@@ -12,6 +12,18 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.98.1] 2026-09-07 — fix: 生产 Plugin 路径 evidence/event 落库恢复（v0.98.0 接线回归）
+
+> 端到端实测发现（docs/e2e-test-guide.md §7）：生产答题流（PluginRuntime 已 start）下 evidence_log/event_log 恒 0 行（calibration_log 正常）—— v0.98.0 b-b 的注入只被 legacy 路径消费，1583 项测试全绿却未覆盖生产路径。pytest 1583 → **1585**，golden 零 diff。
+
+### fix
+
+- **MODIFY `web/api/plugin_runtime.py`**: `_handle_response_submitted` 的 `update_belief(..., log_event=False)` 改为 **`log_event=True`**。根因 = `log_event` 语义过载 + sink 混淆：旧注释"FeatureExtractor already emit response_submitted, 不重复"中，bus.publish 是 EventBus 内存广播（不落库），FeatureExtractor 写的是 event_log 持久化行，两者不同 sink 并不重复；而 `log_event=False` 同时门控三处写入（FeatureExtractor emit / BeliefUpdater observation / v0.98.0 新增 evidence_log），把注入落库一并抑制
+- **MODIFY `web/api/belief.py`**: `_update_via_plugin_or_legacy` docstring 同步（log_event=True + 回归备注）
+- **MODIFY `tests/test_web_evidence_injection.py`** +2: `test_plugin_path_writes_evidence_and_event_logs`（真实 PluginRuntime subscriber 走完整 bus.publish 链 → 断言 evidence_log per-dim 5 行含 dim + event_log 两类）；`test_plugin_path_state_evidence_ids_bound_to_persisted_rows`（state.evidence_ids 与落库行一一对应，非 in-memory 幽灵 id）—— 补上既有测试把 `_update_via_plugin_or_legacy` monkeypatch 成 legacy 直调的覆盖缺口
+- 同类扫描（硬规则 #8）: 全库 `log_event=False` 复查，其余均为 replay/simulate 有意 pure 语义，无第二处同族
+- 版本双源 bump: `ecos/__init__.py` + `web/frontend/package.json` → 0.98.1
+
 ## [0.98.0] 2026-09-06 — 家长端 + Evidence/Event Engine 注入答题流（恢复期 backlog P0, 接线审计实例 ③ 收口）
 
 > 恢复期 backlog P0「v0.98 家长端 + 验证主线」a/b/c 三项（方案经 Bisen 拍板 2026-09-06: **方案一 b → a**——先接线再落家长端读真数据; 四项决策: per-dim 5 行不聚合 / judge_completed 不同批 / H1 方案文档落 discussions/ / 家长端不放校准卡）。**黄金回归基线零 diff**（kernel 接线全走可选注入, `BeliefEngine(llm_client=None)` 默认路径行为不变）。commit 链: b-a → b-b → b-c → a-a → a-b → a-c → d。

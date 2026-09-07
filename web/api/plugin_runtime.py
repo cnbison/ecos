@@ -209,13 +209,19 @@ class PluginRuntime:
 
         # Delegate to Runtime.update_belief (which calls engine.update internally)
         # - state kwarg: 复用已有 state 对象 (跟 web/api/belief.py 同一引用)
-        # - log_event=False: FeatureExtractor already emit response_submitted, 不重复
+        # - v0.98.1: log_event=True — engine.update 必须正常写 event_log
+        #   (response_submitted + observation) + evidence_log。旧值 False 源自
+        #   "FeatureExtractor already emit, 不重复" 的误解: bus.publish 是 EventBus
+        #   内存广播 (不落库), FeatureExtractor 写的是 event_log 持久化行, 两者不同
+        #   sink 并不重复; 而 log_event 同时门控 evidence/event 写库, False 会把
+        #   v0.98.0 注入的落库一并抑制 (生产 Plugin 路径 evidence/event 恒 0 行,
+        #   测试全走 legacy 路径未覆盖, 见 docs/e2e-test-guide.md §7)。
         updated_state = update_belief(
             student_id=student_id,
             evidence=obs,
             belief_engine=engine,
             state=state,
-            log_event=False,
+            log_event=True,
         )
         return updated_state
 
