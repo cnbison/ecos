@@ -27,6 +27,29 @@ body {
   min-height: 100vh;
 }
 
+/* v0.98.2-P0: 全局焦点环 —— 所有可交互元素键盘聚焦时可见, 鼠标点击时不显 outline */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* 表格行被当作按钮聚焦时的高亮 */
+tr.clickable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  background: #f0f6ff;
+}
+
 .topbar {
   display: flex;
   align-items: center;

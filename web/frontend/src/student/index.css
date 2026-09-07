@@ -704,8 +704,17 @@ textarea.plain {
     padding: 14px;
     padding-bottom: 64px; /* 给底部 Tab 留空间 */
   }
+  /* v0.98.2-P0: 删除 .topbar display:none —— 该规则会泄漏到教师/家长端,
+     导致移动端顶部品牌栏整个消失。改为在移动端压缩 topbar。 */
   .topbar {
-    display: none;
+    padding: 10px 14px;
+    gap: 8px;
+  }
+  .topbar .brand {
+    font-size: 16px;
+  }
+  .topbar .topbar-sub {
+    font-size: 11px;
   }
   .student-topbar {
     padding: 10px 14px;
