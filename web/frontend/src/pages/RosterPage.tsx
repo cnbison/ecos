@@ -4,6 +4,7 @@ import { fetchRoster } from "../api/client";
 import type { RosterStudent } from "../api/types";
 import ClickableRow from "../components/ui/ClickableRow";
 import EmptyState from "../components/ui/EmptyState";
+import { Users } from "../components/ui/icons";
 
 export default function RosterPage() {
   const navigate = useNavigate();
@@ -67,7 +68,7 @@ export default function RosterPage() {
               <tr>
                 <td colSpan={7}>
                   <EmptyState
-                    icon="👥"
+                    icon={<Users size={28} />}
                     title="暂无学生"
                     description="学生答题后班级列表会逐步填充。"
                   />

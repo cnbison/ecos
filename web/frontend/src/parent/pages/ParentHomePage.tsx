@@ -13,6 +13,7 @@ import {
 } from "../components/Cards";
 import ClickableRow from "../../components/ui/ClickableRow";
 import EmptyState from "../../components/ui/EmptyState";
+import { UsersRound } from "../../components/ui/icons";
 import { formatCorrectRate, stateBadgeClass, stateLabel } from "../ui";
 
 export default function ParentHomePage() {
@@ -39,7 +40,7 @@ export default function ParentHomePage() {
         </h2>
         {students.length === 0 ? (
           <EmptyState
-            icon="👨‍👩‍👧"
+            icon={<UsersRound size={28} />}
             title="暂无学生数据"
             description="家长账号关联的学生答题后会在此显示。"
           />

@@ -230,9 +230,12 @@ dd {
 }
 
 .empty-state-icon {
-  font-size: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   margin-bottom: 8px;
   line-height: 1;
+  color: var(--muted);
 }
 
 .empty-state-title {

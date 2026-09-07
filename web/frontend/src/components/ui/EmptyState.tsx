@@ -1,7 +1,9 @@
-// v0.98.2-P0: 共享空状态组件 (教师/学生/家长三端统一)
+// v0.98.3-P1: 共享空状态组件 (图标支持 ReactNode / Lucide)
+import type { ReactNode } from "react";
+
 interface EmptyStateProps {
-  /** 可选 emoji 或图标占位 */
-  icon?: string;
+  /** 可选图标（Lucide 组件或任意 ReactNode） */
+  icon?: ReactNode;
   title: string;
   description?: string;
 }

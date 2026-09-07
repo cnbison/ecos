@@ -11,6 +11,7 @@ import {
 import type { DimensionEvidence, EvidenceResponse } from "../api/types";
 import EChart from "../components/EChart";
 import EmptyState from "../components/ui/EmptyState";
+import { BarChart, ClipboardList } from "../components/ui/icons";
 
 export default function StudentDetailPage() {
   const { id = "" } = useParams();
@@ -93,7 +94,7 @@ export default function StudentDetailPage() {
           <PomdpView diagnostic={diagnostic.data} />
         ) : (
           <EmptyState
-            icon="📊"
+            icon={<BarChart size={28} />}
             title="暂无 POMDP 诊断"
             description="该学生当前无 POMDP 后验 (非 POMDP policy 或 LCA 状态不足), 诊断不可用。"
           />
@@ -149,7 +150,7 @@ export default function StudentDetailPage() {
           </table>
         ) : (
           <EmptyState
-            icon="📋"
+            icon={<ClipboardList size={28} />}
             title="暂无干预记录"
             description="系统或教师尚未为该学生生成学习安排。"
           />

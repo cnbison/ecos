@@ -6,6 +6,7 @@ import type {
   InterventionItem,
 } from "../api";
 import EmptyState from "../../components/ui/EmptyState";
+import { ClipboardList, Lightbulb, PawPrint, TrendingUp } from "../../components/ui/icons";
 import { severityBorderClass, severityColor } from "../../components/ui/uiHelpers";
 import { stateBadgeClass, stateLabel } from "../ui";
 
@@ -24,7 +25,7 @@ export function EngagementCard({ engagement }: { engagement: EngagementReport | 
       <div className="card">
         <h2>学习状态</h2>
         <EmptyState
-          icon="📈"
+          icon={<TrendingUp size={28} />}
           title="画像建立中"
           description="暂无状态数据，学生答题后逐步生成。"
         />
@@ -56,7 +57,7 @@ export function EngagementCard({ engagement }: { engagement: EngagementReport | 
         </p>
       ) : (
         <EmptyState
-          icon="🐾"
+          icon={<PawPrint size={28} />}
           title="暂无演化轨迹"
           description="需要更多答题数据才能生成状态轨迹。"
         />
@@ -73,7 +74,7 @@ export function AdviceCard({ engagement }: { engagement: EngagementReport | null
       <h2>给家长的建议</h2>
       {advice.length === 0 ? (
         <EmptyState
-          icon="💡"
+          icon={<Lightbulb size={28} />}
           title="暂无建议"
           description="学生答题后，系统会根据 Engagement 状态生成可操作建议。"
         />
@@ -137,7 +138,7 @@ export function InterventionHistoryCard({
       <h2>学习安排记录 ({interventions.length})</h2>
       {interventions.length === 0 ? (
         <EmptyState
-          icon="📋"
+          icon={<ClipboardList size={28} />}
           title="暂无学习安排"
           description="教师或系统尚未为该学生下发学习安排。"
         />
