@@ -207,18 +207,14 @@ class TestV075Lbc003DifficultyImprovement:
         - source 分布变化: isotonic_regression 样本数可能减少 (因为 raw V3 更分散)
     """
 
-    def test_arm_features_changes_v3_distribution(self):
+    def test_arm_features_changes_v3_distribution(self, lbc_history):
         """lbc003 重放, use_arm_features=True 跟 False 跑出不同 V3 分布."""
         from ecos.dual_agent.orchestrator import DualAgentConfig, DualAgentOrchestrator
         from ecos.lca.orchestrator import LCAEngineConfig
         from ecos.lca.l4_optimization.linucb import BanditConfig
 
-        # 加载 lbc003 数据
-        conn = sqlite3.connect("web/ecos.db")
-        row = conn.execute(
-            "SELECT response_history FROM students WHERE student_id='lbc003'"
-        ).fetchone()
-        rh = json.loads(row[0])
+        # v0.98.5: 黄金数据改从 tests/fixtures/ 加载 (不再读生产库)
+        rh = lbc_history["lbc003"]
 
         bloom_map = {
             "REMEMBER": BloomLevel.REMEMBER, "UNDERSTAND": BloomLevel.UNDERSTAND,

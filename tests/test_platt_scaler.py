@@ -262,21 +262,20 @@ class TestOrchestratorPlattScalingIntegration:
 class TestLbc003PlattScalingImprovement:
     """v0.72.0: lbc003 重放, raw V3 ECE vs calibrated V3 ECE."""
 
-    def test_calibrated_ece_lower_than_raw_ece(self):
+    def test_calibrated_ece_lower_than_raw_ece(self, lbc_history):
         """lbc003 56 道题重放, calibrated V3 ECE 应显著低于 raw V3 ECE.
 
         预期:
           - raw V3 ECE ≈ 0.57 (v0.71.0 P0-g 修复后)
           - calibrated V3 ECE < 0.40 (Platt Scaling 后)
         """
-        import sqlite3, json
+        import json
         from ecos.dual_agent.orchestrator import DualAgentConfig, DualAgentOrchestrator
         from ecos.cta.belief_engine import Observation
         from ecos.cta.belief_state import BloomLevel
 
-        conn = sqlite3.connect('web/ecos.db')
-        row = conn.execute("SELECT response_history FROM students WHERE student_id='lbc003'").fetchone()
-        rh = json.loads(row[0])
+        # v0.98.5: 黄金数据改从 tests/fixtures/ 加载 (不再读生产库)
+        rh = lbc_history["lbc003"]
 
         orch = DualAgentOrchestrator(config=DualAgentConfig(), llm_client=None)
         sid = 'test_lbc003_platt'

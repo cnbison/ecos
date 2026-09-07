@@ -105,8 +105,8 @@ class EvidenceEngine:
     @property
     def db(self):
         if self._db is None:
-            from ecos.persistence.db import get_default_database
-            self._db = get_default_database()
+            from ecos.persistence.db import get_db
+            self._db = get_db()
         return self._db
 
     @property

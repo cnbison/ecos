@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -334,13 +335,17 @@ class DualAgentStore:
 _store: Optional[DualAgentStore] = None
 
 
-def get_dual_agent_store(db_path: str = "web/ecos.db") -> DualAgentStore:
+def get_dual_agent_store(db_path: Optional[str] = None) -> DualAgentStore:
     """获取 DualAgentStore 全局单例 (lazy init).
 
     防御性自检 [1]: init 失败必须 warning, 不能 silent pass.
+
+    v0.98.5 修: 默认路径支持 ECOS_DB_PATH 环境变量覆盖 (跟 get_db 同一
+    约定), 防止 pytest 经单例直写生产库.
     """
     global _store
     if _store is None:
+        db_path = db_path or os.environ.get("ECOS_DB_PATH", "web/ecos.db")
         try:
             _store = DualAgentStore(db_path=db_path)
         except Exception:

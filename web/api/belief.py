@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from datetime import datetime as _dt
 from typing import Any
 
@@ -42,7 +43,9 @@ _WEB_DB_PATH = "web/ecos.db"
 def _get_db() -> Database:
     global _db
     if _db is None:
-        _db = Database(_WEB_DB_PATH)
+        # v0.98.5 修: 调用时读 env (ECOS_DB_PATH), 保留 _WEB_DB_PATH
+        # monkeypatch 约定 (测试隔离), 两者取先
+        _db = Database(os.environ.get("ECOS_DB_PATH", _WEB_DB_PATH))
         _db.init_schema()
     return _db
 
@@ -71,7 +74,7 @@ def _get_web_event_log() -> EventLog:
     global _web_event_log
     if _web_event_log is None:
         _web_event_log = EventLog.from_sqlite(
-            _WEB_DB_PATH,
+            os.environ.get("ECOS_DB_PATH", _WEB_DB_PATH),
             config=EventLogConfig(
                 max_per_student=_EVENT_LOG_MAX_PER_STUDENT,
                 retention_days=_EVENT_LOG_RETENTION_DAYS,

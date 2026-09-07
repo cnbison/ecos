@@ -117,7 +117,10 @@ def get_dual_agent_store():
     if _dual_store is None:
         try:
             from ecos.persistence.dual_agent_store import get_dual_agent_store
-            _dual_store = get_dual_agent_store(db_path=DUAL_AGENT_DB_PATH)
+            # v0.98.5 修: 调用时读 env (import 时固化会使 ECOS_DB_PATH 覆盖失效)
+            _dual_store = get_dual_agent_store(
+                db_path=os.environ.get("ECOS_DB_PATH", DUAL_AGENT_DB_PATH)
+            )
         except Exception:
             _log.warning(
                 "DualAgentStore 单例初始化失败 (db=%s), dual_agent 持久化不可用",

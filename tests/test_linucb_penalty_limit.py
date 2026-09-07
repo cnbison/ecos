@@ -195,16 +195,15 @@ class TestStrategyChallengeUsesApplyPenalty:
 class TestLbc003ReplayPenaltyBounded:
     """v0.71.0: lbc003 重放后, 每 arm 惩罚次数 <= PENALTY_MAX."""
 
-    def test_penalty_bounded_after_replay(self):
+    def test_penalty_bounded_after_replay(self, lbc_history):
         """重放 lbc003 56 道题后, 每 arm 惩罚次数 <= PENALTY_MAX (1)."""
-        import sqlite3, json
+        import json
         from ecos.dual_agent.orchestrator import DualAgentConfig, DualAgentOrchestrator
         from ecos.cta.belief_engine import Observation
         from ecos.cta.belief_state import BloomLevel
 
-        conn = sqlite3.connect('web/ecos.db')
-        row = conn.execute("SELECT response_history FROM students WHERE student_id='lbc003'").fetchone()
-        rh = json.loads(row[0])
+        # v0.98.5: 黄金数据改从 tests/fixtures/ 加载 (不再读生产库)
+        rh = lbc_history["lbc003"]
 
         orch = DualAgentOrchestrator(config=DualAgentConfig(), llm_client=None)
         sid = 'test_lbc003_penalty_bounded'

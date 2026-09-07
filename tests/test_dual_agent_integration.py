@@ -179,8 +179,9 @@ class TestProcessObservation:
             bloom_layer="L4",
         )
         assert result is not None
-        # 读 DB 验证
-        conn = sqlite3.connect("web/ecos.db")
+        # 读 DB 验证 (v0.98.5: 走 conftest 隔离库, 不碰生产 web/ecos.db)
+        import os
+        conn = sqlite3.connect(os.environ["ECOS_DB_PATH"])
         try:
             rows = conn.execute(
                 "SELECT * FROM calibration_log WHERE student_id = ?",

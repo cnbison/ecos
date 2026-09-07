@@ -178,28 +178,23 @@ class TestLinUCBDecayGuards:
 # ──────────────────────────────────────────────────────────────────────
 
 
-def _load_lbc003_history():
-    """加载 lbc003 response_history."""
-    db_path = Path(__file__).resolve().parent.parent / "web" / "ecos.db"
-    if not db_path.exists():
-        pytest.skip(f"DB not found: {db_path}")
-    conn = sqlite3.connect(str(db_path))
-    row = conn.execute(
-        "SELECT response_history FROM students WHERE student_id='lbc003'"
-    ).fetchone()
-    if row is None:
-        pytest.skip("lbc003 not in DB")
-    return json.loads(row[0])
+def _load_lbc003_history(lbc_history):
+    """加载 lbc003 response_history.
+
+    v0.98.5: 黄金数据改从 tests/fixtures/lbc_response_history.json 加载
+    (conftest lbc_history fixture), 不再读生产库.
+    """
+    return lbc_history["lbc003"]
 
 
-def _replay_lbc003_with_decay(decay_factor: float):
+def _replay_lbc003_with_decay(decay_factor: float, lbc_history):
     """重放 lbc003, 返回 (arm 序列, calibrated V3 序列, actual 序列)."""
     from ecos.cta.belief_engine import Observation
     from ecos.cta.belief_state import BloomLevel
     from ecos.dual_agent.orchestrator import DualAgentConfig, DualAgentOrchestrator
     from ecos.lca.l4_optimization.linucb import BanditConfig
 
-    rh = _load_lbc003_history()
+    rh = _load_lbc003_history(lbc_history)
     bloom_map = {
         "REMEMBER": BloomLevel.REMEMBER, "UNDERSTAND": BloomLevel.UNDERSTAND,
         "APPLY": BloomLevel.APPLY, "ANALYZE": BloomLevel.ANALYZE,
@@ -265,7 +260,7 @@ def _ece(confidences: list, actuals: list) -> float:
 class TestLbc003ReplayH3c3:
     """v0.75.3 H3-c3: lbc003 重放验证 entropy > 1.5 + ECE 不退化."""
 
-    def test_lbc003_replay_entropy_above_1_5(self):
+    def test_lbc003_replay_entropy_above_1_5(self, lbc_history):
         """decay=1.0 (默认) 时 lbc003 entropy > 1.5 (H3-c3 通过).
 
         v0.75.3 H3-c3 关键发现:
@@ -273,19 +268,19 @@ class TestLbc003ReplayH3c3:
           - decay 机制 (default 1.0 = 无衰减) 是可选 feature, 不影响 H3-c3 通过
           - decay<1.0 实际会让 entropy 略降 (A_inv 增大 -> confidence_bound 增大 -> 锁定加强)
         """
-        arms, _, _ = _replay_lbc003_with_decay(decay_factor=1.0)
+        arms, _, _ = _replay_lbc003_with_decay(decay_factor=1.0, lbc_history=lbc_history)
         entropy = _shannon_entropy(arms)
         # 关键断言: entropy > 1.5 (H3-c3 阈值)
         assert entropy > 1.5, f"H3-c3 未通过: entropy {entropy:.3f} < 1.5"
 
-    def test_lbc003_replay_ece_delta_below_0_02(self):
+    def test_lbc003_replay_ece_delta_below_0_02(self, lbc_history):
         """decay=0.95 时 lbc003 ECE delta < 0.02 (校准不退化)."""
         # baseline (decay=1.0)
-        _, cal_v3_base, actuals_base = _replay_lbc003_with_decay(decay_factor=1.0)
+        _, cal_v3_base, actuals_base = _replay_lbc003_with_decay(decay_factor=1.0, lbc_history=lbc_history)
         ece_base = _ece(cal_v3_base, actuals_base)
 
         # decay=0.95
-        _, cal_v3_decay, actuals_decay = _replay_lbc003_with_decay(decay_factor=0.95)
+        _, cal_v3_decay, actuals_decay = _replay_lbc003_with_decay(decay_factor=0.95, lbc_history=lbc_history)
         ece_decay = _ece(cal_v3_decay, actuals_decay)
 
         delta = abs(ece_decay - ece_base)

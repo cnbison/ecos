@@ -51,6 +51,8 @@ _log = logging.getLogger(__name__)
 LCA_ENABLED = os.environ.get("ECOS_LCA_ENABLED", "0") == "1"
 
 # v0.57.0: DB 路径配置 (跟 belief.py 共享 web/ecos.db)
+# v0.98.5 修: 改为调用时读 env (get_store 内) — import 时固化会导致
+#   pytest 收集期就读到生产路径, ECOS_DB_PATH 覆盖失效
 LCA_DB_PATH = os.environ.get("ECOS_DB_PATH", "web/ecos.db")
 
 
@@ -100,7 +102,9 @@ def get_store() -> LCAStore:
     global _store
     if _store is None:
         try:
-            _store = get_lca_store(db_path=LCA_DB_PATH)
+            _store = get_lca_store(
+                db_path=os.environ.get("ECOS_DB_PATH", LCA_DB_PATH)
+            )
         except Exception:
             _log.warning(
                 "LCAStore 单例初始化失败 (db=%s), LCA 持久化不可用",

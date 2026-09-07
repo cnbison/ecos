@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sqlite3
 from unittest.mock import MagicMock, patch
 
@@ -62,10 +63,14 @@ def flask_client():
 
 @pytest.fixture
 def lbc001_state_backup():
-    """测试前备份 lbc001 state, 测试后恢复 (避免测试污染真实数据).
+    """测试前准备 lbc001 state, 测试后恢复 (避免测试间污染).
 
     v0.58.3 修复: 兼容 CI 干净环境 (无 web/ecos.db). 调 init_schema() 兜底确保表存在.
+    v0.98.5 修: 不再直连生产 web/ecos.db, 走 conftest isolated_ecos_db
+    提供的 ECOS_DB_PATH 临时库 (无 lbc001 时建最小行).
     """
+    import os
+
     from web.api.belief import _STUDENT_STATES
     from ecos.persistence.db import Database
 
@@ -73,8 +78,10 @@ def lbc001_state_backup():
     _STUDENT_STATES.clear()
 
     # 备份 DB lbc001 state (init_schema 幂等, CI 干净环境也能跑)
-    db = Database("web/ecos.db")
+    db = Database(os.environ["ECOS_DB_PATH"])
     db.init_schema()
+    # 隔离库无 lbc001 → 建最小行 (conftest 每测试换新库)
+    db.upsert_student("lbc001")
     try:
         original = db.load_student_state("lbc001")
     except Exception:
@@ -304,10 +311,10 @@ class TestJudgeNoStatePollution:
         from web.api.belief import _STUDENT_STATES
 
         # v0.58.3 修复: CI 干净环境无 web/ecos.db, init_schema 幂等兜底
-        Database("web/ecos.db").init_schema()
+        Database(os.environ["ECOS_DB_PATH"]).init_schema()
 
         # 备份当前 response_history 长度
-        with sqlite3.connect("web/ecos.db") as conn:
+        with sqlite3.connect(os.environ["ECOS_DB_PATH"]) as conn:
             cur = conn.cursor()
             cur.execute(
                 "SELECT response_history FROM students WHERE student_id = 'lbc001'"
@@ -331,7 +338,7 @@ class TestJudgeNoStatePollution:
         assert resp.status_code == 422
 
         # 验证 response_history 长度不变
-        with sqlite3.connect("web/ecos.db") as conn:
+        with sqlite3.connect(os.environ["ECOS_DB_PATH"]) as conn:
             cur = conn.cursor()
             cur.execute(
                 "SELECT response_history FROM students WHERE student_id = 'lbc001'"
@@ -369,8 +376,8 @@ class TestJudgeNoStatePollution:
 
         # 验证 5D theta 不变 (v0.58.3 修复: init_schema 兜底, 兼容 CI 干净环境)
         from ecos.persistence.db import Database
-        Database("web/ecos.db").init_schema()
-        with sqlite3.connect("web/ecos.db") as conn:
+        Database(os.environ["ECOS_DB_PATH"]).init_schema()
+        with sqlite3.connect(os.environ["ECOS_DB_PATH"]) as conn:
             cur = conn.cursor()
             cur.execute(
                 "SELECT current_state_5d FROM students WHERE student_id = 'lbc001'"

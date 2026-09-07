@@ -1,0 +1,2221 @@
+{
+ "lbc001": [
+  {
+   "problem_id": "PB-Q09",
+   "correct": 1,
+   "bloom_level": "REMEMBER",
+   "user_answer": null,
+   "correct_answer": null,
+   "timestamp": null
+  },
+  {
+   "problem_id": "PB-Q05",
+   "correct": 0,
+   "bloom_level": "REMEMBER",
+   "user_answer": null,
+   "correct_answer": null,
+   "timestamp": null
+  },
+  {
+   "problem_id": "PB-Q12",
+   "correct": 1,
+   "bloom_level": "REMEMBER",
+   "user_answer": null,
+   "correct_answer": null,
+   "timestamp": null
+  },
+  {
+   "problem_id": "PB-Q15",
+   "correct": 0,
+   "bloom_level": "UNDERSTAND",
+   "user_answer": null,
+   "correct_answer": null,
+   "timestamp": null
+  },
+  {
+   "problem_id": "PB-Q01",
+   "correct": 1,
+   "bloom_level": "REMEMBER",
+   "user_answer": null,
+   "correct_answer": null,
+   "timestamp": null
+  },
+  {
+   "problem_id": "PB-Q06",
+   "correct": 0,
+   "bloom_level": "UNDERSTAND",
+   "user_answer": null,
+   "correct_answer": null,
+   "timestamp": null
+  },
+  {
+   "problem_id": "PB-Q13",
+   "correct": 1,
+   "bloom_level": "UNDERSTAND",
+   "user_answer": null,
+   "correct_answer": null,
+   "timestamp": null
+  },
+  {
+   "problem_id": "PB-Q10",
+   "correct": 1,
+   "bloom_level": "UNDERSTAND",
+   "user_answer": null,
+   "correct_answer": null,
+   "timestamp": null
+  },
+  {
+   "problem_id": "PB-Q03",
+   "correct": 1,
+   "bloom_level": "APPLY",
+   "user_answer": null,
+   "correct_answer": null,
+   "timestamp": null
+  },
+  {
+   "problem_id": "PB-Q14",
+   "correct": 1,
+   "bloom_level": "APPLY",
+   "user_answer": null,
+   "correct_answer": null,
+   "timestamp": null
+  },
+  {
+   "problem_id": "PB-Q02",
+   "correct": 1,
+   "bloom_level": "UNDERSTAND",
+   "user_answer": null,
+   "correct_answer": null,
+   "timestamp": null
+  },
+  {
+   "problem_id": "PB-Q07",
+   "correct": 1,
+   "bloom_level": "APPLY",
+   "user_answer": null,
+   "correct_answer": null,
+   "timestamp": null
+  },
+  {
+   "problem_id": "PB-Q16",
+   "correct": 1,
+   "bloom_level": "APPLY",
+   "user_answer": null,
+   "correct_answer": null,
+   "timestamp": null
+  },
+  {
+   "problem_id": "PB-Q16",
+   "correct": 1,
+   "bloom_level": "APPLY",
+   "user_answer": null,
+   "correct_answer": null,
+   "timestamp": null
+  },
+  {
+   "problem_id": "PB-Q10",
+   "correct": 1,
+   "bloom_level": "UNDERSTAND",
+   "user_answer": "5",
+   "correct_answer": "5",
+   "timestamp": "2026-07-21T12:43:33.109769"
+  },
+  {
+   "problem_id": "PB-Q12",
+   "correct": 1,
+   "bloom_level": "UNDERSTAND",
+   "user_answer": "5",
+   "correct_answer": "5",
+   "timestamp": "2026-07-21T12:53:57.208411"
+  },
+  {
+   "problem_id": "PB-Q13",
+   "correct": 1,
+   "bloom_level": "UNDERSTAND",
+   "user_answer": "5",
+   "correct_answer": "5",
+   "timestamp": "2026-07-21T12:54:20.747551"
+  },
+  {
+   "problem_id": "PB-Q04",
+   "correct": 1,
+   "bloom_level": "ANALYZE",
+   "user_answer": "[1, 2, 3]",
+   "correct_answer": "[1, 2, 3]",
+   "timestamp": "2026-07-21T17:50:26.136698"
+  },
+  {
+   "problem_id": "PB-Q11",
+   "correct": 1,
+   "bloom_level": "APPLY",
+   "user_answer": "def is_prime(n):\n    if n <= 1:\n        return False\n    for i in range(2, n):\n        if n % i == 0:\n            return False\n    return True",
+   "correct_answer": "def is_prime(n):\n    if n <= 1: return False\n    for i in range(2, int(n**0.5)+1):\n        if n % i == 0: return False\n    return True",
+   "timestamp": "2026-07-21T22:41:03.461469"
+  },
+  {
+   "problem_id": "PB-Q17",
+   "correct": 1,
+   "bloom_level": "EVALUATE",
+   "user_answer": "方案一更好，简洁，高效，而且不需要增加变量。",
+   "correct_answer": "方案一更好。方案一更简洁（1行 vs 3行）、更 Pythonic、不需要额外变量。方案二在某些语言中是唯一方式，但 Python 中不推荐。",
+   "timestamp": "2026-07-21T22:43:06.136516"
+  },
+  {
+   "problem_id": "PB-Q08",
+   "correct": 1,
+   "bloom_level": "ANALYZE",
+   "user_answer": "因为x永远大于0，会进入死循环。后边应该加上 x=x-1 。",
+   "correct_answer": "缺少 x = x - 1（循环基准情形更新），应改为 while x > 0: print(x); x -= 1",
+   "timestamp": "2026-07-21T22:46:42.393527"
+  },
+  {
+   "problem_id": "PB-Q21",
+   "correct": 1,
+   "bloom_level": "EVALUATE",
+   "user_answer": "函数B更高效，因为只需要循环到 √n（n 的平方根），数字越大，越节省算力。",
+   "correct_answer": "函数B效率更高。函数A需要检查到 n-1，而函数B只需检查到 sqrt(n)。对于 n=100，函数A检查99次，函数B只检查9次。",
+   "timestamp": "2026-07-21T22:50:20.394989"
+  },
+  {
+   "problem_id": "PB-Q06",
+   "correct": 0,
+   "bloom_level": "UNDERSTAND",
+   "user_answer": "0 1 2 3 4 5",
+   "correct_answer": "0 1 2 3 4",
+   "timestamp": "2026-07-21T23:00:12.186729"
+  },
+  {
+   "problem_id": "PB-Q06",
+   "correct": 0,
+   "bloom_level": "UNDERSTAND",
+   "user_answer": "0 1 2 3 4 5",
+   "correct_answer": "0 1 2 3 4",
+   "timestamp": "2026-07-21T23:22:19.784028"
+  },
+  {
+   "problem_id": "PB-Q06",
+   "correct": 0,
+   "bloom_level": "UNDERSTAND",
+   "user_answer": "0 1 2 3 4 5",
+   "correct_answer": "0 1 2 3 4",
+   "timestamp": "2026-07-21T23:23:16.322602"
+  },
+  {
+   "problem_id": "PB-Q06",
+   "correct": 0,
+   "bloom_level": "UNDERSTAND",
+   "user_answer": "0 1 2 3 4 5",
+   "correct_answer": "0 1 2 3 4",
+   "timestamp": "2026-07-21T23:24:58.077618"
+  },
+  {
+   "problem_id": "PB-Q19",
+   "correct": 1,
+   "bloom_level": "EVALUATE",
+   "user_answer": "问题出在“total * 100”，total是正确的结果。",
+   "correct_answer": "最后一行多乘了 100。for 循环里 total 累加的是 1+2+...+100=5050，但 print 时又乘以 100 导致结果变成 505000。",
+   "timestamp": "2026-07-22T10:59:04.805588"
+  },
+  {
+   "problem_id": "PB-Q18",
+   "correct": 0,
+   "bloom_level": "CREATE",
+   "user_answer": "a = num % 10        //个位\nb = num//10 % 10    //十位\nc = num//100        //百位\nrev = a*100 + b*10 + c",
+   "correct_answer": "n = int(input())\na = n // 100\nb = (n // 10) % 10\nc = n % 10\nprint(a + b*10 + c*100)  # 或 print(c*100 + b*10 + a)",
+   "timestamp": "2026-07-22T11:11:05.077670"
+  },
+  {
+   "problem_id": "PB-Q18",
+   "correct": 0,
+   "bloom_level": "CREATE",
+   "user_answer": "a=num%10\nb=num//10%10\nc=num//100\nrev=a*100+b*10+c",
+   "correct_answer": "def reverse(num):\n    a=num%10\n    b=num//10%10\n    c=num//100\n    rev=a*100+b*10+c\n    return rev\nnum=int(input())\nprint(reverse(num))",
+   "ai_reasoning": "核心算法对(提取个、十、百位并倒序组合), 但缺少 input() 和 print(), 不构成完整可运行程序",
+   "timestamp": "2026-07-22T11:29:08.837577"
+  },
+  {
+   "problem_id": "PB-Q25",
+   "correct": 1,
+   "bloom_level": "EVALUATE",
+   "user_answer": "因为函数内X是局部变量，不改变外部全局变量的值。修改方案是在x=20之前增加一行\nglobal x  # 声明使用全局变量x",
+   "correct_answer": "因为函数内的 x=20 创建了一个局部变量，覆盖了全局变量。需要用 global x 声明：\ndef foo():\n    global x\n    x = 20",
+   "ai_reasoning": "学生正确指出函数内x是局部变量，并给出了正确的修改方案：在赋值前加 global x 声明，与标准答案一致。",
+   "timestamp": "2026-07-23T11:20:05.564917"
+  },
+  {
+   "problem_id": "PB-Q20",
+   "correct": 1,
+   "bloom_level": "CREATE",
+   "user_answer": "for n in range(2, 101):\n    flag = True  # 标记是否为质数\n    # 只需检查到平方根，减少循环\n    for i in range(2, int(n**0.5) + 1):\n        if n % i == 0:\n            flag = False\n            break\n    if flag:\n        print(n)",
+   "correct_answer": "for n in range(2, 101):\n    is_prime = True\n    for i in range(2, int(n**0.5)+1):\n        if n % i == 0:\n            is_prime = False\n            break\n    if is_prime:\n        print(n)",
+   "ai_reasoning": "学生代码与正确答案逻辑完全一致，只是将变量名 is_prime 改为 flag 并添加了注释，算法正确，能正确输出 1-100 之间的所有质数。",
+   "timestamp": "2026-07-23T11:22:52.669788"
+  },
+  {
+   "problem_id": "PB-Q22",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "CREATE",
+   "user_answer": "def filter_primes(nums):\n    # 第一步：lambda写质数判断逻辑；第二步：filter筛选；第三步：转列表返回\n    return list(filter(lambda x: x > 1 and all(x % i != 0 for i in range(2, int(x**0.5) + 1)), nums))",
+   "correct_answer": "def is_prime(n):\n    return n > 1 and all(n % i != 0 for i in range(2, int(n**0.5)+1))\n\ndef filter_primes(nums):\n    return list(filter(lambda x: is_prime(x), nums))",
+   "ai_reasoning": "学生答案将质数判断逻辑直接嵌入lambda中，功能上与参考解法等价。使用filter和lambda筛选质数，逻辑正确（x > 1 且无2到√x的因子），返回结果正确，只是没有拆分独立的is_prime函数。",
+   "timestamp": "2026-07-23T17:18:33.385552"
+  },
+  {
+   "problem_id": "PB-Q23",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "EVALUATE",
+   "user_answer": "会重复计算，重复调用，随着n的大小呈指数级复杂度。\n改用迭代方式\ndef fib(n):\n    a, b = 0, 1\n    for _ in range(2, n+1):\n        a, b = b, a + b\n    return b\n\nprint(fib(10))  # 55",
+   "correct_answer": "问题：重复计算导致指数级时间复杂度。fib(10)会重复计算 fib(8)、fib(7) 等多次。优化方案：1）记忆化递归（@lru_cache）；2）迭代改写。",
+   "ai_reasoning": "学生正确识别了重复计算导致指数级时间复杂度的问题，并给出了正确的迭代优化方案及可运行的代码。虽然未提及记忆化递归，但已涵盖正确答案中的一种优化方法，且实现正确。",
+   "timestamp": "2026-07-23T17:49:00.855727"
+  },
+  {
+   "problem_id": "PB-C01",
+   "correct": 1,
+   "score": 0.6,
+   "bloom_level": "APPLY",
+   "user_answer": "for i in range(1, 6): print(i)  # 修复了",
+   "correct_answer": "Bug 在 range(1, 5) 不包含 5，应改为 range(1, 6)",
+   "ai_reasoning": "学生正确识别了 range(1,5) 的问题并将其修复为 range(1,6)，但仅说'修复了'未解释 range 左闭右开的原因，因此属于第三档（识别+修复但无原因）。",
+   "timestamp": "2026-07-23T21:18:17.385170",
+   "needs_rejudge": false,
+   "rejudge_timestamp": "2026-07-27-v0.58.1-partial-credit"
+  },
+  {
+   "problem_id": "PB-C02",
+   "correct": 0,
+   "score": 0.0,
+   "bloom_level": "ANALYZE",
+   "user_answer": "输出 1, 3, skip 2",
+   "correct_answer": "代码实际是对的，输出 1, 3, skip 2",
+   "ai_reasoning": "学生未选择任何选项(A/B/C/D)，仅描述了实际输出，未涉及是否需要修改代码及如何修改，未识别需求规约问题。按 rubric 无匹配档位，归为最低档 0.0。",
+   "timestamp": "2026-07-23T21:18:17.396814",
+   "needs_rejudge": false,
+   "rejudge_timestamp": "2026-07-27-v0.58.1-partial-credit"
+  },
+  {
+   "problem_id": "PB-C03",
+   "correct": 1,
+   "score": 0.6,
+   "bloom_level": "EVALUATE",
+   "user_answer": "int + str 不能加, 用 int() 转换",
+   "correct_answer": "int('2') 或 str(1) 转换",
+   "ai_reasoning": "学生识别了 int+str 类型问题并给出 int() 转换方案，但只提供了一种修复方式，未给出多种方案或适用场景说明，符合 0.6 分档。",
+   "timestamp": "2026-07-23T21:18:17.407488",
+   "needs_rejudge": false,
+   "rejudge_timestamp": "2026-07-27-v0.58.1-partial-credit"
+  },
+  {
+   "problem_id": "PB-C04",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "EVALUATE",
+   "user_answer": "输出 20, 10. 因为 foo() 内的 x=20 是局部变量",
+   "correct_answer": "输出 20 然后 10. 原因: foo() 内的 x = 20 是局部变量",
+   "ai_reasoning": "学生给出了正确输出 '20, 10'，并正确解释了原因：foo() 内的 x=20 是局部变量，符合 rubric 中 1.0 分档的'输出 + 原因（局部 vs 全局）'要求。",
+   "timestamp": "2026-07-23T21:18:17.418187",
+   "needs_rejudge": false,
+   "rejudge_timestamp": "2026-07-27-v0.58.1-partial-credit"
+  },
+  {
+   "problem_id": "PB-C05",
+   "correct": 1,
+   "score": 0.6,
+   "bloom_level": "ANALYZE",
+   "user_answer": "1. 加 print 跟踪 2. 测 fib(3) 看是否也慢",
+   "correct_answer": "1. print 跟踪 2. 画递归树 3. 测小输入 4. 用 lru_cache",
+   "ai_reasoning": "学生给出了两种方法：加 print 跟踪和测 fib(3) 看是否也慢，符合 rubric 中'多方法（print + 测小输入）但没排序'的描述，未给出系统化步骤（缺少识别重复计算和 memoization 验证）。",
+   "timestamp": "2026-07-23T21:18:17.429500",
+   "needs_rejudge": false,
+   "rejudge_timestamp": "2026-07-27-v0.58.1-partial-credit"
+  },
+  {
+   "problem_id": "PC-C01",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "APPLY",
+   "user_answer": "B (70%)",
+   "correct_answer": "B (70% 比较确定)",
+   "ai_reasoning": "学生选 B (70% 比较确定)，与 rubric 中 1.0 分档完全吻合，属于准确的自我评估。",
+   "timestamp": "2026-07-23T22:41:57.509812",
+   "needs_rejudge": false,
+   "rejudge_timestamp": "2026-07-27-v0.58.1-partial-credit"
+  },
+  {
+   "problem_id": "PC-C02",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "ANALYZE",
+   "user_answer": "E (独立思考 + 查资料)",
+   "correct_answer": "E (独立思考 + 查资料)",
+   "ai_reasoning": "学生选 E (独立思考 + 查资料)，与正确答案完全一致，属于综合策略，元认知优，得 1.0 分。",
+   "timestamp": "2026-07-23T22:41:57.524069",
+   "needs_rejudge": false,
+   "rejudge_timestamp": "2026-07-27-v0.58.1-partial-credit"
+  },
+  {
+   "problem_id": "PC-C03",
+   "correct": 1,
+   "score": 0.6,
+   "bloom_level": "EVALUATE",
+   "user_answer": "C (跑几个测试用例)",
+   "correct_answer": "C/D (检查行为)",
+   "ai_reasoning": "学生选择 C (跑几个测试用例)，按 rubric 对应 0.6 分档。score >= 0.6，correct 派生为 true。",
+   "timestamp": "2026-07-23T22:41:57.536659",
+   "needs_rejudge": false,
+   "rejudge_timestamp": "2026-07-27-v0.58.1-partial-credit"
+  },
+  {
+   "problem_id": "PC-C04",
+   "correct": 1,
+   "score": 0.6,
+   "bloom_level": "EVALUATE",
+   "user_answer": "D (以上都是误解) - 但只详细解释了 A 和 B",
+   "correct_answer": "D + 详细解释每个误解",
+   "ai_reasoning": "学生选了D（以上都是误解），正确识别所有选项均为误解，但仅详细解释了A和B，未解释C（函数内修改全局变量需global声明），符合0.6分档：选D但未完整说明每个误解。",
+   "timestamp": "2026-07-23T22:41:57.548971",
+   "needs_rejudge": false,
+   "rejudge_timestamp": "2026-07-27-v0.58.1-partial-credit"
+  },
+  {
+   "problem_id": "PC-C05",
+   "correct": 1,
+   "score": 0.6,
+   "bloom_level": "CREATE",
+   "user_answer": "7 分 (检查 + 独立思考 + 自我评估中等 + 部分误解)",
+   "correct_answer": "综合元认知评估 (5-7 中分)",
+   "ai_reasoning": "学生自评7分，属于中分档（6-7），对应 rubric 中 0.6 分档。学生提到了检查、独立思考，但自我评估中等且有部分误解，未达到8-10分的高分标准。",
+   "timestamp": "2026-07-23T22:41:57.561474",
+   "needs_rejudge": false,
+   "rejudge_timestamp": "2026-07-27-v0.58.1-partial-credit"
+  },
+  {
+   "problem_id": "PC-X01",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "APPLY",
+   "user_answer": "E (综合: 字典+笔记+AI)",
+   "correct_answer": "E (综合). 多工具组合是 X 维度最佳策略.",
+   "ai_reasoning": "学生选择 E（综合工具），与正确答案一致，符合 rubric 第 4 档（X 维度最佳），得 1.0 分。",
+   "timestamp": "2026-07-23T22:55:39.557334",
+   "needs_rejudge": false,
+   "rejudge_timestamp": "2026-07-27-v0.58.1-partial-credit"
+  },
+  {
+   "problem_id": "PC-X02",
+   "correct": 1,
+   "score": 0.6,
+   "bloom_level": "ANALYZE",
+   "user_answer": "C (答案+思路+易错点)",
+   "correct_answer": "D (全部). 完整笔记是 X 维度高质量标志.",
+   "ai_reasoning": "学生选择 C（答案+思路+易错点），按 rubric 对应 0.6 分档。缺少反思和跨学科联系，未达到完整笔记 D 档标准。",
+   "timestamp": "2026-07-23T22:55:39.572511",
+   "needs_rejudge": false,
+   "rejudge_timestamp": "2026-07-27-v0.58.1-partial-credit"
+  },
+  {
+   "problem_id": "PC-X03",
+   "correct": 1,
+   "score": 0.6,
+   "bloom_level": "EVALUATE",
+   "user_answer": "B (偶尔查)",
+   "correct_answer": "D (综合). 平衡记忆使用是 X 维度元认知.",
+   "ai_reasoning": "学生选择 B（偶尔查），属于单策略档，按 rubric 给 0.6 分；score >= 0.6 故 correct=true。但未达到综合策略 D 的水平，未体现平衡记忆与查询的 X 维度元认知。",
+   "timestamp": "2026-07-23T22:55:39.586864",
+   "needs_rejudge": false,
+   "rejudge_timestamp": "2026-07-27-v0.58.1-partial-credit"
+  },
+  {
+   "problem_id": "PC-X04",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "EVALUATE",
+   "user_answer": "D (综合: worked example + 直接尝试 + 讨论)",
+   "correct_answer": "D (综合). 平衡支架依赖是 X 维度元认知.",
+   "ai_reasoning": "学生选择了 D (综合)，与正确答案完全一致，体现 X 维度平衡支架依赖的元认知，按 rubric 给 1.0 分。",
+   "timestamp": "2026-07-23T22:55:39.600174",
+   "needs_rejudge": false,
+   "rejudge_timestamp": "2026-07-27-v0.58.1-partial-credit"
+  },
+  {
+   "problem_id": "PC-X05",
+   "correct": 1,
+   "score": 0.6,
+   "bloom_level": "CREATE",
+   "user_answer": "7 分 (工具 + 笔记 + 记忆 + 求助 部分平衡)",
+   "correct_answer": "综合 External Support 评估 (5-7 中分)",
+   "ai_reasoning": "学生给出 7 分，属于 rubric 中的中分档 (6-7)，且描述为'部分平衡'，与中分档定义一致，因此给 0.6 分。",
+   "timestamp": "2026-07-23T22:55:39.613986",
+   "needs_rejudge": false,
+   "rejudge_timestamp": "2026-07-27-v0.58.1-partial-credit"
+  },
+  {
+   "problem_id": "PB-C11",
+   "correct": 1,
+   "score": 0.6,
+   "bloom_level": "CREATE",
+   "user_answer": "上述代码不会卡死，代码本身没有错误，不过是内层循环因为break，会执行两次而不是三次。",
+   "correct_answer": "这段代码其实是对的（外层 i 仍循环 0-2，内层 j 到 1 时 break）。\n题目说'卡死'是诱饵。\n真正卡死: 内层 j 写 while True: 或 for j in range(i, 3): 当 i=0。",
+   "ai_reasoning": "学生正确识别了代码本身没有错误（陷阱识别），但未给出真正会导致卡死的代码例子（如 while True 或 for j in range(i, 3)），符合 0.6 档。",
+   "timestamp": "2026-07-24T22:03:28.876892",
+   "needs_rejudge": false,
+   "rejudge_timestamp": "2026-07-27-v0.58.1-partial-credit"
+  },
+  {
+   "student_id": "lbc001",
+   "history_index": 49,
+   "problem_id": "PB-Q26",
+   "user_answer": "def make_counter(start=0):\n    # 外层函数的变量，被闭包持久保存\n    count = start\n    \n    def counter():\n        # 声明使用外层的非局部变量\n        nonlocal count\n        # 先返回当前值，再自增\n        current = count\n        count += 1\n        return current\n    \n    # 返回内层计数器函数\n    return counter",
+   "correct_answer": "def make_counter(start=0):\n    count = [start]\n    def counter():\n        count[0] += 1\n        return count[0]\n    return counter",
+   "bloom_level": "CREATE",
+   "old_score": 0.0,
+   "old_correct": 0,
+   "correct": 0,
+   "score": 0.0,
+   "ai_reasoning": "学生答案先返回再递增（start=0时依次返回0,1,2），而正确答案先递增再返回（依次返回1,2,3）。虽然使用 nonlocal 实现闭包是合法的Python写法，但操作顺序与标准计数器约定不符，行为与期望不一致。",
+   "needs_rejudge": false,
+   "rejudge_timestamp": "2026-07-24-v0.56.1-script"
+  },
+  {
+   "problem_id": "PB-C10",
+   "correct": 0,
+   "score": 0.3,
+   "bloom_level": "EVALUATE",
+   "user_answer": "列表只有三个元素，循环要要五个，nums[3]和nums[4]并不存在，导致出错。\n把range(5)改成range(len(nums))",
+   "correct_answer": "原因: range(5) 包含 0-4，但 nums 只有 0-2。\n修法 1: range(len(nums)) 或 range(3)\n修法 2: try/except IndexError\n修法 3: if i < len(nums):",
+   "ai_reasoning": "学生正确识别了索引越界问题，但只给出了一种修法（range(len(nums))），未提供多种修法或适用场景对比，符合 0.3 分档。",
+   "timestamp": "2026-07-24T22:43:20.057823",
+   "needs_rejudge": false,
+   "rejudge_timestamp": "2026-07-27-v0.58.1-partial-credit"
+  },
+  {
+   "problem_id": "PB-C20",
+   "correct": 0,
+   "score": 0.0,
+   "bloom_level": "CREATE",
+   "user_answer": "lambda 是延迟取值，执行函数时才去读取变量i；列表推导循环结束后i固定为 4，所有 lambda 都共用这同一个全局变量，调用全拿到 4。\n修复方案\nlambda 加默认参数绑定\n默认参数在定义 lambda 瞬间就固定值，不会后续跟着 i 变动。\n\nfuncs = [lambda x=i: x for i in range(5)]",
+   "correct_answer": "原因: 闭包变量绑定陷阱，所有 lambda 共享同一个 i，最终 i=4。\n修法 1: 默认参数 lambda i=i: i\n修法 2: functools.partial\n修法 3: 函数包装 def make_f(i): return lambda: i",
+   "ai_reasoning": "学生给出了1种方法（默认参数 i=i）并解释了 Python late binding 原因，但缺少 functools.partial 和函数包装两种方法，也无适用场景对比，按 rubric 应归为 0.3 分档。",
+   "timestamp": "2026-07-28T22:46:44.135370"
+  },
+  {
+   "problem_id": "PB-Q24",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "CREATE",
+   "user_answer": "def reverse_list(s):\n    # 基线：空串/单个字符直接返回\n    if len(s) <= 1:\n        return s\n    # 递归：剩余字符串反转 + 第一个字符\n    return reverse_list(s[1:]) + s[0]",
+   "correct_answer": "def reverse_list(s):\n    if len(s) <= 1: return s\n    return s[-1] + reverse_list(s[:-1])",
+   "ai_reasoning": "学生答案正确。虽然与标准答案思路不同（标准答案从尾部取字符前置，学生从首部取字符后置），但同样实现了纯递归的字符串反转，且未使用禁止的 s[::-1] 切片。",
+   "timestamp": "2026-07-28T22:48:02.576058"
+  },
+  {
+   "problem_id": "PB-C14",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "CREATE",
+   "user_answer": "排查思路（无需细读代码细节，分层定位）\n1. 优先排查装饰器经典通病：函数元信息被篡改\n装饰器返回的实际是wrapper，不再是原 add 函数。add.__name__会变成wrapper而非add，如果业务依赖函数名、文档字符串、参数签名判断逻辑，会出错。\n验证方式：打印add.__name__、help(add)确认函数属性是否错乱。\n2. 检查参数适配漏洞\nwrapper 只定义了*args，缺少**kwargs。若原函数调用传入关键字参数（add(a=2,b=3)），直接报错。\n测试：用关键字传参调用 add，看是否抛异常。\n3. 分步拆分解除装饰器，二分定位\n去掉@my_decorator，直接调用原生 add。正常 = 问题出在装饰器；依旧异常 = add 本身逻辑问题。\n手动还原装饰器调用逻辑：add=my_decorator(add)，手动复现流程。\n4. 打印链路埋点排查执行流程\n在 wrapper 入口、return 前后加打印，确认：\n装饰器有没有正常执行；\nfunc 有没有被正确调用；\nfunc 返回值有没有被 wrapper 篡改、拦截、丢失。\n5. 核对返回值传递\n确认 wrapper 是原样 return func 结果，有无多处理、少 return、提前 return 覆盖原值。本例 return 写法没问题，但通用排查必查返回链路。",
+   "correct_answer": "调试方法列表:\n1. print 跟踪: 在 wrapper 内 print args 看参数\n2. 单元测试: 单独测 add 函数 vs 装饰后 add\n3. 断点: 在 wrapper 内断点\n4. 简化: 先去掉装饰器，看 add 本身是否对",
+   "ai_reasoning": "学生给出了系统化的多阶段排查方法：先排查装饰器经典通病（元信息）→ 简化去除装饰器对比测试 → 手动复现装饰器调用 → 添加 print 埋点 → 核对返回值。覆盖了简化、单独测试、加 print 三个核心步骤，且有清晰的先后排序逻辑，符合 1.0 档系统化方法的要求。",
+   "timestamp": "2026-07-28T22:49:54.219801"
+  },
+  {
+   "problem_id": "PB-C08",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "EVALUATE",
+   "user_answer": "问题解析 + 2 种修法\n一、报错原因\nKeyError: 'age' 的意思是：字典里没有 'age' 这个键，你却强行去取它的值。\n代码里 user = {'name': 'Bisen'} 只有 name 键，没有 age 键，直接用 user['age'] 取值就会报错。\n二、至少 2 种修改方法\n方法 1：给字典加上 age 键（最直接）\npython\nuser = {'name': 'Bisen', 'age': 18}  # 补上age键\nprint(user['age'])\n方法 2：用 get () 安全取值（不会报错）\nget(键, 默认值) 没有键时返回默认值，不抛异常\npython\nuser = {'name': 'Bisen'}\nprint(user.get('age', 0))  # 没有age就返回0",
+   "correct_answer": "原因: dict 没 'age' 键。\n修法 1: user.get('age', default_value)\n修法 2: try/except KeyError\n修法 3: if 'age' in user: ...",
+   "ai_reasoning": "学生正确识别了 KeyError 原因（字典缺少 'age' 键），并给出了 2 种修法（补键、.get()），符合 0.6 分档：识别原因 + 2 种修法。未达到 1.0 分档是因为缺少第 3 种修法及适用场景对比。",
+   "timestamp": "2026-07-28T22:51:14.569030"
+  },
+  {
+   "problem_id": "PB-C17",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "ANALYZE",
+   "user_answer": "一、错在哪？\nPython 函数的默认参数，只会在定义函数时创建一次，不是每次调用都新建！\nlst=[]，Python 只会在第一次加载函数时创建一个空列表。\n之后所有调用都在复用同一个列表对象。\n所以 append() 会一直往同一个列表里加东西，就出现了 “累积”。\n\n二、怎么修？\n把默认值设为 None，在函数内部再判断并新建列表。\n这样每次调用都会创建新的空列表，不会共享。\n修复后的代码\npython\ndef add_item(item, lst=None):\n    # 每次调用都新建空列表\n    if lst is None:\n        lst = []\n    \n    lst.append(item)\n    return lst\n\nprint(add_item(1))  # [1]\nprint(add_item(2))  # [2]  ✔ 符合预期",
+   "correct_answer": "原因: 默认参数 lst=[] 在函数定义时创建一次，多次调用共享。\n修法: 用 None 哨兵\ndef add_item(item, lst=None):\n    if lst is None:\n        lst = []\n    lst.append(item)\n    return lst",
+   "ai_reasoning": "学生完整满足三档要求：识别了默认参数共享陷阱，使用 None 哨兵修复，并明确解释了 Python 默认参数在函数定义时只创建一次的求值时机（'默认参数，只会在定义函数时创建一次，不是每次调用都新建'）。",
+   "timestamp": "2026-07-29T10:30:37.602448"
+  },
+  {
+   "problem_id": "PB-C06",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "APPLY",
+   "user_answer": "输出5，y = x，是把x的值赋给y，后续x的值的改变不会导致y值的变化。",
+   "correct_answer": "5，因为 y = x 时 y 指向 5 这个 int 对象，x 重新赋值不改变 y。",
+   "ai_reasoning": "学生答 5 并解释了 'y 的值不随 x 改变'，符合 0.6 档（答 5 + 简单解释），但未涉及变量指向对象及引用 vs 复制的完整机制，因此未达 1.0 档。",
+   "timestamp": "2026-07-29T10:34:23.164555"
+  },
+  {
+   "problem_id": "PB-C13",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "ANALYZE",
+   "user_answer": "代码没有错，不用修，求绝对值的内包函数，输出为5。",
+   "correct_answer": "实际这段代码也是对的——Python 三元表达式 x if cond else -x 是合法 lambda。\n题目说'报错'是诱饵。\n真正会报错的是 lambda x: if x > 0: x else -x (lambda 体不能是 statement)。",
+   "ai_reasoning": "学生正确识别了代码本身没有错（'代码没有错，不用修'），达到 0.6 档。但未解释三元表达式、未对比 lambda 与 def 的语法差异、未指出题目'报错'是陷阱，因此未达到 1.0 档。",
+   "timestamp": "2026-07-29T10:38:25.351511"
+  },
+  {
+   "problem_id": "PB-C09",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "CREATE",
+   "user_answer": "排查步骤\n缩进排查\nPython 依靠缩进划分代码块。print('unmatched')没有缩进，不属于 if 分支。无论 if 判断成立与否，执行完 if 语句后一定会运行这行打印，永远输出 unmatched。x=5 时会同时打印 matched+unmatched，其他值只打印 unmatched。\n快速验证手段\n给print('unmatched')缩进，放到 if 同级的else:下方，重新运行测试。\n加 print 打印 x 的值，确认变量本身没有被意外篡改。\n加括号、空格检查是否把==写成赋值=（本题不存在，但通用排查必查）。\n最终故障根因\n缺少 else 结构，unmatched 脱离条件判断，属于无条件执行。\n正确写法：\npython\nx = 5\nif x == 5:\n    print('matched')\nelse:\n    print('unmatched')",
+   "correct_answer": "调试方法列表:\n1. print 跟踪: 在 if x == 5: 前 print x 看实际值\n2. 断点调试: 用 pdb / IDE 断点停在 if 处\n3. 单元测试: 写 assert x == 5 测试 if 条件\n4. 删代码法: 先注掉 print('unmatched') 看 if 是否进入",
+   "ai_reasoning": "学生给出了多种调试手段（加 print 跟踪、修改/缩进代码、语法检查），但未按 print跟踪→验证if条件→单元测试 的系统化流程组织，也未提及断点调试（pdb/IDE）或单元测试（assert），属于'多方法但未排序'档。",
+   "timestamp": "2026-07-29T10:43:45.373073"
+  },
+  {
+   "problem_id": "PB-C18",
+   "correct": 0,
+   "score": 0.0,
+   "bloom_level": "APPLY",
+   "user_answer": "全局变量和函数内的局部变量不是同一个。函数内x值没有赋值，运算会报错。修改的话可以在函数内加一行 globle x",
+   "correct_answer": "原因: foo() 内的 x = x + 1 让 x 变成局部变量，但 x + 1 时 x 还未定义。\n修法: 加 global x 或 nonlocal x。\n或传参数: def foo(x): return x + 1。",
+   "ai_reasoning": "学生识别了函数内x未赋值导致报错的问题，并提出加 global x 的修法（写了一行 'globle x'，虽拼写有误但意图明确），符合 0.3 档。但未给出 nonlocal 或参数传递等替代方案，也无测试代码，未达 0.6 或 1.0 档。",
+   "timestamp": "2026-07-29T10:47:47.690105"
+  }
+ ],
+ "lbc002": [
+  {
+   "problem_id": "PB-Q09",
+   "correct": 1,
+   "bloom_level": "REMEMBER",
+   "user_answer": "Hello",
+   "correct_answer": "Hello",
+   "ai_reasoning": "学生答案'Hello'与正确答案一致，调用greet()函数会执行print('Hello')，输出Hello。",
+   "timestamp": "2026-07-22T12:46:12.098808"
+  },
+  {
+   "problem_id": "PB-Q05",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "REMEMBER",
+   "user_answer": "0\n1\n2",
+   "correct_answer": "0\n1\n2",
+   "ai_reasoning": "学生的答案 0、1、2 与正确答案完全一致，range(3) 生成 0 到 2 的序列并逐个打印。",
+   "timestamp": "2026-07-27T10:26:39.176128"
+  },
+  {
+   "problem_id": "PB-Q12",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "REMEMBER",
+   "user_answer": "3\n2\n1",
+   "correct_answer": "3\n2\n1",
+   "ai_reasoning": "学生答案 3 2 1 与正确答案完全一致，函数 f(3) 递归打印 3、2、1 后终止。",
+   "timestamp": "2026-07-27T10:29:20.526741"
+  },
+  {
+   "problem_id": "PB-Q15",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "UNDERSTAND",
+   "user_answer": "20\n10",
+   "correct_answer": "20\n10",
+   "ai_reasoning": "学生答案与正确答案完全一致，foo() 内部创建了局部变量 x 赋值为 20 并打印，函数外部的全局变量 x 仍为 10。",
+   "timestamp": "2026-07-27T10:30:27.063159"
+  },
+  {
+   "problem_id": "PB-Q01",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "REMEMBER",
+   "user_answer": "5",
+   "correct_answer": "5",
+   "ai_reasoning": "学生答案'5'与正确答案一致，代码 print(x) 输出变量 x 的值 5。",
+   "timestamp": "2026-07-27T10:32:10.801843"
+  },
+  {
+   "problem_id": "PB-C01",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "APPLY",
+   "user_answer": "range() 是取左去右，所以实际循环从1到4，修改的话把5改成6即可。",
+   "correct_answer": "Bug 在 range(1, 5) 不包含 5，应改为 range(1, 6)。\n原因: range(a, b) 是左闭右开区间 [a, b)，不包含 b。",
+   "ai_reasoning": "学生识别了 range(1,5) 的问题位置，解释了原因（取左去右/左闭右开），并给出了修复（改为6），符合完整答案的要求（位置+原因+修复）。",
+   "timestamp": "2026-07-27T10:34:13.107478",
+   "needs_rejudge": false,
+   "rejudge_timestamp": "2026-07-27-v0.58.1-partial-credit"
+  },
+  {
+   "problem_id": "PC-X01",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "APPLY",
+   "user_answer": "E",
+   "correct_answer": "E (综合). 多工具组合是 X 维度最佳策略.",
+   "ai_reasoning": "学生选择 E（综合工具），与正确答案一致，符合 rubric 第 4 档（综合工具 — X 维度最佳），得 1.0 分。",
+   "timestamp": "2026-07-27T10:48:22.145958",
+   "needs_rejudge": false,
+   "rejudge_timestamp": "2026-07-27-v0.58.1-partial-credit"
+  },
+  {
+   "problem_id": "PB-C02",
+   "correct": 1,
+   "score": 0.6,
+   "bloom_level": "ANALYZE",
+   "user_answer": "不是什么都没有输出，实际输出1和3，修改的话去掉判断（if i == 2:）和continue 即可。",
+   "correct_answer": "这段代码实际是对的，输出 1 和 3 (skip 2)。\n题目说'实际什么都没有输出'是诱饵。\n正确回答: 代码实际是对的，输出 1, 3, skip 2。",
+   "ai_reasoning": "学生答案实质上选了B（去掉if和continue），给出了正确的修改方式，但未明确说明'实际输出 1, 3 ≠ 期望 1, 2, 3'及'改完后输出满足需求'的完整推理，因此符合0.6分档（选B + 给出正确修改）。",
+   "timestamp": "2026-07-27T10:51:59.465217",
+   "rejudge_timestamp": "2026-07-27-v0.58.1-partial-credit",
+   "needs_rejudge": false
+  },
+  {
+   "problem_id": "PB-Q02",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "UNDERSTAND",
+   "user_answer": "6",
+   "correct_answer": "6",
+   "ai_reasoning": "学生答案6与正确答案一致。代码中x初始为5，加1后变为6，输出结果正确。",
+   "timestamp": "2026-07-27T11:01:53.322007"
+  },
+  {
+   "problem_id": "PC-X03",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "EVALUATE",
+   "user_answer": "D",
+   "correct_answer": "D (综合). 平衡记忆使用是 X 维度元认知.",
+   "ai_reasoning": "学生选择了 D（综合策略），与正确答案一致，符合 rubric 中 1.0 分档（综合策略——X 维度平衡）。",
+   "timestamp": "2026-07-27T11:03:23.453959",
+   "needs_rejudge": false,
+   "rejudge_timestamp": "2026-07-27-v0.58.1-partial-credit"
+  },
+  {
+   "problem_id": "PB-Q03",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "APPLY",
+   "user_answer": "a = 5\nb = 9\na, b = b, a\nprint(a, b)",
+   "correct_answer": "a, b = b, a",
+   "ai_reasoning": "学生使用了 a, b = b, a 的方式实现变量交换，核心逻辑正确，符合题目要求。虽然额外添加了初始化和打印语句，但交换功能实现无误。",
+   "timestamp": "2026-07-27T11:05:29.896328"
+  },
+  {
+   "problem_id": "PB-Q06",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "UNDERSTAND",
+   "user_answer": "1\n2\n3\n4",
+   "correct_answer": "1\n2\n3\n4",
+   "ai_reasoning": "学生答案与正确答案完全一致，range(1, 5) 输出 1, 2, 3, 4。",
+   "timestamp": "2026-07-27T13:05:17.618537"
+  },
+  {
+   "problem_id": "PB-Q10",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "UNDERSTAND",
+   "user_answer": "None",
+   "correct_answer": "None",
+   "ai_reasoning": "函数 f() 没有 return 语句或 return 后没有值，默认返回 None，因此 result 的值为 None。",
+   "timestamp": "2026-07-27T13:08:06.821136"
+  },
+  {
+   "problem_id": "PC-X02",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "ANALYZE",
+   "user_answer": "D",
+   "correct_answer": "D (全部). 完整笔记是 X 维度高质量标志.",
+   "ai_reasoning": "学生选择D，与正确答案一致。按rubric，选D得1.0分。",
+   "timestamp": "2026-07-27T13:08:39.060768",
+   "needs_rejudge": false,
+   "rejudge_timestamp": "2026-07-27-v0.58.1-partial-credit"
+  },
+  {
+   "problem_id": "PB-Q04",
+   "correct": 0,
+   "score": 0.0,
+   "bloom_level": "ANALYZE",
+   "user_answer": "[1, 2]",
+   "correct_answer": "[1, 2, 3]",
+   "ai_reasoning": "b = a 使两个变量指向同一个列表对象，b.append(3) 会同时修改 a 所引用的列表，因此 a 的输出应为 [1, 2, 3]，而不是 [1, 2]。",
+   "timestamp": "2026-07-27T13:10:58.477656"
+  },
+  {
+   "problem_id": "PB-Q13",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "UNDERSTAND",
+   "user_answer": "循环靠原地重复、省内存；递归靠栈分层调用、写分支递归问题更简单。简单重复用循环；树形、分治、回溯类问题优先递归。",
+   "correct_answer": "递归通过函数调用自身分解问题，需要 base case 终止；循环通过重复执行代码块。递归适合树结构，循环适合线性遍历。",
+   "ai_reasoning": "学生答案准确说明了递归通过栈调用分层处理问题（对应函数调用自身）、循环通过原地重复执行的执行机制差异，并正确指出树形/分治/回溯类问题适合递归、简单重复用循环的适用场景区别，覆盖了正确答案的核心要点。",
+   "timestamp": "2026-07-27T13:12:37.370460"
+  },
+  {
+   "problem_id": "PB-Q11",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "APPLY",
+   "user_answer": "def is_prime(n):\n    if n <= 1:\n        return False\n    if n == 2:\n        return True\n    if n % 2 == 0:\n        return False\n    # 检查奇数除数到根号n\n    for i in range(3, int(n**0.5)+1, 2):\n        if n % i == 0:\n            return False\n    return True",
+   "correct_answer": "def is_prime(n):\n    if n <= 1: return False\n    for i in range(2, int(n**0.5)+1):\n        if n % i == 0: return False\n    return True",
+   "ai_reasoning": "学生答案逻辑正确，先处理边界情况n<=1和n==2，再排除偶数，最后只检查奇数除数到根号n，这是一种正确的且经过优化的质数判断方法，与标准答案等价。",
+   "timestamp": "2026-07-27T13:15:34.210177"
+  },
+  {
+   "problem_id": "PC-X04",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "EVALUATE",
+   "user_answer": "D",
+   "correct_answer": "D (综合). 平衡支架依赖是 X 维度元认知.",
+   "ai_reasoning": "学生选择 D (综合)，对应 rubric 中 1.0 分档：X 维度平衡支架依赖，与正确答案一致。",
+   "timestamp": "2026-07-27T13:20:33.124228",
+   "needs_rejudge": false,
+   "rejudge_timestamp": "2026-07-27-v0.58.1-partial-credit"
+  },
+  {
+   "problem_id": "PB-Q14",
+   "correct": 0,
+   "score": 0.0,
+   "bloom_level": "APPLY",
+   "user_answer": "fact(n):\n    if n == 0 or n == 1:\n        return 1\n    else:\n        return n * fact(n-1)",
+   "correct_answer": "def fact(n):\n    if n <= 1: return 1\n    return n * fact(n-1)",
+   "ai_reasoning": "学生答案缺少 def 关键字，导致语法错误（SyntaxError），无法作为合法的 Python 函数执行。虽然递归逻辑和基准情况是正确的。",
+   "timestamp": "2026-07-27T13:22:43.541050"
+  },
+  {
+   "problem_id": "PB-Q16",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "APPLY",
+   "user_answer": "# 定义全局变量 x\nx = 10\n\ndef modify_global():\n    # 声明使用全局变量 x，必须加这行\n    global x\n    # 直接修改全局变量的值\n    x = 999\n\n# 调用函数前：全局变量是初始值\nprint(\"修改前：\", x)  # 输出 10\n\n# 调用函数修改全局变量\nmodify_global()\n\n# 调用函数后：全局变量已被修改\nprint(\"修改后：\", x)  # 输出 999",
+   "correct_answer": "x = 10\ndef foo():\n    global x\n    x = 20\nfoo()\nprint(x)  # 输出 20",
+   "ai_reasoning": "学生答案正确使用了 global 关键字声明全局变量 x，并在函数内成功修改了它的值，逻辑和结果都与正确答案一致。",
+   "timestamp": "2026-07-27T13:26:00.389222"
+  },
+  {
+   "problem_id": "PC-X05",
+   "correct": 1,
+   "score": 0.6,
+   "bloom_level": "CREATE",
+   "user_answer": "1、工具使用频率：每天用十次以上字典或AI\n2、笔记习惯：不是每次学习都做笔记，但有需要的时候就会做笔记，质量还可以。\n3、记忆使用：一般知识记在脑子里，比较重要和复杂的查笔记或网络。\n4、求助策略：独立思考+查资料\n综合评估，算7分。",
+   "correct_answer": "综合 External Support 评估. 高分 (8-10): 工具 + 笔记 + 记忆 + 求助 4 维度都平衡. 中分 (5-7): 部分维度平衡. 低分 (0-4): 4 维度都不平衡.",
+   "ai_reasoning": "学生自评7分, 落在中分(5-7)档。部分维度平衡: 工具使用频繁, 记忆使用有区分, 但笔记习惯不一致(不是每次都做), 求助策略缺少'问老师'环节, 因此4维度并非全部平衡, 符合中分标准。",
+   "timestamp": "2026-07-27T13:32:11.039274",
+   "needs_rejudge": false,
+   "rejudge_timestamp": "2026-07-27-v0.58.1-partial-credit"
+  },
+  {
+   "problem_id": "PB-Q18",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "CREATE",
+   "user_answer": "num = int(input(\"请输入三位数：\"))\na = num // 100\nb = num // 10 % 10\nc = num % 10\nreverse = c * 100 + b * 10 + a\nprint(reverse)",
+   "correct_answer": "n = int(input())\na = n // 100\nb = (n // 10) % 10\nc = n % 10\nprint(a + b*10 + c*100)  # 或 print(c*100 + b*10 + a)",
+   "ai_reasoning": "学生答案逻辑与正确答案一致：正确提取百位、十位、个位数字，并通过算术运算 c*100 + b*10 + a 得到逆序数，结果正确。",
+   "timestamp": "2026-07-27T13:35:19.373073"
+  },
+  {
+   "problem_id": "PC-C02",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "ANALYZE",
+   "user_answer": "E",
+   "correct_answer": "E (独立思考 + 查资料). 元认知最优策略.",
+   "ai_reasoning": "学生选择 E（独立思考 + 查资料），与正确答案一致，属于元认知最优策略，按 rubric 给予 1.0 分。",
+   "timestamp": "2026-07-27T13:36:17.933767",
+   "needs_rejudge": false,
+   "rejudge_timestamp": "2026-07-27-v0.58.1-partial-credit"
+  },
+  {
+   "problem_id": "PC-C01",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "APPLY",
+   "user_answer": "你并没有给我题，我无法判断。",
+   "correct_answer": "B (70% 比较确定). 基于 lbc001 实际 K/P 维度评估, L3 题目答对可能性约 70-80%.",
+   "ai_reasoning": "学生回答'你并没有给我题，我无法判断'，实质上等同于选 F (无法判断 / 题目信息不足)，属于健康的元认知表现，按 rubric 给 1.0 分。",
+   "timestamp": "2026-07-27T13:37:59.191047",
+   "rejudge_timestamp": "2026-07-27-v0.58.1-partial-credit",
+   "needs_rejudge": false
+  },
+  {
+   "problem_id": "PB-Q22",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "CREATE",
+   "user_answer": "def filter_primes(nums):\n    # filter + lambda 筛选质数，最后转列表\n    return list(filter(\n        lambda num: num > 1 and all(num % i != 0 for i in range(2, int(num**0.5) + 1)),\n        nums\n    ))",
+   "correct_answer": "def is_prime(n):\n    return n > 1 and all(n % i != 0 for i in range(2, int(n**0.5)+1))\n\ndef filter_primes(nums):\n    return list(filter(lambda x: is_prime(x), nums))",
+   "ai_reasoning": "学生使用了 filter() 和 lambda，将质数判断逻辑直接写在 lambda 中，逻辑与正确答案等价（n > 1 且对 2 到 sqrt(n) 之间所有数取模不为 0），满足题目要求。",
+   "timestamp": "2026-07-27T13:40:33.329198"
+  },
+  {
+   "problem_id": "PB-Q17",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "EVALUATE",
+   "user_answer": "方案一更好，代码简洁，而且没有用第三个变量。",
+   "correct_answer": "方案一更好。方案一更简洁（1行 vs 3行）、更 Pythonic、不需要额外变量。方案二在某些语言中是唯一方式，但 Python 中不推荐。",
+   "ai_reasoning": "学生正确指出方案一更好，并给出了关键原因：代码简洁且无需额外变量，与正确答案的核心要点一致。",
+   "timestamp": "2026-07-27T13:42:05.364159"
+  },
+  {
+   "problem_id": "PC-C03",
+   "correct": 0,
+   "score": 0.3,
+   "bloom_level": "EVALUATE",
+   "user_answer": "B",
+   "correct_answer": "C/D (检查行为). 元认知行为.",
+   "ai_reasoning": "学生选 B（简单看一遍），按 rubric 属于第二档，得 0.3 分。未达到元认知层面的测试验证行为（选 C 或 D）。",
+   "timestamp": "2026-07-27T13:43:13.747597",
+   "rejudge_timestamp": "2026-07-27-v0.58.1-partial-credit",
+   "needs_rejudge": false
+  },
+  {
+   "problem_id": "PB-Q07",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "APPLY",
+   "user_answer": "s = 0\n# i从1循环到100\nfor i in range(1, 101):\n    s = s + i\nprint(s)",
+   "correct_answer": "total = 0\nfor i in range(1, 101):\n    total += i\nprint(total)",
+   "ai_reasoning": "学生答案使用 for 循环遍历 range(1, 101)，累加到变量 s 中并打印，逻辑与正确答案完全一致，仅变量名不同，结果正确。",
+   "timestamp": "2026-07-27T13:44:16.185038"
+  },
+  {
+   "problem_id": "PB-Q21",
+   "correct": 0,
+   "score": 0.0,
+   "bloom_level": "EVALUATE",
+   "user_answer": "函数B效率更高，循环次数与函数A相比，指数级减少。",
+   "correct_answer": "函数B效率更高。函数A需要检查到 n-1，而函数B只需检查到 sqrt(n)。对于 n=100，函数A检查99次，函数B只检查9次。",
+   "ai_reasoning": "学生正确判断了函数B效率更高，但说'指数级减少'不准确。正确的描述应是循环次数从n减少到√n（如n=100时从99次减少到9次），属于多项式级优化而非指数级减少。",
+   "timestamp": "2026-07-27T13:46:02.750114"
+  },
+  {
+   "problem_id": "PB-C13",
+   "correct": 1,
+   "score": 0.6,
+   "bloom_level": "ANALYZE",
+   "user_answer": "这段代码不会报错，是对的，会输出5",
+   "correct_answer": "实际这段代码也是对的——Python 三元表达式 x if cond else -x 是合法 lambda。\n题目说'报错'是诱饵。\n真正会报错的是 lambda x: if x > 0: x else -x (lambda 体不能是 statement)。",
+   "ai_reasoning": "学生正确识别代码不会报错且输出5，符合'识别代码其实是对的'档(0.6分)。但未进一步解释Python三元表达式语法、未指出题目是陷阱、未对比lambda与def的差异，因此未达到完整档(1.0分)。",
+   "timestamp": "2026-07-27T13:49:21.168730",
+   "needs_rejudge": false,
+   "rejudge_timestamp": "2026-07-27-v0.58.1-partial-credit"
+  },
+  {
+   "problem_id": "PB-Q08",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "ANALYZE",
+   "user_answer": "因为x > 0 一直成立，会无限制执行代码输出5，修复需要在循环里加上 x = x-1",
+   "correct_answer": "缺少 x = x - 1（循环基准情形更新），应改为 while x > 0: print(x); x -= 1",
+   "ai_reasoning": "学生正确指出了循环卡住的原因（x的值始终不变，x > 0恒成立），并且给出了正确的修复方法（在循环内添加 x = x - 1 使x递减），与标准答案一致。",
+   "timestamp": "2026-07-27T13:52:16.826802"
+  },
+  {
+   "problem_id": "PB-C06",
+   "correct": 1,
+   "score": 0.6,
+   "bloom_level": "APPLY",
+   "user_answer": "输出5. 赋值y = x只是让y和x指向同一个值，不是绑定两个变量，后续x 值的变化不改变y值。",
+   "correct_answer": "5，因为 y = x 时 y 指向 5 这个 int 对象，x 重新赋值不改变 y。",
+   "ai_reasoning": "学生答出了5，并解释了y和x指向同一个值、x后续变化不影响y，涉及了变量指向概念，但未明确阐述'引用 vs 复制'的区分，按rubric给0.6分档。",
+   "timestamp": "2026-07-27T13:55:24.561104",
+   "needs_rejudge": false,
+   "rejudge_timestamp": "2026-07-27-v0.58.1-partial-credit"
+  },
+  {
+   "problem_id": "PB-C15",
+   "correct": 0,
+   "score": 0.0,
+   "bloom_level": "APPLY",
+   "user_answer": "函数没有设置递归终止条件，会导致无限递归，导致内存耗尽，程序崩溃。",
+   "correct_answer": "RecursionError: maximum recursion depth exceeded。\n因为没有 base case，递归无限。",
+   "ai_reasoning": "学生描述了无限递归和程序崩溃，但没有明确提到 RecursionError 这个具体错误名称，也未涉及栈帧爆栈机制和修复方法（加 base case），按 rubric 应归为 0.3 档（仅描述'卡住/崩溃'级别）。",
+   "timestamp": "2026-07-28T21:50:31.832294"
+  },
+  {
+   "problem_id": "PB-C18",
+   "correct": 0,
+   "score": 0.0,
+   "bloom_level": "APPLY",
+   "user_answer": "函数内部的变量x默认是局部变量，跟外部全局变量x不是一个变量，所以函数内部变量x没有赋值就运算，发生错误。可以在函数开头加 global x   声明使用全局变量即可。",
+   "correct_answer": "原因: foo() 内的 x = x + 1 让 x 变成局部变量，但 x + 1 时 x 还未定义。\n修法: 加 global x 或 nonlocal x。\n或传参数: def foo(x): return x + 1。",
+   "ai_reasoning": "学生正确识别了 UnboundLocalError 的原因，并给出了加 global x 的修法，符合 0.3 分档。但未提及 nonlocal 和参数传递等其他方案，也未展示测试验证，未达到更高档。",
+   "timestamp": "2026-07-28T22:01:27.030192"
+  },
+  {
+   "problem_id": "PB-C12",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "APPLY",
+   "user_answer": "5\nnegative\n0",
+   "correct_answer": "foo(5): x=5 > 0, return 5 → 打印 5。\nfoo(-3): x=-3, 跳过 if, print 'negative', return 0 → 打印 negative 然后 0。",
+   "ai_reasoning": "学生答对了两部分输出（foo(5)→5, foo(-3)→negative 然后 0），但未解释 return 提前退出机制，因此按 0.6 档给分。",
+   "timestamp": "2026-07-28T22:05:12.081719"
+  },
+  {
+   "problem_id": "PB-C03",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "EVALUATE",
+   "user_answer": "1和'2'，两个值的类型不一样，一个是'int' 一个是 'str'，加法运算需要类型一致。要么x = add('1', '2') 要么x = add(1, 2) 输出分别是12 和 3",
+   "correct_answer": "错误原因: add(1, '2') 中 1 是 int，'2' 是 str，不能直接相加。\n修复: 转类型 add(1, int('2')) 或 add(str(1), '2') (按需)。",
+   "ai_reasoning": "学生正确识别了 int 与 str 类型不能直接相加的错误原因，并给出了两种有效修复方案（修改参数类型）以及对应输出结果，说明理解了适用场景。但未使用题目期望的 int() 显式类型转换方法，按严格 rubric 归入 0.6 档。",
+   "timestamp": "2026-07-28T22:10:59.141264"
+  },
+  {
+   "problem_id": "PB-C17",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "ANALYZE",
+   "user_answer": "一、错在哪？\nPython 函数的默认参数只会在【定义函数时】创建一次，不是每次调用都新建。\n你写的 lst=[] 是可变对象（列表）\n它只会在代码加载时创建同一个空列表\n后续所有调用都在复用这个列表，所以会一直累积数据\n这就是 Python 最经典的默认参数陷阱。\n二、怎么修？\n把默认值设为不可变类型（通常用 None），在函数内部新建列表。\n修复代码：\npython\ndef add_item(item, lst=None):\n    # 每次调用都新建空列表\n    if lst is None:\n        lst = []\n    lst.append(item)\n    return lst\n\nprint(add_item(1))  # [1]\nprint(add_item(2))  # [2] ✔ 符合预期",
+   "correct_answer": "原因: 默认参数 lst=[] 在函数定义时创建一次，多次调用共享。\n修法: 用 None 哨兵\ndef add_item(item, lst=None):\n    if lst is None:\n        lst = []\n    lst.append(item)\n    return lst",
+   "ai_reasoning": "学生完整回答了三点：1) 识别了默认参数陷阱（默认参数在定义时创建一次，后续共享）；2) 用 None 哨兵修复；3) 明确解释了 Python 默认参数在函数定义时求值而非每次调用时创建。符合 1.0 分档全部要求。",
+   "timestamp": "2026-07-28T22:14:44.644776"
+  },
+  {
+   "problem_id": "PB-C07",
+   "correct": 0,
+   "score": 0.0,
+   "bloom_level": "ANALYZE",
+   "user_answer": "[1, 2, 3]",
+   "correct_answer": "[1, 2, 3]，因为 b = a 让 b 指向 a 同一 list 对象，append 改了 list。",
+   "ai_reasoning": "学生仅给出正确答案 [1, 2, 3]，但没有解释原因，属于 rubric 中的 0.3 档：答对但没说原因。",
+   "timestamp": "2026-07-28T22:15:57.229455"
+  },
+  {
+   "problem_id": "PB-Q25",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "EVALUATE",
+   "user_answer": "因为函数外部的x是全局变量，函数内部的 x 是局部变量，两者不是一个变量。如果希望真正改变全局变量的值，需要在函数内部开头就声明 x 为全局变量: global x",
+   "correct_answer": "因为函数内的 x=20 创建了一个局部变量，覆盖了全局变量。需要用 global x 声明：\ndef foo():\n    global x\n    x = 20",
+   "ai_reasoning": "学生正确解释了函数内 x=20 创建了局部变量遮蔽了全局变量的原因，并指出使用 global x 进行声明即可解决。虽然没有给出完整的修改后代码示例，但核心概念和解决方案均正确。",
+   "timestamp": "2026-07-28T22:19:31.905516"
+  },
+  {
+   "problem_id": "PB-C10",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "EVALUATE",
+   "user_answer": "1、报错原因\nIndexError: list index out of range 意思是列表索引超出范围。\n列表 nums = [1,2,3] 只有 3 个元素，有效索引是 0、1、2（最大索引是 2）\n循环 range(5) 会生成 0、1、2、3、4 这 5 个数字\n当 i=3 和 i=4 时，去取 nums[3]、nums[4]，列表里根本没有这些位置，直接报错。\n2、修复方法\n方法1：循环次数和列表长度一致\npython\nnums = [1, 2, 3]\n# range(3) 只生成 0、1、2，刚好匹配列表索引\nfor i in range(3):\n    print(nums[i])\n方法 2：直接遍历列表（推荐，最安全）\npython\nnums = [1, 2, 3]\n# 不用索引，直接取元素，永远不会报索引错误\nfor num in nums:\n    print(num)",
+   "correct_answer": "原因: range(5) 包含 0-4，但 nums 只有 0-2。\n修法 1: range(len(nums)) 或 range(3)\n修法 2: try/except IndexError\n修法 3: if i < len(nums):",
+   "ai_reasoning": "学生正确识别了越界原因（range(5)产生0-4，但nums只有0-2），并给出了2种修法：range(3)和直接遍历列表。但缺少rubric要求的 try/except 和 if i < len(nums) 方法，也无适用场景对比，未达到1.0档。符合0.6档'识别+2种修法'。",
+   "timestamp": "2026-07-28T22:21:52.265615"
+  },
+  {
+   "problem_id": "PB-C08",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "EVALUATE",
+   "user_answer": "错误原因\nKeyError: 'age' 的意思是：你在字典里查找了一个不存在的键 age。\n代码里的字典 user 只有 name 键，没有 age 键，直接用 user['age'] 取值就会报错。\n两种修改方法\n方法 1：先给字典添加 age 键（推荐）\npython\nuser = {'name': 'Bisen', 'age': 18}  # 补上age键值对\nprint(user['age'])\n方法 2：用安全取值方式 get()（不修改原字典）\npython\nuser = {'name': 'Bisen'}\nprint(user.get('age'))  # 不存在时返回None，不会报错\n# 也可以设置默认值\nprint(user.get('age', '未填写'))",
+   "correct_answer": "原因: dict 没 'age' 键。\n修法 1: user.get('age', default_value)\n修法 2: try/except KeyError\n修法 3: if 'age' in user: ...",
+   "ai_reasoning": "学生正确识别了 KeyError 原因是字典缺少 'age' 键，并给出了 2 种修法（补键和使用 .get()）。但缺少 try/except 或 if 'age' in user 等第三种修法，也没有适用场景对比，因此未达到 1.0 档，按 0.6 档给分。",
+   "timestamp": "2026-07-28T22:24:07.224401"
+  },
+  {
+   "problem_id": "PB-C19",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "ANALYZE",
+   "user_answer": "1. 错在哪？\n核心错误：内层函数里的 outer_var 被当成了局部变量，而不是外层的闭包变量。\nPython 看到这行：\npython\nouter_var = outer_var + 1\n会判定：\n你在创建一个新的局部变量 outer_var\n而不是修改外层函数的那个变量\n所以每次调用 counter()：\n局部 outer_var 重新创建\n尝试用 局部 outer_var + 1，但它还没赋值 → 实际被隐式初始化为 0\n结果永远是 1，不会累加\n2. 怎么修？\n使用 nonlocal 声明（推荐）\n告诉 Python：这个变量不是局部的，去外层闭包里找\npython\ndef make_counter():\n    outer_var = 0\n    def inner():\n        nonlocal outer_var  # 关键修复\n        outer_var = outer_var + 1\n        return outer_var\n    return inner\n\ncounter = make_counter()\nprint(counter())  # 1\nprint(counter())  # 2\nprint(counter())  # 3",
+   "correct_answer": "原因: inner() 内的 outer_var = outer_var + 1 让 outer_var 变局部变量。\n修法: 加 nonlocal outer_var。",
+   "ai_reasoning": "学生正确识别了局部变量陷阱，并加了 nonlocal 进行修复，且提供了测试代码（多次调用 counter()），达到 0.6 档。但未提及 global 关键字，也未对 global vs nonlocal 进行对比说明，未达到 1.0 档的完整要求。",
+   "timestamp": "2026-07-28T22:26:18.462305"
+  },
+  {
+   "problem_id": "PB-C05",
+   "correct": 0,
+   "score": 0.0,
+   "bloom_level": "ANALYZE",
+   "user_answer": "该写法是无优化递归斐波那契，fib (5) 看着数值小，但存在大量重复递归计算，n 越大重复爆炸，n 稍大就严重卡顿。\n可以给函数加一段代码，每次进入函数就打印n，会发现次数很多。",
+   "correct_answer": "调试方法列表:\n1. 加 print 跟踪: 在函数入口 print n 看调用次数\n2. 画递归树: 手算 fib(5) 的递归树，识别重复计算\n3. 测小输入: 先 fib(3) 看是否也慢\n4. 用 lru_cache / memoization: 直接验证是重复计算问题",
+   "ai_reasoning": "学生只提出了加 print 跟踪这一种调试方法（虽然正确识别了重复计算是问题根源），但未提及测小输入、画递归树、lru_cache 验证等其他方法，不构成系统性方案，属于'单一方法（加 print）但不系统'，给 0.3 分。",
+   "timestamp": "2026-07-28T22:38:07.249306"
+  },
+  {
+   "problem_id": "PB-C16",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "EVALUATE",
+   "user_answer": "无需修改代码逻辑（不用重写算法）的可行方案\n方案 1：临时提高 Python 递归栈上限\n使用sys.setrecursionlimit()调大最大递归层数，给递归留出足够栈空间。\npython\nimport sys\nsys.setrecursionlimit(20000)  # 调高上限\ndef fib(n):\n    return n if n<=1 else fib(n-1)+fib(n-2)\nprint(fib(50))\n缺点：只是扩容栈，重复计算依旧极慢，fib (50) 耗时很久，治标不治本。\n方案 2：递归加记忆化缓存（装饰器，不改函数本体）\n函数代码完全不动，用装饰器外挂缓存，消除重复递归调用。\npython\nfrom functools import lru_cache\n@lru_cache(maxsize=None)\ndef fib(n):  # 函数一行没改\n    return n if n<=1 else fib(n-1)+fib(n-2)\nprint(fib(50))\n最优方案：原函数代码零改动，缓存复用已算结果，递归调用次数从指数级降到线性，不会爆栈、速度飞快。",
+   "correct_answer": "方法:\n1. 加 sys.setrecursionlimit(10000) — 提高栈深度\n2. 改迭代版 fib — 用循环代替递归\n3. 加 @lru_cache — memoization\n4. trampoline 函数 — 尾递归优化",
+   "ai_reasoning": "学生给出了2种方法（sys.setrecursionlimit 和 @lru_cache），符合 rubric 中 0.6 分档（2 种方法：递归深度 + memoization）。但缺少迭代版和 trampoline 方法，也未做生产场景对比，因此未达 1.0 分。",
+   "timestamp": "2026-07-28T22:40:29.301052"
+  },
+  {
+   "problem_id": "PB-Q26",
+   "correct": 0,
+   "score": 0.0,
+   "bloom_level": "CREATE",
+   "user_answer": "def make_counter(start=0):\n    # 闭包变量：外层函数的局部变量，被内层函数引用\n    def counter():\n        nonlocal start  # 声明使用外层的start，不是局部变量\n        current = start  # 保存当前值\n        start += 1       # 自增\n        return current   # 返回递增前的值\n    return counter  # 返回内层计数器函数",
+   "correct_answer": "def make_counter(start=0):\n    count = [start]\n    def counter():\n        count[0] += 1\n        return count[0]\n    return counter",
+   "ai_reasoning": "学生答案在首次调用时返回 start（如 start=0 时返回 0），而正确答案先递增再返回（如 start=0 时首次返回 1）。两者行为不一致：正确的应先执行 count[0] += 1 再返回，学生的则保存当前值后递增再返回原值。",
+   "timestamp": "2026-07-28T22:41:39.281080"
+  },
+  {
+   "problem_id": "PB-C11",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "CREATE",
+   "user_answer": "复现测试",
+   "correct_answer": "这段代码其实是对的（外层 i 仍循环 0-2，内层 j 到 1 时 break）。\n题目说'卡死'是诱饵。\n真正卡死: 内层 j 写 while True: 或 for j in range(i, 3): 当 i=0。",
+   "ai_reasoning": "r",
+   "timestamp": "2026-08-19T22:47:10.517707",
+   "mastery_prob_after": {
+    "K": 0.6801526080950455,
+    "P": 0.7023425220841365,
+    "S": 0.7024104266257246,
+    "C": 0.4619000796486894,
+    "X": 0.6890870743122319,
+    "bloom_dominant": "REMEMBER",
+    "bloom_confidence": 1.0,
+    "overall_confidence": 0.6015635677447848
+   }
+  },
+  {
+   "problem_id": "PB-C11",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "CREATE",
+   "user_answer": "端到端验证",
+   "correct_answer": "这段代码其实是对的（外层 i 仍循环 0-2，内层 j 到 1 时 break）。\n题目说'卡死'是诱饵。\n真正卡死: 内层 j 写 while True: 或 for j in range(i, 3): 当 i=0。",
+   "ai_reasoning": "verify",
+   "timestamp": "2026-08-19T23:32:01.364607",
+   "mastery_prob_after": {
+    "K": 0.677503127064888,
+    "P": 0.7046711550179852,
+    "S": 0.7092713261215129,
+    "C": 0.4724018018746566,
+    "X": 0.684074316743106,
+    "bloom_dominant": "REMEMBER",
+    "bloom_confidence": 1.0,
+    "overall_confidence": 0.6013502266668056
+   }
+  }
+ ],
+ "lbc003": [
+  {
+   "problem_id": "PC-C01",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "APPLY",
+   "user_answer": "F",
+   "correct_answer": "B (70% 比较确定) 或 F (无法判断). 基于 lbc001 实际 K/P 维度评估, L3 题目答对可能性约 70-80%; 选 F (无法判断) 也是健康的元认知——识别题目信息不足比瞎猜更诚实.",
+   "ai_reasoning": "选 F (无法判断)，按 rubric 属于第四档：准确的元认知——识别题目信息不足比瞎猜更诚实，符合健康元认知标准。",
+   "timestamp": "2026-07-29T22:02:21.146013",
+   "mastery_prob_after": {
+    "K": 0.5,
+    "P": 0.5,
+    "S": 0.5,
+    "C": 0.5,
+    "X": 0.5,
+    "bloom_dominant": "APPLY",
+    "bloom_confidence": 0.03333333333333333,
+    "overall_confidence": 0.0
+   }
+  },
+  {
+   "problem_id": "PB-Q09",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "REMEMBER",
+   "user_answer": "Hello",
+   "correct_answer": "Hello",
+   "ai_reasoning": "学生的答案'Hello'与正确答案一致，代码中greet()函数会执行print('Hello')，输出Hello。",
+   "timestamp": "2026-07-29T22:03:20.826606",
+   "mastery_prob_after": {
+    "K": 0.5580339569703996,
+    "P": 0.6080127858307945,
+    "S": 0.556903672621267,
+    "C": 0.6063578616710358,
+    "X": 0.5410556736319185,
+    "bloom_dominant": "REMEMBER",
+    "bloom_confidence": 0.06666666666666667,
+    "overall_confidence": 0.5134882722773556
+   }
+  },
+  {
+   "problem_id": "PB-Q05",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "REMEMBER",
+   "user_answer": "0\n1\n2",
+   "correct_answer": "0\n1\n2",
+   "ai_reasoning": "学生的答案与正确答案完全一致，range(3) 生成 0、1、2，依次打印输出正确。",
+   "timestamp": "2026-07-29T22:05:09.133111",
+   "mastery_prob_after": {
+    "K": 0.5741987393228504,
+    "P": 0.6244367304903916,
+    "S": 0.6230406051406999,
+    "C": 0.6093466000049159,
+    "X": 0.5521723138363757,
+    "bloom_dominant": "REMEMBER",
+    "bloom_confidence": 0.1,
+    "overall_confidence": 0.5173804193682068
+   }
+  },
+  {
+   "problem_id": "PB-Q12",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "REMEMBER",
+   "user_answer": "3\n2\n1",
+   "correct_answer": "3\n2\n1",
+   "ai_reasoning": "学生答案与正确答案完全一致，递归函数正确地按降序输出了3、2、1。",
+   "timestamp": "2026-07-29T22:07:19.037304",
+   "mastery_prob_after": {
+    "K": 0.5868760589727289,
+    "P": 0.6374370479797404,
+    "S": 0.6716686041343377,
+    "C": 0.6121137595577131,
+    "X": 0.5609348075477318,
+    "bloom_dominant": "REMEMBER",
+    "bloom_confidence": 0.13333333333333333,
+    "overall_confidence": 0.5198735094585092
+   }
+  },
+  {
+   "problem_id": "PB-Q15",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "UNDERSTAND",
+   "user_answer": "20\n10",
+   "correct_answer": "20\n10",
+   "ai_reasoning": "学生答案与正确答案完全一致。函数内部创建了局部变量 x 覆盖了全局变量，所以 foo() 打印 20，而函数外的 print(x) 仍然打印全局变量 10。",
+   "timestamp": "2026-07-29T22:08:06.974077",
+   "mastery_prob_after": {
+    "K": 0.6043802976931463,
+    "P": 0.684590950515502,
+    "S": 0.6743810351406677,
+    "C": 0.6150330458031211,
+    "X": 0.5683028654168185,
+    "bloom_dominant": "REMEMBER",
+    "bloom_confidence": 0.16666666666666666,
+    "overall_confidence": 0.5221464589735462
+   }
+  },
+  {
+   "problem_id": "PC-X03",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "EVALUATE",
+   "user_answer": "D",
+   "correct_answer": "D (综合). 平衡记忆使用是 X 维度元认知.",
+   "ai_reasoning": "学生选择了 D (综合策略)，符合 rubric 中 1.0 分档：X 维度元认知平衡策略。",
+   "timestamp": "2026-07-29T22:08:53.726224",
+   "mastery_prob_after": {
+    "K": 0.6135147045425193,
+    "P": 0.687679164772521,
+    "S": 0.677743948499856,
+    "C": 0.6219017249877296,
+    "X": 0.630337405100093,
+    "bloom_dominant": "REMEMBER",
+    "bloom_confidence": 0.2,
+    "overall_confidence": 0.4949080246792992
+   }
+  },
+  {
+   "problem_id": "PB-Q02",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "UNDERSTAND",
+   "user_answer": "6",
+   "correct_answer": "6",
+   "ai_reasoning": "学生答案6与正确答案一致。x初始为5，x = x + 1后变为6，print输出6。",
+   "timestamp": "2026-07-29T22:09:28.843503",
+   "mastery_prob_after": {
+    "K": 0.6570463197574833,
+    "P": 0.6893473808884581,
+    "S": 0.6890560877042609,
+    "C": 0.6243073987211145,
+    "X": 0.6324261423438508,
+    "bloom_dominant": "REMEMBER",
+    "bloom_confidence": 0.23333333333333334,
+    "overall_confidence": 0.5285860503656191
+   }
+  },
+  {
+   "problem_id": "PB-Q03",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "APPLY",
+   "user_answer": "a = 5\nb = 8\na, b = b, a\nprint(a, b)",
+   "correct_answer": "a, b = b, a",
+   "ai_reasoning": "学生使用了 a, b = b, a 来交换变量值，这是 Python 中交换两个变量的标准且正确的方法，没有使用第三个变量。虽然学生额外添加了赋值和打印语句，但核心交换逻辑是正确的。",
+   "timestamp": "2026-07-29T22:10:52.663301",
+   "mastery_prob_after": {
+    "K": 0.6940037373488853,
+    "P": 0.6907711736998929,
+    "S": 0.6990914990306033,
+    "C": 0.6260456325199142,
+    "X": 0.6338909056304471,
+    "bloom_dominant": "REMEMBER",
+    "bloom_confidence": 0.26666666666666666,
+    "overall_confidence": 0.5300912510121607
+   }
+  },
+  {
+   "problem_id": "PB-C02",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "ANALYZE",
+   "user_answer": "B",
+   "correct_answer": "B (需要, 去掉 if i == 2: continue). 原题'期望 1, 2, 3'是需求规约, 实际输出 1, 3 不满足需求. 原答案'代码是对的'忽略了需求规约, v0.57.0-b 改题. 正确识别: 实际输出 ≠ 期望输出, 需要改 `if i == 2: continue` → 删掉 (输出 1, 2, 3 满足需求).",
+   "ai_reasoning": "学生选 B,正确识别需求规约并给出正确修改方案,但未解释实际输出与期望输出的差异,未达 1.0 档的解释要求,按 0.6 档给分。",
+   "timestamp": "2026-07-29T22:26:56.388408",
+   "mastery_prob_after": {
+    "K": 0.6967799547950646,
+    "P": 0.6962935129567772,
+    "S": 0.7011361440682455,
+    "C": 0.6592903156156262,
+    "X": 0.6309213339034483,
+    "bloom_dominant": "REMEMBER",
+    "bloom_confidence": 0.3,
+    "overall_confidence": 0.5329376081829766
+   }
+  },
+  {
+   "problem_id": "PC-X01",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "APPLY",
+   "user_answer": "E",
+   "correct_answer": "E (综合). 多工具组合是 X 维度最佳策略.",
+   "ai_reasoning": "学生选择 E（综合工具），与正确答案一致，符合 rubric 中 1.0 分档（综合工具 — X 维度最佳）。",
+   "timestamp": "2026-07-29T22:36:08.024484",
+   "mastery_prob_after": {
+    "K": 0.698819570344034,
+    "P": 0.6983516320525356,
+    "S": 0.7028781447904291,
+    "C": 0.6623627026490069,
+    "X": 0.6603069014118834,
+    "bloom_dominant": "REMEMBER",
+    "bloom_confidence": 0.3333333333333333,
+    "overall_confidence": 0.5345513989768811
+   }
+  },
+  {
+   "problem_id": "PB-Q01",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "REMEMBER",
+   "user_answer": "5",
+   "correct_answer": "5",
+   "ai_reasoning": "学生答案'5'与正确答案'5'完全一致，输出 x（即5）是正确的。",
+   "timestamp": "2026-07-29T22:36:36.674723",
+   "mastery_prob_after": {
+    "K": 0.7167886963846172,
+    "P": 0.6993408129210381,
+    "S": 0.7082615286353526,
+    "C": 0.6624440495879043,
+    "X": 0.6608679847163599,
+    "bloom_dominant": "REMEMBER",
+    "bloom_confidence": 0.36666666666666664,
+    "overall_confidence": 0.5352876413985843
+   }
+  },
+  {
+   "problem_id": "PB-Q11",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "APPLY",
+   "user_answer": "def is_prime(n):\n    if n <= 1:\n        return False\n    for i in range(2, n):\n        if n % i == 0:\n            return False\n    return True",
+   "correct_answer": "def is_prime(n):\n    if n <= 1: return False\n    for i in range(2, int(n**0.5)+1):\n        if n % i == 0: return False\n    return True",
+   "ai_reasoning": "逻辑正确，能正确判断质数。虽然循环到n-1而非√n，效率较低，但功能正确：n≤1返回False，从2到n-1检查是否能整除，都不能则返回True（包括n=2的情况也正确处理）。",
+   "timestamp": "2026-07-29T22:37:42.292054",
+   "mastery_prob_after": {
+    "K": 0.7211158362042704,
+    "P": 0.7264502277687753,
+    "S": 0.7094056655799235,
+    "C": 0.6623814992586295,
+    "X": 0.6616678442561186,
+    "bloom_dominant": "REMEMBER",
+    "bloom_confidence": 0.4,
+    "overall_confidence": 0.5362047308978375
+   }
+  },
+  {
+   "problem_id": "PB-Q06",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "UNDERSTAND",
+   "user_answer": "1\n2\n3\n4",
+   "correct_answer": "1\n2\n3\n4",
+   "ai_reasoning": "学生的答案与正确答案完全一致，range(1, 5) 会输出 1, 2, 3, 4。",
+   "timestamp": "2026-07-29T22:38:56.889911",
+   "mastery_prob_after": {
+    "K": 0.7213998845338132,
+    "P": 0.7297560568925627,
+    "S": 0.7296348672310703,
+    "C": 0.6627069127957358,
+    "X": 0.6625726192523134,
+    "bloom_dominant": "REMEMBER",
+    "bloom_confidence": 0.43333333333333335,
+    "overall_confidence": 0.5369554752795291
+   }
+  },
+  {
+   "problem_id": "PC-X02",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "ANALYZE",
+   "user_answer": "C",
+   "correct_answer": "D (全部). 完整笔记是 X 维度高质量标志.",
+   "ai_reasoning": "学生选 C（答案+思路+易错点），对应 rubric 第 3 档，得 0.6 分。缺少反思和跨学科联系，未达到全部（D）的 1.0 分标准。",
+   "timestamp": "2026-07-29T22:40:15.233148",
+   "mastery_prob_after": {
+    "K": 0.7217573138466227,
+    "P": 0.7300743412417072,
+    "S": 0.7334219224803121,
+    "C": 0.6644490060672524,
+    "X": 0.6801615274229726,
+    "bloom_dominant": "REMEMBER",
+    "bloom_confidence": 0.4666666666666667,
+    "overall_confidence": 0.5378676401365361
+   }
+  },
+  {
+   "problem_id": "PB-C01",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "APPLY",
+   "user_answer": "range(1, 5) 取左不取右，i 从1 2 3 4 不会取5\n想要输出到5，把range(1, 5)改成range(1, 6)",
+   "correct_answer": "Bug 在 range(1, 5) 不包含 5，应改为 range(1, 6)。\n原因: range(a, b) 是左闭右开区间 [a, b)，不包含 b。",
+   "ai_reasoning": "学生完整回答了三部分：1) 识别了 bug 位置在 range(1, 5)；2) 解释了原因 range 是左闭右开，不包含右端点；3) 给出修复方案 range(1, 6)。满足 1.0 分标准。",
+   "timestamp": "2026-07-29T22:42:33.289602",
+   "mastery_prob_after": {
+    "K": 0.7226596791952327,
+    "P": 0.7317453570863155,
+    "S": 0.73406319955641,
+    "C": 0.6754830602519661,
+    "X": 0.678801052456844,
+    "bloom_dominant": "APPLY",
+    "bloom_confidence": 0.5,
+    "overall_confidence": 0.5573702744419562
+   }
+  },
+  {
+   "problem_id": "PB-Q04",
+   "correct": 0,
+   "score": 0.0,
+   "bloom_level": "ANALYZE",
+   "user_answer": "[1, 2]",
+   "correct_answer": "[1, 2, 3]",
+   "ai_reasoning": "在 Python 中，b = a 是引用赋值，b 和 a 指向同一个列表对象，因此 b.append(3) 会同时修改 a，所以 a 的输出应为 [1, 2, 3] 而不是 [1, 2]。",
+   "timestamp": "2026-07-29T22:43:07.735687",
+   "mastery_prob_after": {
+    "K": 0.6298913309762166,
+    "P": 0.7324658376717951,
+    "S": 0.7133243869965135,
+    "C": 0.6779708512929542,
+    "X": 0.6796405691961761,
+    "bloom_dominant": "APPLY",
+    "bloom_confidence": 0.5333333333333333,
+    "overall_confidence": 0.5456270868183154
+   }
+  },
+  {
+   "problem_id": "PB-Q26",
+   "correct": 0,
+   "score": 0.0,
+   "bloom_level": "CREATE",
+   "user_answer": "def make_counter(start=0):\n    # 外部函数的变量，被闭包保留\n    count = start\n\n    # 定义内部计数器函数\n    def counter():\n        # 声明使用外部函数的变量（必须加，否则会被当作局部变量报错）\n        nonlocal count\n        # 先保存当前值，再自增\n        current = count\n        count += 1\n        # 返回当前计数\n        return current\n\n    # 返回内部函数（闭包）\n    return counter",
+   "correct_answer": "def make_counter(start=0):\n    count = [start]\n    def counter():\n        count[0] += 1\n        return count[0]\n    return counter",
+   "ai_reasoning": "学生答案先返回值再递增，导致首次调用返回 start，而正确答案先递增再返回，首次调用返回 start+1。两者产生的计数序列不同（学生：从 start 开始；正确：从 start+1 开始），不符合期望行为。",
+   "timestamp": "2026-07-29T22:44:22.910574",
+   "mastery_prob_after": {
+    "K": 0.6221411785276773,
+    "P": 0.6545239458678352,
+    "S": 0.7158487798363189,
+    "C": 0.680891831631367,
+    "X": 0.6795212853941395,
+    "bloom_dominant": "APPLY",
+    "bloom_confidence": 0.5666666666666667,
+    "overall_confidence": 0.5515663248371908
+   }
+  },
+  {
+   "problem_id": "PB-Q08",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "ANALYZE",
+   "user_answer": "循环里只打印x，没有修改x的值，x永远等于 5，循环永远不会停止。\n修复方法\n在循环内部让x递减，打破循环条件：\n\nx = 5\nwhile x > 0:\n    print(x)\n    x -= 1  # 补上这一行：x = x - 1，每次循环",
+   "correct_answer": "缺少 x = x - 1（循环基准情形更新），应改为 while x > 0: print(x); x -= 1",
+   "ai_reasoning": "学生正确指出了循环卡住的原因（x未被修改导致无限循环），并给出了正确的修复方法（在循环内添加 x -= 1），与正确答案一致。",
+   "timestamp": "2026-07-29T22:45:58.805119",
+   "mastery_prob_after": {
+    "K": 0.6189694105683361,
+    "P": 0.6570625499670102,
+    "S": 0.7422647427456038,
+    "C": 0.6798669379330333,
+    "X": 0.6789710984481043,
+    "bloom_dominant": "APPLY",
+    "bloom_confidence": 0.6,
+    "overall_confidence": 0.5765370294731342
+   }
+  },
+  {
+   "problem_id": "PC-X04",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "EVALUATE",
+   "user_answer": "D",
+   "correct_answer": "D (综合). 平衡支架依赖是 X 维度元认知.",
+   "ai_reasoning": "学生选择 D（综合），与正确答案一致。按 rubric 属于第 4 档（X 维度平衡），得 1.0 分。",
+   "timestamp": "2026-07-29T22:46:43.584217",
+   "mastery_prob_after": {
+    "K": 0.6182937418215189,
+    "P": 0.6563476166154525,
+    "S": 0.7434702926122156,
+    "C": 0.6838233314940816,
+    "X": 0.6993858035740024,
+    "bloom_dominant": "APPLY",
+    "bloom_confidence": 0.6333333333333333,
+    "overall_confidence": 0.553231556329233
+   }
+  },
+  {
+   "problem_id": "PB-C13",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "ANALYZE",
+   "user_answer": "代码没有错，是取绝对值，输出是5",
+   "correct_answer": "实际这段代码也是对的——Python 三元表达式 x if cond else -x 是合法 lambda。\n题目说'报错'是诱饵。\n真正会报错的是 lambda x: if x > 0: x else -x (lambda 体不能是 statement)。",
+   "ai_reasoning": "学生识别出代码其实没有语法错误（'代码没有错'），输出5也正确，符合0.6档'识别代码其实是对的'。但缺少对陷阱（题目本身是诱饵）的分析、lambda vs def 对比以及 Python ternary 表达式原理的完整解释，未达1.0档。",
+   "timestamp": "2026-07-29T22:48:20.499204",
+   "mastery_prob_after": {
+    "K": 0.6190010487200036,
+    "P": 0.658805241937132,
+    "S": 0.7437756176162926,
+    "C": 0.7064253574805323,
+    "X": 0.6959386621652569,
+    "bloom_dominant": "APPLY",
+    "bloom_confidence": 0.6666666666666666,
+    "overall_confidence": 0.5546388082803666
+   }
+  },
+  {
+   "problem_id": "PC-X05",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "CREATE",
+   "user_answer": "1、每天工具使用大约几十次，AI为主。\n2、碰到重要内容都会记笔记，质量还可以。\n3、一般的东西记在脑子里，重要和复杂的记在笔记里。\n4、习惯独立思考和查资料。\n综合自评外部支持使用水平7-8分。",
+   "correct_answer": "综合 External Support 评估. 高分 (8-10): 工具 + 笔记 + 记忆 + 求助 4 维度都平衡. 中分 (5-7): 部分维度平衡. 低分 (0-4): 4 维度都不平衡.",
+   "ai_reasoning": "学生自评7-8分，但维度1工具使用仅提及AI（不够平衡），维度4求助策略缺少问老师环节，4维度未全部平衡，属于中分档(6-7)，对应0.6分。",
+   "timestamp": "2026-07-30T10:28:28.292325",
+   "mastery_prob_after": {
+    "K": 0.6182543106530893,
+    "P": 0.6580018929310829,
+    "S": 0.7446123946114227,
+    "C": 0.7091309108734863,
+    "X": 0.7144845461070118,
+    "bloom_dominant": "APPLY",
+    "bloom_confidence": 0.7,
+    "overall_confidence": 0.5556536338715632
+   }
+  },
+  {
+   "problem_id": "PB-C05",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "ANALYZE",
+   "user_answer": "定位排查步骤\n1、梳理调用链路，发现重复计算\n手动拆解 fib (5) 调用树：\nfib (5)=fib (4)+fib (3)\nfib (4)=fib (3)+fib (2)\nfib (3)=fib (2)+fib (1)\nfib (2)=fib (1)+fib (0)\n可见 fib (3)、fib (2)、fib (1) 被反复递归重复执行，相同入参重复跑全套逻辑，冗余调用成倍增多。\n2、统计递归调用次数验证\n肉眼可数：fib (5) 会多次重复计算低阶 fib 值，递归次数指数级上涨。普通循环只算 5 次；朴素递归是指数 O (2ⁿ) 复杂度，算力全浪费重复运算。\n3、极简验证测试\n分别跑 fib (10)、fib (15)，能直观感受到卡顿陡增，确认是递归重复计算导致，不是环境、语法 bug。",
+   "correct_answer": "调试方法列表:\n1. 加 print 跟踪: 在函数入口 print n 看调用次数\n2. 画递归树: 手算 fib(5) 的递归树，识别重复计算\n3. 测小输入: 先 fib(3) 看是否也慢\n4. 用 lru_cache / memoization: 直接验证是重复计算问题",
+   "ai_reasoning": "学生给出了多方法且有序的排查步骤（拆解递归树识别重复 → 次数分析 → 不同输入验证），体现了系统性思维，但缺少 print 跟踪和 lru_cache/memoization 验证这两个关键手段，未达到 1.0 档要求的完整调试链。",
+   "timestamp": "2026-07-30T10:31:31.902455",
+   "mastery_prob_after": {
+    "K": 0.6155522665235625,
+    "P": 0.661976567427413,
+    "S": 0.7539063389877,
+    "C": 0.7165744628023833,
+    "X": 0.7111461050404634,
+    "bloom_dominant": "APPLY",
+    "bloom_confidence": 0.7333333333333333,
+    "overall_confidence": 0.5558617876426202
+   }
+  },
+  {
+   "problem_id": "PB-C17",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "ANALYZE",
+   "user_answer": "一、错在哪？\nPython 函数的默认参数只会在「定义函数时」创建一次，不是每次调用都新建。\n你写的 lst=[] 是永久共用同一个列表，所以多次调用会不断往同一个列表追加元素，导致累积。\n二、怎么修？\n把默认值改成 None，在函数内部每次调用时新建列表。\n修复代码：\npython\ndef add_item(item, lst=None):\n    # 每次调用都新建空列表\n    if lst is None:\n        lst = []\n    \n    lst.append(item)\n    return lst\n\nprint(add_item(1))  # [1]\nprint(add_item(2))  # [2] ✔ 符合预期",
+   "correct_answer": "原因: 默认参数 lst=[] 在函数定义时创建一次，多次调用共享。\n修法: 用 None 哨兵\ndef add_item(item, lst=None):\n    if lst is None:\n        lst = []\n    lst.append(item)\n    return lst",
+   "ai_reasoning": "学生完整回答了三个要点：1) 识别共享陷阱（默认参数共享导致累积）；2) 使用 None 哨兵修复；3) 明确解释了 Python 默认参数只在函数定义时求值一次的时机问题。完全符合 1.0 档标准。",
+   "timestamp": "2026-07-30T10:34:13.577740",
+   "mastery_prob_after": {
+    "K": 0.6159314500984872,
+    "P": 0.6618402539525831,
+    "S": 0.7560667292005734,
+    "C": 0.7271611440099209,
+    "X": 0.7092360803204895,
+    "bloom_dominant": "ANALYZE",
+    "bloom_confidence": 0.7666666666666667,
+    "overall_confidence": 0.579991692011278
+   }
+  },
+  {
+   "problem_id": "PB-Q19",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "EVALUATE",
+   "user_answer": "输出结果的时候，多乘了100，导致错误。",
+   "correct_answer": "最后一行多乘了 100。for 循环里 total 累加的是 1+2+...+100=5050，但 print 时又乘以 100 导致结果变成 505000。",
+   "ai_reasoning": "学生正确指出了问题所在：print 时多乘了 100，导致结果变成 505000。虽然表述比标准答案简略，但核心原因正确。",
+   "timestamp": "2026-07-30T10:35:30.393698",
+   "mastery_prob_after": {
+    "K": 0.6138080981460788,
+    "P": 0.6638646607579216,
+    "S": 0.7755631315967852,
+    "C": 0.7249839074626903,
+    "X": 0.7084299319595423,
+    "bloom_dominant": "ANALYZE",
+    "bloom_confidence": 0.8,
+    "overall_confidence": 0.5568774915426825
+   }
+  },
+  {
+   "problem_id": "PB-Q17",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "EVALUATE",
+   "user_answer": "方案一更好，代码简洁，而且不需要新增变量。",
+   "correct_answer": "方案一更好。方案一更简洁（1行 vs 3行）、更 Pythonic、不需要额外变量。方案二在某些语言中是唯一方式，但 Python 中不推荐。",
+   "ai_reasoning": "学生正确指出了方案一更好的原因：代码简洁且不需要新增变量，与标准答案的核心要点一致。",
+   "timestamp": "2026-07-30T10:36:49.960857",
+   "mastery_prob_after": {
+    "K": 0.6438902005044792,
+    "P": 0.6613935164182547,
+    "S": 0.7790449763462373,
+    "C": 0.7230289183951386,
+    "X": 0.707589948036796,
+    "bloom_dominant": "ANALYZE",
+    "bloom_confidence": 0.8333333333333334,
+    "overall_confidence": 0.5573266087981379
+   }
+  },
+  {
+   "problem_id": "PC-C04",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "EVALUATE",
+   "user_answer": "D",
+   "correct_answer": "D (以上都是误解). A: range(1,5) 不包含 5. B: 变量赋值是引用, 不是复制. C: 函数内修改全局变量需 global 声明.",
+   "ai_reasoning": "学生选择了D（正确答案），但未对每个误解进行详细解释，属于 rubric 第二档（选 D 但没说明每个误解）。",
+   "timestamp": "2026-07-30T10:38:07.529520",
+   "mastery_prob_after": {
+    "K": 0.64515352193119,
+    "P": 0.6605071542853155,
+    "S": 0.7779592995944178,
+    "C": 0.7386057128730721,
+    "X": 0.7058879646535294,
+    "bloom_dominant": "ANALYZE",
+    "bloom_confidence": 0.8666666666666667,
+    "overall_confidence": 0.55864680077652
+   }
+  },
+  {
+   "problem_id": "PC-C03",
+   "correct": 0,
+   "score": 0.0,
+   "bloom_level": "EVALUATE",
+   "user_answer": "B",
+   "correct_answer": "C/D (检查行为). 元认知行为.",
+   "ai_reasoning": "选 B 对应 rubric 中 0.3 分档（简单看一遍）。正确答案为 C 或 D，学生答案未达到元认知检查行为的及格标准。",
+   "timestamp": "2026-07-30T10:39:14.204174",
+   "mastery_prob_after": {
+    "K": 0.6507150674858482,
+    "P": 0.6675812797675154,
+    "S": 0.7752893645713009,
+    "C": 0.64666844095875,
+    "X": 0.6844643712847382,
+    "bloom_dominant": "ANALYZE",
+    "bloom_confidence": 0.9,
+    "overall_confidence": 0.566909431226638
+   }
+  },
+  {
+   "problem_id": "PB-Q25",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "EVALUATE",
+   "user_answer": "因为函数内部的x是局部变量，而外部的x是全局变量，不是同一个变量，局部变量改变不会导致全局变量的改变。\n在函数内开头定义x为全局变量：global x",
+   "correct_answer": "因为函数内的 x=20 创建了一个局部变量，覆盖了全局变量。需要用 global x 声明：\ndef foo():\n    global x\n    x = 20",
+   "ai_reasoning": "学生正确解释了函数内x是局部变量不改变全局变量的原因，并给出了正确的修改方法（使用global x声明）。",
+   "timestamp": "2026-07-30T10:43:08.464957",
+   "mastery_prob_after": {
+    "K": 0.6532902155720839,
+    "P": 0.6964199439419131,
+    "S": 0.7728092093612688,
+    "C": 0.6425823651440663,
+    "X": 0.6840119145452199,
+    "bloom_dominant": "ANALYZE",
+    "bloom_confidence": 0.9333333333333333,
+    "overall_confidence": 0.5832891575505394
+   }
+  },
+  {
+   "problem_id": "PB-Q18",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "CREATE",
+   "user_answer": "num = int(input(\"输入三位数：\"))\ng = num % 10\ns = num // 10 % 10\nb = num // 100\nreverse = g * 100 + s * 10 + b\nprint(reverse)",
+   "correct_answer": "n = int(input())\na = n // 100\nb = (n // 10) % 10\nc = n % 10\nprint(a + b*10 + c*100)  # 或 print(c*100 + b*10 + a)",
+   "ai_reasoning": "学生代码正确地提取了个位、十位和百位数字，并通过算术运算 g*100 + s*10 + b 得到了逆序数，逻辑与标准答案一致。",
+   "timestamp": "2026-07-30T10:45:19.646184",
+   "mastery_prob_after": {
+    "K": 0.6799304430281958,
+    "P": 0.693660066069304,
+    "S": 0.7760925181693985,
+    "C": 0.6388164096936548,
+    "X": 0.68303226843071,
+    "bloom_dominant": "ANALYZE",
+    "bloom_confidence": 0.9666666666666667,
+    "overall_confidence": 0.5679547147282609
+   }
+  },
+  {
+   "problem_id": "PB-Q20",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "CREATE",
+   "user_answer": "for n in range(2, 101):\n    flag = True\n    # 检查2到根号n即可，多余循环没必要\n    for i in range(2, int(n**0.5)+1):\n        if n % i == 0:\n            flag = False\n            break\n    if flag:\n        print(n)",
+   "correct_answer": "for n in range(2, 101):\n    is_prime = True\n    for i in range(2, int(n**0.5)+1):\n        if n % i == 0:\n            is_prime = False\n            break\n    if is_prime:\n        print(n)",
+   "ai_reasoning": "学生代码与正确答案逻辑完全一致，只是将变量名 is_prime 改为了 flag，并添加了一行注释，不影响程序功能。",
+   "timestamp": "2026-07-30T10:47:02.205054",
+   "mastery_prob_after": {
+    "K": 0.6770790393032187,
+    "P": 0.6951790776371124,
+    "S": 0.7929116943385587,
+    "C": 0.6356223554073267,
+    "X": 0.6821257525696168,
+    "bloom_dominant": "ANALYZE",
+    "bloom_confidence": 1.0,
+    "overall_confidence": 0.5684172656326899
+   }
+  },
+  {
+   "problem_id": "PC-C05",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "CREATE",
+   "user_answer": "1、答完题会检查。\n2、遇到难题先独立思考，解决不了再求助。\n3、自我评估还比较准。\n4、偶有有常见误解，但比较少。\n综合评估我的元认知水平7分。",
+   "correct_answer": "综合元认知评估. 高分 (8-10): 检查 + 独立思考 + 自我评估准 + 无误解. 中分 (5-7): 部分行为. 低分 (0-4): 元认知弱.",
+   "ai_reasoning": "学生自评 7 分，符合中分档(6-7)——具备部分元认知行为（会检查、先独立思考再求助、自我评估较准），但承认仍有偶发误解，未达到高分档要求的'无误解'与全面优秀水平。",
+   "timestamp": "2026-07-30T10:50:01.242331",
+   "mastery_prob_after": {
+    "K": 0.6757305864211184,
+    "P": 0.6935950884073393,
+    "S": 0.7930131498420337,
+    "C": 0.6544053124710955,
+    "X": 0.6832484800407198,
+    "bloom_dominant": "ANALYZE",
+    "bloom_confidence": 1.0,
+    "overall_confidence": 0.569058533945342
+   }
+  },
+  {
+   "problem_id": "PC-C02",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "ANALYZE",
+   "user_answer": "E",
+   "correct_answer": "E (独立思考 + 查资料). 元认知最优策略.",
+   "ai_reasoning": "学生选择 E（独立思考 + 查资料），与正确答案一致，属于综合策略，元认知优，按 rubric 给 1.0 分。",
+   "timestamp": "2026-07-30T10:52:02.570541",
+   "mastery_prob_after": {
+    "K": 0.6749156455357749,
+    "P": 0.6925584681041885,
+    "S": 0.7930609202553309,
+    "C": 0.6669024577236786,
+    "X": 0.684075290012006,
+    "bloom_dominant": "ANALYZE",
+    "bloom_confidence": 1.0,
+    "overall_confidence": 0.5695134108633155
+   }
+  },
+  {
+   "problem_id": "PB-Q23",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "EVALUATE",
+   "user_answer": "一、运行 fib(10) 会出现的问题\n严重的重复计算\n这个递归是暴力递归，计算 fib(10) 要算 fib(9)+fib(8)，fib(9) 又要算 fib(8)+fib(7)，同一个值会被反复递归计算无数次（比如 fib(5) 会被计算好多次）。\n效率极低\n时间复杂度是 O(2ⁿ)（指数级），n=10 还能跑出来，但 n 稍微变大（比如 n=40）就会明显卡顿，n 再大直接卡死。\n无额外内存溢出问题\nfib(10) 递归深度只有 10，不会触发栈溢出，但大数值会。\n二、优化方案\n迭代循环（最优，无递归开销）\n直接循环累加，空间 O (1)，速度最快。\npython\ndef fib(n):\n    a, b = 0, 1\n    for _ in range(2, n+1):\n        a, b = b, a + b\n    return b\n\nprint(fib(10))",
+   "correct_answer": "问题：重复计算导致指数级时间复杂度。fib(10)会重复计算 fib(8)、fib(7) 等多次。优化方案：1）记忆化递归（@lru_cache）；2）迭代改写。",
+   "ai_reasoning": "学生正确指出了fib(10)存在重复计算导致指数级时间复杂度的问题，并给出了正确的迭代优化方案（虽然未提到记忆化递归，但迭代改写本身就是题目要求的优化方案之一）。",
+   "timestamp": "2026-07-30T10:54:44.197208",
+   "mastery_prob_after": {
+    "K": 0.6726756897034162,
+    "P": 0.6938850347610733,
+    "S": 0.8060134460913528,
+    "C": 0.664243321829066,
+    "X": 0.683380781054221,
+    "bloom_dominant": "ANALYZE",
+    "bloom_confidence": 1.0,
+    "overall_confidence": 0.5698859420823367
+   }
+  },
+  {
+   "problem_id": "PB-C16",
+   "correct": 0,
+   "score": 0.0,
+   "bloom_level": "EVALUATE",
+   "user_answer": "调用fib(50)触发RecursionError，本质：Python 默认递归栈深度有限（默认递归深度上限约 1000，本次报错不是深度不够，是重复递归调用爆炸，海量重复递归层层调用，栈累积爆满；fib 递归调用次数指数暴涨）。\n\n不修改函数代码的可行方案（函数本体完全不动）\n\n给递归加记忆化装饰器（函数逻辑不改，外层包装）\n用 functools.lru_cache 缓存递归结果，大幅减少递归总调用次数，压栈次数骤降，不会栈溢出。fib 函数代码一字不动，仅加装饰器。\n\nfrom functools import lru_cache\n\n@lru_cache(maxsize=None)\ndef fib(n):\n    if n<=2:return 1\n    return fib(n-1)+fib(n-2)\n\nfib(50)",
+   "correct_answer": "方法:\n1. 加 sys.setrecursionlimit(10000) — 提高栈深度\n2. 改迭代版 fib — 用循环代替递归\n3. 加 @lru_cache — memoization\n4. trampoline 函数 — 尾递归优化",
+   "ai_reasoning": "学生仅给出1种方法（@lru_cache memoization），属于单方法档，按rubric应给0.3分。缺少sys.setrecursionlimit、迭代版、trampoline等其他方法，也无适用场景对比。",
+   "timestamp": "2026-07-30T11:01:24.253804",
+   "mastery_prob_after": {
+    "K": 0.6923644071138867,
+    "P": 0.6593180066446799,
+    "S": 0.774502248827729,
+    "C": 0.6166040671139535,
+    "X": 0.7059698968468961,
+    "bloom_dominant": "ANALYZE",
+    "bloom_confidence": 1.0,
+    "overall_confidence": 0.5767191130156301
+   }
+  },
+  {
+   "problem_id": "PB-Q21",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "EVALUATE",
+   "user_answer": "函数B效率更高，因为执行FOR 循环次数比A函数少，n越大，越明显。",
+   "correct_answer": "函数B效率更高。函数A需要检查到 n-1，而函数B只需检查到 sqrt(n)。对于 n=100，函数A检查99次，函数B只检查9次。",
+   "ai_reasoning": "学生正确判断函数B效率更高，并指出了核心原因（循环次数更少，n越大越明显）。但理由不够具体，缺少关键的数学依据——即函数B的上限是 sqrt(n) 而函数A的上限是 n-1，建议补充具体例子（如n=100时分别为9次和99次）以使回答更完善。",
+   "timestamp": "2026-07-30T11:05:59.642383",
+   "mastery_prob_after": {
+    "K": 0.694465788643264,
+    "P": 0.6855377437389985,
+    "S": 0.7711842819416143,
+    "C": 0.6122525502895175,
+    "X": 0.7058824324300166,
+    "bloom_dominant": "ANALYZE",
+    "bloom_confidence": 1.0,
+    "overall_confidence": 0.5773136033154627
+   }
+  },
+  {
+   "problem_id": "PB-C03",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "EVALUATE",
+   "user_answer": "1、错在哪？\n根本原因：函数里执行了 ** 整数（int）+ 字符串（str）** 的操作，Python 不支持不同类型（数字和文本）直接用 + 运算，所以抛出 TypeError。\n具体位置：调用 add(1, '2') 时，参数 1 是整数，'2' 是字符串，传入函数后执行 1 + '2' 报错。\n2、修复方法\n统一两个参数的数据类型：要么都转成整数，要么都转成字符串。\n方案 1：都转整数（推荐，实现数字相加）\npython\ndef add(a, b):\n    # 把参数都转为整数再运算\n    return int(a) + int(b)\n\nx = add(1, '2')\nprint(x)  # 输出 3\n方案 2：都转字符串（实现文本拼接）\npython\ndef add(a, b):\n    # 把参数都转为字符串再拼接\n    return str(a) + str(b)\n\nx = add(1, '2')\nprint(x)  # 输出 '12'",
+   "correct_answer": "错误原因: add(1, '2') 中 1 是 int，'2' 是 str，不能直接相加。\n修复: 转类型 add(1, int('2')) 或 add(str(1), '2') (按需)。",
+   "ai_reasoning": "学生完整识别了 int+str 类型错误的原因，并给出了两种修复方案（int() 转换和 str() 转换），还说明了各自的适用场景（数字相加 vs 文本拼接），符合 1.0 档标准。",
+   "timestamp": "2026-07-30T11:33:39.687910",
+   "mastery_prob_after": {
+    "K": 0.6955119286700752,
+    "P": 0.6886710688053214,
+    "S": 0.7710809508832321,
+    "C": 0.6191119388806579,
+    "X": 0.7037925243156669,
+    "bloom_dominant": "ANALYZE",
+    "bloom_confidence": 1.0,
+    "overall_confidence": 0.5772795393714738
+   }
+  },
+  {
+   "problem_id": "PB-C14",
+   "correct": 0,
+   "score": 0.0,
+   "bloom_level": "CREATE",
+   "user_answer": "这道题我不会，对装饰器知识点不熟悉。",
+   "correct_answer": "调试方法列表:\n1. print 跟踪: 在 wrapper 内 print args 看参数\n2. 单元测试: 单独测 add 函数 vs 装饰后 add\n3. 断点: 在 wrapper 内断点\n4. 简化: 先去掉装饰器，看 add 本身是否对",
+   "ai_reasoning": "学生明确表示不会，未给出任何调试方法，属于「未给方法」档，得 0.0 分。",
+   "timestamp": "2026-08-03T12:26:27.174644",
+   "mastery_prob_after": {
+    "K": 0.7152322143543012,
+    "P": 0.6521318616045053,
+    "S": 0.7326334894587214,
+    "C": 0.5999748625980161,
+    "X": 0.7233289062842287,
+    "bloom_dominant": "ANALYZE",
+    "bloom_confidence": 1.0,
+    "overall_confidence": 0.582616463517079
+   }
+  },
+  {
+   "problem_id": "PB-C08",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "EVALUATE",
+   "user_answer": "一、报错原因\nKeyError: 'age' 的意思是：字典里没有 'age' 这个键，你却强行去取它的值。\n代码里 user 字典只有 name 键，完全没有 age 键，直接用 user['age'] 取值就会报错。\n二、2 种最简修改方法\n方法 1：先给字典加上 age 键（最直接）\npython\nuser = {'name': 'Bisen', 'age': 20}  # 加上age键\nprint(user['age'])\n方法 2：用 get () 安全取值（不会报错）\nget() 取不到键时，会返回 None 或你指定的默认值：\npython\nuser = {'name': 'Bisen'}\nprint(user.get('age'))  # 不报错，输出None\n# 或者给个默认值\nprint(user.get('age', 0))  # 输出0",
+   "correct_answer": "原因: dict 没 'age' 键。\n修法 1: user.get('age', default_value)\n修法 2: try/except KeyError\n修法 3: if 'age' in user: ...",
+   "ai_reasoning": "学生正确识别了 KeyError 原因（字典缺少 'age' 键），并给出了 2 种修法（添加 age 键、.get() 取值），符合 0.6 档标准。但未提供第 3 种修法（如 try/except 或 if 'age' in user），也缺少适用场景对比，因此未达 1.0 档。",
+   "timestamp": "2026-08-03T12:28:35.594922",
+   "mastery_prob_after": {
+    "K": 0.7153993009914114,
+    "P": 0.6544463596652559,
+    "S": 0.7311459489654016,
+    "C": 0.6103164245494571,
+    "X": 0.721186379867871,
+    "bloom_dominant": "ANALYZE",
+    "bloom_confidence": 1.0,
+    "overall_confidence": 0.582937276733021
+   }
+  },
+  {
+   "problem_id": "PB-C04",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "EVALUATE",
+   "user_answer": "输出为 20 和 10。 因为外部全局变量x和函数内局部变量x不是同一个变量，所以输出的x值就不一样。",
+   "correct_answer": "输出: 20 然后 10。\n原因: foo() 内的 x = 20 是局部变量，不影响外部 x = 10。",
+   "ai_reasoning": "学生正确输出了 20 和 10，并明确说明了原因：函数内外的 x 是不同的变量（局部变量 vs 全局变量），符合 rubric 第 4 档（完整：输出 + 原因）。",
+   "timestamp": "2026-08-03T12:30:26.271899",
+   "mastery_prob_after": {
+    "K": 0.7163467943094773,
+    "P": 0.6541760116587609,
+    "S": 0.7305869825256205,
+    "C": 0.6196641372256741,
+    "X": 0.719607706937902,
+    "bloom_dominant": "EVALUATE",
+    "bloom_confidence": 1.0,
+    "overall_confidence": 0.5831247769347712
+   }
+  },
+  {
+   "problem_id": "PB-C11",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "CREATE",
+   "user_answer": "这段代码完全没有错误，也不会卡死，是一段正常运行的嵌套循环代码。\n逐行分析\npython\n# 外层循环：i 依次取 0,1,2\nfor i in range(3):\n    # 内层循环：j 依次取 0,1,2\n    for j in range(3):\n        print(i, j)\n        # 当 j 等于 1 时，跳出内层循环\n        if j == 1:\n            break\n运行逻辑\n外层 i=0 → 内层 j=0 打印，j=1 打印 → 触发 break 跳出内层循环\n外层 i=1 → 内层 j=0 打印，j=1 打印 → 触发 break 跳出内层循环\n外层 i=2 → 内层 j=0 打印，j=1 打印 → 触发 break 跳出内层循环\n循环全部结束，程序正常终止\n输出结果\n\n0 0\n0 1\n1 0\n1 1\n2 0\n2 1",
+   "correct_answer": "这段代码其实是对的（外层 i 仍循环 0-2，内层 j 到 1 时 break）。\n题目说'卡死'是诱饵。\n真正卡死: 内层 j 写 while True: 或 for j in range(i, 3): 当 i=0。",
+   "ai_reasoning": "学生正确识别代码没有错误并清晰解释了 break 跳出内层循环的行为（外层 i 仍正常迭代 0-2），但未给出真正会导致卡死的反例（如内层写成 while True 或 for j in range(i, 3)），符合 0.6 档标准。",
+   "timestamp": "2026-08-03T12:33:13.209361",
+   "mastery_prob_after": {
+    "K": 0.7155010273523934,
+    "P": 0.6564468524785986,
+    "S": 0.7341365392215496,
+    "C": 0.6296878050549335,
+    "X": 0.716084368054802,
+    "bloom_dominant": "EVALUATE",
+    "bloom_confidence": 1.0,
+    "overall_confidence": 0.5829333415483947
+   }
+  },
+  {
+   "problem_id": "PB-Q24",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "CREATE",
+   "user_answer": "def reverse_list(s):\n    # 基线条件：空串直接返回\n    if s == \"\":\n        return \"\"\n    # 最后字符 + 前面子串递归反转\n    return s[-1] + reverse_list(s[:-1])",
+   "correct_answer": "def reverse_list(s):\n    if len(s) <= 1: return s\n    return s[-1] + reverse_list(s[:-1])",
+   "ai_reasoning": "学生答案逻辑正确。虽然基线条件只判断空字符串而非 len(s) <= 1，但对单字符字符串的递归（'a' + reverse_list('') = 'a' + '' = 'a'）也能正确处理，因此功能上完全正确。",
+   "timestamp": "2026-08-03T12:36:53.065675",
+   "mastery_prob_after": {
+    "K": 0.7132920920831505,
+    "P": 0.6565137866350298,
+    "S": 0.7519531648672412,
+    "C": 0.6246931391245896,
+    "X": 0.715947729088517,
+    "bloom_dominant": "EVALUATE",
+    "bloom_confidence": 1.0,
+    "overall_confidence": 0.5833003510164926
+   }
+  },
+  {
+   "problem_id": "PB-C20",
+   "correct": 0,
+   "score": 0.0,
+   "bloom_level": "CREATE",
+   "user_answer": "这是Python 闭包的延迟绑定问题：5 个 lambda 都引用同一个变量 i，不是创建时捕获 i 的值，而是调用时才去取 i 的最终值（循环结束后 i=4）。\n不用看细节，直接能用的修复方法\n最通用、最标准的修复方案只有一个：\n给 lambda 加默认参数，强制立即绑定当前值\n修复后代码：\npython\n# 核心修复：lambda i=i: i\nfuncs = [lambda i=i: i for i in range(5)]\nfor f in funcs:\n    print(f())",
+   "correct_answer": "原因: 闭包变量绑定陷阱，所有 lambda 共享同一个 i，最终 i=4。\n修法 1: 默认参数 lambda i=i: i\n修法 2: functools.partial\n修法 3: 函数包装 def make_f(i): return lambda: i",
+   "ai_reasoning": "学生准确解释了 Python late binding 闭包陷阱，但仅给出 1 种修复方法（默认参数 i=i），未提供 functools.partial 或函数包装等其他方法，也无适用场景对比，符合 0.3 分档。",
+   "timestamp": "2026-08-03T12:38:24.676680",
+   "mastery_prob_after": {
+    "K": 0.7298600597358406,
+    "P": 0.6348593490523834,
+    "S": 0.7281887080788194,
+    "C": 0.5881537334746373,
+    "X": 0.7322309289265833,
+    "bloom_dominant": "EVALUATE",
+    "bloom_confidence": 1.0,
+    "overall_confidence": 0.5878762198578171
+   }
+  },
+  {
+   "problem_id": "PB-C09",
+   "correct": 0,
+   "score": 0.0,
+   "bloom_level": "CREATE",
+   "user_answer": "肉眼看缩进，发现错误，unmatched 不属于 if 的 else 分支，是无条件执行语句。",
+   "correct_answer": "调试方法列表:\n1. print 跟踪: 在 if x == 5: 前 print x 看实际值\n2. 断点调试: 用 pdb / IDE 断点停在 if 处\n3. 单元测试: 写 assert x == 5 测试 if 条件\n4. 删代码法: 先注掉 print('unmatched') 看 if 是否进入",
+   "ai_reasoning": "学生未给出任何调试方法（如 print 跟踪、断点、单元测试、注释代码等），仅通过肉眼看出缩进错误直接指出了问题，不属于任何调试方法档位。",
+   "timestamp": "2026-08-03T17:34:38.092624",
+   "mastery_prob_after": {
+    "K": 0.7443150287908614,
+    "P": 0.6140491645726297,
+    "S": 0.6855891291662554,
+    "C": 0.5849675800950797,
+    "X": 0.746126186822818,
+    "bloom_dominant": "EVALUATE",
+    "bloom_confidence": 1.0,
+    "overall_confidence": 0.5914516029904422
+   }
+  },
+  {
+   "problem_id": "PB-Q22",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "CREATE",
+   "user_answer": "import math\n\ndef filter_primes(nums):\n    # filter + lambda 筛选质数，最后转列表返回\n    return list(filter(\n        lambda x: x > 1 and all(x % i != 0 for i in range(2, int(math.sqrt(x)) + 1)),\n        nums\n    ))",
+   "correct_answer": "def is_prime(n):\n    return n > 1 and all(n % i != 0 for i in range(2, int(n**0.5)+1))\n\ndef filter_primes(nums):\n    return list(filter(lambda x: is_prime(x), nums))",
+   "ai_reasoning": "学生的答案将质数判断逻辑直接内联到 lambda 中，逻辑与正确答案等价（x > 1 且所有 2 到 sqrt(x) 的数都不能整除 x），且正确使用了 filter() 和 lambda，满足题目要求。",
+   "timestamp": "2026-08-03T17:36:36.239555",
+   "mastery_prob_after": {
+    "K": 0.7468891786544599,
+    "P": 0.643224676719734,
+    "S": 0.6787177599418172,
+    "C": 0.5779296581952699,
+    "X": 0.7470779221392182,
+    "bloom_dominant": "EVALUATE",
+    "bloom_confidence": 1.0,
+    "overall_confidence": 0.5921624096075735
+   }
+  },
+  {
+   "problem_id": "PB-Q07",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "APPLY",
+   "user_answer": "s = 0\nfor i in range(1, 101):\n    s = s + i\nprint(s)",
+   "correct_answer": "total = 0\nfor i in range(1, 101):\n    total += i\nprint(total)",
+   "ai_reasoning": "学生答案逻辑完全正确，用 for 循环遍历 range(1, 101) 对 1 到 100 累加求和，与正确答案等价，输出结果 5050。",
+   "timestamp": "2026-08-03T17:38:39.440137",
+   "mastery_prob_after": {
+    "K": 0.7455451441066673,
+    "P": 0.6424433979134702,
+    "S": 0.6939937043440275,
+    "C": 0.5732393320066101,
+    "X": 0.7473690103260939,
+    "bloom_dominant": "EVALUATE",
+    "bloom_confidence": 1.0,
+    "overall_confidence": 0.5925232227792121
+   }
+  },
+  {
+   "problem_id": "PB-C10",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "EVALUATE",
+   "user_answer": "一、报错原因\nIndexError: list index out of range 意思是列表索引超出范围，简单说就是：你想取列表里不存在的位置元素。\n你的代码问题：\n列表 nums = [1,2,3] 只有 3 个元素，有效索引是 0、1、2（最大索引是 2）\nrange(5) 会生成 0、1、2、3、4 这 5 个数字\n循环到 i=3 和 i=4 时，nums[3]、nums[4] 根本不存在，直接报错\n二、修复方法（两种最常用）\n方法 1：让循环次数 = 列表长度（推荐）\npython\nnums = [1, 2, 3]\n# range(len(nums)) 自动生成 0,1,2，刚好匹配列表索引\nfor i in range(len(nums)):\n    print(nums[i])\n方法 2：直接遍历列表（最简单）\npython\nnums = [1, 2, 3]\n# 不用索引，直接取元素，永远不会越界\nfor num in nums:\n    print(num)",
+   "correct_answer": "原因: range(5) 包含 0-4，但 nums 只有 0-2。\n修法 1: range(len(nums)) 或 range(3)\n修法 2: try/except IndexError\n修法 3: if i < len(nums):",
+   "ai_reasoning": "学生清晰识别了越界原因（range(5)生成0-4但nums只有索引0-2），并给出2种修法（range(len(nums)) 和 直接遍历列表），符合 rubric 中 '识别 + 2 种修法' 的 0.6 分档。缺少 try/except 和 if 守卫这两种修法，也无适用场景对比，未达 1.0 分档。",
+   "timestamp": "2026-08-03T17:39:55.202348",
+   "mastery_prob_after": {
+    "K": 0.7461537799733872,
+    "P": 0.644890311783142,
+    "S": 0.6917723154151274,
+    "C": 0.5827395332472408,
+    "X": 0.7456593216671772,
+    "bloom_dominant": "EVALUATE",
+    "bloom_confidence": 1.0,
+    "overall_confidence": 0.5926534341713753
+   }
+  },
+  {
+   "problem_id": "PB-C07",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "ANALYZE",
+   "user_answer": "列表是可变对象，赋值是引用传递\na = [1,2] 创建了一个列表对象，a 是这个对象的引用（地址标记）；\nb = a 不是复制列表，而是让 b 和 a 指向同一个内存中的列表。\n修改共享对象，所有引用都会同步变化\nb.append(3) 是给两者共同指向的那个列表添加元素，没有创建新列表；\n所以打印 a 时，输出的就是被修改后的原列表。\n\n输出结果：[1, 2, 3]",
+   "correct_answer": "[1, 2, 3]，因为 b = a 让 b 指向 a 同一 list 对象，append 改了 list。",
+   "ai_reasoning": "学生正确答出 [1, 2, 3]，并清楚解释了 b = a 是引用传递、共享同一列表对象、append 修改共享对象。达到 0.6 档要求，但未明确对比 mutable vs immutable，也未给出修法（b = a.copy()），因此未达 1.0 档。",
+   "timestamp": "2026-08-03T17:41:38.937447",
+   "mastery_prob_after": {
+    "K": 0.7476252432636753,
+    "P": 0.6414941398959186,
+    "S": 0.6923647027757714,
+    "C": 0.5939489127436344,
+    "X": 0.7440648876600459,
+    "bloom_dominant": "EVALUATE",
+    "bloom_confidence": 1.0,
+    "overall_confidence": 0.6112619765548502
+   }
+  },
+  {
+   "problem_id": "PB-C19",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "ANALYZE",
+   "user_answer": "错在哪？\n这是Python 变量作用域 + 赋值行为导致的经典问题：\n内层函数 inner 里写了 outer_var = outer_var + 1，Python 会把等号左边的 outer_var 判定为 inner 函数的局部变量，而不是外层的 outer_var。\n每次调用 inner()，都会新创建一个局部变量 outer_var，并尝试用「还没赋值的局部变量」做计算，Python 会隐式把它当成 0，所以永远输出 1，无法累加。\n简单说：你想修改外层变量，却意外创建了同名局部变量。\n\n修复方案：\n使用 nonlocal 关键字\n告诉 Python：这个变量不是局部变量，去外层作用域找\n\ndef make_counter():\n    outer_var = 0\n    def inner():\n        nonlocal outer_var  # 关键修复\n        outer_var = outer_var + 1\n        return outer_var\n    return inner\n\ncounter = make_counter()\nprint(counter())  # 1\nprint(counter())  # 2",
+   "correct_answer": "原因: inner() 内的 outer_var = outer_var + 1 让 outer_var 变局部变量。\n修法: 加 nonlocal outer_var。",
+   "ai_reasoning": "学生正确识别了 inner() 内赋值导致 outer_var 被判定为局部变量的陷阱，并给出了使用 nonlocal 的修复方案，同时提供了修复后的完整代码及预期输出（1 和 2），满足 '加 nonlocal + 测试' 档。但未涉及 global 与 nonlocal 的对比，也未对其他替代方案（如可变对象/list）做比较，未达到 1.0 档 '完整' 要求。",
+   "timestamp": "2026-08-03T17:45:04.659057",
+   "mastery_prob_after": {
+    "K": 0.748720989650894,
+    "P": 0.6399658751824002,
+    "S": 0.6924243104418831,
+    "C": 0.6052677177541156,
+    "X": 0.7422158072538761,
+    "bloom_dominant": "ANALYZE",
+    "bloom_confidence": 1.0,
+    "overall_confidence": 0.5929592445831722
+   }
+  },
+  {
+   "problem_id": "PB-Q16",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "APPLY",
+   "user_answer": "# 定义全局变量 x\nx = 10\n\ndef modify_global():\n    # 声明使用全局变量 x\n    global x\n    # 直接修改全局变量的值\n    x = 20\n\n# 调用函数前\nprint(x)  # 输出：10\n\n# 调用函数修改全局变量\nmodify_global()\n\n# 调用函数后，全局变量已被修改\nprint(x)  # 输出：20",
+   "correct_answer": "x = 10\ndef foo():\n    global x\n    x = 20\nfoo()\nprint(x)  # 输出 20",
+   "ai_reasoning": "学生答案正确使用了global关键字声明全局变量x，并在函数内成功修改了其值，代码逻辑和输出结果均正确，且添加了清晰的注释说明。",
+   "timestamp": "2026-08-03T17:46:16.337521",
+   "mastery_prob_after": {
+    "K": 0.7505869793281139,
+    "P": 0.6601360780735465,
+    "S": 0.687650319710058,
+    "C": 0.6003374502374353,
+    "X": 0.7429094474183702,
+    "bloom_dominant": "ANALYZE",
+    "bloom_confidence": 1.0,
+    "overall_confidence": 0.5935381094422081
+   }
+  },
+  {
+   "problem_id": "PB-Q14",
+   "correct": 0,
+   "score": 0.0,
+   "bloom_level": "APPLY",
+   "user_answer": "fact(n):\n    if n <= 1:\n        return 1\n    else:\n        return n * fact(n - 1)",
+   "correct_answer": "def fact(n):\n    if n <= 1: return 1\n    return n * fact(n-1)",
+   "ai_reasoning": "学生答案缺少 `def` 关键字，导致语法错误。Python 中定义函数必须以 `def` 开头，正确写法应为 `def fact(n):`。",
+   "timestamp": "2026-08-03T17:47:26.860954",
+   "mastery_prob_after": {
+    "K": 0.7543814793614488,
+    "P": 0.6629872494772127,
+    "S": 0.6383660742234155,
+    "C": 0.6145911483682964,
+    "X": 0.7421912112918548,
+    "bloom_dominant": "ANALYZE",
+    "bloom_confidence": 1.0,
+    "overall_confidence": 0.5967494431523681
+   }
+  },
+  {
+   "problem_id": "PB-Q10",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "UNDERSTAND",
+   "user_answer": "None",
+   "correct_answer": "None",
+   "ai_reasoning": "学生答案 None 与正确答案一致，符合函数没有显式返回值时返回 None 的规则。",
+   "timestamp": "2026-08-03T17:48:53.625674",
+   "mastery_prob_after": {
+    "K": 0.7559445943043506,
+    "P": 0.679758629822153,
+    "S": 0.6336051664009087,
+    "C": 0.6104895948626144,
+    "X": 0.7427431950576365,
+    "bloom_dominant": "ANALYZE",
+    "bloom_confidence": 1.0,
+    "overall_confidence": 0.5972696101783763
+   }
+  },
+  {
+   "problem_id": "PB-C12",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "APPLY",
+   "user_answer": "5\nnegative\n0",
+   "correct_answer": "foo(5): x=5 > 0, return 5 → 打印 5。\nfoo(-3): x=-3, 跳过 if, print 'negative', return 0 → 打印 negative 然后 0。",
+   "ai_reasoning": "学生正确输出了 foo(5)=5 和 foo(-3) 的 'negative' 与 0，两部分均答对，但未解释 return 提前退出的机制，因此未达 1.0 档。",
+   "timestamp": "2026-08-03T17:50:42.804122",
+   "mastery_prob_after": {
+    "K": 0.7572148519979748,
+    "P": 0.6796806276393066,
+    "S": 0.6315730584676427,
+    "C": 0.6171856279888783,
+    "X": 0.741889025629727,
+    "bloom_dominant": "ANALYZE",
+    "bloom_confidence": 1.0,
+    "overall_confidence": 0.5973807633352715
+   }
+  },
+  {
+   "problem_id": "PB-Q13",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "UNDERSTAND",
+   "user_answer": "一、执行机制\n循环\n依靠条件判断重复执行代码块，在同一函数栈帧内反复运行；只使用少量临时变量，没有自动栈保存，迭代更新状态，主动终止循环条件。\n递归\n函数调用自身实现重复逻辑；每一次调用都会新建栈帧存入调用栈，保存当前现场（局部变量、返回地址）；依靠 ** 基线条件（终止条件）** 停止自调用，函数逐层返回释放栈帧。\n核心差异：循环是重复执行；递归是重复函数调用。\n隐患：递归层级过深容易栈溢出；循环不存在栈溢出风险。\n二、适用场景\n递归适合\n问题可以自顶向下拆分为结构相同的子问题：树形遍历、分治算法（快排、归并排序）、回溯、迷宫 / 组合枚举、阶乘 / 斐波那契（概念演示）。\n特点：代码简洁，天然契合分层次、嵌套结构。\n循环适合\n线性重复计算、已知 / 可控重复次数、大规模迭代：遍历数组、累加求和、简单遍历。\n特点：性能更好，内存开销低，可控性强。",
+   "correct_answer": "递归通过函数调用自身分解问题，需要 base case 终止；循环通过重复执行代码块。递归适合树结构，循环适合线性遍历。",
+   "ai_reasoning": "学生答案完整覆盖了执行机制（循环在同一栈帧重复执行，递归每次新建栈帧并依赖基线条件终止）和适用场景（递归适合树形/分治结构，循环适合线性遍历），且补充了栈溢出等隐患，内容比参考答案更详尽，核心要点全部正确。",
+   "timestamp": "2026-08-03T17:52:11.057577",
+   "mastery_prob_after": {
+    "K": 0.7558832250837704,
+    "P": 0.6787754328773958,
+    "S": 0.6484668911223027,
+    "C": 0.6124821029012714,
+    "X": 0.7421649057362925,
+    "bloom_dominant": "ANALYZE",
+    "bloom_confidence": 1.0,
+    "overall_confidence": 0.6158108641348086
+   }
+  },
+  {
+   "problem_id": "PB-C06",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "APPLY",
+   "user_answer": "输出是 5 \nx = 5：变量 x 绑定整数对象5；\ny = x：y 和 x 指向同一个数字 5（赋值是引用绑定，不是复制对象）；\nx = 10：重新给 x 绑定新整数对象10，只是改变 x 的指向，不会影响 y；\ny 依旧指向5，所以打印 5。",
+   "correct_answer": "5，因为 y = x 时 y 指向 5 这个 int 对象，x 重新赋值不改变 y。",
+   "ai_reasoning": "学生答 5 且完整解释了变量绑定（指向同一对象）、引用 vs 复制的区别，以及重新赋值只改变 x 的指向不影响 y，符合 1.0 档标准。",
+   "timestamp": "2026-08-03T17:54:00.927935",
+   "mastery_prob_after": {
+    "K": 0.7584856645363697,
+    "P": 0.6783333496982832,
+    "S": 0.6460908436394331,
+    "C": 0.6192648021195948,
+    "X": 0.7411073593709472,
+    "bloom_dominant": "APPLY",
+    "bloom_confidence": 1.0,
+    "overall_confidence": 0.5977615343257616
+   }
+  },
+  {
+   "problem_id": "PB-C15",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "APPLY",
+   "user_answer": "这是一个递归函数，但没有终止条件（基线条件）。\n调用 foo(5) 会无限调用自身：\nfoo(5) → foo(4) → foo(3) → foo(2) → foo(1) → foo(0) → foo(-1) → ...\nPython 对递归深度有限制（默认大约 1000 层），无限递归会超出最大递归深度。\n运行结果\n程序会直接抛出异常：\n\nRecursionError: maximum recursion depth e",
+   "correct_answer": "RecursionError: maximum recursion depth exceeded。\n因为没有 base case，递归无限。",
+   "ai_reasoning": "学生正确识别出 RecursionError 并说明了原因（无 base case 导致无限递归、超过最大递归深度），符合 0.6 分档。但未深入解释栈帧爆栈机制，也未给出修复方法（加 base case），故未达 1.0 分。",
+   "timestamp": "2026-08-03T17:55:39.790557",
+   "mastery_prob_after": {
+    "K": 0.7596977954772939,
+    "P": 0.6779687876087056,
+    "S": 0.6436641818621112,
+    "C": 0.627834153913449,
+    "X": 0.7400277928943746,
+    "bloom_dominant": "APPLY",
+    "bloom_confidence": 1.0,
+    "overall_confidence": 0.6190021851788706
+   }
+  },
+  {
+   "problem_id": "PB-C18",
+   "correct": 1,
+   "score": 1.0,
+   "bloom_level": "APPLY",
+   "user_answer": "1. 错误原因\n核心问题：在函数内部，你试图修改全局变量x，但 Python 会把函数内的x判定为局部变量，而这个局部变量在赋值前就被使用了，所以报错。\n代码里x=10是全局变量\n函数foo()里写了x = x + 1，Python 看到赋值语句x=，就认定x是函数内部的局部变量\n执行x+1时，局部变量x还没有被赋值，就会触发UnboundLocalError\n2. 修复方法\n方法 1（推荐）：使用global声明全局变量\n告诉 Python：函数里的x就是外面的全局变量，不是局部变量。\npython\nx = 10\ndef foo():\n    global x  # 声明使用全局变量x\n    x = x + 1\n    print(x)\n\nfoo()  # 输出：11",
+   "correct_answer": "原因: foo() 内的 x = x + 1 让 x 变成局部变量，但 x + 1 时 x 还未定义。\n修法: 加 global x 或 nonlocal x。\n或传参数: def foo(x): return x + 1。",
+   "ai_reasoning": "学生正确识别了 UnboundLocalError 原因，并给出 global 声明方案及测试运行结果（输出11），符合 0.6 档。但未提及 nonlocal 和参数传递两种方案，未达到 1.0 档的完整对比要求。",
+   "timestamp": "2026-08-03T17:58:35.756174",
+   "mastery_prob_after": {
+    "K": 0.7612094547763499,
+    "P": 0.6778103959975923,
+    "S": 0.6413595800040236,
+    "C": 0.6359729334834706,
+    "X": 0.7388977401359337,
+    "bloom_dominant": "APPLY",
+    "bloom_confidence": 1.0,
+    "overall_confidence": 0.5980526003904959
+   }
+  }
+ ]
+}

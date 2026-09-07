@@ -224,9 +224,8 @@ class TestV074Lbc003Improvement:
       - source 分布: 0 raw_v3 + 5 mean_mastery_fallback + 15 platt_scaling + 35 isotonic_regression
     """
 
-    def test_lbc003_cold_start_source_changes(self):
+    def test_lbc003_cold_start_source_changes(self, lbc_history):
         """lbc003 重放: 冷启动期 source 从 raw_v3 变成 mean_mastery_fallback."""
-        import sqlite3
         import json
 
         from ecos.dual_agent.orchestrator import DualAgentOrchestrator, DualAgentConfig
@@ -234,11 +233,8 @@ class TestV074Lbc003Improvement:
         from ecos.cta.belief_state import BloomLevel
         import numpy as np
 
-        conn = sqlite3.connect("web/ecos.db")
-        row = conn.execute(
-            "SELECT response_history FROM students WHERE student_id='lbc003'"
-        ).fetchone()
-        rh = json.loads(row[0])
+        # v0.98.5: 黄金数据改从 tests/fixtures/ 加载 (不再读生产库)
+        rh = lbc_history["lbc003"]
 
         orch = DualAgentOrchestrator(config=DualAgentConfig(), llm_client=None)
         sid = "test_v074_lbc003"

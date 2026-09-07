@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sys
 import time
 from pathlib import Path
@@ -65,8 +66,8 @@ def api_get_recent_students():
     """
     try:
         from ecos.persistence.db import Database
-        # 共享 web/ecos.db 同一个 DB
-        db = Database("web/ecos.db")
+        # 共享同一个 DB (v0.98.5: ECOS_DB_PATH 可覆盖, 与 belief.py 一致)
+        db = Database(os.environ.get("ECOS_DB_PATH", "web/ecos.db"))
         # 不调用 init_schema(已存在),只读
         sids = db.load_student_ids(limit=5)
         return jsonify({"students": sids})
