@@ -115,7 +115,8 @@ export default function AnswerPage({ studentId }: { studentId: string }) {
   };
 
   const onSubmit = async () => {
-    if (!q || !answer.trim() || selfConf === null) return;
+    // F-04: 出结果后禁止重复提交 (二次点击会重复计 evidence/信念更新)
+    if (!q || !answer.trim() || selfConf === null || result) return;
     setJudging(true);
     try {
       const jd = await judgeAnswer({
@@ -233,10 +234,10 @@ export default function AnswerPage({ studentId }: { studentId: string }) {
           </button>
           <button
             onClick={onSubmit}
-            disabled={judging || !answer.trim() || selfConf === null}
+            disabled={judging || !answer.trim() || selfConf === null || !!result}
             title={selfConf === null ? "先选一个把握程度" : undefined}
           >
-            {selfConf === null ? "先选把握程度 → 提交" : judging ? "AI 评判中…" : "提交答案"}
+            {result ? "已提交 ✓" : selfConf === null ? "先选把握程度 → 提交" : judging ? "AI 评判中…" : "提交答案"}
           </button>
         </div>
         {hint && (

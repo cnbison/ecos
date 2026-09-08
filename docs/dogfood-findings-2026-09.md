@@ -49,7 +49,7 @@
   - **前端（必修，一行级）**：disabled 加 `!!result`，出结果后文案改「已提交 ✓」之类终态；`onSubmit` 内加 `if (result) return` 双保险
   - **后端（可选，试点前评估）**：`/api/answer` 对同一 `(student_id, problem_id)` 的重复提交做幂等保护（拒绝或覆盖），防其他客户端路径重放。前端修复已覆盖 dogfood 场景，后端幂等可作为独立小项排期
 - **优先级**：P1（一行修复 + 直接污染数据质量）
-- **状态**：⏸ 待拍板
+- **状态**：✅ 已修复（v0.98.7，Bisen 拍板"现在修"）：disabled 加 `!!result` + 出结果后文案终态「已提交 ✓」+ `onSubmit` 内 `if (result) return` 双保险；后端幂等保护仍为可选项，试点前再评估
 
 ## 已知占位项（避免 dogfood 期间误报为 bug）
 

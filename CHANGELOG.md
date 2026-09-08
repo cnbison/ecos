@@ -12,7 +12,21 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
-## [0.98.6] 2026-09-08 — dogfood F-03：cross_subject 元探针出池（方案 A）
+## [0.98.7] 2026-09-08 — dogfood F-04：提交按钮出结果后禁用（防重复提交）
+
+> Bisen dogfood 发现提交后按钮仍可点。出结果后二次点击会重复跑 judge + submit → 同一题在 evidence/信念更新中重复计入，污染 H1 数据。pytest 1593 不变；前端 vitest 36 不变 + build 绿。
+
+### fix
+
+- **MODIFY `web/frontend/src/student/pages/AnswerPage.tsx`**: 提交按钮 disabled 条件补 `!!result`（自评 4 档 chips 同批已有该守卫，提交按钮漏了——F-04 根因）；出结果后文案终态「已提交 ✓」；`onSubmit` 内加 `if (result) return` 双保险
+- **后端幂等保护**（`/api/answer` 对同一 `(student_id, problem_id)` 去重）保持可选项，试点前再评估——前端守卫已覆盖 dogfood 场景
+- 验证方式说明：前端测试体系为 SSR 冒烟级（无交互测试设施），一行守卫配交互测试不成比例，以 tsc/eslint/vitest/build + dogfood 实测复核为准
+
+### 校验
+
+- 版本双源 bump → **0.98.7**；`npm run build` 绿
+
+## [0.98.6] 2026-09-08 — dogfood F-03：cross_subject 元探针出池（方案 A） 2026-09-08 — dogfood F-03：cross_subject 元探针出池（方案 A）
 
 > Bisen dogfood 发现新学生第一题必然是 PC-C01 自评元探针（无真实题目上下文）。方案 A 拍板执行：选题池过滤。pytest 1585 → **1593**（+8 回归测试）。
 
