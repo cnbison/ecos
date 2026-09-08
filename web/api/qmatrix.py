@@ -46,6 +46,30 @@ def get_all_problems() -> list[dict]:
     return _Q_PROBLEMS
 
 
+def is_meta_question(prob: dict) -> bool:
+    """判断是否为 cross_subject 元探针 (PC-C01-05 / PC-X01-05).
+
+    v0.98.6 (dogfood F-03): 元探针**不入学生选题池**。
+    三个理由:
+      1. 元探针预设"存在一道真实配套题"的上下文 (PC-C01 的评分锚是
+         lbc001 在 L3 题上的实际表现), 独立发给新学生时上下文不存在,
+         学生面对"问你对这道题的把握"却没有题, 只有 F (无法判断) 可逃
+      2. 判分锚定静态硬编码, 对掌握度未知的新学生无校准意义
+      3. 与 v0.97.2 强制 4 档自评语义重复
+    ⚠️ 判据是 topic == "cross_subject" **而不是** c_dimension_type 字段:
+    PB-C* 系列 (调试题/错误分析/代码阅读/调试策略, 20 道) 同样带
+    c_dimension_type, 但它们有真实题目上下文 (在真实任务中嵌入元认知),
+    属于正常选题池。数据消费方 (get_question_detail / 教师端统计)
+    仍可见全量 Q 矩阵; 专用渲染 + 动态锚定留 v0.98 试点后 (方案 B)。
+    """
+    return prob.get("topic") == "cross_subject"
+
+
+def get_selectable_problems() -> list[dict]:
+    """学生选题池 = 全量 Q 矩阵 - cross_subject 元问题 (F-03 方案 A)."""
+    return [p for p in get_all_problems() if not is_meta_question(p)]
+
+
 def get_problems_by_topic(topic: str) -> list[dict]:
     return [p for p in get_all_problems() if p["topic"] == topic]
 
@@ -296,7 +320,7 @@ def select_question_for_student(
 
     旧版兼容：is_warmup 默认 False + 无 cov，走"prefer_topics → 随机"逻辑。
     """
-    all_probs = get_all_problems()
+    all_probs = get_selectable_problems()
     unanswered = [p for p in all_probs if p["problem_id"] not in answered_ids]
     if not unanswered:
         return None
