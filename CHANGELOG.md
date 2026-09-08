@@ -12,6 +12,29 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.98.6] 2026-09-08 — dogfood F-03：cross_subject 元探针出池（方案 A）
+
+> Bisen dogfood 发现新学生第一题必然是 PC-C01 自评元探针（无真实题目上下文）。方案 A 拍板执行：选题池过滤。pytest 1585 → **1593**（+8 回归测试）。
+
+### fix
+
+- **MODIFY `web/api/qmatrix.py`**: 新增 `is_meta_question` / `get_selectable_problems`，`select_question_for_student` 选题池过滤 `topic == "cross_subject"`（5 道自评 + 5 道外部支持元探针，warmup/probe/adaptive/legacy 四路径单点收口）
+- **判据关键区分**：过滤判据是 `cross_subject` topic **而非** `c_dimension_type` 字段——PB-C* 系列（调试题/错误分析/代码阅读/调试策略，20 道）同样带该字段但有真实题目上下文（在真实任务中嵌入元认知），必须留在池内（实现时测试先抓出判据过宽，修正）
+- **数据可见性保留**：`get_all_problems` / `get_question_detail` 仍返回全量 Q 矩阵（教师端统计/报告不受影响）
+
+### add
+
+- **NEW `tests/test_qmatrix_meta_filter.py`**（8 tests）: 元探针计数与检测语义 / selectable 池排除 / warmup 首题与 20 轮轮询不出元探针 / adaptive+legacy 路径排除 / PB-C 系列留池 / 数据可见性
+
+### 背景（dogfood F-03 四层根因）
+
+选题池无过滤 + warmup 字母序游标使 cross_subject 必然排首 + PC-C 判分锚定硬编码 lbc001 掌握度（对新学生无校准意义）+ A-F 元探针走代码题渲染且与 v0.97.2 强制 4 档自评语义重复。方案 B（专用渲染 + 动态锚定）留试点后，见 `docs/dogfood-findings-2026-09.md`。
+
+### 校验
+
+- 版本双源 bump: `ecos/__init__.py` + `web/frontend/package.json` → **0.98.6**
+- pytest **1593 全绿**
+
 ## [0.98.5] 2026-09-07 — 测试/生产库隔离收口 + 生产库测试数据清理
 
 > **根因修复**：本地 pytest 经 `get_db()` 等单例默认路径直写生产库 `web/ecos.db`，累积 38 个 test_* 学生 + 1170 条测试 evidence。本轮统一 `ECOS_DB_PATH` 环境变量 + conftest 自动隔离，并清空生产库用户数据（黄金重放数据先行导出为 fixture）。pytest 1585 → **1585**（全绿，且全量跑完后生产库 0 写入实证）；防御性自检全绿。
