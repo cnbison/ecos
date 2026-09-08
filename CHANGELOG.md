@@ -12,7 +12,26 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
-## [0.98.7] 2026-09-08 — dogfood F-04：提交按钮出结果后禁用（防重复提交）
+## [0.98.8] 2026-09-08 — dogfood F-06：写代码题 rubric 补齐（12 道）+ judge prompt 防幻觉
+
+> Bisen dogfood 质疑 PB-Q16 刄分（global 概念全对仅缺冒号判 0，且 reasoning 幻觉「函数体缺少缩进」与原始作答矛盾）。取证确认两层问题：8+4 道写代码题无 rubric 赗二元 prompt；judge 幺觉无审计闭环（F-05）。pytest 1593 → **1598**（+5）。
+
+### fix
+
+- **MODIFY `data/python_basics_q_matrix.json`**: 补 12 道 partial_credit_rubric（4 桺 0.0/0.3/0.6/1.0）——首輪 8 道（PB-Q03/11/14/16/22/24/25/26）+ 回归测试抓出漏判的 4 道（PB-Q07/08/18/20，判据含 `print(` 的宽口径）；顺手修历史数据缺陷 PC-C04 rubric 缺 0.3 桺（3 桺 → 4 桺）
+- **MODIFY `web/api/app.py`** `_build_judge_prompt`（rubric + legacy 双分支）: reasoning 要求「指出错误时必须引用学生答案原文，不得凭空声称不存在的错误」（防幻觉，事后可对照原文审计）——Bisen 拍板方案 B
+- **数据校正**: lbc 的 PB-Q16 记录（response_history correct/score → 1/0.6 + reasoning 标注校正来源；evidence_log 5 行 structured_correctness/quality_score 同步）；⚠️ 增量信念状态已消费过 0 分观测，贝叶斯更新不可逆——dogfood 账号建议重置（见 F-06 状态注）
+
+### add
+
+- **NEW `tests/test_judge_rubric_coverage.py`**（5 tests）: 写代码题必配 rubric（宽口径判据，抓出过首轮清单遗漏）/ rubric 4 桺完整性（抓出 PC-C04 历史缺陷）/ PB-Q16 当事题断言 / prompt 双分支防幻觉要求（防御性自检 [7]: 改 prompt 必加测试）
+- **MODIFY `tests/test_judge_rubric.py`**: legacy prompt 测试的「无 rubric 样本题」PB-Q26 → PB-Q01（PB-Q26 已补 rubric）
+
+### 校验
+
+- pytest **1598 全绿**；版本双源 bump → **0.98.8**
+
+## [0.98.7] 2026-09-08 — dogfood F-04：提交按钮出结果后禁用（防重复提交） 2026-09-08 — dogfood F-04：提交按钮出结果后禁用（防重复提交）
 
 > Bisen dogfood 发现提交后按钮仍可点。出结果后二次点击会重复跑 judge + submit → 同一题在 evidence/信念更新中重复计入，污染 H1 数据。pytest 1593 不变；前端 vitest 36 不变 + build 绿。
 
