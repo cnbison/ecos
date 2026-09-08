@@ -148,6 +148,8 @@ export default function AnswerPage({ studentId }: { studentId: string }) {
         score: jd.score ?? (jd.correct ? 1 : 0),
         reasoning: jd.reasoning ?? "",
       });
+      // F-07: 刷新通俗化备注 (report query 只在挂载时 fetch, 不刷会冻结在进页快照)
+      void report.refetch();
       if (idleTimer.current !== null) window.clearTimeout(idleTimer.current);
     } catch (e) {
       window.alert((e as Error).message);

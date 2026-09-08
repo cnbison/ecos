@@ -12,7 +12,20 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
-## [0.98.8] 2026-09-08 — dogfood F-06：写代码题 rubric 补齐（12 道）+ judge prompt 防幻觉
+## [0.98.9] 2026-09-08 — dogfood F-07：答题页通俗化备注提交后即时刷新
+
+> Bisen dogfood 发现连续答题后备注仍显示「已完成 0 次答题」。report query 只在页面挂载时 fetch，提交后仅刷新下一题，备注冻结在进页快照。pytest 1598 不变；前端 build 绿。
+
+### fix
+
+- **MODIFY `web/frontend/src/student/pages/AnswerPage.tsx`**: `onSubmit` 成功后 `void report.refetch()`——通俗化备注（interpretation.overall）随每次提交即时刷新。只读重取，不碰答题流/数据层
+- 附注：新账号「整体置信度 0.00」为 BeliefState 默认值（`overall_confidence=0.0`），数值本身非 bug；F-07 冻结修复后随答题正常演化
+
+### 校验
+
+- 版本双源 bump → **0.98.9**；`npm run build` 绿
+
+## [0.98.8] 2026-09-08 — dogfood F-06：写代码题 rubric 补齐（12 道）+ judge prompt 防幻觉 2026-09-08 — dogfood F-06：写代码题 rubric 补齐（12 道）+ judge prompt 防幻觉
 
 > Bisen dogfood 质疑 PB-Q16 刄分（global 概念全对仅缺冒号判 0，且 reasoning 幻觉「函数体缺少缩进」与原始作答矛盾）。取证确认两层问题：8+4 道写代码题无 rubric 赗二元 prompt；judge 幺觉无审计闭环（F-05）。pytest 1593 → **1598**（+5）。
 
