@@ -99,6 +99,15 @@
 - **优先级**：P1（会话连续性 + 系统性隐患；数据本身无损）
 - **状态**：📋 已重启处置，预防项待拍板
 
+### F-09 答题时延信号未采集，evidence `raw_response_time` 恒 0（2026-09-08）
+
+- **现象**：dogfood 13 题的 evidence 行 `raw_response_time` 全部为 0.0
+- **根因（已查实）**：全链路无采集——前端 `AnswerPage` 提交 payload 不含时延字段，后端 `submit_answer` 也不填写；`raw_response_time` 列是 v0.83 evidence schema 的一部分，但**从未有生产者**（又一处 built≠wired，schema 建了、链路没接）
+- **影响**：F-02 的 frustration 候选信号之一（答题时延异常）与 H1 数据（作答速度与掌握的关系）都依赖此字段；试点前不接，试点数据回来这块就是空白
+- **方案建议（试点前做，改动小）**：前端 CodeEditor 挂载→提交计时，`submitAnswer` payload 加 `response_time`；后端 evidence 写入该列。一处前端 + 一处后端
+- **优先级**：P2（不阻塞答题流；但属"试点信号采集完整性"，建议与 F-05 同批次）
+- **状态**：⏸ 待拍板
+
 ## 已知占位项（避免 dogfood 期间误报为 bug）
 
 以下为 v0.98.5 时点已知的「有意未接」项，见 `docs/for-partners.md` §九诚实标注表：
