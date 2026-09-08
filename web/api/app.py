@@ -297,7 +297,8 @@ def _build_judge_prompt(
 请以 JSON 格式返回评判结果（只返回 JSON，不要其他内容）：
 {{"score": 0.0/0.3/0.6/1.0, "correct": true/false, "reasoning": "按 rubric 哪一档, 简短说明（1-2句话）"}}
 
-注: correct 派生自 score (score >= 0.6 → correct=true, 否则 false), 但 score 是核心字段, 优先按 score 评分.
+注 1: correct 派生自 score (score >= 0.6 → correct=true, 否则 false), 但 score 是核心字段, 优先按 score 评分.
+注 2: reasoning 中指出学生错误时, **必须引用学生答案原文中的对应内容**作为依据, 不得凭空声称学生答案中不存在的错误 (v0.98.8 F-06: 防幻觉, 事后可对照原文审计).
 """
     else:
         # 老 prompt (无 rubric): 二元 correct
@@ -314,6 +315,8 @@ def _build_judge_prompt(
 
 请以 JSON 格式返回评判结果（只返回 JSON，不要其他内容）：
 {{"correct": true/false, "reasoning": "简短说明为什么对或错（1-2句话）"}}
+
+注: reasoning 中指出学生错误时, **必须引用学生答案原文中的对应内容**作为依据, 不得凭空声称学生答案中不存在的错误 (v0.98.8 F-06: 防幻觉, 事后可对照原文审计).
 """
 
 

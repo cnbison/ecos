@@ -313,8 +313,9 @@ class TestJudgeEndpointRubric:
         with patch("web.api.app.get_llm", return_value=fake_llm):
             resp = flask_client.post("/api/judge", json={
                 "student_id": "lbc001",
-                "problem_id": "PB-Q26",  # 无 rubric
-                "student_answer": "def ...",
+                # v0.98.8: PB-Q26 已补 rubric (F-06), 改用仍无 rubric 的输出题
+                "problem_id": "PB-Q01",  # 无 rubric
+                "student_answer": "5",
             })
 
         if resp.status_code == 200:
