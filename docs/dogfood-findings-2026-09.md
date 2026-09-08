@@ -51,6 +51,15 @@
 - **优先级**：P1（一行修复 + 直接污染数据质量）
 - **状态**：✅ 已修复（v0.98.7，Bisen 拍板"现在修"）：disabled 加 `!!result` + 出结果后文案终态「已提交 ✓」+ `onSubmit` 内 `if (result) return` 双保险；后端幂等保护仍为可选项，试点前再评估
 
+### F-05 LLM judge 调用元数据不落库，无法事后审计（2026-09-08）
+
+- **现象**：dogfood 期间 Bisen 询问"AI 评判是否用了 MiniMax"，DB 层无法直接回答——只能靠 response_history 的 reasoning 文本间接推断（内容为 LLM 定制生成 + 判定成功本身证明 LLM 被调用，因 judge 失败不降级 → 422）
+- **根因（已查实）**：`evidence_log` 的 `llm_critic_output / llm_critic_temperature / llm_critic_tokens` 字段全空是**设计使然**——那组字段属于 v0.83 Evidence Critic 路径，与 `/api/judge` 是两条链路；judge 的调用元数据（model / attempts / tokens / latency）**没有任何落库点**
+- **影响**：事后无法从 DB 审计每道题的评判来源（哪个模型 / 几次 retry / 多少 token / 是否降级重试过）。试点 5-10 学生 × ≥50 题 × 4 周会产生数百次 judge 调用，缺乏审计能力时，成本核算（LLM API 预算）与异常排查（某题判分可疑时回溯调用详情）都只能靠服务端 stdout，而 stdout 不持久
+- **方案建议**：judge 落库元数据表（或复用 evidence_log 增列）——problem_id / student_id / provider + model / attempts / tokens / latency_ms / raw_output 摘要。改动小（judge 成功路径一处写入），试点前完成
+- **优先级**：P2（不阻塞答题流，但试点前做完能直接支撑成本核算与判分审计）
+- **状态**：📋 已拍板待做（试点前批次）
+
 ## 已知占位项（避免 dogfood 期间误报为 bug）
 
 以下为 v0.98.5 时点已知的「有意未接」项，见 `docs/for-partners.md` §九诚实标注表：
