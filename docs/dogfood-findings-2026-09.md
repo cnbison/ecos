@@ -83,6 +83,20 @@
 - **优先级**：P2（纯前端展示，不碰数据层；但信任损害与 F-04 同类）
 - **状态**：✅ 已修复（v0.98.9，Bisen 拍板"现在修"）：onSubmit 成功后 `void report.refetch()`；只读重取，不影响答题流与数据层
 
+### F-08 刷新后「答题为 0」：debug reloader 静默重启 + 恢复异常（2026-09-08）
+
+- **现象**：答了 3 题后刷新浏览器，界面显示 0 题
+- **数据安全（最先确认）**：DB 完好——response_history 3 条（PB-Q05/12/15 全对）+ evidence 10 行 + event 6 条 + calibration 3 条，无中断写入
+- **根因第一层（已实锤）**：Flask debug reloader 双进程（父监视 + 子 worker）。**15:21:49 Claude 为 v0.98.9 bump `ecos/__init__.py` → 15:21:50 reloader 自动重启 worker 子进程**（`ecos/__init__.py` mtime 与子进程启动时间精确匹配）——内存 `_STUDENT_STATES` 丢失。**修前端 bug 的版本号动作重启了正在答题的后端**，双方事先都不知道这个联动
+- **根因第二层（未解，代码已排除）**：新 worker 本应从 DB 恢复（`_get_or_create_student` restore 路径），但实际返回 warmup=0 / trajectory=0。已三次验证恢复代码本身正确（隔离进程调 `_get_or_create_student` + 完整 `get_student_state` 均正确恢复 3 题/置信度 0.5151）——线上 worker 的缓存项被**无恢复路径**创建（fresh 分支），但 fresh 分支要求 `load_student_state` 返回 None，与行存在矛盾。诊断需要 worker 的 stderr（"DB 恢复失败" warning），该输出只在用户终端
+- **即时处置**：重启后端 → 内存缓存从 DB 重建（恢复路径已验证）
+- **预防方案（建议）**：
+  1. **dogfood/试点不用 debug reloader**（如 `ECOS_FLASK_DEBUG=0` 或启动命令去 debug）——会话中任何后端 .py 变更都静默重启并丢内存状态，dev 便利性与会话连续性冲突
+  2. **协作纪律**：dogfood 进行中 Claude 改任何后端 .py 前先声明"会触发后端重启"
+  3. 恢复异常若复现，凭 stderr 日志追查（F-05 式审计思路）
+- **优先级**：P1（会话连续性 + 系统性隐患；数据本身无损）
+- **状态**：📋 已重启处置，预防项待拍板
+
 ## 已知占位项（避免 dogfood 期间误报为 bug）
 
 以下为 v0.98.5 时点已知的「有意未接」项，见 `docs/for-partners.md` §九诚实标注表：
