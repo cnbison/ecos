@@ -12,6 +12,29 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.99.2] 2026-09-09 — F-12/F-13：家长端干预字段对齐 + LCA 决策可见化
+
+> dogfood 三轮发现（Bisen 观察教师端/家长端 + "27 题未见系统干预"询问）。记录先行（e1709b8），修复后状态回写。pytest 1613。
+
+### add
+
+- **`ecos/lca/intervention.py`** `Intervention` 新增 `created_at` 字段：构造时自动打点 isoformat（datetime.now），to_dict/from_dict 带上；历史持久化记录无此键 → from_dict 恢复 None（硬规则 #6：不写迁移脚本，旧记录时间列显示 "—" 可接受，derived 数据）
+- **`web/frontend/src/student/pages/AnswerPage.tsx`**（F-13 最小改动）：卡片底部「系统决策（LCA）」折叠区（`<details>` 原生元素，零新 CSS class），只读渲染 `/api/question` 返回的 `lca_decision`（intervention_type / bloom_target / clt_level 中文标签 + expected_gain / expected_risk）——LCA 决策层首度对学生可见，试点期间可观测决策分布，不影响选题逻辑
+- **`tests/test_intervention_created_at.py`**：5 测试（构造自动打点 / JSON 可序列化 / to_dict 字段名锚——`timestamp`/`rationale_text` 不复活 / 往返保真 / 历史记录恢复 None / 显式时间戳不被覆盖）
+
+### fix
+
+- **F-12 家长端「学习安排记录」字段错配**（真 bug）：`parent/Cards.tsx` 读 `it.timestamp` / `it.rationale_text`，而 `Intervention.to_dict()` 真实字段是 `created_at`（原不存在）/ `rationale` → 时间列全空、说明列全 "—" 而 rationale 实有完整内容。修复：`parent/api.ts` `InterventionItem` 类型对齐 + `Cards.tsx` 改读 `created_at` / `rationale`
+- **F-13**（同上 add 条）：`lca_decision` 此前仅存在于 `student/types.ts:80` 类型定义、从不渲染；`/api/intervention/<sid>` dead endpoint 维持现状（试点后随 06 文档"教练干预"区域一并接入）
+
+### 校验
+
+- pytest 全绿（新增 `tests/test_intervention_created_at.py` 5 项；`test_lca_persistence.py` / `test_planner_view_wiring.py` 回归通过）；前端 tsc / eslint / vitest 36 全绿
+- 防御性自检 #8 同类扫描：`rationale_text` 全项目仅家长端 2 处（已修）；教师端干预历史表无时间/说明列，无同类错配
+- dogfood 清单：F-12 / F-13 状态回写 ✅；「已知占位项」表新增 2 行（POMDP 诊断/家长建议恒空 = LinUCB policy 未切 POMDP，设计内；A2 证据 0 行 = reconcile 需命中后同 skill 下一条响应，设计内数据积累）
+
+
+
 ## [0.99.1] 2026-09-09 — F-08 二层异常复现 + 恢复路径加装诊断日志
 
 > Bisen 重启后端后再次出现「答题为 0」（F-08 二层第二次复现，确认**间歇性**——昨日第二次重启后恢复正常并答至 21 题）。数据无损（21 题全在 DB），恢复代码 4 次隔离复现（含完整 server 上下文 + 真实 DB 副本）全部正确——代码对、环境/时序错。pytest 1607 不变。

@@ -139,7 +139,7 @@
   - 前端 `Cards.tsx` 改读 `rationale`（1 行）
   - `Intervention` 增加 `created_at` 字段（LCAEngine 生成干预时赋值，to_dict/from_dict 带上）——⚠️ 硬规则 #6 警告：**已有 7 条历史记录无时间戳，新字段只对新记录生效**，旧记录时间列显示 "—" 可接受，不写迁移脚本（derived 数据）
 - **优先级**：P1（家长是试点直接参与者，家长端交付 3 天即显示残缺表格，直接伤害试点观感）
-- **状态**：📋 已拍板待做
+- **状态**：✅ 已修复（v0.99.2）：前端改读 `rationale` / `created_at`（含类型定义对齐）；`Intervention` 新增 `created_at`（构造自动打点，to_dict/from_dict 带上）；5 个回归测试（含历史记录无 created_at 恢复 None + 旧字段名不复活锚）。教师端干预历史表无时间/说明列，无同类错配（#8 扫描）
 
 ### F-13 LCA 干预决策层完全不可见：学生端不渲染 + 干预端点 dead（2026-09-09）
 
@@ -153,7 +153,7 @@
   - **最小改动（试点前）**：AnswerPage 渲染 `lca_decision` 折叠区（intervention_type/bloom_target/clt_level/ca_stage/expected_gain/expected_risk），试点期间可观测 LCA 决策分布，不动选题逻辑
   - **06 文档完整补全（试点后）**："教练干预"区域 + misconception 靶向干预接入——依赖误解检测数据积累（当前仅 1 条），现在做是空壳
 - **优先级**：P2（不影响数据链路，影响试点观测能力）
-- **状态**：📋 最小改动已拍板待做；完整补全试点后
+- **状态**：✅ 最小改动已落地（v0.99.2）：AnswerPage 卡片底部「系统决策（LCA）」折叠区（details 原生元素，零新 CSS class），渲染 intervention_type / bloom_target / clt_level / expected_gain / expected_risk 中文标签。完整补全（06 文档"教练干预"区域 + misconception 靶向干预接入）仍为试点后
 
 ## Dogfood 二轮验证结论（2026-09-09，v0.99.0 四链路收口核验）
 

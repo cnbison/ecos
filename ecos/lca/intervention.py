@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
 from typing import List, Optional
 
@@ -92,6 +93,7 @@ class Intervention:
         estimated_duration_sec: 预计时长（秒）
         rationale:          自然语言理由（学生/教师/家长视角，由 RationaleGenerator 填充）
         metadata:           扩展字段（持久化 / 教师后台接口用）
+        created_at:         干预生成时间（isoformat；构造时自动打点，历史记录恢复为 None）
     """
 
     intervention_type: InterventionType
@@ -112,6 +114,12 @@ class Intervention:
     rationale: Optional[str] = None
     intervention_id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
     metadata: dict = field(default_factory=dict)
+    # v0.99.2 (F-12): 干预生成时间 (isoformat), 家长端/教师端时间列展示用.
+    #   构造时自动打点; 历史持久化记录无此字段 → from_dict 恢复为 None
+    #   (前端显示 "—" 可接受, 不写迁移脚本, 硬规则 #6)
+    created_at: Optional[str] = field(
+        default_factory=lambda: datetime.now().isoformat()
+    )
 
     # ---------------------------------------------------------------
     # 工具方法
@@ -138,6 +146,7 @@ class Intervention:
             "estimated_duration_sec": self.estimated_duration_sec,
             "rationale": self.rationale,
             "metadata": dict(self.metadata),
+            "created_at": self.created_at,
         }
 
     @classmethod
@@ -169,6 +178,7 @@ class Intervention:
             estimated_duration_sec=int(d.get("estimated_duration_sec", 600)),
             rationale=d.get("rationale"),
             metadata=dict(d.get("metadata", {})),
+            created_at=d.get("created_at"),
         )
 
 

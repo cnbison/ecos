@@ -154,9 +154,9 @@ export function InterventionHistoryCard({
           <tbody>
             {interventions.map((it) => (
               <tr key={it.intervention_id}>
-                <td className="muted">{(it.timestamp ?? "").slice(0, 10)}</td>
+                <td className="muted">{(it.created_at ?? "").slice(0, 10) || "—"}</td>
                 <td>{it.intervention_type ?? "—"}</td>
-                <td className="muted">{it.rationale_text ?? "—"}</td>
+                <td className="muted">{it.rationale ?? "—"}</td>
               </tr>
             ))}
           </tbody>

@@ -45,9 +45,11 @@ export interface FiveDOverview {
 
 export interface InterventionItem {
   intervention_id: string;
-  timestamp: string;
+  /** v0.99.2 (F-12): 对齐 Intervention.to_dict() 字段名 (原 timestamp/rationale_text 为错配)。
+   *  created_at 仅新记录有值; 历史持久化记录无此字段 → null (UI 显示 "—")。 */
+  created_at?: string | null;
   intervention_type?: string;
-  rationale_text?: string | null;
+  rationale?: string | null;
   [key: string]: unknown;
 }
 

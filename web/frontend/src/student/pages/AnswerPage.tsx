@@ -21,6 +21,21 @@ const SELF_CONFIDENCE_OPTIONS: { label: string; value: number }[] = [
   { label: "可能不会", value: 0.3 },
 ];
 
+// v0.99.2 (F-13): LCA 决策元数据中文标签 (只读展示, 不影响选题逻辑)
+const LCA_INTERVENTION_LABELS: Record<string, string> = {
+  EXPLANATORY: "讲解型",
+  PRACTICE: "练习型",
+  INQUIRY: "探究型",
+  FEEDBACK: "反馈型",
+  METACOGNITIVE: "元认知型",
+};
+const LCA_CLT_LABELS: Record<string, string> = {
+  NOVICE: "新手（完整示例）",
+  DEVELOPING: "发展中（部分示例）",
+  PROFICIENT: "熟练（独立解题）",
+  EXPERT: "专家（延迟反馈）",
+};
+
 export default function AnswerPage({ studentId }: { studentId: string }) {
   const [answer, setAnswer] = useState("");
   const [judging, setJudging] = useState(false);
@@ -251,6 +266,20 @@ export default function AnswerPage({ studentId }: { studentId: string }) {
             <div className="hint-title"><Icon icon={Lightbulb} size={16} /> 提示</div>
             <div className="hint-text">{hint}</div>
           </div>
+        )}
+        {/* v0.99.2 (F-13): LCA 干预决策只读展示（试点观测用; 后端 passthrough 元数据,
+            不影响选题。折叠默认收起, 不打断答题流） */}
+        {q!.lca_decision && (
+          <details className="muted" style={{ marginTop: 10, fontSize: 13 }}>
+            <summary style={{ cursor: "pointer" }}>系统决策（LCA）</summary>
+            <div style={{ marginTop: 6, lineHeight: 1.8 }}>
+              干预类型：{LCA_INTERVENTION_LABELS[q!.lca_decision.intervention_type] ?? q!.lca_decision.intervention_type}
+              <br />
+              目标层级：{q!.lca_decision.bloom_target} · 呈现级别：{LCA_CLT_LABELS[q!.lca_decision.clt_level] ?? q!.lca_decision.clt_level}
+              <br />
+              预期增益：{q!.lca_decision.expected_gain} · 预期风险：{q!.lca_decision.expected_risk}
+            </div>
+          </details>
         )}
       </div>
 
