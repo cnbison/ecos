@@ -211,8 +211,10 @@ def _call_llm_judge_with_retry(llm: ECOSLLMClient, prompt: str):
         prompt: 评判 prompt
 
     Returns:
-        (result_dict, attempt_count) 成功
-        (None, attempt_count) 全部失败
+        (result_dict, attempt_count, last_raw_response) 成功
+        (None, attempt_count, last_raw_response) 全部失败
+        v0.99.0 (F-05): 第三元素 = 最后一次 LLM 原始返回 (审计落库用),
+        全部 chat 异常时为 None
 
     防御性自检 [1]: 每次重试失败必须 _log.warning(..., exc_info=True), 不能 silent pass.
     防御性自检 [6] (v0.56.1 新增): 不写启发式 fallback 替代 AI 评判.
@@ -220,6 +222,7 @@ def _call_llm_judge_with_retry(llm: ECOSLLMClient, prompt: str):
     """
     delays = [0.1, 0.5, 2.0]  # 短-中-长 (s), Bisen 拍板 2026-07-24
     max_attempts = 3
+    last_raw: str | None = None  # v0.99.0 (F-05): 审计用
 
     for attempt in range(1, max_attempts + 1):
         try:
@@ -228,6 +231,7 @@ def _call_llm_judge_with_retry(llm: ECOSLLMClient, prompt: str):
                 temperature=0.1,
                 strip_think=True,
             )
+            last_raw = raw
 
             # 解析 JSON
             try:
@@ -237,7 +241,7 @@ def _call_llm_judge_with_retry(llm: ECOSLLMClient, prompt: str):
                     raise ValueError(
                         f"LLM response missing both 'correct' and 'score' fields: {(raw or '')[:100]}"
                     )
-                return result, attempt
+                return result, attempt, last_raw
             except (json.JSONDecodeError, ValueError) as parse_err:
                 _log.warning(
                     "/api/judge: LLM JSON parse 失败 (attempt %d/%d): %s, raw_truncated=%s",
@@ -255,7 +259,7 @@ def _call_llm_judge_with_retry(llm: ECOSLLMClient, prompt: str):
                 time.sleep(delays[attempt - 1])
             continue
 
-    return None, max_attempts
+    return None, max_attempts, last_raw
 
 
 def _build_judge_prompt(
@@ -397,7 +401,37 @@ def api_judge_answer():
         )
 
         llm = get_llm()
-        result, attempts = _call_llm_judge_with_retry(llm, prompt)
+        # v0.99.0 (F-05): 调用审计 (model/attempts/latency/raw_output 落库,
+        # 成功与失败路径都记 — 判分争议回溯 + LLM 成本核算)
+        import time as _time
+        _judge_started = _time.monotonic()
+        result, attempts, last_raw = _call_llm_judge_with_retry(llm, prompt)
+        _judge_latency_ms = (_time.monotonic() - _judge_started) * 1000.0
+
+        def _write_judge_audit(judged: bool, error_code: str | None) -> None:
+            """审计落库 (fail-open: 写失败只 warning, 不影响判分响应)."""
+            try:
+                from web.api.belief import _get_db
+                _get_db().save_judge_audit(
+                    student_id=student_id,
+                    problem_id=problem_id,
+                    provider=(
+                        llm.config.provider.value
+                        if hasattr(llm.config.provider, "value")
+                        else str(llm.config.provider)
+                    ),
+                    model=llm.config.model,
+                    attempts=attempts,
+                    latency_ms=_judge_latency_ms,
+                    judged=judged,
+                    error_code=error_code,
+                    raw_output=last_raw,
+                )
+            except Exception:
+                _log.warning(
+                    "/api/judge: 审计落库失败 (student=%s, problem=%s)",
+                    student_id, problem_id, exc_info=True,
+                )
 
         if result is None:
             # 3 次 retry 全部失败: 显式 fail, **不污染任何 state**
@@ -407,6 +441,7 @@ def api_judge_answer():
                 "返回 422 显式 fail, state 不污染",
                 attempts, student_id, problem_id,
             )
+            _write_judge_audit(judged=False, error_code="LLM_JUDGE_FAILED")
             return jsonify({
                 "judged": False,
                 "error": "AI 评判服务故障，请稍后重试或跳过此题",
@@ -419,6 +454,8 @@ def api_judge_answer():
 
         # v0.58.0: 用 _parse_judge_result 解析 (score 优先 correct)
         correct, score, reasoning = _parse_judge_result(result)
+        # v0.99.0 (F-05): 成功路径审计落库
+        _write_judge_audit(judged=True, error_code=None)
         # v0.58.0: log info (partial credit 评分启用)
         _log.info(
             "/api/judge: LLM 评判成功 (student=%s, problem=%s, rubric=%s, "
@@ -492,7 +529,12 @@ def api_submit_answer():
             except (TypeError, ValueError):
                 score = 1.0 if correct else 0.0  # 非数字 fallback
         bloom_layer = data.get("bloom_layer", "L2")
-        explanation_text = data.get("explanation_text", "")
+        # v0.99.0 (F-10): explanation_text 前端从不传 → 恒空 → 误解检测器
+        #   (detect_with_hits 的 student_explanation 输入) 21 题 0 触发,
+        #   M1-M8 误解库空转. fallback 到 user_answer (学生的解释文字实际
+        #   都写在这里, 如 PB-Q04 的引用语义误解解释).
+        user_answer = data.get("user_answer", "")  # v0.49.2
+        explanation_text = data.get("explanation_text", "") or user_answer
         reasoning = data.get("reasoning", "")
         # v0.97.2: 提交前自评置信度 (optional, None = 未自评)
         #   非数字 → warning + 记为未自评 (诚实降级; 自评是观测数据不是 state,
@@ -510,6 +552,17 @@ def api_submit_answer():
                 )
             if sc is not None and 0.0 <= sc <= 1.0:
                 self_confidence = sc
+        # v0.99.0 (F-09): 答题时延秒 (optional, 非数字/负数 → 0.0 + warning 不 silent)
+        raw_rt = data.get("response_time")
+        response_time = 0.0
+        if raw_rt is not None:
+            try:
+                response_time = max(0.0, float(raw_rt))
+            except (TypeError, ValueError):
+                _log.warning(
+                    "/api/answer: response_time 非数字 (%r), 记为 0.0",
+                    raw_rt,
+                )
 
         result = submit_answer(
             student_id=student_id,
@@ -518,7 +571,7 @@ def api_submit_answer():
             correct=correct,
             bloom_layer=bloom_layer,
             explanation_text=explanation_text,
-            user_answer=data.get("user_answer", ""),  # v0.49.2
+            user_answer=user_answer,  # v0.49.2 (v0.99.0: 提前解析, 供 F-10 fallback)
             correct_answer=data.get("correct_answer", ""),  # v0.49.2
             # v0.52.2: AI reasoning 传给 submit_answer, 存进 response_history
             ai_reasoning=reasoning,
@@ -526,6 +579,8 @@ def api_submit_answer():
             score=score,
             # v0.97.2: 提交前自评 (None = 未自评)
             self_confidence=self_confidence,
+            # v0.99.0 (F-09): 答题时延落 evidence raw_response_time
+            response_time_sec=response_time,
         )
         result["reasoning"] = reasoning
 

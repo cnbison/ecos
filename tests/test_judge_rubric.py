@@ -179,7 +179,7 @@ class TestCallLLMJudgeRetryDefensive8:
             "chat": lambda self, **kwargs: json.dumps({"reasoning": "ok"})
         })()
 
-        result, attempts = _call_llm_judge_with_retry(fake_llm, "fake prompt")
+        result, attempts, _last_raw = _call_llm_judge_with_retry(fake_llm, "fake prompt")
         # 3 次都 parse 失败 → (None, 3)
         assert result is None
         assert attempts == 3
@@ -192,7 +192,7 @@ class TestCallLLMJudgeRetryDefensive8:
             "chat": lambda self, **kwargs: json.dumps({"score": 0.6, "reasoning": "ok"})
         })()
 
-        result, attempts = _call_llm_judge_with_retry(fake_llm, "fake prompt")
+        result, attempts, _last_raw = _call_llm_judge_with_retry(fake_llm, "fake prompt")
         assert result is not None
         assert result["score"] == 0.6
         assert attempts == 1
@@ -205,7 +205,7 @@ class TestCallLLMJudgeRetryDefensive8:
             "chat": lambda self, **kwargs: json.dumps({"correct": True, "reasoning": "ok"})
         })()
 
-        result, attempts = _call_llm_judge_with_retry(fake_llm, "fake prompt")
+        result, attempts, _last_raw = _call_llm_judge_with_retry(fake_llm, "fake prompt")
         assert result is not None
         assert result["correct"] is True
         assert attempts == 1

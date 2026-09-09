@@ -216,7 +216,7 @@ def main():
             student_answer=user_answer,
             partial_credit_rubric=partial_credit_rubric,
         )
-        result, attempts = _call_llm_judge_with_retry(llm, prompt)
+        result, attempts, _last_raw = _call_llm_judge_with_retry(llm, prompt)
 
         if result is None:
             # 3 次 retry 失败: 标 needs_rejudge=True, score=None

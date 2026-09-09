@@ -110,8 +110,8 @@ def rejudge_with_retry(llm_client, prompt: str) -> tuple[dict | None, int]:
     """调 web.api.app._call_llm_judge_with_retry (Bisen 原则 retry).
 
     Returns:
-        (result_dict, attempts) on success
-        (None, attempts) on failure
+        (result_dict, attempts, last_raw) on success (v0.99.0: 3 元组)
+        (None, attempts, last_raw) on failure
     """
     from web.api.app import _call_llm_judge_with_retry
     return _call_llm_judge_with_retry(llm_client, prompt)
@@ -208,7 +208,7 @@ def main():
                 continue
 
             prompt = build_judge_prompt(problem_text, correct_answer, user_answer)
-            result, attempts = rejudge_with_retry(llm, prompt)
+            result, attempts, _last_raw = rejudge_with_retry(llm, prompt)
 
             if result is None:
                 # 3 次 retry 失败: 标 needs_rejudge=True, score 写 None

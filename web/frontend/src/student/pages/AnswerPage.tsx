@@ -42,6 +42,8 @@ export default function AnswerPage({ studentId }: { studentId: string }) {
   const goalBaseline = useRef<string | null>(null);
   const idleTimer = useRef<number | null>(null);
   const lastInput = useRef<number>(Date.now());
+  // v0.99.0 (F-09): 题目加载→提交的时延计时 (evidence raw_response_time)
+  const questionLoadedAt = useRef<number>(Date.now());
 
   const question = useQuery({
     queryKey: ["question", studentId],
@@ -77,6 +79,7 @@ export default function AnswerPage({ studentId }: { studentId: string }) {
     setReflectionSent(false);
     setSelfConf(null);
     lastInput.current = Date.now();
+    questionLoadedAt.current = Date.now();  // v0.99.0 (F-09)
   }, [q?.problem_id, studentId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const resetIdle = useCallback(() => {
@@ -139,6 +142,7 @@ export default function AnswerPage({ studentId }: { studentId: string }) {
         correct_answer: "",
         reasoning: jd.reasoning ?? "",
         self_confidence: selfConf,
+        response_time: Math.max(0, Math.round((Date.now() - questionLoadedAt.current) / 1000)),
       });
       if (res && (res as { persisted?: boolean }).persisted === false) {
         window.alert("持久化失败，刷新后此题结果可能丢失");

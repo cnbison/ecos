@@ -617,6 +617,9 @@ def submit_answer(
     # v0.97.2: 提交前自评置信度 0.0-1.0 (None = 未自评/老调用方)
     #   只采集进 history_entry + event_log payload, 本期不参与任何引擎更新
     self_confidence: float | None = None,
+    # v0.99.0 (F-09): 答题时延秒 (前端题目加载→提交)。此前 raw_response_time
+    #   列恒 0 (Observation 字段在但无生产者) — F-02 候选信号 + H1 数据依赖
+    response_time_sec: float = 0.0,
 ) -> dict[str, Any]:
     """提交答案 → BeliefEngine.update() → 返回干预建议(如果需要)。
 
@@ -672,6 +675,7 @@ def submit_answer(
         correct_answer=correct_answer,
         ai_reasoning=ai_reasoning,  # v0.52.2: 存 AI reasoning
         self_confidence=self_confidence,  # v0.97.2: 提交前自评
+        response_time_sec=response_time_sec,  # v0.99.0 (F-09): 时延落 evidence
     )
 
     # v0.84.0-d: Plugin SDK 雏形 - produce event, Runtime subscriber 处理

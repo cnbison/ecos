@@ -113,7 +113,7 @@ class TestJudgeHelperRetry:
         valid_json = json.dumps({"correct": True, "reasoning": "对"})
         fake_llm = FakeLLM(plan=valid_json)
 
-        result, attempts = _call_llm_judge_with_retry(fake_llm, "fake prompt")
+        result, attempts, _last_raw = _call_llm_judge_with_retry(fake_llm, "fake prompt")
 
         assert result is not None
         assert result["correct"] is True
@@ -128,7 +128,7 @@ class TestJudgeHelperRetry:
         valid_json = json.dumps({"correct": True, "reasoning": "对"})
         fake_llm = FakeLLM(plan=[invalid_json, valid_json])
 
-        result, attempts = _call_llm_judge_with_retry(fake_llm, "fake prompt")
+        result, attempts, _last_raw = _call_llm_judge_with_retry(fake_llm, "fake prompt")
 
         assert result is not None
         assert result["correct"] is True
@@ -141,7 +141,7 @@ class TestJudgeHelperRetry:
 
         # 3 次都返回非 JSON
         fake_llm = FakeLLM(plan=["invalid1", "invalid2", "invalid3"])
-        result, attempts = _call_llm_judge_with_retry(fake_llm, "fake prompt")
+        result, attempts, _last_raw = _call_llm_judge_with_retry(fake_llm, "fake prompt")
 
         assert result is None
         assert attempts == 3
@@ -172,7 +172,7 @@ class TestJudgeHelperRetry:
                 raise RuntimeError("mock LLM down")
 
         with caplog.at_level(logging.WARNING):
-            result, attempts = _call_llm_judge_with_retry(RaisingLLM(), "fake prompt")
+            result, attempts, _last_raw = _call_llm_judge_with_retry(RaisingLLM(), "fake prompt")
 
         assert result is None
         assert attempts == 3
@@ -188,7 +188,7 @@ class TestJudgeHelperRetry:
         good_json = json.dumps({"correct": True, "reasoning": "ok"})
         fake_llm = FakeLLM(plan=[bad_json, good_json])
 
-        result, attempts = _call_llm_judge_with_retry(fake_llm, "fake prompt")
+        result, attempts, _last_raw = _call_llm_judge_with_retry(fake_llm, "fake prompt")
 
         assert result is not None
         assert result["correct"] is True

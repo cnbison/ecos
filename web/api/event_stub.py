@@ -97,7 +97,12 @@ def _build_hint(problem) -> str:
 
 
 def _emit_event(student_id: str, event) -> Dict[str, Any]:
-    """Helper: emit event to default bus + return {event_id, status}.
+    """Helper: emit event to default bus + persist to event_log + return {event_id, status}.
+
+    v0.99.0 (F-11): 此前只 publish 到进程内 bus, 无任何 subscriber 落库,
+    hint/idle/goal_change/reflection 重启即蒸发 (Bisen 的反思笔记实测丢失).
+    现追加写 event_log 表 (复用 belief._get_web_event_log 的 retention 配置).
+    失败不阻断响应 (fail-open + warning 留痕), 与既有防御风格一致.
 
     Returns:
         {"event_id": str, "student_id": str, "status": "logged"}
@@ -111,6 +116,16 @@ def _emit_event(student_id: str, event) -> Dict[str, Any]:
         _log.warning(
             "event_stub: emit event 失败 (sid=%s, type=%s), "
             "event 不写, response 仍正常返回",
+            student_id, event.event_type, exc_info=True,
+        )
+    # v0.99.0 (F-11): 持久化到 event_log 表
+    try:
+        from web.api.belief import _get_web_event_log
+        _get_web_event_log().log_event(event)
+    except Exception:
+        _log.warning(
+            "event_stub: 行为事件落库失败 (sid=%s, type=%s), "
+            "bus 已发布但 DB 未写 (FK 违反或 DB 异常)",
             student_id, event.event_type, exc_info=True,
         )
     return {

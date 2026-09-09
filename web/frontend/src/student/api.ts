@@ -72,6 +72,8 @@ export function submitAnswer(body: {
   reasoning: string;
   // v0.97.2: 提交前自评 (4 档语义化映射, 强制无默认; 未选不允许提交)
   self_confidence: number;
+  // v0.99.0 (F-09): 答题时延秒 (题目加载→提交, evidence raw_response_time)
+  response_time: number;
 }): Promise<{ student_id: string }> {
   return postJson<{ student_id: string }>("/api/answer", body);
 }

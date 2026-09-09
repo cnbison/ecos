@@ -233,6 +233,30 @@ CREATE INDEX IF NOT EXISTS idx_misconception_evidence_student
     ON misconception_evidence(student_id);
 """
 
+# v0.99.0 (F-05): LLM judge 调用审计表.
+#   背景: /api/judge 的调用元数据 (model/attempts/latency/raw_output) 此前
+#   无任何落库点 (evidence_log.llm_critic_* 属 v0.83 Evidence Critic 路径,
+#   与 judge 是两条链路), PB-Q16 判分争议时无法事后审计.
+#   注意: student_id 不加 FK — 审计表绝不能因 FK 违反而写失败.
+_JUDGE_AUDIT_SCHEMA = """
+CREATE TABLE IF NOT EXISTS judge_audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    student_id TEXT,
+    problem_id TEXT,
+    provider TEXT,
+    model TEXT,
+    attempts INTEGER,
+    latency_ms REAL,
+    judged INTEGER NOT NULL DEFAULT 0,
+    error_code TEXT,
+    raw_output TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_judge_audit_student
+    ON judge_audit_log(student_id, created_at);
+"""
+
 
 # ─── Database ─────────────────────────────────────────────────────────────────
 
@@ -296,6 +320,9 @@ class Database:
         #   是因为这是 derived 状态, 走自己表干净, 跟 calibration_log 同样模式)
         with self.tx() as _:
             self.conn.executescript(_MISCONCEPTION_EVIDENCE_SCHEMA)
+        # v0.99.0 (F-05): judge 审计表 (CREATE IF NOT EXISTS 幂等, 无迁移需求)
+        with self.tx() as _:
+            self.conn.executescript(_JUDGE_AUDIT_SCHEMA)
         # v0.97.3 (a-fix): 老 v0.97.3 (a) 表无 ON DELETE CASCADE, 阻断 test fixture
         #   清学生行 (silent try/except: pass 漏掉). 一次性迁移: rename→drop→recreate.
         #   SQLite 不支持 ALTER TABLE 加 ON DELETE CASCADE, 只能重建.
@@ -704,6 +731,57 @@ class Database:
         return [dict(r) for r in rows]
 
     # ─── Calibration Log ───────────────────────────────────────────────────────
+
+    def save_judge_audit(
+        self,
+        student_id: str,
+        problem_id: str,
+        provider: str,
+        model: str,
+        attempts: int,
+        latency_ms: float,
+        judged: bool,
+        error_code: str | None = None,
+        raw_output: str | None = None,
+    ) -> int:
+        """保存一次 LLM judge 调用审计 (v0.99.0 F-05).
+
+        试点前批次的审计闭环: 每次判分调用留痕 (model/attempts/latency/
+        raw_output), 支撑成本核算与判分争议回溯 (PB-Q16 案例).
+        student_id 无 FK — 审计表绝不能因 FK 违反而写失败.
+
+        Returns:
+            插入行 id.
+        """
+        now = datetime.now().isoformat()
+        with self.tx() as _:
+            cur = self.conn.execute(
+                """
+                INSERT INTO judge_audit_log (
+                    student_id, problem_id, provider, model,
+                    attempts, latency_ms, judged, error_code,
+                    raw_output, created_at
+                ) VALUES (
+                    :sid, :pid, :provider, :model,
+                    :attempts, :latency, :judged, :error_code,
+                    :raw_output, :created_at
+                )
+                """,
+                dict(
+                    sid=student_id,
+                    pid=problem_id,
+                    provider=provider,
+                    model=model,
+                    attempts=attempts,
+                    latency=latency_ms,
+                    judged=1 if judged else 0,
+                    error_code=error_code,
+                    # raw_output 截断 4KB (防异常长响应撑爆表)
+                    raw_output=(raw_output or "")[:4096],
+                    created_at=now,
+                ),
+            )
+            return int(cur.lastrowid)
 
     def save_calibration(self, student_id: str, data: dict) -> int:
         """保存互校记录（MVP 直接接收 dict）。"""
