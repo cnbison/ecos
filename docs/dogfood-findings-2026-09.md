@@ -126,6 +126,7 @@
 - **方案建议（试点前做）**：event_stub 四端点在 publish 后追加写 event_log 表（或挂一个 PersistSubscriber）—— belief.py 已有 EventLog 落库先例，复用即可
 - **优先级**：P1（试点信号采集完整性缺口）
 - **状态**：⏸ 待拍板
+- **端到端实锤（2026-09-09 补）**：Bisen 确认 dogfood 期间**实际使用过**反思输入框（多次）和提示按钮——但 event_log 0 条。Claude 直接向线上后端 POST hint 事件探针：接收正常、返回 `{"status": "logged"}`、event_log 表无记录。链路判定：前端发送 ✓ → 后端接收 ✓ → bus 发布 ✓ → **持久化 ✗（数据蒸发）**。**Bisen 的反思笔记已不可恢复**（唯一经手者是内存 bus + 已随 F-08 重启消亡的插件内存态）——从"结构性缺口"升级为"真实用户输入丢失"实锤
 
 ## 已知占位项（避免 dogfood 期间误报为 bug）
 
