@@ -556,3 +556,36 @@ def reset_plugin_runtime() -> None:
     """v0.85.0-b: Reset module-level PluginRuntime singleton (test isolation)."""
     global _plugin_runtime_singleton
     _plugin_runtime_singleton = None
+
+
+def ensure_started() -> bool:
+    """v0.99.3 (F-14b): 幂等激活 PluginRuntime (任何启动方式行为一致).
+
+    背景 (dogfood-findings-2026-09.md F-14): 激活原本只写在 app.py
+    `if __name__ == "__main__"` 块——非 `python -m web.api.app` 启动
+    (flask run / gunicorn / 其他入口) PluginRuntime 不注册, LCA select
+    永远走 legacy 兜底路径, 记账口径随启动方式漂移。
+
+    - 已启动 → no-op (True)
+    - 未启动 → start() (成功 True / 异常 warning + False, 不抛出)
+    - 调用方拿 False 时走各自 fallback (与启动失败语义一致)
+
+    安全性: start() 内部有 _started 防重入; 本函数可在请求路径调用
+    (LCA select 前 lazy ensure), 重复调用零开销。
+    """
+    try:
+        runtime = get_plugin_runtime()
+        if getattr(runtime, "_started", False):
+            return True
+        runtime.start()
+        _log.info(
+            "PluginRuntime.ensure_started: 激活完成 (subscriptions=%d)",
+            runtime.subscription_count,
+        )
+        return True
+    except Exception:
+        _log.warning(
+            "PluginRuntime.ensure_started: 激活失败, 调用方走 fallback",
+            exc_info=True,
+        )
+        return False

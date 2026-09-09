@@ -168,7 +168,7 @@
   - **b（启动一致性）**：`plugin_runtime.py` 新增 `ensure_started()`（幂等，失败 warning）；`__main__` 改走它；`lca.py` select 路径在 publish 前 lazy ensure（pytest 环境跳过——防 plugin 路径改写 legacy 测试行为 + 防触碰生产库，v0.98.5 教训）；plugin/legacy 双路径各加 INFO 级服务日志，路径漂移从此可观测
   - **a（去重记账）**：`orchestrator.py` Step 7 增加指纹比对（全字段 to_dict 去掉 4 个易变键：intervention_id / created_at / expected_gain / expected_risk）——与 last_intervention 相同的重复决策不 append / 不计 select_count / 不重复 record_intervention / 不记 ActionEntry
 - **优先级**：P1（试点数据口径 + 家长端观感）
-- **状态**：📋 已拍板实施中
+- **状态**：✅ 已修复（v0.99.3）：b = `plugin_runtime.ensure_started()` 幂等激活（`__main__` 改走它 + `lca.select_intervention` publish 前 lazy ensure，pytest 下跳过防改写 legacy 测试行为/防触碰生产库）+ plugin/legacy 双路径 INFO 服务日志（路径漂移从此可观测）；a = `orchestrator` Step 7 决策指纹去重（4 易变键排除，重复决策不 append/不计数/不重复归因/不记 ActionEntry，LCAResult 照常返回）。9 个新测试 + 4 个旧契约测试按新语义更新（累积路径改用"决策实质变化"触发，意图不变）。⚠️ 历史口径注：已有 10 条记录含 3 条 refetch 重复，不清洗（derived 数据，硬规则 #6）
 
 ## Dogfood 二轮验证结论（2026-09-09，v0.99.0 四链路收口核验）
 

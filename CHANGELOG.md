@@ -12,6 +12,29 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.99.3] 2026-09-09 — F-14：LCA select 双路径口径收敛 + 重复决策去重记账
+
+> Bisen 重启后端发现干预历史 7→10（3 条 refetch 重复记账），取证实锤 select 双路径记账行为不一致 + PluginRuntime 激活耦合 `__main__`。记录先行（7cef10e），pytest 1623（+9 新增，4 个旧契约测试按新语义更新）。
+
+### add
+
+- **`web/api/plugin_runtime.py`** `ensure_started()`：幂等激活（已启动 no-op / 异常 warning + False 不抛），任何启动方式行为一致；`app.py` `__main__` 改走它（v0.85.0-d 语义不变）
+- **`web/api/lca.py`** `select_intervention`：publish 前 lazy `ensure_started()`（**pytest 下跳过**——防 plugin 路径改写 legacy 既有测试行为 + 防触碰生产库，v0.98.5 教训）；plugin/legacy 双路径各加 INFO 服务日志——"本次 select 谁服务的"从此可观测（legacy 会记账、plugin 不会，口径审计依据）
+- **`ecos/lca/orchestrator.py`** `_decision_fingerprint()` + Step 7 去重：全字段 to_dict 排除 4 个易变键（intervention_id / created_at / expected_gain / expected_risk），与 last_intervention 指纹全等 = 同一决策 → 不 append intervention_history / 不计 select_count / 不重复 record_intervention / 不记 ActionEntry；**LCAResult 照常返回**（前端 lca_decision 不受影响）
+- **`tests/test_select_dedup.py`** 9 测试：指纹易变键排除 / 内容敏感（bloom_target / rationale）/ 同状态双 select 只记 1 次 / 决策变化正常记账 / per-student 独立 / 重复仍返回完整 LCAResult / ensure_started 幂等 / 失败返 False 不抛
+
+### modify
+
+- 4 个旧契约测试按新语义更新（**意图不变，累积路径改用"决策实质变化"触发**）：`test_runtime_action_aware` 累积/cap-500 测试改 rationale side_effect 造不同决策 + 新增同状态去重回归锚；`test_plan_action_aware_delegation_chain` 同状态双 plan 期望 2→1（委托链由 human_feedback 计数证明）；`test_action_history_persistence` bind 测试 3 selects 改 3 个不同决策；`test_event_stub` 生产激活契约 `.start()` → `ensure_started`
+- ⚠️ 历史口径：lbc 已有 10 条记录含 3 条 refetch 重复，不清洗（derived 数据，硬规则 #6）
+
+### 校验
+
+- pytest 1623 全绿；防御性自检 #8 同类扫描：select 记账点仅 orchestrator Step 7 一处，evaluator.record_intervention 无其他调用方
+- F-14 状态回写 ✅；版本双源 bump 0.99.2 → 0.99.3
+
+
+
 ## [0.99.2] 2026-09-09 — F-12/F-13：家长端干预字段对齐 + LCA 决策可见化
 
 > dogfood 三轮发现（Bisen 观察教师端/家长端 + "27 题未见系统干预"询问）。记录先行（e1709b8），修复后状态回写。pytest 1613。

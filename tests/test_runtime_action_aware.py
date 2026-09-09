@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 
@@ -93,20 +94,43 @@ class TestSelectInterventionAutoRecord:
         assert "policy_type" in entry.metadata
 
     def test_select_intervention_multiple_calls_accumulate(self):
-        """多次 select_intervention 累积 intervention_selected entries (cap 500)."""
+        """多次 select_intervention 累积 intervention_selected entries (cap 500).
+
+        v0.99.3 (F-14a): 同状态重复决策去重不记账 — 累积路径需决策实质变化
+        (rationale 属于决策指纹, 用 side_effect 模拟 3 次不同决策).
+        """
         lca, state = _make_lca_engine_with_state()
         cta = CTAInput(student_id="stu-sel-multi", belief_state=state)
-        for _ in range(3):
-            lca.select_intervention(cta)
+        with patch.object(
+            lca.rationale_gen, "generate",
+            side_effect=[f"决策 #{i}" for i in range(3)],
+        ):
+            for _ in range(3):
+                lca.select_intervention(cta)
         assert lca._cognitive_twin["stu-sel-multi"].action_history.count_by_type("intervention_selected") == 3
 
+    def test_select_intervention_same_decision_deduped(self):
+        """v0.99.3 (F-14a): 同状态重复 select 只记 1 条 (去重记账回归锚)."""
+        lca, state = _make_lca_engine_with_state()
+        cta = CTAInput(student_id="stu-sel-dup", belief_state=state)
+        for _ in range(3):
+            lca.select_intervention(cta)
+        assert lca._cognitive_twin["stu-sel-dup"].action_history.count_by_type("intervention_selected") == 1
+
     def test_select_intervention_action_history_cap_500(self):
-        """select_intervention 累积 > 500 → 截断到最近 500 (跟 HumanFeedbackTrajectory 同 pattern)."""
+        """select_intervention 累积 > 500 → 截断到最近 500 (跟 HumanFeedbackTrajectory 同 pattern).
+
+        v0.99.3 (F-14a): 每次 select 需不同决策才记账 (side_effect 501 个不同 rationale).
+        """
         lca, state = _make_lca_engine_with_state()
         cta = CTAInput(student_id="stu-sel-cap", belief_state=state)
-        # 多次 select 触发 cap 500
-        for _ in range(501):
-            lca.select_intervention(cta)
+        # 多次 select (每次决策不同) 触发 cap 500
+        with patch.object(
+            lca.rationale_gen, "generate",
+            side_effect=[f"决策 #{i}" for i in range(501)],
+        ):
+            for _ in range(501):
+                lca.select_intervention(cta)
         # cap 截断到 500
         assert len(lca._cognitive_twin["stu-sel-cap"].action_history.entries) == 500
 
@@ -251,8 +275,9 @@ class TestPlanActionAware:
             human_feedback_entry=HumanFeedbackEntry.from_event(event),
         )
         twin = lca._cognitive_twin["stu-chain"]
-        # intervention_selected 累计 2 次 (2 plan 调用, 都调 select_intervention)
-        assert twin.action_history.count_by_type("intervention_selected") == 2
+        # v0.99.3 (F-14a): 2 次 plan 调用同状态 → 决策相同去重, intervention_selected 记 1 条
+        # (委托链本身由 human_feedback 计数证明: 第 2 次调用确实走完并追加了 feedback)
+        assert twin.action_history.count_by_type("intervention_selected") == 1
         # human_feedback 含 1 条
         assert twin.human_feedback.count_by_type("hint_requested") == 1
 

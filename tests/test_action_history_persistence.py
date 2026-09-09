@@ -175,8 +175,14 @@ class TestLCAEngineActionHistoryDumpLoad:
         state = _make_state("stu-ah-bind")
         cta = CTAInput(student_id="stu-ah-bind", belief_state=state)
         # 多次 select (积累 action_history)
-        for _ in range(3):
-            lca.select_intervention(cta)
+        # v0.99.3 (F-14a): 同状态重复决策去重不记账 — side_effect 造 3 个不同决策
+        from unittest.mock import patch as _patch
+        with _patch.object(
+            lca.rationale_gen, "generate",
+            side_effect=[f"决策 #{i}" for i in range(3)],
+        ):
+            for _ in range(3):
+                lca.select_intervention(cta)
 
         snapshot = lca.dump_state("stu-ah-bind")
         # 清空 + 模拟重启

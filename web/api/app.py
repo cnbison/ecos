@@ -1010,20 +1010,9 @@ if __name__ == "__main__":
     # 启动后, /api/answer / /api/dual_agent / /api/lca / /api/judge 全部走
     # Plugin path (emit event → bus → subscriber → Engine.update / orchestrator /
     # Runtime.plan). 不再走 fallback legacy direct path.
-    try:
-        from web.api.plugin_runtime import get_plugin_runtime
-        plugin_runtime = get_plugin_runtime()
-        plugin_runtime.start()
-        _log.info(
-            "Production activation: PluginRuntime 启动 (subscriptions=%d)",
-            plugin_runtime.subscription_count,
-        )
-    except Exception:
-        # 防御性: PluginRuntime 启动失败不阻断 Flask 启动
-        # (production 走 fallback legacy path, 不破坏现有功能)
-        _log.warning(
-            "Production activation: PluginRuntime 启动失败, "
-            "production 走 legacy fallback (Plugin 路径未生效)",
-            exc_info=True,
-        )
+    # v0.99.3 (F-14b): 激活收敛到 ensure_started() (幂等) — 非 __main__ 启动
+    # 方式 (flask run / gunicorn) 由 lca.select_intervention 路径 lazy ensure 兜底,
+    # 记账口径不再随启动方式漂移
+    from web.api.plugin_runtime import ensure_started
+    ensure_started()
     app.run(host="0.0.0.0", port=5173, debug=True)

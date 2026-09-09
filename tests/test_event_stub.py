@@ -255,21 +255,24 @@ class TestEndpointBehavior:
 
 
 class TestProductionActivation:
-    """v0.85.0-d: PluginRuntime.start() in if __name__ block."""
+    """v0.85.0-d: PluginRuntime activation in if __name__ block.
+
+    v0.99.3 (F-14b): 激活收敛到 ensure_started() (幂等, 失败 warning 不抛) —
+    非 __main__ 启动方式由 lca.select_intervention lazy ensure 兜底.
+    """
 
     def test_if_name_block_calls_plugin_runtime_start(self):
-        """web/api/app.py if __name__ block calls plugin_runtime.start()."""
+        """web/api/app.py if __name__ block calls plugin_runtime ensure_started()."""
         # Read the file and verify the activation code is present
         with open("/Users/loubicheng/project/ecos/web/api/app.py") as f:
             content = f.read()
 
-        # Check: if __name__ block contains plugin_runtime.start()
+        # Check: if __name__ block contains ensure_started()
         assert 'if __name__ == "__main__"' in content
         # Find the block
         start_idx = content.find('if __name__ == "__main__"')
         block = content[start_idx:]
-        assert "plugin_runtime" in block
-        assert ".start()" in block
+        assert "ensure_started" in block
         assert "Production activation" in block  # comment marker
 
     def test_start_failure_does_not_block_flask(self, caplog):

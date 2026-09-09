@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import logging
+import json as _json
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
@@ -114,6 +115,25 @@ class LCAResult:
 #   全部迁到 ExperimentDesigner (LCA 4-layer 第 2 层)
 #   LCAEngine.select_intervention step 5 委托 self.experiment_designer.design(plan, cta_input, n_candidates)
 #   行为完全保持一致 (跟 v0.81 LCAEngine._generate_candidates 算法一致)
+
+
+# v0.99.3 (F-14a): 决策指纹 — 重复决策判定用.
+#   全字段 to_dict 去掉 4 个易变键: intervention_id (每次 uuid4) /
+#   created_at (每次打点) / expected_gain + expected_risk (float 估计抖动)。
+#   其余字段 (类型/Bloom 目标/CLT/CA/连续参数/目标列表/rationale/bjork_triggers)
+#   全等才判为同一决策。
+_DECISION_VOLATILE_KEYS = frozenset(
+    {"intervention_id", "created_at", "expected_gain", "expected_risk"}
+)
+
+
+def _decision_fingerprint(iv: "Intervention") -> str:
+    """干预决策的稳定指纹 (F-14a 去重记账用), 排除易变键后 JSON 规范化."""
+    d = iv.to_dict()
+    for key in _DECISION_VOLATILE_KEYS:
+        d.pop(key, None)
+    return _json.dumps(d, sort_keys=True, ensure_ascii=False, default=str)
+
 
 # ---------------------------------------------------------------------------
 # LCA Engine 主类
@@ -407,6 +427,35 @@ class LCAEngine:
                     )
 
         # Step 7: 记录干预
+        # v0.99.3 (F-14a): 同状态重复决策不重复记账 — legacy 路径每次 /api/question
+        #   拉题都会走到这里, 状态未变时 (如 refetch) 决策完全相同, 无条件 append
+        #   会让 intervention_history / select_count 无界膨胀 (7→10 实锤)。
+        #   指纹 = 全字段 to_dict 去掉 4 个易变键 (id/时间戳/两个 float 估计);
+        #   重复决策只返回结果, 不 append / 不重复 record_intervention /
+        #   不计 select_count / 不记 ActionEntry。
+        last_iv = self._last_intervention.get(student_id)
+        is_duplicate = (
+            last_iv is not None
+            and _decision_fingerprint(last_iv) == _decision_fingerprint(chosen)
+        )
+        if is_duplicate:
+            _log.info(
+                "LCAEngine.select_intervention: sid=%s 决策与上次相同, 跳过记账 "
+                "(type=%s, bloom_target=%s)",
+                student_id, chosen.intervention_type.value, chosen.bloom_target.name,
+            )
+            # 与 Step 8 同构: 重复决策也返回完整 LCAResult (前端 lca_decision 不受影响)
+            return LCAResult(
+                student_id=student_id,
+                intervention=chosen,
+                rationale=rationale,
+                expected_gain=expected_gain,
+                expected_risk=expected_risk,
+                bloom_target=bloom_target,
+                clt_level=clt_level,
+                ca_stage=ca_stage,
+            )
+
         self.intervention_history.setdefault(student_id, []).append(chosen)
         # v0.82.0-c: 委托 Evaluator.record_intervention (wrap self.attribution)
         self.evaluator.record_intervention(chosen, student_id)

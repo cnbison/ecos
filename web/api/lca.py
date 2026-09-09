@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 from typing import Any, Dict, Optional
 
 from ecos.cta.belief_state import BeliefState
@@ -243,6 +244,14 @@ def select_intervention(
         from ecos.event import get_default_bus
         from web.api.plugin_runtime import get_plugin_runtime
 
+        # v0.99.3 (F-14b): lazy ensure — 非 `python -m web.api.app` 启动方式
+        #   (flask run / gunicorn / 其他入口) 也能在此处激活 PluginRuntime,
+        #   记账口径不随启动方式漂移。pytest 下跳过: 防 plugin 路径改写
+        #   legacy 路径的既有测试行为 + 防触碰生产库 (v0.98.5 教训)
+        if "pytest" not in sys.modules:
+            from web.api.plugin_runtime import ensure_started
+            ensure_started()
+
         # 构造 event
         event = LearningEvent.from_request_intervention(
             student_id=student_id,
@@ -259,6 +268,10 @@ def select_intervention(
             plugin_runtime = get_plugin_runtime()
             result = plugin_runtime.get_last_intervention_result(student_id)
             if result is not None:
+                _log.info(
+                    "select_intervention: plugin path served (sid=%s)",
+                    student_id,
+                )
                 return result
     except Exception:
         _log.warning(
@@ -269,6 +282,13 @@ def select_intervention(
 
     # Legacy fallback: PluginRuntime 未启动或 bus 无 subscriber,
     # 直接调 lca.select_intervention (老路径, 向后兼容)
+    # v0.99.3 (F-14b): INFO 留痕 — legacy 路径会写 intervention_history /
+    #   select_count, plugin 路径不会; 路径漂移必须可观测 (试点口径审计用)
+    _log.info(
+        "select_intervention: legacy path served (sid=%s) — "
+        "plugin runtime 未启动或 subscriber 未接住, 本条会记入干预历史",
+        student_id,
+    )
     return _legacy_select_intervention(student_id, belief_state)
 
 
