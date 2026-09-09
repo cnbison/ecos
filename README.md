@@ -4,8 +4,8 @@
 > 基于"**学生认知数字孪生 + AI 学习教练**"双 Agent 共进化架构
 > v0.95+ 演进为 **ECOS 2.0 双内核架构**：**State-based Cognitive Kernel（状态优先的通用认知内核）** + **Cognitive Runtime（领域无关的认知运行时）**——教育（K12）是第一个垂直落地领域
 
-[![Status](https://img.shields.io/badge/status-v0.99.0--pilot-signals-brightgreen)]()
-[![Version](https://img.shields.io/badge/version-0.99.0-blue)]()
+[![Status](https://img.shields.io/badge/status-v0.99.1--f08-diag-brightgreen)]()
+[![Version](https://img.shields.io/badge/version-0.99.1-blue)]()
 [![Tests](https://img.shields.io/badge/pytest-1598-brightgreen)]()
 [![License](https://img.shields.io/badge/license-MIT-green)]()
 

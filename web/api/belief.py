@@ -104,6 +104,19 @@ def _get_or_create_student(student_id: str) -> dict:
         db = _get_db()
         # 尝试从 DB 恢复
         db_row = db.load_student_state(student_id)
+        # v0.99.1 (F-08 二层诊断): 恢复分支行车记录仪。
+        #   F-08 两次实测: 线上 worker 间歇性走 fresh 分支 (warmup=0), 但同一
+        #   代码 + 同一 DB 副本隔离复现 4 次全部正确恢复 — 代码对、环境/时序
+        #   错。加日志让下次复现时直接暴露分支选择与 db_row 内容。
+        _log.info(
+            "_get_or_create_student 分支选择 (sid=%s): db_row=%s, "
+            "db_path=%s, rh_len=%s, warmup=%s",
+            student_id,
+            "有行" if db_row is not None else "None!",
+            getattr(db, "config", None) and getattr(db.config, "db_path", "?"),
+            len(db_row.get("response_history") or "") if db_row else None,
+            db_row.get("warmup_count") if db_row else None,
+        )
         if db_row is not None:
             # DB 中有记录--创建 engine + state(MVP:部分字段从 DB 恢复)
             mirt_config = MIRTConfig(
@@ -376,6 +389,13 @@ def _get_or_create_student(student_id: str) -> dict:
                 state.apply_snapshot({"overall_confidence": 0.0})
         else:
             # DB 中无记录--创建全新状态并写入 DB
+            # v0.99.1 (F-08 二层诊断): fresh 分支 = 潜在异常信号 (行存在却走到
+            # 这里 = load 返回 None 的瞬态), 升 warning 便于终端直接可见
+            _log.warning(
+                "_get_or_create_student 走 FRESH 分支 (sid=%s) — 若 DB 中该生"
+                "应有历史数据, 这是 F-08 二层异常复现, 请保留终端日志",
+                student_id,
+            )
             mirt_config = MIRTConfig(
                 prior_mean=np.zeros(5),
                 prior_cov=np.eye(5),
