@@ -108,6 +108,25 @@
 - **优先级**：P2（不阻塞答题流；但属"试点信号采集完整性"，建议与 F-05 同批次）
 - **状态**：⏸ 待拍板
 
+### F-10 误解检测链路空转：`explanation_text` 前端不传，misc_hits 恒空（2026-09-08）
+
+- **现象**：21 题 `misc_hits` 全部 `[]`、`misconception_evidence` 表 0 行、LCA 干预 `target_misconceptions` 恒空——而 PB-Q04 出现教科书级误解（答 `[1,2]`，正是 M6"变量=存储值的盒子"引用语义误解，库里有现成条目），检测器却毫无反应
+- **根因（已查实全链路）**：检测器输入是 `observation.explanation_text`（`ecos/cta/inference_engine.py:332` `detect_with_hits(student_explanation=...)`）；后端 `/api/answer` 从 body 读 `explanation_text`（`app.py:495`）——但**前端 `submitAnswer` payload 根本没有这个字段**（`api.ts:63-77`），所以每次提交 `explanation_text=""`，检测器面对空字符串永远返回 None
+- **讽刺点**：学生的解释文字其实一直在传——都在 `user_answer` 里（如 PB-C06"因为 y=x 只是把 x 的值赋予 y…"），只是进了错误的字段，检测器拿不到
+- **影响**：误解检测是 C 维折扣与 LCA 靶向干预（`target_misconceptions`）的输入；试点期间该链路等于不存在，M1-M8 误解库纯摆设
+- **方案建议（试点前做）**：后端 fallback `explanation_text = data.get("explanation_text") or user_answer`（一处改动，user_answer 含解释文字可直接喂检测器）；或前端拆分答案/解释两个字段（交互更清晰，改动大）。推荐前者先行
+- **优先级**：P1（试点核心信号链路空转，影响靶向干预与 C 维折扣的数据基础）
+- **状态**：⏸ 待拍板
+
+### F-11 行为事件（hint/idle/goal_change/reflection）不落库，进程重启即蒸发（2026-09-08）
+
+- **现象**：21 题跨多个 topic，`event_log` 表只有 `observation` + `response_submitted`（belief.py 提交路径写的 2 行/题）——goal_change 按前端逻辑应已多次触发，但表里 0 条；hint/idle/reflection 同样无记录
+- **根因（已查实）**：`web/api/event_stub.py` 的 4 个端点把事件 publish 到**进程内 EventBus**（`get_default_bus()`，`event_stub.py:106`）——订阅者只有 PluginRuntime 的内存态插件（HintFatigue 等），**没有任何 subscriber 把行为事件写进 event_log 表**。代码注释自证："Phase 7+ 计划: subscriber 可订阅这些 event…（留 v0.86+）"——bus 接线做了，持久化没接（又一处 built≠wired）
+- **影响**：行为遥测（提示依赖、 idle 挫败信号、目标切换、反思文本）只活在内存里，重启即失（与 F-08/F-05 同族）。反思文本（reflection）是 F-02 候选信号 + 试点 H1 数据的一部分，现在落不了库
+- **方案建议（试点前做）**：event_stub 四端点在 publish 后追加写 event_log 表（或挂一个 PersistSubscriber）—— belief.py 已有 EventLog 落库先例，复用即可
+- **优先级**：P1（试点信号采集完整性缺口）
+- **状态**：⏸ 待拍板
+
 ## 已知占位项（避免 dogfood 期间误报为 bug）
 
 以下为 v0.98.5 时点已知的「有意未接」项，见 `docs/for-partners.md` §九诚实标注表：
