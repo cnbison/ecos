@@ -130,6 +130,31 @@
 - **状态**：✅ 已修复（v0.99.0）：_emit_event 单点追加写 event_log（fail-open + warning），dogfood 二轮验证
 - **端到端实锤（2026-09-09 补）**：Bisen 确认 dogfood 期间**实际使用过**反思输入框（多次）和提示按钮——但 event_log 0 条。Claude 直接向线上后端 POST hint 事件探针：接收正常、返回 `{"status": "logged"}`、event_log 表无记录。链路判定：前端发送 ✓ → 后端接收 ✓ → bus 发布 ✓ → **持久化 ✗（数据蒸发）**。**Bisen 的反思笔记已不可恢复**（唯一经手者是内存 bus + 已随 F-08 重启消亡的插件内存态）——从"结构性缺口"升级为"真实用户输入丢失"实锤
 
+### F-12 家长端「学习安排记录」只有类型列有值：前后端字段名错配（2026-09-09）
+
+- **现象**（Bisen dogfood 观察教师端 + 家长端后提出）：家长端学习安排 7 条记录，时间列全空、说明列全 "—"，只有类型列有值（practice/feedback）
+- **根因（已查实）**：前后端字段名错配——`parent/Cards.tsx:158,161` 读 `it.timestamp` 和 `it.rationale_text`，但 `Intervention.to_dict()`（`ecos/lca/intervention.py:120-141`）的字段是 `rationale`，且 **根本没有 timestamp 字段**。数据本身完好：lbc 的 7 条记录 rationale 全有完整中文内容（"推荐你做 8 道 CREATE 层的练习…"）
+- **性质**：与防御性自检 #4（HTML class 与 CSS 对齐）同族的「前后端字段对齐」漏洞——但 #4 只查 class，不查 API 字段名
+- **方案（已拍板）**：
+  - 前端 `Cards.tsx` 改读 `rationale`（1 行）
+  - `Intervention` 增加 `created_at` 字段（LCAEngine 生成干预时赋值，to_dict/from_dict 带上）——⚠️ 硬规则 #6 警告：**已有 7 条历史记录无时间戳，新字段只对新记录生效**，旧记录时间列显示 "—" 可接受，不写迁移脚本（derived 数据）
+- **优先级**：P1（家长是试点直接参与者，家长端交付 3 天即显示残缺表格，直接伤害试点观感）
+- **状态**：📋 已拍板待做
+
+### F-13 LCA 干预决策层完全不可见：学生端不渲染 + 干预端点 dead（2026-09-09）
+
+- **现象**（Bisen dogfood 答 27 题全程"只有答题，没见过系统干预"，询问是 bug 还是没到时候）：DB 查实 LCA 决策层是活的——lbc `select_count=7`，最近一次选 PRACTICE 型干预——但三方（学生/教师/家长）都看不到这个决策
+- **根因（已查实全链路）**：built≠wired 的 UI 半程（与 F-02/F-11 同族，但这段是**呈现层**）：
+  1. `/api/question` 每次返回 LCA 干预决策 `lca_decision`（`app.py:190-192`，v0.56.0 注释"passthrough——前端可见"），但学生端 React **从不渲染**（只存在于 `student/types.ts:80` 类型定义）
+  2. `/api/intervention/<sid>`（misconception 靶向 LLM 干预）端点存在但**无任何前端调用方**——dead endpoint
+  3. `research/90-mvp/06-ecos-end-to-end-flow-analysis.md:489` 规划的"教练干预"展示区域学生端未落地；干预历史目前只有教师端 StudentDetailPage 可见
+  4. 附带查实：CLT 自适应规则下 lbc 88.5% 正确率本就倾向撤脚手架（>0.85 连续 3 题 → 降级），"没到时候"与"不可见"叠加造成完全无感知
+- **方案（分层，已拍板）**：
+  - **最小改动（试点前）**：AnswerPage 渲染 `lca_decision` 折叠区（intervention_type/bloom_target/clt_level/ca_stage/expected_gain/expected_risk），试点期间可观测 LCA 决策分布，不动选题逻辑
+  - **06 文档完整补全（试点后）**："教练干预"区域 + misconception 靶向干预接入——依赖误解检测数据积累（当前仅 1 条），现在做是空壳
+- **优先级**：P2（不影响数据链路，影响试点观测能力）
+- **状态**：📋 最小改动已拍板待做；完整补全试点后
+
 ## Dogfood 二轮验证结论（2026-09-09，v0.99.0 四链路收口核验）
 
 Bisen 追加 6 题（累计 27 题，含失败/部分分/误解样本），四条链路全部用真实数据核验通过：
@@ -152,3 +177,5 @@ Bisen 追加 6 题（累计 27 题，含失败/部分分/误解样本），四�
 | 挫败感 frustration 恒 0 | MotivationProfile 消费端已建（LCA evaluator/planner），**生产链路无信号生产者**，UI 显示默认值 | 详见 **F-02**（试点数据回来后回算标定，与 C 维折扣同批次） |
 | C 维折扣未接在线流程 | `confidence_for → 信念更新` 离线校准中 | 试点数据回来后一并校准接入 |
 | BKT 衰减参数 | replay 读时视图，先验值 | 试点数据校准（v0.97.1 决策） |
+| 教师端 POMDP 诊断 / 家长端学习状态+家长建议恒空 | web 流默认 policy 是 **LinUCB**（PolicyLearner），`diagnose_pomdp` 对非 POMDP policy 学生恒返回 None（2026-09-09 查实根因）；前端空态文案已如实标注 | 切 POMDP policy 是试点后决策（会停用 LinUCB 已积累的训练数据），不顺手切 |
+| A2 per-misconception 证据表 0 行 | 链路已活（2026-09-09 M6 首次命中），但 reconcile 语义要求**"命中后同 skill 的下一条响应"**才计数（`misconception_reconcile.py:231`）；M6 恰在 session 最后一题命中 → 暂 0 行 | 设计内数据积累：继续答题自然落表，无需改码 |
