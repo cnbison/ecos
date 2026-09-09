@@ -12,7 +12,29 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
-## [0.98.9] 2026-09-08 — dogfood F-07：答题页通俗化备注提交后即时刷新
+## [0.99.0] 2026-09-09 — 试点信号采集完整性批次（F-05/09/10/11 一次性收口）
+
+> dogfood 21 题审查发现四个「schema 在、链路断」的 built≠wired：judge 元数据无落库点（F-05，PB-Q16 案例证明需要）、答题时延恒 0（F-09）、误解检测 21 题 0 触发（F-10，PB-Q04 教科书级 M6 误解漏检）、行为事件 bus 发布后蒸发（F-11，**Bisen 的反思笔记实测丢失**）。四项均为试点数据完整性前提，打包修复。pytest 1598 → **1607**（+9）。
+
+### fix
+
+- **F-11 行为事件落库（P1，已造成真实数据丢失）**：`web/api/event_stub.py` `_emit_event` 单点收口——bus 发布后追加写 `event_log` 表（复用 belief 的 retention 配置），失败 fail-open + warning 留痕。端到端实锤链路：前端发送 ✓ → 后端接收 ✓ → bus ✓ → 持久化此前 ✗
+- **F-10 误解检测接通（P1）**：`web/api/app.py` `/api/answer` 的 `explanation_text` fallback 到 `user_answer`（前端从不传该字段 → 检测器输入恒空）；显式传值时优先
+- **F-09 时延采集（P2）**：前端 `AnswerPage` 记录题目加载→提交秒数进 payload；`/api/answer` 容错解析；`submit_answer` → `Observation.response_time_sec` → evidence `raw_response_time` 落列（字段 v0.83 就在，无生产者）
+- **F-05 judge 审计落库（P2）**：新增 `judge_audit_log` 表（student/problem/provider/model/attempts/latency/judged/error_code/raw_output 截断 4KB；**student_id 不加 FK——审计表绝不能因 FK 违反写失败**）；`_call_llm_judge_with_retry` 改 3 元组返回（+last_raw），成功与失败路径都落库，fail-open
+- **连带修正**：`scripts/rejudge_partial_credit.py` / `rejudge_misjudged.py` 的 3 元组解包同步（回归测试抓出 scripts/ 漏改，硬规则 #8 同类扫描补课）
+
+### add
+
+- **NEW `tests/test_v0990_signal_collection.py`**（9 tests）: 行为事件 3 端点落库 / explanation fallback 两分支 / 时延落列 + 非数字降级 / judge 审计成功+失败行
+- 测试基建注：本文件 autouse `no_llm`（get_llm → None），防止 /api/answer 触发真实 LLM 调用
+- 已知既有行为（非本批引入，记录备查）：**首题冷启动路径不写 evidence**（dogfood 第 1 题即无行），是否接通留试点后评估
+
+### 校验
+
+- pytest **1607 全绿**；`npm run build` 绿；版本双源 bump → **0.99.0**
+
+## [0.98.9] 2026-09-08 — dogfood F-07：答题页通俗化备注提交后即时刷新 2026-09-08 — dogfood F-07：答题页通俗化备注提交后即时刷新
 
 > Bisen dogfood 发现连续答题后备注仍显示「已完成 0 次答题」。report query 只在页面挂载时 fetch，提交后仅刷新下一题，备注冻结在进页快照。pytest 1598 不变；前端 build 绿。
 

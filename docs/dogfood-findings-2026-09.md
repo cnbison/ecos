@@ -60,7 +60,7 @@
 - **影响**：事后无法从 DB 审计每道题的评判来源（哪个模型 / 几次 retry / 多少 token / 是否降级重试过）。试点 5-10 学生 × ≥50 题 × 4 周会产生数百次 judge 调用，缺乏审计能力时，成本核算（LLM API 预算）与异常排查（某题判分可疑时回溯调用详情）都只能靠服务端 stdout，而 stdout 不持久
 - **方案建议**：judge 落库元数据表（或复用 evidence_log 增列）——problem_id / student_id / provider + model / attempts / tokens / latency_ms / raw_output 摘要。改动小（judge 成功路径一处写入），试点前完成
 - **优先级**：P2（不阻塞答题流，但试点前做完能直接支撑成本核算与判分审计）
-- **状态**：📋 已拍板待做（试点前批次）
+- **状态**：✅ 已修复（v0.99.0）：judge_audit_log 表 + 3 元组返回 raw_output，成功/失败双路径落库
 
 ### F-06 PB-Q16 判分争议：概念对的代码题因语法瑕疵判 0 + judge 幻觉事实错误（2026-09-08）
 
@@ -106,7 +106,7 @@
 - **影响**：F-02 的 frustration 候选信号之一（答题时延异常）与 H1 数据（作答速度与掌握的关系）都依赖此字段；试点前不接，试点数据回来这块就是空白
 - **方案建议（试点前做，改动小）**：前端 CodeEditor 挂载→提交计时，`submitAnswer` payload 加 `response_time`；后端 evidence 写入该列。一处前端 + 一处后端
 - **优先级**：P2（不阻塞答题流；但属"试点信号采集完整性"，建议与 F-05 同批次）
-- **状态**：⏸ 待拍板
+- **状态**：✅ 已修复（v0.99.0）：前端计时 + payload + 后端落列；附带发现首题冷启动不写 evidence（既有行为，备查）
 
 ### F-10 误解检测链路空转：`explanation_text` 前端不传，misc_hits 恒空（2026-09-08）
 
@@ -116,7 +116,7 @@
 - **影响**：误解检测是 C 维折扣与 LCA 靶向干预（`target_misconceptions`）的输入；试点期间该链路等于不存在，M1-M8 误解库纯摆设
 - **方案建议（试点前做）**：后端 fallback `explanation_text = data.get("explanation_text") or user_answer`（一处改动，user_answer 含解释文字可直接喂检测器）；或前端拆分答案/解释两个字段（交互更清晰，改动大）。推荐前者先行
 - **优先级**：P1（试点核心信号链路空转，影响靶向干预与 C 维折扣的数据基础）
-- **状态**：⏸ 待拍板
+- **状态**：✅ 已修复（v0.99.0）：后端 explanation_text fallback user_answer（显式传值优先）
 
 ### F-11 行为事件（hint/idle/goal_change/reflection）不落库，进程重启即蒸发（2026-09-08）
 
@@ -125,7 +125,7 @@
 - **影响**：行为遥测（提示依赖、 idle 挫败信号、目标切换、反思文本）只活在内存里，重启即失（与 F-08/F-05 同族）。反思文本（reflection）是 F-02 候选信号 + 试点 H1 数据的一部分，现在落不了库
 - **方案建议（试点前做）**：event_stub 四端点在 publish 后追加写 event_log 表（或挂一个 PersistSubscriber）—— belief.py 已有 EventLog 落库先例，复用即可
 - **优先级**：P1（试点信号采集完整性缺口）
-- **状态**：⏸ 待拍板
+- **状态**：✅ 已修复（v0.99.0）：_emit_event 单点追加写 event_log（fail-open + warning），dogfood 二轮验证
 - **端到端实锤（2026-09-09 补）**：Bisen 确认 dogfood 期间**实际使用过**反思输入框（多次）和提示按钮——但 event_log 0 条。Claude 直接向线上后端 POST hint 事件探针：接收正常、返回 `{"status": "logged"}`、event_log 表无记录。链路判定：前端发送 ✓ → 后端接收 ✓ → bus 发布 ✓ → **持久化 ✗（数据蒸发）**。**Bisen 的反思笔记已不可恢复**（唯一经手者是内存 bus + 已随 F-08 重启消亡的插件内存态）——从"结构性缺口"升级为"真实用户输入丢失"实锤
 
 ## 已知占位项（避免 dogfood 期间误报为 bug）
