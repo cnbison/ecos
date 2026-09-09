@@ -117,6 +117,8 @@
 - **方案建议（试点前做）**：后端 fallback `explanation_text = data.get("explanation_text") or user_answer`（一处改动，user_answer 含解释文字可直接喂检测器）；或前端拆分答案/解释两个字段（交互更清晰，改动大）。推荐前者先行
 - **优先级**：P1（试点核心信号链路空转，影响靶向干预与 C 维折扣的数据基础）
 - **状态**：✅ 已修复（v0.99.0）：后端 explanation_text fallback user_answer（显式传值优先）
+- **dogfood 二轮实战验证（2026-09-09）**：PB-C07（又是 `[1,2]` 引用语义误解）→ **M6 命中，confidence 0.85，evidence_text 直接引用原文**「输出[1, 2] ，因为a的内容没有改变」，persist 到 `state.C.misconception_history`，**C 维折扣从 1.0 → 0.745 实际生效**——误解检测 → C 维折扣整条消费链路首次在生产跑通
+- **残留小项（不立案，记录备查）**：evidence_log `misc_hits` 列仍恒 `[]`（该列读 `observation.to_dict()`，而检测结果产生于 observation 之后、存 `misconception_history`——列与真实存储错位）；`/api/state` 的 `misc_history` 字段同理恒空。检测结果的真实权威存储 = `misconception_history` + `misconception_evidence` 表
 
 ### F-11 行为事件（hint/idle/goal_change/reflection）不落库，进程重启即蒸发（2026-09-08）
 
@@ -127,6 +129,19 @@
 - **优先级**：P1（试点信号采集完整性缺口）
 - **状态**：✅ 已修复（v0.99.0）：_emit_event 单点追加写 event_log（fail-open + warning），dogfood 二轮验证
 - **端到端实锤（2026-09-09 补）**：Bisen 确认 dogfood 期间**实际使用过**反思输入框（多次）和提示按钮——但 event_log 0 条。Claude 直接向线上后端 POST hint 事件探针：接收正常、返回 `{"status": "logged"}`、event_log 表无记录。链路判定：前端发送 ✓ → 后端接收 ✓ → bus 发布 ✓ → **持久化 ✗（数据蒸发）**。**Bisen 的反思笔记已不可恢复**（唯一经手者是内存 bus + 已随 F-08 重启消亡的插件内存态）——从"结构性缺口"升级为"真实用户输入丢失"实锤
+
+## Dogfood 二轮验证结论（2026-09-09，v0.99.0 四链路收口核验）
+
+Bisen 追加 6 题（累计 27 题，含失败/部分分/误解样本），四条链路全部用真实数据核验通过：
+
+| 链路 | 实证 |
+|------|------|
+| F-05 judge 审计 | `judge_audit_log` 6 行全落（minimax / MiniMax-M3 / attempts / latency），含一例 **attempts=2**（retry 真实发生并留痕） |
+| F-09 时延 | 新 6 题 `raw_response_time` 48–271s 全部落列（此前恒 0） |
+| F-10 误解检测 | PB-C07 引用语义误解 → **M6 命中 0.85** + evidence_text 引用原文 + **C 折扣 1.0 → 0.745 生效** |
+| F-11 行为事件 | goal_changed 6 / hint_requested 1 / idle_detected 8 / reflection_completed 2 全部落库（此前恒 0） |
+
+**dogfood 数据基建侧收口**：试点启动无数据链路阻塞项。剩余开放项均为体验/试点后批次（F-01 报告格式、F-02 motivation 三维接线、F-08 二层间歇异常已装诊断日志待下次复现）。
 
 ## 已知占位项（避免 dogfood 期间误报为 bug）
 
