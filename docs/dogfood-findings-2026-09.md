@@ -155,6 +155,21 @@
 - **优先级**：P2（不影响数据链路，影响试点观测能力）
 - **状态**：✅ 最小改动已落地（v0.99.2）：AnswerPage 卡片底部「系统决策（LCA）」折叠区（details 原生元素，零新 CSS class），渲染 intervention_type / bloom_target / clt_level / expected_gain / expected_risk 中文标签。完整补全（06 文档"教练干预"区域 + misconception 靶向干预接入）仍为试点后
 
+### F-14 重启后干预历史 7→10：LCA select 双路径口径漂移 + legacy 路径无界记账（2026-09-09）
+
+- **现象**（Bisen 重启后端观察教师端/家长端）：干预历史从 7 条变 10 条，新增 3 条"时间/类型/说明都一样"
+- **取证**：DB 查实 10 条真实存在，新增 3 条 created_at 分别为 22:41:29 / 22:49:33 / 22:49:59（家长端只显示日期 → "时间一样"是显示截断；类型/说明相同是状态未变，均指向 CREATE 练习型）。3 条 = 重启后 3 次 `/api/question` 拉题（首开答题页 + 2 次 tab 聚焦 refetch）
+- **根因（已查实全链路）**：`select_intervention` 有两条路径，**记账行为不一致**：
+  1. **Plugin 路径**（`lca.py:243-270`）：publish `request_intervention` → PluginRuntime subscriber → Runtime.plan → 结果存插件内存 dict，**不写 `intervention_history` / 不加 `select_count`**。dogfood 期间 57+ 次拉题只积累 7 条老记录，说明此前主要走这条
+  2. **Legacy 兜底路径**：plugin 未启动 / subscriber handler 异常（`bus.publish` 对 handler 异常返 0）→ `engine.select_intervention` **无条件 append**（`orchestrator.py:410`）+ select_count++ + 立即落盘 → 每次拉题记一条
+  - **启动耦合**：PluginRuntime 激活写在 `app.py:1008` `if __name__ == "__main__"` 块——任何非 `python -m web.api.app` 启动方式（flask run / gunicorn / 其他入口）PluginRuntime 根本不注册；且启动时 start() 失败只 warning 不重试。重启一次口径就漂移一次
+- **影响**：① `intervention_history` / `select_count` 增长速率取决于启动方式，试点期间指标不可比；② legacy 路径下历史无界增长（同状态重复决策反复 append），家长端"学习安排"会刷屏；③ 哪条路径服务了本次 select 完全不可观测
+- **方案（已拍板，b + a 都做）**：
+  - **b（启动一致性）**：`plugin_runtime.py` 新增 `ensure_started()`（幂等，失败 warning）；`__main__` 改走它；`lca.py` select 路径在 publish 前 lazy ensure（pytest 环境跳过——防 plugin 路径改写 legacy 测试行为 + 防触碰生产库，v0.98.5 教训）；plugin/legacy 双路径各加 INFO 级服务日志，路径漂移从此可观测
+  - **a（去重记账）**：`orchestrator.py` Step 7 增加指纹比对（全字段 to_dict 去掉 4 个易变键：intervention_id / created_at / expected_gain / expected_risk）——与 last_intervention 相同的重复决策不 append / 不计 select_count / 不重复 record_intervention / 不记 ActionEntry
+- **优先级**：P1（试点数据口径 + 家长端观感）
+- **状态**：📋 已拍板实施中
+
 ## Dogfood 二轮验证结论（2026-09-09，v0.99.0 四链路收口核验）
 
 Bisen 追加 6 题（累计 27 题，含失败/部分分/误解样本），四条链路全部用真实数据核验通过：
