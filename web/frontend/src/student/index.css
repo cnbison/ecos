@@ -763,3 +763,25 @@ textarea.plain {
     padding-bottom: 72px; /* 给底部 Tab 留空间 */
   }
 }
+
+/* ── v0.99.4 (F-01): 学习报告打印支持 ─────────────────────────
+   打印 / 存 PDF 时隐藏应用 chrome (顶栏 / 底部导航 / 控制按钮),
+   报告卡片全宽呈现 */
+@media print {
+  .student-topbar,
+  .bottom-nav,
+  .print-hide {
+    display: none !important;
+  }
+  .content {
+    padding: 0;
+    padding-bottom: 0;
+  }
+  .report-page {
+    max-width: none !important;
+  }
+  .card {
+    box-shadow: none;
+    border: none;
+  }
+}

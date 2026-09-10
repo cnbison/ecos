@@ -151,6 +151,8 @@ export interface Report {
     current_bloom_layer: string;
     bloom_layer_distance: unknown;
     warmup_complete: boolean;
+    /** v0.99.4 (F-01): 后端 app.py 报告 payload 实际下发, 类型契约补齐 */
+    warmup_progress?: { count: number; total: number };
     overall_confidence: number;
   };
   interpretation: Interpretation;

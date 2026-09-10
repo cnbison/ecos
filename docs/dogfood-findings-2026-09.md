@@ -12,7 +12,8 @@
 - **评估**：后端 `/api/report/<sid>` 内容不简陋（summary + interpretation 规则引擎自然语言解读 + 完整 state），简陋的是交付形态——`interpretation` 已生成的人话被埋在 JSON 里，家长/学生无法阅读
 - **方案（已拍板）**：选 C —— 前端 React 渲染 HTML 报告页（interpretation 为主体 + summary 数字，`window.print()` 打印即 PDF）作为主路径；JSON 降级为「导出原始数据（开发者）」次按钮保留
 - **优先级**：P2（不阻塞试点，纯体验项）
-- **状态**：📋 已拍板待做（dogfood 一轮结束后统一处理）
+- **排期更新**：Bisen 拍板 2026-09-10 现在做（理由：方案 C 早已拍板无需再决策；纯前端不碰数据链路；家长/学生唯一能"读懂"系统产出的人话界面，试点观感与 F-12 同性质）
+- **状态**：✅ 已修复（v0.99.4）：新增学生端 `/report` 路由 + `ReportPage`（总评 / 5D 画像表 / Bloom / TC 进展 / 成长轨迹 / 下一步建议六段，全部来自已有 `build_interpretation` 输出；`window.print()` 打印即 PDF，`@media print` 隐藏顶栏/导航/控制按钮）；设置页主入口改为「查看学习报告」，JSON 导出降级为「导出原始数据 (JSON, 开发者)」次按钮（文件名改 `ecos_report_raw_*`）；顺手补齐 `Report.summary.warmup_progress` 前端类型契约（后端实际下发）
 
 ### F-02 今天 TAB「近况感知」挫败感等三维数据恒为默认值（2026-09-08）
 

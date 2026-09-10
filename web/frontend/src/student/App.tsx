@@ -9,6 +9,7 @@ import AnswerPage from "./pages/AnswerPage";
 import WherePage from "./pages/WherePage";
 import GrowthPage from "./pages/GrowthPage";
 import SettingsPage from "./pages/SettingsPage";
+import ReportPage from "./pages/ReportPage";
 
 const LAST_SID_KEY = "ecos_last_student_id";
 
@@ -52,6 +53,8 @@ export default function App() {
           <Route path="/where" element={<WherePage studentId={studentId} />} />
           <Route path="/growth" element={<GrowthPage studentId={studentId} />} />
           <Route path="/settings" element={<SettingsPage studentId={studentId} onLogout={onLogout} />} />
+          {/* v0.99.4 (F-01): 学习报告页 (HTML 可打印, 方案 C) */}
+          <Route path="/report" element={<ReportPage studentId={studentId} />} />
         </Routes>
       </main>
       <nav className="bottom-nav">

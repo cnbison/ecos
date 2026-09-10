@@ -12,6 +12,29 @@
 - **批次标签**：P0（必须修正）→ P1（建议修正）→ P2（可后续）→ P3（优化）
 
 
+## [0.99.4] 2026-09-10 — F-01：学习报告 HTML 报告页（方案 C 落地）
+
+> F-01 于 09-08 一轮 dogfood 立案并拍板方案 C, 一直让位 P1 批次; Bisen 2026-09-10 拍板排期现在做。纯前端, 不碰数据链路。
+
+### add
+
+- **`web/frontend/src/student/pages/ReportPage.tsx`**：学习报告页（`/report` 路由）——interpretation 六段为主体（总评 / 5D 画像表 / Bloom / TC 进展表 / 成长轨迹 / 下一步建议）+ summary 元信息（答题数 / 置信度 / 热身进度 / 引擎版本）；「打印 / 存为 PDF」`window.print()`；`@media print` 隐藏 student-topbar / bottom-nav / 控制按钮（`print-hide` class），报告卡片全宽无边框阴影
+- **`student/index.css`**：`@media print` 块（类名已与 CSS 对齐, 自检 #4）
+- **`components/ui/icons.ts`**：补 FileText / Printer 导出（统一导出口径）
+
+### modify
+
+- **`SettingsPage`**：主入口改为「查看学习报告（可打印 / PDF）」NavLink → `/report`；JSON 导出降级为「导出原始数据 (JSON, 开发者)」次按钮（文件名 `ecos_report_raw_*`）——方案 C 拍板原文执行
+- **`student/types.ts`**：`Report.summary.warmup_progress?` 类型契约补齐（后端 `app.py` 报告 payload 实际下发, 前端类型漏字段）
+- 解读生成失败时后端降级 `{error}` → 报告页显式 error-box（不静默空页）
+
+### 校验
+
+- 前端 tsc / eslint / vitest 36 全绿 + dist 重建；pytest 1623 不变（纯前端 + 类型, 无 Python 行为变更）
+- F-01 状态回写 ✅（dogfood 清单）；版本双源 bump 0.99.3 → 0.99.4
+
+
+
 ## [0.99.3] 2026-09-09 — F-14：LCA select 双路径口径收敛 + 重复决策去重记账
 
 > Bisen 重启后端发现干预历史 7→10（3 条 refetch 重复记账），取证实锤 select 双路径记账行为不一致 + PluginRuntime 激活耦合 `__main__`。记录先行（7cef10e），pytest 1623（+9 新增，4 个旧契约测试按新语义更新）。
